@@ -50,6 +50,7 @@ struct pwm_fan_ctx {
 	struct pwm_fan_tach *tachs;
 	ktime_t sample_start;
 	struct timer_list rpm_timer;
+	bool retain_state_shutdown;
 
 	unsigned int pwm_value;
 	unsigned int pwm_fan_state;
@@ -490,6 +491,8 @@ static int pwm_fan_probe(struct platform_device *pdev)
 
 	mutex_init(&ctx->lock);
 
+	ctx->retain_state_shutdown =
+		of_property_read_bool(dev->of_node, "retain-state-shutdown");
 	ctx->dev = &pdev->dev;
 	ctx->pwm = devm_pwm_get(dev, NULL);
 	if (IS_ERR(ctx->pwm))
@@ -647,7 +650,8 @@ static void pwm_fan_shutdown(struct platform_device *pdev)
 {
 	struct pwm_fan_ctx *ctx = platform_get_drvdata(pdev);
 
-	pwm_fan_cleanup(ctx);
+	if (!ctx->retain_state_shutdown)
+		pwm_fan_cleanup(ctx);
 }
 
 static int pwm_fan_suspend(struct device *dev)
