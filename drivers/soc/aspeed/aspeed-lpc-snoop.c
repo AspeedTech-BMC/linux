@@ -11,7 +11,6 @@
  */
 
 #include <linux/bitops.h>
-#include <linux/clk.h>
 #include <linux/dev_printk.h>
 #include <linux/interrupt.h>
 #include <linux/fs.h>
@@ -83,7 +82,6 @@ struct aspeed_lpc_snoop_channel {
 struct aspeed_lpc_snoop {
 	struct regmap		*regmap;
 	int			irq;
-	struct clk		*clk;
 	struct aspeed_lpc_snoop_channel chan[ASPEED_LPC_SNOOP_INDEX_MAX + 1];
 };
 
@@ -325,10 +323,6 @@ static int aspeed_lpc_snoop_probe(struct platform_device *pdev)
 		return dev_err_probe(dev, PTR_ERR(lpc_snoop->regmap), "Couldn't get regmap\n");
 
 	dev_set_drvdata(&pdev->dev, lpc_snoop);
-
-	lpc_snoop->clk = devm_clk_get_enabled(dev, NULL);
-	if (IS_ERR(lpc_snoop->clk))
-		return dev_err_probe(dev, PTR_ERR(lpc_snoop->clk), "couldn't get clock");
 
 	rc = aspeed_lpc_snoop_config_irq(lpc_snoop, pdev);
 	if (rc)
