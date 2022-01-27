@@ -321,6 +321,8 @@ int i3c_device_do_setdasa(struct i3c_device *dev);
 
 void i3c_device_get_info(const struct i3c_device *dev, struct i3c_device_info *info);
 
+int i3c_device_getstatus_ccc(struct i3c_device *dev, struct i3c_device_info *info);
+
 int i3c_device_generate_ibi(struct i3c_device *dev, const u8 *data, int len);
 
 int i3c_device_pending_read_notify(struct i3c_device *dev,
