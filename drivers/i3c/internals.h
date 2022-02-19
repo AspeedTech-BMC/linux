@@ -10,6 +10,7 @@
 
 #include <linux/i3c/master.h>
 #include <linux/io.h>
+#include <linux/i3c/target.h>
 
 void i3c_bus_normaluse_lock(struct i3c_bus *bus);
 void i3c_bus_normaluse_unlock(struct i3c_bus *bus);
@@ -23,4 +24,5 @@ int i3c_dev_enable_ibi_locked(struct i3c_dev_desc *dev);
 int i3c_dev_request_ibi_locked(struct i3c_dev_desc *dev,
 			       const struct i3c_ibi_setup *req);
 void i3c_dev_free_ibi_locked(struct i3c_dev_desc *dev);
+int i3c_dev_generate_ibi_locked(struct i3c_dev_desc *dev, const u8 *data, int len);
 #endif /* I3C_INTERNAL_H */

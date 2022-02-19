@@ -14,6 +14,7 @@
 #include <linux/i2c.h>
 #include <linux/i3c/ccc.h>
 #include <linux/i3c/device.h>
+#include <linux/i3c/target.h>
 #include <linux/rwsem.h>
 #include <linux/spinlock.h>
 #include <linux/workqueue.h>
@@ -195,10 +196,20 @@ struct i3c_dev_boardinfo {
 };
 
 /**
+ * struct i3c_target_info - target information attached to a specific device
+ * @read handler: handler specified at i3c_target_read_register() call time.
+ */
+
+struct i3c_target_info {
+	void (*read_handler)(struct i3c_device *dev, const u8 *data, size_t len);
+};
+
+/**
  * struct i3c_dev_desc - I3C device descriptor
  * @common: common part of the I3C device descriptor
  * @info: I3C device information. Will be automatically filled when you create
  *	  your device with i3c_master_add_i3c_dev_locked()
+ * @target_info: I3C target information.
  * @ibi_lock: lock used to protect the &struct_i3c_device->ibi
  * @ibi: IBI info attached to a device. Should be NULL until
  *	 i3c_device_request_ibi() is called
@@ -217,6 +228,7 @@ struct i3c_dev_boardinfo {
 struct i3c_dev_desc {
 	struct i3c_i2c_dev_desc common;
 	struct i3c_device_info info;
+	struct i3c_target_info target_info;
 	struct mutex ibi_lock;
 	struct i3c_device_ibi_info *ibi;
 	struct i3c_device *dev;
@@ -499,6 +511,8 @@ struct i3c_master_controller_ops {
  *	 registered to the I2C subsystem to be as transparent as possible to
  *	 existing I2C drivers
  * @ops: master operations. See &struct i3c_master_controller_ops
+ * @target_ops: target operations. See &struct i3c_target_ops
+ * @target: true if the underlying I3C device acts as a target on I3C bus
  * @secondary: true if the master is a secondary master
  * @init_done: true when the bus initialization is done
  * @hotjoin: true if the master support hotjoin
@@ -522,6 +536,8 @@ struct i3c_master_controller {
 	struct i3c_dev_desc *this;
 	struct i2c_adapter i2c;
 	const struct i3c_master_controller_ops *ops;
+	const struct i3c_target_ops *target_ops;
+	unsigned int target : 1;
 	unsigned int secondary : 1;
 	unsigned int init_done : 1;
 	unsigned int hotjoin: 1;
@@ -584,6 +600,12 @@ void i3c_master_unregister(struct i3c_master_controller *master);
 int i3c_master_enable_hotjoin(struct i3c_master_controller *master);
 int i3c_master_disable_hotjoin(struct i3c_master_controller *master);
 
+int i3c_register(struct i3c_master_controller *master,
+		 struct device *parent,
+		 const struct i3c_master_controller_ops *master_ops,
+		 const struct i3c_target_ops *target_ops,
+		 bool secondary);
+int i3c_unregister(struct i3c_master_controller *master);
 /**
  * i3c_dev_get_master_data() - get master private data attached to an I3C
  *			       device descriptor
