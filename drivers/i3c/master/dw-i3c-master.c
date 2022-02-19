@@ -11,6 +11,7 @@
 #include <linux/err.h>
 #include <linux/errno.h>
 #include <linux/i3c/master.h>
+#include <linux/i3c/target.h>
 #include <linux/interrupt.h>
 #include <linux/ioport.h>
 #include <linux/iopoll.h>
@@ -98,7 +99,8 @@
 #define QUEUE_THLD_CTRL_RESP_BUF(x)	(((x) - 1) << 8)
 
 #define DATA_BUFFER_THLD_CTRL		0x20
-#define DATA_BUFFER_THLD_CTRL_RX_BUF	GENMASK(11, 8)
+#define DATA_BUFFER_THLD_TX_START	GENMASK(18, 16)
+#define DATA_BUFFER_THLD_CTRL_RX_BUF	GENMASK(10, 8)
 
 #define IBI_QUEUE_CTRL			0x24
 #define IBI_MR_REQ_REJECT		0x2C
@@ -114,6 +116,8 @@
 #define RESET_CTRL_SOFT			BIT(0)
 
 #define SLV_EVENT_CTRL			0x38
+#define SLV_EVENT_CTRL_SIR_EN		BIT(0)
+
 #define INTR_STATUS			0x3c
 #define INTR_STATUS_EN			0x40
 #define INTR_SIGNAL_EN			0x44
@@ -148,6 +152,11 @@
 #define INTR_MASTER_MASK		(INTR_TRANSFER_ERR_STAT |	\
 					 INTR_RESP_READY_STAT)
 
+#define INTR_TARGET_MASK		(INTR_READ_REQ_RECV_STAT |	\
+					INTR_RESP_READY_STAT |		\
+					INTR_IBI_UPDATED_STAT  |	\
+					INTR_TRANSFER_ERR_STAT)
+
 #define QUEUE_STATUS_LEVEL		0x4c
 #define QUEUE_STATUS_IBI_STATUS_CNT(x)	(((x) & GENMASK(28, 24)) >> 24)
 #define QUEUE_STATUS_IBI_BUF_BLR(x)	(((x) & GENMASK(23, 16)) >> 16)
@@ -165,14 +174,36 @@
 
 #define DEV_CHAR_TABLE_POINTER		0x60
 #define VENDOR_SPECIFIC_REG_POINTER	0x6c
+#define SLV_MIPI_ID_VALUE		0x70
 #define SLV_PID_VALUE			0x74
+#define SLV_PID_HI(x)			(((x) >> 32) & GENMASK(15, 0))
+#define SLV_PID_LO(x)			((x) & GENMASK(31, 0))
 #define SLV_CHAR_CTRL			0x78
+#define SLV_DCR_MASK			GENMASK(15, 8)
+#define SLV_DCR(x)			(((x) << 8) & SLV_DCR_MASK)
+#define SLV_DEVICE_ROLE_MASK		GENMASK(7, 6)
+#define SLV_DEVICE_ROLE(x)		(((x) << 6) & SLV_DEVICE_ROLE_MASK)
+#define SLV_HDR_CAPABLE			BIT(5)
+#define SLV_MAX_DATA_SPEED_LIMIT	BIT(0)
+
 #define SLV_MAX_LEN			0x7c
+#define SLV_MAX_RD_LEN(x)		(((x) & GENMASK(31, 16)) >> 16)
+#define SLV_MAX_WR_LEN(x)		((x) & GENMASK(15, 0))
+
 #define MAX_READ_TURNAROUND		0x80
 #define MAX_DATA_SPEED			0x84
 #define SLV_DEBUG_STATUS		0x88
 #define SLV_INTR_REQ			0x8c
+#define SLV_INTR_REQ_IBI_STS(x)		(((x) & GENMASK(9, 8)) >> 8)
+#define IBI_STS_ACCEPTED		0x01
+#define IBI_STS_NOT_ATTEMPTED		0x11
+
 #define DEVICE_CTRL_EXTENDED		0xb0
+#define DEVICE_CTRL_EXTENDED_MODE_MASK	GENMASK(1, 0)
+#define DEVICE_CTRL_EXTENDED_MODE(x)	((x) & DEVICE_CTRL_EXTENDED_MODE_MASK)
+#define DEV_OPERATION_MODE_CONTROLLER	0x00
+#define DEV_OPERATION_MODE_TARGET	0x01
+
 #define SCL_I3C_OD_TIMING		0xb4
 #define SCL_I3C_PP_TIMING		0xb8
 #define SCL_I3C_TIMING_HCNT(x)		(((x) << 16) & GENMASK(23, 16))
@@ -195,6 +226,8 @@
 
 #define SCL_EXT_TERMN_LCNT_TIMING	0xcc
 #define BUS_FREE_TIMING			0xd4
+#define BUS_AVAIL_TIME(x)		(((x) << 16) & GENMASK(31, 16))
+#define MAX_BUS_AVAIL_CNT		0xffffU
 #define BUS_I3C_MST_FREE(x)		((x) & GENMASK(15, 0))
 
 #define BUS_IDLE_TIMING			0xd8
@@ -650,11 +683,101 @@ static int dw_i2c_clk_cfg(struct dw_i3c_master *master)
 	return 0;
 }
 
-static int dw_i3c_master_bus_init(struct i3c_master_controller *m)
+static int dw_i3c_bus_clk_cfg(struct i3c_master_controller *m)
 {
 	struct dw_i3c_master *master = to_dw_i3c_master(m);
 	struct i3c_bus *bus = i3c_master_get_bus(m);
+	int ret;
+
+	switch (bus->mode) {
+	case I3C_BUS_MODE_MIXED_FAST:
+	case I3C_BUS_MODE_MIXED_LIMITED:
+		ret = dw_i2c_clk_cfg(master);
+		if (ret)
+			return ret;
+		fallthrough;
+	case I3C_BUS_MODE_PURE:
+		ret = dw_i3c_clk_cfg(master);
+		if (ret)
+			return ret;
+		break;
+	default:
+		ret = -EINVAL;
+		return ret;
+	}
+
+	return 0;
+}
+
+static int dw_i3c_target_bus_init(struct i3c_master_controller *m)
+{
+	struct dw_i3c_master *master = to_dw_i3c_master(m);
+	struct i3c_dev_desc *desc = master->base.this;
+	void *rx_buf;
+	u32 reg;
+	int ret;
+
+	ret = dw_i3c_bus_clk_cfg(m);
+	if (ret)
+		return ret;
+
+	reg = readl(master->regs + SLV_MAX_LEN);
+	/*
+	 * Set max private write length value based on read-only register.
+	 * TODO: Handle updates after receiving SETMWL CCC.
+	 */
+	master->target.rx.max_len = SLV_MAX_WR_LEN(reg);
+
+	rx_buf = kzalloc(master->target.rx.max_len, GFP_KERNEL);
+	if (!rx_buf)
+		return -ENOMEM;
+
+	master->target.rx.buf = rx_buf;
+
+	dw_i3c_master_disable(master);
+
+	reg = readl(master->regs + QUEUE_THLD_CTRL) & ~QUEUE_THLD_CTRL_RESP_BUF_MASK;
+	writel(reg, master->regs + QUEUE_THLD_CTRL);
+
+	reg = readl(master->regs + DATA_BUFFER_THLD_CTRL) & ~DATA_BUFFER_THLD_CTRL_RX_BUF;
+	writel(reg, master->regs + DATA_BUFFER_THLD_CTRL);
+
+	writel(INTR_ALL, master->regs + INTR_STATUS);
+	writel(INTR_TARGET_MASK, master->regs + INTR_STATUS_EN);
+	writel(INTR_TARGET_MASK, master->regs + INTR_SIGNAL_EN);
+
+	reg = readl(master->regs + DEVICE_CTRL_EXTENDED) & ~DEVICE_CTRL_EXTENDED_MODE_MASK;
+	reg |= DEVICE_CTRL_EXTENDED_MODE(DEV_OPERATION_MODE_TARGET);
+	writel(reg, master->regs + DEVICE_CTRL_EXTENDED);
+
+	writel(SLV_PID_LO(desc->info.pid), master->regs + SLV_PID_VALUE);
+	writel(SLV_PID_HI(desc->info.pid), master->regs + SLV_MIPI_ID_VALUE);
+
+	reg = readl(master->regs + SLV_CHAR_CTRL) & ~SLV_DCR_MASK & ~SLV_DEVICE_ROLE_MASK;
+	reg |= SLV_DCR(desc->info.dcr) | SLV_DEVICE_ROLE(0);
+	writel(reg, master->regs + SLV_CHAR_CTRL);
+
+	reg = readl(master->regs + BUS_FREE_TIMING) | BUS_AVAIL_TIME(MAX_BUS_AVAIL_CNT);
+	writel(reg, master->regs + BUS_FREE_TIMING);
+
+	dw_i3c_master_enable(master);
+
+	return 0;
+}
+
+static void dw_i3c_target_bus_cleanup(struct i3c_master_controller *m)
+{
+	struct dw_i3c_master *master = to_dw_i3c_master(m);
+
+	dw_i3c_master_disable(master);
+	kfree(master->target.rx.buf);
+}
+
+static int dw_i3c_master_bus_init(struct i3c_master_controller *m)
+{
+	struct dw_i3c_master *master = to_dw_i3c_master(m);
 	struct i3c_device_info info = { };
+	u32 thld_ctrl;
 	int ret;
 
 	ret = pm_runtime_resume_and_get(master->dev);
@@ -669,22 +792,27 @@ static int dw_i3c_master_bus_init(struct i3c_master_controller *m)
 	if (ret)
 		goto rpm_out;
 
-	switch (bus->mode) {
-	case I3C_BUS_MODE_MIXED_FAST:
-	case I3C_BUS_MODE_MIXED_LIMITED:
-		ret = dw_i2c_clk_cfg(master);
-		if (ret)
-			goto rpm_out;
-		fallthrough;
-	case I3C_BUS_MODE_PURE:
-		ret = dw_i3c_clk_cfg(master);
-		if (ret)
-			goto rpm_out;
-		break;
-	default:
-		ret = -EINVAL;
+	spin_lock_init(&master->devs_lock);
+
+	ret = dw_i3c_bus_clk_cfg(m);
+	if (ret)
 		goto rpm_out;
-	}
+
+	thld_ctrl = readl(master->regs + QUEUE_THLD_CTRL);
+	thld_ctrl &= ~(QUEUE_THLD_CTRL_RESP_BUF_MASK |
+		       QUEUE_THLD_CTRL_IBI_STAT_MASK |
+		       QUEUE_THLD_CTRL_IBI_STAT_MASK);
+	thld_ctrl |= QUEUE_THLD_CTRL_IBI_STAT(1) |
+		QUEUE_THLD_CTRL_IBI_DATA(31);
+	writel(thld_ctrl, master->regs + QUEUE_THLD_CTRL);
+
+	thld_ctrl = readl(master->regs + DATA_BUFFER_THLD_CTRL);
+	thld_ctrl &= ~DATA_BUFFER_THLD_CTRL_RX_BUF;
+	writel(thld_ctrl, master->regs + DATA_BUFFER_THLD_CTRL);
+
+	writel(INTR_ALL, master->regs + INTR_STATUS);
+	writel(INTR_MASTER_MASK, master->regs + INTR_STATUS_EN);
+	writel(INTR_MASTER_MASK, master->regs + INTR_SIGNAL_EN);
 
 	ret = i3c_master_get_free_addr(m, 0);
 	if (ret < 0)
@@ -995,6 +1123,72 @@ static int dw_i3c_master_priv_xfers(struct i3c_dev_desc *dev,
 	return ret;
 }
 
+static int dw_i3c_target_priv_xfers(struct i3c_dev_desc *dev,
+				    struct i3c_priv_xfer *i3c_xfers,
+				    int i3c_nxfers)
+{
+	struct i3c_master_controller *m = i3c_dev_get_master(dev);
+	struct dw_i3c_master *master = to_dw_i3c_master(m);
+	struct dw_i3c_xfer *xfer;
+	int i;
+
+	if (!i3c_nxfers)
+		return 0;
+
+	xfer = dw_i3c_master_alloc_xfer(master, i3c_nxfers);
+	if (!xfer)
+		return -ENOMEM;
+
+	for (i = 0; i < i3c_nxfers; i++) {
+		struct dw_i3c_cmd *cmd = &xfer->cmds[i];
+
+		if (!i3c_xfers[i].rnw) {
+			cmd->tx_buf = i3c_xfers[i].data.out;
+			cmd->tx_len = i3c_xfers[i].len;
+			cmd->cmd_lo = 0 | (i << 3) | (cmd->tx_len << 16);
+
+			dw_i3c_master_wr_tx_fifo(master, cmd->tx_buf, cmd->tx_len);
+			writel(cmd->cmd_lo, master->regs + COMMAND_QUEUE_PORT);
+		}
+	}
+
+	dw_i3c_master_free_xfer(xfer);
+
+	return 0;
+}
+
+static int dw_i3c_target_generate_ibi(struct i3c_dev_desc *dev, const u8 *data, int len)
+{
+	struct i3c_master_controller *m = i3c_dev_get_master(dev);
+	struct dw_i3c_master *master = to_dw_i3c_master(m);
+	u32 reg;
+
+	if (data || len != 0)
+		return -EOPNOTSUPP;
+
+	reg = readl(master->regs + SLV_EVENT_CTRL);
+	if ((reg & SLV_EVENT_CTRL_SIR_EN) == 0)
+		return -EPERM;
+
+	init_completion(&master->target.comp);
+	writel(1, master->regs + SLV_INTR_REQ);
+
+	if (!wait_for_completion_timeout(&master->target.comp, XFER_TIMEOUT)) {
+		pr_warn("timeout waiting for completion\n");
+		return -EINVAL;
+	}
+
+	reg = readl(master->regs + SLV_INTR_REQ);
+	if (SLV_INTR_REQ_IBI_STS(reg) != IBI_STS_ACCEPTED) {
+		reg = readl(master->regs + SLV_EVENT_CTRL);
+		if ((reg & SLV_EVENT_CTRL_SIR_EN) == 0)
+			pr_warn("sir is disabled by master\n");
+		return -EACCES;
+	}
+
+	return 0;
+}
+
 static int dw_i3c_master_reattach_i3c_dev(struct i3c_dev_desc *dev,
 					  u8 old_dyn_addr)
 {
@@ -1163,6 +1357,7 @@ static int dw_i3c_master_attach_i2c_dev(struct i2c_dev_desc *dev)
 	data->index = pos;
 	master->devs[pos].addr = dev->addr;
 	master->devs[pos].is_i2c_addr = true;
+	master->devs[pos].addr = dev->addr;
 	master->free_pos &= ~BIT(pos);
 	i2c_dev_set_master_data(dev, data);
 
@@ -1477,6 +1672,29 @@ static void dw_i3c_master_irq_handle_ibis(struct dw_i3c_master *master)
 	}
 }
 
+static void dw_i3c_target_handle_response_ready(struct dw_i3c_master *master)
+{
+	struct i3c_dev_desc *desc = master->base.this;
+	u32 reg = readl(master->regs + QUEUE_STATUS_LEVEL);
+	u32 nresp = QUEUE_STATUS_LEVEL_RESP(reg);
+	int i;
+
+	for (i = 0; i < nresp; i++) {
+		u32 resp = readl(master->regs + RESPONSE_QUEUE_PORT);
+		u32 nbytes = RESPONSE_PORT_DATA_LEN(resp);
+
+		if (nbytes > master->target.rx.max_len) {
+			dev_warn(&master->base.dev, "private write data length is larger than max\n");
+			return;
+		}
+
+		dw_i3c_master_read_rx_fifo(master, master->target.rx.buf, nbytes);
+
+		if (desc->target_info.read_handler)
+			desc->target_info.read_handler(desc->dev, master->target.rx.buf, nbytes);
+	}
+}
+
 static irqreturn_t dw_i3c_master_irq_handler(int irq, void *dev_id)
 {
 	struct dw_i3c_master *master = dev_id;
@@ -1487,6 +1705,26 @@ static irqreturn_t dw_i3c_master_irq_handler(int irq, void *dev_id)
 	if (!(status & readl(master->regs + INTR_STATUS_EN))) {
 		writel(INTR_ALL, master->regs + INTR_STATUS);
 		return IRQ_NONE;
+	}
+
+	if (master->base.target) {
+		if (status & INTR_IBI_UPDATED_STAT) {
+			writel(INTR_IBI_UPDATED_STAT, master->regs + INTR_STATUS);
+			complete(&master->target.comp);
+		}
+
+		if (status & INTR_READ_REQ_RECV_STAT) {
+			/*
+			 * TODO: Pass this information to the driver to take
+			 * appropriate action.
+			 */
+			dev_dbg(&master->base.dev,
+				"private read received from controller when cmd queue is empty\n");
+			writel(INTR_READ_REQ_RECV_STAT, master->regs + INTR_STATUS);
+		}
+
+		if (status & INTR_RESP_READY_STAT)
+			dw_i3c_target_handle_response_ready(master);
 	}
 
 	spin_lock(&master->xferqueue.lock);
@@ -1500,6 +1738,13 @@ static irqreturn_t dw_i3c_master_irq_handler(int irq, void *dev_id)
 
 	return IRQ_HANDLED;
 }
+
+static const struct i3c_target_ops dw_mipi_i3c_target_ops = {
+	.bus_init = dw_i3c_target_bus_init,
+	.bus_cleanup = dw_i3c_target_bus_cleanup,
+	.priv_xfers = dw_i3c_target_priv_xfers,
+	.generate_ibi = dw_i3c_target_generate_ibi,
+};
 
 static const struct i3c_master_controller_ops dw_mipi_i3c_ops = {
 	.bus_init = dw_i3c_master_bus_init,
@@ -1608,8 +1853,9 @@ int dw_i3c_common_probe(struct dw_i3c_master *master,
 	master->free_pos = GENMASK(master->maxdevs - 1, 0);
 
 	INIT_WORK(&master->hj_work, dw_i3c_hj_work);
-	ret = i3c_master_register(&master->base, &pdev->dev,
-				  &dw_mipi_i3c_ops, false);
+
+	ret = i3c_register(&master->base, &pdev->dev, &dw_mipi_i3c_ops,
+			   &dw_mipi_i3c_target_ops, false);
 	if (ret)
 		goto err_disable_pm;
 
@@ -1630,7 +1876,7 @@ EXPORT_SYMBOL_GPL(dw_i3c_common_probe);
 void dw_i3c_common_remove(struct dw_i3c_master *master)
 {
 	cancel_work_sync(&master->hj_work);
-	i3c_master_unregister(&master->base);
+	i3c_unregister(&master->base);
 
 	pm_runtime_disable(master->dev);
 	pm_runtime_set_suspended(master->dev);

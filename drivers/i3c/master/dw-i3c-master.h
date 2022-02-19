@@ -69,6 +69,18 @@ struct dw_i3c_master {
 	const struct dw_i3c_platform_ops *platform_ops;
 
 	struct work_struct hj_work;
+	/* target mode data */
+
+	struct {
+		struct completion comp;
+		struct completion rdata_comp;
+
+		/* Used for handling private write */
+		struct {
+			void *buf;
+			u16 max_len;
+		} rx;
+	} target;
 };
 
 struct dw_i3c_platform_ops {
