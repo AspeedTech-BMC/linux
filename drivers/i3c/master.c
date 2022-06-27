@@ -2266,7 +2266,9 @@ i3c_master_search_i3c_dev_duplicate(struct i3c_dev_desc *refdev)
 	struct i3c_dev_desc *i3cdev;
 
 	i3c_bus_for_each_i3cdev(&master->bus, i3cdev) {
-		if (i3cdev != refdev && i3cdev->info.pid == refdev->info.pid)
+		/* Skip the I3C dev representing this master. */
+		if (i3cdev != master->this && i3cdev != refdev &&
+		    i3cdev->info.pid == refdev->info.pid)
 			return i3cdev;
 	}
 
