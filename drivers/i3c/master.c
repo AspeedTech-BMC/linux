@@ -103,6 +103,7 @@ static struct i3c_master_controller *dev_to_i3cmaster(struct device *dev)
 }
 
 static const struct device_type i3c_device_type;
+static const struct device_type i3c_target_device_type;
 
 static struct i3c_bus *dev_to_i3cbus(struct device *dev)
 {
@@ -120,7 +121,8 @@ static struct i3c_dev_desc *dev_to_i3cdesc(struct device *dev)
 {
 	struct i3c_master_controller *master;
 
-	if (dev->type == &i3c_device_type)
+	if (dev->type == &i3c_device_type ||
+	    dev->type == &i3c_target_device_type)
 		return dev_to_i3cdev(dev)->desc;
 
 	master = dev_to_i3cmaster(dev);
@@ -316,7 +318,14 @@ static const struct device_type i3c_device_type = {
 	.uevent = i3c_device_uevent,
 };
 
-const struct device_type i3c_target_device_type = {
+static struct attribute *i3c_target_device_attrs[] = {
+	&dev_attr_dynamic_address.attr,
+	NULL,
+};
+ATTRIBUTE_GROUPS(i3c_target_device);
+
+static const struct device_type i3c_target_device_type = {
+	.groups = i3c_target_device_groups,
 };
 
 static int i3c_device_match(struct device *dev, struct device_driver *drv)
