@@ -1987,8 +1987,15 @@ int i3c_master_do_daa(struct i3c_master_controller *master)
 
 	i3c_bus_maintenance_lock(&master->bus);
 	if (master->bus.context == I3C_BUS_CONTEXT_JESD403) {
-		i3c_master_sethid_locked(master);
-		i3c_master_setaasa_locked(master);
+		/* Save init done flag and clear it to allow send CCC in order to switch SPD JEDEC
+		 * device into I3C mode even after bus was initialized.
+		 */
+		bool init_done = master->init_done;
+
+		master->init_done = false;
+		ret = i3c_master_sethid_locked(master);
+		ret = i3c_master_setaasa_locked(master);
+		master->init_done = init_done;
 	} else {
 		ret = master->ops->do_daa(master);
 	}
