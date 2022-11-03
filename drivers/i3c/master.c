@@ -2177,6 +2177,25 @@ err_detach_devs:
 
 static void i3c_master_bus_cleanup(struct i3c_master_controller *master)
 {
+	int ret;
+
+	i3c_bus_maintenance_lock(&master->bus);
+	/* Disable all slave events before starting DAA. */
+	ret = i3c_master_disec_locked(master, I3C_BROADCAST_ADDR,
+				      I3C_CCC_EVENT_SIR | I3C_CCC_EVENT_MR |
+				      I3C_CCC_EVENT_HJ);
+	if (ret && ret != I3C_ERROR_M2)
+		dev_dbg(&master->dev, "failed to send DISEC, ret=%i\n", ret);
+
+	/*
+	 * Reset all dynamic address that may have been assigned before
+	 * (assigned by the bootloader for example).
+	 */
+	ret = i3c_master_rstdaa_locked(master, I3C_BROADCAST_ADDR);
+	if (ret && ret != I3C_ERROR_M2)
+		dev_dbg(&master->dev, "failed to send RSTDAA, ret=%i\n", ret);
+	i3c_bus_maintenance_unlock(&master->bus);
+
 	if (master->ops->bus_cleanup)
 		master->ops->bus_cleanup(master);
 
