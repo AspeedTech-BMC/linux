@@ -466,6 +466,12 @@ static int i3c_mctp_enable_ibi(struct i3c_device *i3cdev)
 	return ret;
 }
 
+static void i3c_mctp_disable_ibi(struct i3c_device *i3cdev)
+{
+	i3c_device_disable_ibi(i3cdev);
+	i3c_device_free_ibi(i3cdev);
+}
+
 /**
  * i3c_mctp_get_eid() - receive MCTP EID assigned to the device
  *
@@ -545,6 +551,31 @@ struct i3c_mctp_packet *i3c_mctp_receive_packet(struct i3c_mctp_client *client,
 }
 EXPORT_SYMBOL_GPL(i3c_mctp_receive_packet);
 
+static void i3c_mctp_i3c_event_cb(struct i3c_device *dev, enum i3c_event event)
+{
+	struct i3c_mctp *priv = dev_get_drvdata(i3cdev_to_dev(dev));
+
+	switch (event) {
+	case i3c_event_prepare_for_rescan:
+		/*
+		 * Disable IBI and polling mode blindly.
+		 */
+		i3c_mctp_disable_ibi(dev);
+		cancel_delayed_work(&priv->polling_work);
+		break;
+	case i3c_event_rescan_done:
+		if (i3c_mctp_enable_ibi(dev)) {
+			INIT_DELAYED_WORK(&priv->polling_work,
+					  i3c_mctp_polling_work);
+			schedule_delayed_work(&priv->polling_work,
+					      msecs_to_jiffies(POLLING_TIMEOUT_MS));
+		}
+		break;
+	default:
+		break;
+	}
+}
+
 static int i3c_mctp_probe(struct i3c_device *i3cdev)
 {
 	int ibi_payload_size = I3C_MCTP_IBI_PAYLOAD_SIZE;
@@ -588,6 +619,7 @@ static int i3c_mctp_probe(struct i3c_device *i3cdev)
 	if (IS_ERR(priv->i3c_peci))
 		dev_warn(priv->dev, "failed to register peci-i3c device\n");
 
+	i3c_device_register_event_cb(i3cdev, i3c_mctp_i3c_event_cb);
 	if (i3c_mctp_enable_ibi(i3cdev)) {
 		INIT_DELAYED_WORK(&priv->polling_work, i3c_mctp_polling_work);
 		schedule_delayed_work(&priv->polling_work, msecs_to_jiffies(POLLING_TIMEOUT_MS));
@@ -632,8 +664,7 @@ static void i3c_mctp_remove(struct i3c_device *i3cdev)
 {
 	struct i3c_mctp *priv = dev_get_drvdata(i3cdev_to_dev(i3cdev));
 
-	i3c_device_disable_ibi(i3cdev);
-	i3c_device_free_ibi(i3cdev);
+	i3c_mctp_disable_ibi(i3cdev);
 	i3c_mctp_client_free(priv->default_client);
 	priv->default_client = NULL;
 	platform_device_unregister(priv->i3c_peci);
