@@ -412,10 +412,14 @@ int i3c_device_control_pec(struct i3c_device *dev, bool pec);
 /**
  * enum i3c_event - List of possible events could be send/published to
  *		    registered devices.
- * @i3c_event_dummy: Dummy event. Shall be removed once any other event added.
+ * @i3c_event_prepare_for_rescan: Event send when controller driver is going to
+ *				  run bus discovery again.
+ * @i3c_event_rescan_done: Event send when controller driver run bus discovery
+ *			   again.
  */
 enum i3c_event {
-	i3c_event_dummy = 0,
+	i3c_event_prepare_for_rescan = 0,
+	i3c_event_rescan_done,
 };
 
 /**

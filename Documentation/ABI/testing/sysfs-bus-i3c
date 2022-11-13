@@ -88,6 +88,13 @@ Description:
 		This entry describes the HDRCAP of the master controller
 		driving the bus.
 
+What:		/sys/bus/i3c/devices/i3c-<bus-id>/rescan
+KernelVersion:  5.4
+Contact:	Oleksandr Shulzhenko <oleksandr.shulzhenko.viktorovych@intel.com>
+Description:
+		Writing a non-zero value to this attribute initiates re-scan for all
+		the I3C devices on the masters bus.
+
 What:		/sys/bus/i3c/devices/i3c-<bus-id>/<bus-id>-<device-pid>
 KernelVersion:  5.0
 Contact:	linux-i3c@vger.kernel.org
