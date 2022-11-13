@@ -412,4 +412,21 @@ int i3c_target_read_register(struct i3c_device *dev, const struct i3c_target_rea
 
 int i3c_device_control_pec(struct i3c_device *dev, bool pec);
 
+/**
+ * enum i3c_event - List of possible events could be send/published to
+ *		    registered devices.
+ * @i3c_event_dummy: Dummy event. Shall be removed once any other event added.
+ */
+enum i3c_event {
+	i3c_event_dummy = 0,
+};
+
+/**
+ * i3c_event_cb - callback registered by device driver and used by controller
+ *		  driver to publish event.
+ */
+typedef void (*i3c_event_cb)(struct i3c_device *dev, enum i3c_event event);
+
+void i3c_device_register_event_cb(struct i3c_device *dev, i3c_event_cb cb);
+
 #endif /* I3C_DEV_H */

@@ -455,6 +455,20 @@ int i3c_device_control_pec(struct i3c_device *dev, bool pec)
 EXPORT_SYMBOL_GPL(i3c_device_control_pec);
 
 /**
+ * i3c_device_register_event_cb() - register callback for I3C framework event.
+ * @dev: the I3C device driver handle.
+ * @ev: I3C framework event callback
+ *
+ * This function allows I3C device driver to register for I3C framework events.
+ * Provided callback will be used by controller driver to publish events.
+ */
+void i3c_device_register_event_cb(struct i3c_device *dev, i3c_event_cb event_cb)
+{
+	dev->desc->event_cb = event_cb;
+}
+EXPORT_SYMBOL_GPL(i3c_device_register_event_cb);
+
+/**
  * i3c_device_setmrl_ccc() - set maximum read length
  *
  * @dev: I3C device to set the length for

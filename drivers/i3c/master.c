@@ -539,6 +539,23 @@ static const char * const i3c_bus_mode_strings[] = {
 	[I3C_BUS_MODE_MIXED_SLOW] = "mixed-slow",
 };
 
+/**
+ * i3c_device_publish_event() - publish I3C framework event to all interested
+ *				devices
+ * @master: master used to handle devices
+ * @ev: I3C framework event to publish
+ */
+static __maybe_unused void i3c_device_publish_event(struct i3c_master_controller *master,
+						    enum i3c_event ev)
+{
+	struct i3c_dev_desc *i3cdev;
+
+	i3c_bus_for_each_i3cdev(&master->bus, i3cdev) {
+		if (i3cdev->event_cb)
+			i3cdev->event_cb(i3cdev->dev, ev);
+	}
+}
+
 static ssize_t mode_show(struct device *dev,
 			 struct device_attribute *da,
 			 char *buf)
@@ -2277,6 +2294,7 @@ int i3c_master_add_i3c_dev_locked(struct i3c_master_controller *master,
 	olddev = i3c_master_search_i3c_dev_duplicate(newdev);
 	if (olddev) {
 		newdev->dev = olddev->dev;
+		newdev->event_cb = olddev->event_cb;
 		if (newdev->dev)
 			newdev->dev->desc = newdev;
 
