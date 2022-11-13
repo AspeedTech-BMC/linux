@@ -211,6 +211,8 @@ struct i3c_target_info {
  *	 code should manipulate it in when updating the dev <-> desc link or
  *	 when propagating IBI events to the driver
  * @boardinfo: pointer to the boardinfo attached to this I3C device
+ * @event_cb: I3C framework event callback used to publish events to registered
+ *	      devices' drivers
  *
  * Internal representation of an I3C device. This object is only used by the
  * core and passed to I3C master controller drivers when they're requested to
@@ -226,6 +228,7 @@ struct i3c_dev_desc {
 	struct i3c_device_ibi_info *ibi;
 	struct i3c_device *dev;
 	const struct i3c_dev_boardinfo *boardinfo;
+	i3c_event_cb event_cb;
 };
 
 /**
