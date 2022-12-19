@@ -188,13 +188,19 @@ static ssize_t dynamic_address_show(struct device *dev,
 				    struct device_attribute *da,
 				    char *buf)
 {
+	struct i3c_dev_desc *desc = dev_to_i3cdesc(dev);
+	struct i3c_master_controller *master = i3c_dev_get_master(desc);
 	struct i3c_bus *bus = dev_to_i3cbus(dev);
-	struct i3c_dev_desc *desc;
 	ssize_t ret;
+	u8 dyn_addr;
 
 	i3c_bus_normaluse_lock(bus);
-	desc = dev_to_i3cdesc(dev);
-	ret = sprintf(buf, "%02x\n", desc->info.dyn_addr);
+	if (master->target && master->target_ops->get_dyn_addr)
+		dyn_addr = master->target_ops->get_dyn_addr(master);
+	else
+		dyn_addr = desc->info.dyn_addr;
+
+	ret = sprintf(buf, "%02x\n", dyn_addr);
 	i3c_bus_normaluse_unlock(bus);
 
 	return ret;
