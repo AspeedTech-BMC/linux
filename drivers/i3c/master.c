@@ -112,7 +112,8 @@ static struct i3c_bus *dev_to_i3cbus(struct device *dev)
 {
 	struct i3c_master_controller *master;
 
-	if (dev->type == &i3c_device_type)
+	if (dev->type == &i3c_device_type ||
+	    dev->type == &i3c_target_device_type)
 		return dev_to_i3cdev(dev)->bus;
 
 	master = dev_to_i3cmaster(dev);
