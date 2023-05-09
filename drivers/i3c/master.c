@@ -1927,9 +1927,7 @@ int i3c_master_do_daa(struct i3c_master_controller *master)
 	if (ret)
 		return ret;
 
-	i3c_bus_normaluse_lock(&master->bus);
 	i3c_master_register_new_i3c_devs(master);
-	i3c_bus_normaluse_unlock(&master->bus);
 
 	return 0;
 }
@@ -3151,7 +3149,6 @@ int i3c_master_register(struct i3c_master_controller *master,
 	 * register I3C devices discovered during the initial DAA.
 	 */
 	master->init_done = true;
-	i3c_bus_normaluse_lock(&master->bus);
 	i3c_master_register_new_i3c_devs(master);
 #ifdef CONFIG_I3C_SLAVE_MQUEUE
 	if (master->secondary)
@@ -3162,7 +3159,6 @@ int i3c_master_register(struct i3c_master_controller *master,
 	if (master->secondary)
 		i3c_slave_eeprom_probe(master);
 #endif
-	i3c_bus_normaluse_unlock(&master->bus);
 
 	return 0;
 
