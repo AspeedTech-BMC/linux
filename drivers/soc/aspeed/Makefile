@@ -12,6 +12,7 @@ obj-$(CONFIG_ASPEED_UDMA)		+= aspeed-udma.o
 obj-$(CONFIG_ASPEED_PCIE_MMBI)		+= aspeed-pcie-mmbi.o
 obj-$(CONFIG_AST2500_ESPI)		+= ast2500-espi.o
 obj-$(CONFIG_AST2600_ESPI)		+= ast2600-espi.o
+obj-$(CONFIG_AST2700_ESPI)		+= ast2700-espi.o
 obj-$(CONFIG_ASPEED_LPC_MAILBOX)	+= aspeed-lpc-mbox.o
 obj-$(CONFIG_ASPEED_LPC_CTRL)		+= aspeed-lpc-ctrl.o
 obj-$(CONFIG_ASPEED_LPC_SNOOP)		+= aspeed-lpc-snoop.o

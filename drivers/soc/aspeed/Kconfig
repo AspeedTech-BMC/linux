@@ -138,6 +138,12 @@ config AST2600_ESPI
 	help
 	  Enable driver support for Aspeed AST2600 eSPI engine.
 
+config AST2700_ESPI
+	bool
+	depends on ASPEED_ESPI
+	help
+	  Enable driver support for Aspeed AST2600 eSPI engine.
+
 config ASPEED_LPC_PCC
 	tristate "Aspeed Post Code Capture support"
 	depends on SOC_ASPEED && REGMAP && MFD_SYSCON
