@@ -120,6 +120,24 @@ config ASPEED_UDMA
 config ASPEED_PCIE_MMBI
 	tristate "ASPEED PCIE MMBI"
 
+config ASPEED_ESPI
+	bool "ASPEED eSPI slave driver"
+	select AST2500_ESPI if MACH_ASPEED_G5
+	select AST2600_ESPI if MACH_ASPEED_G6
+	default n
+
+config AST2500_ESPI
+	bool
+	depends on ASPEED_ESPI
+	help
+	  Enable driver support for Aspeed AST2500 eSPI engine.
+
+config AST2600_ESPI
+	bool
+	depends on ASPEED_ESPI
+	help
+	  Enable driver support for Aspeed AST2600 eSPI engine.
+
 config ASPEED_LPC_PCC
 	tristate "Aspeed Post Code Capture support"
 	depends on SOC_ASPEED && REGMAP && MFD_SYSCON
