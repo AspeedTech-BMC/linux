@@ -477,6 +477,8 @@ static void __aspeed_gpio_set(struct gpio_chip *gc, unsigned int offset,
 	gpio->dcache[GPIO_BANK(offset)] = reg;
 
 	iowrite32(reg, addr);
+	// Dummy read
+	ioread32(addr);
 }
 
 static void __aspeed_g7_gpio_set(struct gpio_chip *gc, unsigned int offset,
