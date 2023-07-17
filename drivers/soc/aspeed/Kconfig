@@ -99,6 +99,14 @@ config ASPEED_DISP_INTF
 	help
 	  Say yes to support control the display interface of ASPEED BMC.
 
+config ASPEED_UDMA
+	tristate "Aspeed UDMA Engine Driver"
+	depends on ARCH_ASPEED && REGMAP && MFD_SYSCON && HAS_DMA
+	help
+	  Enable support for the Aspeed UDMA Engine found on the Aspeed AST2XXX
+	  SOCs. The UDMA engine can perform UART DMA operations between the memory
+	  buffer and the UART/VUART devices.
+
 endmenu
 
 endif
