@@ -634,6 +634,7 @@ static ssize_t rescan_store(struct device *dev, struct device_attribute *attr,
 	if (ret && ret != I3C_ERROR_M2) {
 		dev_dbg(&master->dev,
 			"Failed to run RSTDAA for rescan, ret=%d\n", ret);
+		i3c_bus_maintenance_unlock(bus);
 		return ret;
 	}
 
