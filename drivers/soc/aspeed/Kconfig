@@ -127,19 +127,19 @@ config ASPEED_ESPI
 	default n
 
 config AST2500_ESPI
-	bool
+	tristate
 	depends on ASPEED_ESPI
 	help
 	  Enable driver support for Aspeed AST2500 eSPI engine.
 
 config AST2600_ESPI
-	bool
+	tristate
 	depends on ASPEED_ESPI
 	help
 	  Enable driver support for Aspeed AST2600 eSPI engine.
 
 config AST2700_ESPI
-	bool
+	tristate
 	depends on ASPEED_ESPI
 	help
 	  Enable driver support for Aspeed AST2600 eSPI engine.
