@@ -2246,6 +2246,8 @@ of_i3c_master_add_i3c_boardinfo(struct i3c_master_controller *master,
 	struct device *dev = &master->dev;
 	enum i3c_addr_slot_status addrstatus;
 	u32 init_dyn_addr = 0;
+	u8 bcr = 0;
+	u8 dcr = 0;
 
 	boardinfo = devm_kzalloc(dev, sizeof(*boardinfo), GFP_KERNEL);
 	if (!boardinfo)
@@ -2278,6 +2280,16 @@ of_i3c_master_add_i3c_boardinfo(struct i3c_master_controller *master,
 	if ((boardinfo->pid & GENMASK_ULL(63, 48)) ||
 	    I3C_PID_RND_LOWER_32BITS(boardinfo->pid))
 		return -EINVAL;
+
+	if (!of_property_read_u8(node, "dcr", &dcr)) {
+		if (dcr > I3C_DCR_MAX)
+			return -EINVAL;
+
+		boardinfo->dcr = dcr;
+	}
+
+	if (!of_property_read_u8(node, "bcr", &bcr))
+		boardinfo->bcr = bcr;
 
 	boardinfo->init_dyn_addr = init_dyn_addr;
 	boardinfo->of_node = of_node_get(node);
