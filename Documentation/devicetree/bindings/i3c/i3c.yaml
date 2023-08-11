@@ -61,6 +61,9 @@ properties:
       Indicates that the system is accessible via this bus as an endpoint for
       MCTP over I3C transport.
 
+  bus-context:
+    $ref: /schemas/types.yaml#/definitions/uint8
+
 required:
   - "#address-cells"
   - "#size-cells"
