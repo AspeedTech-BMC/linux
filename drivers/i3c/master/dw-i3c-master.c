@@ -24,6 +24,7 @@
 #include <linux/pm_runtime.h>
 #include <linux/reset.h>
 #include <linux/slab.h>
+#include <dt-bindings/i3c/i3c.h>
 
 #include "dw-i3c-master.h"
 
@@ -703,13 +704,6 @@ static int dw_i3c_clk_cfg(struct dw_i3c_master *master)
 	writel(scl_timing, master->regs + SCL_I3C_PP_TIMING);
 	master->i3c_pp_timing = scl_timing;
 
-	lcnt = max_t(u8,
-		     DIV_ROUND_UP(I3C_BUS_TLOW_OD_MIN_NS, core_period), lcnt);
-	scl_timing = FIELD_PREP(SCL_I3C_TIMING_HCNT, hcnt) |
-		     FIELD_PREP(SCL_I3C_TIMING_LCNT, lcnt);
-	writel(scl_timing, master->regs + SCL_I3C_OD_TIMING);
-	master->i3c_od_timing = scl_timing;
-
 	lcnt = DIV_ROUND_UP(core_rate, I3C_BUS_SDR1_SCL_RATE) - hcnt;
 	scl_timing = SCL_EXT_LCNT_1(lcnt);
 	lcnt = DIV_ROUND_UP(core_rate, I3C_BUS_SDR2_SCL_RATE) - hcnt;
@@ -720,6 +714,23 @@ static int dw_i3c_clk_cfg(struct dw_i3c_master *master)
 	scl_timing |= SCL_EXT_LCNT_4(lcnt);
 	writel(scl_timing, master->regs + SCL_EXT_LCNT_TIMING);
 	master->ext_lcnt_timing = scl_timing;
+
+	if (master->base.bus.context == I3C_BUS_CONTEXT_JESD403) {
+		u16 hcnt_fmp, lcnt_fmp;
+
+		calc_i2c_clk(master, I3C_BUS_I2C_FM_PLUS_SCL_RATE, &hcnt_fmp,
+			     &lcnt_fmp);
+		hcnt = min_t(u8, hcnt_fmp, FIELD_MAX(SCL_I3C_TIMING_HCNT));
+		lcnt = min_t(u8, lcnt_fmp, FIELD_MAX(SCL_I3C_TIMING_LCNT));
+	} else {
+		lcnt = max_t(u8,
+			     DIV_ROUND_UP(I3C_BUS_TLOW_OD_MIN_NS, core_period),
+			     lcnt);
+	}
+	scl_timing = FIELD_PREP(SCL_I3C_TIMING_HCNT, hcnt) |
+		     FIELD_PREP(SCL_I3C_TIMING_LCNT, lcnt);
+	writel(scl_timing, master->regs + SCL_I3C_OD_TIMING);
+	master->i3c_od_timing = scl_timing;
 
 	return 0;
 }
