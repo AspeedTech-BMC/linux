@@ -404,6 +404,13 @@ int i3c_device_getmwl_ccc(struct i3c_device *dev, struct i3c_device_info *info);
 int i3c_device_setaasa_ccc(struct i3c_device *dev);
 int i3c_device_sethid_ccc(struct i3c_device *dev);
 
+int i3c_device_dbgaction_wr_ccc(struct i3c_device *dev, struct i3c_device_info *info,
+				u8 *data, u8 len);
+int i3c_device_dbgopcode_wr_ccc(struct i3c_device *dev, struct i3c_device_info *info,
+				u8 *data, u8 len);
+int i3c_device_dbgopcode_rd_ccc(struct i3c_device *dev, struct i3c_device_info *info,
+				u8 *data, u8 len);
+
 struct i3c_target_read_setup {
 	void (*handler)(struct i3c_device *dev, const u8 *data, size_t len);
 };
