@@ -26,6 +26,7 @@
 #define I3C_CCC_SETMRL(broadcast)	I3C_CCC_ID(0xa, broadcast)
 #define I3C_CCC_SETXTIME(broadcast)	((broadcast) ? 0x28 : 0x98)
 #define I3C_CCC_VENDOR(id, broadcast)	((id) + ((broadcast) ? 0x61 : 0xe0))
+#define I3C_CCC_DBGACTION(broadcast)   I3C_CCC_ID(0x58, broadcast)
 
 /* Broadcast-only commands */
 #define I3C_CCC_ENTDAA			I3C_CCC_ID(0x7, true)
@@ -50,6 +51,7 @@
 #define I3C_CCC_GETMXDS			I3C_CCC_ID(0x14, false)
 #define I3C_CCC_GETHDRCAP		I3C_CCC_ID(0x15, false)
 #define I3C_CCC_GETXTIME		I3C_CCC_ID(0x19, false)
+#define I3C_CCC_DBGOPCODE		I3C_CCC_ID(0x57, false)
 
 #define I3C_CCC_EVENT_SIR		BIT(0)
 #define I3C_CCC_EVENT_MR		BIT(1)
