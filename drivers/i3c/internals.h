@@ -31,6 +31,12 @@ int i3c_dev_send_ccc_cmd_locked(struct i3c_dev_desc *dev, u8 ccc_id);
 int i3c_dev_getstatus_locked(struct i3c_dev_desc *dev, struct i3c_device_info *info);
 int i3c_master_getmrl_locked(struct i3c_master_controller *master, struct i3c_device_info *info);
 int i3c_master_getmwl_locked(struct i3c_master_controller *master, struct i3c_device_info *info);
+int i3c_dev_dbgaction_wr_locked(struct i3c_dev_desc *dev, struct i3c_device_info *info,
+				u8 *data, u8 len);
+int i3c_dev_dbgopcode_wr_locked(struct i3c_dev_desc *dev, struct i3c_device_info *info,
+				u8 *data, u8 len);
+int i3c_dev_dbgopcode_rd_locked(struct i3c_dev_desc *dev, struct i3c_device_info *info,
+				u8 *data, u8 len);
 int i3c_master_setmrl_locked(struct i3c_master_controller *master,
 			     struct i3c_device_info *info, u16 read_len, u8 ibi_len);
 int i3c_master_setmwl_locked(struct i3c_master_controller *master,

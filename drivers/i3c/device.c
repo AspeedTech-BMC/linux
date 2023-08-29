@@ -530,3 +530,81 @@ int i3c_device_getmwl_ccc(struct i3c_device *dev, struct i3c_device_info *info)
 	return ret;
 }
 EXPORT_SYMBOL_GPL(i3c_device_getmwl_ccc);
+
+/**
+ * i3c_device_dbgaction_wr_ccc() - I3C for Debug action write CCC
+ *
+ * @dev: I3C device to initiate the Debug Action write
+ * @info: I3C device info to capture target system details
+ * @data: data bytes for the debug action
+ * @len: length of the data bytes
+ *
+ * Initiate a particular debug action within the target system
+ *
+ * Return: 0 in case of success, a negative error code otherwise.
+ */
+int i3c_device_dbgaction_wr_ccc(struct i3c_device *dev, struct i3c_device_info *info,
+				u8 *data, u8 len)
+{
+	int ret = -EINVAL;
+
+	i3c_bus_normaluse_lock(dev->bus);
+	if (dev->desc)
+		ret = i3c_dev_dbgaction_wr_locked(dev->desc, info, data, len);
+	i3c_bus_normaluse_unlock(dev->bus);
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(i3c_device_dbgaction_wr_ccc);
+
+/**
+ * i3c_device_dbgopcode_wr_ccc() - I3C for Debug opcode CCC
+ *
+ * @dev: I3C device to initiate the Debug Opcode write
+ * @info: I3C device info to capture target system details
+ * @data: data bytes for the debug opcode
+ * @len: length of the data bytes
+ *
+ * Request a particular operation of the network adaptor of the target system
+ *
+ * Return: 0 in case of success, a negative error code otherwise.
+ */
+int i3c_device_dbgopcode_wr_ccc(struct i3c_device *dev, struct i3c_device_info *info,
+				u8 *data, u8 len)
+{
+	int ret = -EINVAL;
+
+	i3c_bus_normaluse_lock(dev->bus);
+	if (dev->desc)
+		ret = i3c_dev_dbgopcode_wr_locked(dev->desc, info, data, len);
+	i3c_bus_normaluse_unlock(dev->bus);
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(i3c_device_dbgopcode_wr_ccc);
+
+/**
+ * i3c_device_dbgopcode_rd_ccc() - I3C for Debug opcode CCC
+ *
+ * @dev: I3C device to initiate the Debug Opcode read
+ * @info: I3C device info to capture target system details
+ * @data: data bytes for the debug opcode
+ * @len: length of the data bytes
+ *
+ * Request a particular operation of the network adaptor of the target system
+ *
+ * Return: 0 in case of success, a negative error code otherwise.
+ */
+int i3c_device_dbgopcode_rd_ccc(struct i3c_device *dev, struct i3c_device_info *info,
+				u8 *data, u8 len)
+{
+	int ret = -EINVAL;
+
+	i3c_bus_normaluse_lock(dev->bus);
+	if (dev->desc)
+		ret = i3c_dev_dbgopcode_rd_locked(dev->desc, info, data, len);
+	i3c_bus_normaluse_unlock(dev->bus);
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(i3c_device_dbgopcode_rd_ccc);

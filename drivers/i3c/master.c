@@ -1486,6 +1486,76 @@ out:
 	return ret;
 }
 
+int i3c_dev_dbgaction_wr_locked(struct i3c_dev_desc *dev, struct i3c_device_info *info,
+				u8 *data, u8 len)
+{
+	struct i3c_master_controller *master = i3c_dev_get_master(dev);
+	struct i3c_ccc_cmd_dest dest;
+	struct i3c_ccc_cmd cmd;
+	u8 *data_int;
+	int ret;
+
+	data_int = i3c_ccc_cmd_dest_init(&dest, info->dyn_addr, len);
+	if (!data_int)
+		return -ENOMEM;
+
+	memcpy(data_int, data, len);
+
+	i3c_ccc_cmd_init(&cmd, false, I3C_CCC_DBGACTION(false), &dest, 1, false, 0);
+	ret = i3c_master_send_ccc_cmd_locked(master, &cmd);
+	i3c_ccc_cmd_dest_cleanup(&dest);
+
+	return ret;
+}
+
+int i3c_dev_dbgopcode_wr_locked(struct i3c_dev_desc *dev, struct i3c_device_info *info,
+				u8 *data, u8 len)
+{
+	struct i3c_master_controller *master = i3c_dev_get_master(dev);
+	struct i3c_ccc_cmd_dest dest;
+	struct i3c_ccc_cmd cmd;
+	u8 *data_int;
+	int ret;
+
+	data_int = i3c_ccc_cmd_dest_init(&dest, info->dyn_addr, len);
+	if (!data_int)
+		return -ENOMEM;
+
+	memcpy(data_int, data, len);
+
+	i3c_ccc_cmd_init(&cmd, false, I3C_CCC_DBGOPCODE, &dest, 1, false, 0);
+	ret = i3c_master_send_ccc_cmd_locked(master, &cmd);
+	i3c_ccc_cmd_dest_cleanup(&dest);
+
+	return ret;
+}
+
+int i3c_dev_dbgopcode_rd_locked(struct i3c_dev_desc *dev, struct i3c_device_info *info,
+				u8 *data, u8 len)
+{
+	struct i3c_master_controller *master = i3c_dev_get_master(dev);
+	struct i3c_ccc_cmd_dest dest;
+	struct i3c_ccc_cmd cmd;
+	u8 *data_int;
+	int ret;
+
+	data_int = i3c_ccc_cmd_dest_init(&dest, info->dyn_addr, len);
+	if (!data_int)
+		return -ENOMEM;
+
+	i3c_ccc_cmd_init(&cmd, true, I3C_CCC_DBGOPCODE, &dest, 1, false, 0);
+	ret = i3c_master_send_ccc_cmd_locked(master, &cmd);
+	if (ret)
+		goto out;
+
+	memcpy(data, data_int, len);
+
+out:
+	i3c_ccc_cmd_dest_cleanup(&dest);
+
+	return ret;
+}
+
 static int i3c_master_retrieve_dev_info(struct i3c_dev_desc *dev)
 {
 	struct i3c_master_controller *master = i3c_dev_get_master(dev);

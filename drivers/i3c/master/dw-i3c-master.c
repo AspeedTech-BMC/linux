@@ -286,6 +286,11 @@ static bool dw_i3c_master_supports_ccc_cmd(struct i3c_master_controller *m,
 	case I3C_CCC_GETSTATUS:
 	case I3C_CCC_GETMXDS:
 	case I3C_CCC_GETHDRCAP:
+	case I3C_CCC_SETAASA:
+	case I3C_CCC_SETHID:
+	case I3C_CCC_DBGACTION(true):
+	case I3C_CCC_DBGACTION(false):
+	case I3C_CCC_DBGOPCODE:
 		return true;
 	default:
 		return false;
