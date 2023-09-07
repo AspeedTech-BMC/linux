@@ -228,6 +228,7 @@ static int ast2600_i3c_probe(struct platform_device *pdev)
 	reset_control_deassert(rst);
 
 	i3c->dw.platform_ops = &ast2600_i3c_ops;
+	i3c->dw.base.pec_supported = true;
 	return dw_i3c_common_probe(&i3c->dw, pdev);
 }
 
