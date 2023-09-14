@@ -263,11 +263,11 @@
 #define EXTENDED_CAPABILITY		0xe8
 #define SLAVE_CONFIG			0xec
 
-#define DEV_ADDR_TABLE_IBI_MDB		BIT(12)
-#define DEV_ADDR_TABLE_SIR_REJECT	BIT(13)
 #define DEV_ADDR_TABLE_LEGACY_I2C_DEV	BIT(31)
-#define DEV_ADDR_TABLE_DYNAMIC_ADDR(x)	(((x) << 16) & GENMASK(23, 16))
-#define DEV_ADDR_TABLE_STATIC_ADDR(x)	((x) & GENMASK(6, 0))
+#define DEV_ADDR_TABLE_DYNAMIC_ADDR	GENMASK(23, 16)
+#define DEV_ADDR_TABLE_SIR_REJECT	BIT(13)
+#define DEV_ADDR_TABLE_IBI_MDB		BIT(12)
+#define DEV_ADDR_TABLE_STATIC_ADDR	GENMASK(6, 0)
 #define DEV_ADDR_TABLE_LOC(start, idx)	((start) + ((idx) << 2))
 
 #define I3C_BUS_SDR1_SCL_RATE		8000000
@@ -1204,7 +1204,7 @@ static int dw_i3c_master_daa(struct i3c_master_controller *m)
 		last_addr = ret;
 		ret |= (p << 7);
 
-		writel(DEV_ADDR_TABLE_DYNAMIC_ADDR(ret),
+		writel(FIELD_PREP(DEV_ADDR_TABLE_DYNAMIC_ADDR, ret),
 		       master->regs +
 		       DEV_ADDR_TABLE_LOC(master->datstartaddr, pos));
 
@@ -1469,7 +1469,7 @@ static int dw_i3c_master_reattach_i3c_dev(struct i3c_dev_desc *dev,
 		master->free_pos &= ~BIT(pos);
 	}
 
-	writel(DEV_ADDR_TABLE_DYNAMIC_ADDR(dev->info.dyn_addr),
+	writel(FIELD_PREP(DEV_ADDR_TABLE_DYNAMIC_ADDR, dev->info.dyn_addr),
 	       master->regs +
 	       DEV_ADDR_TABLE_LOC(master->datstartaddr, data->index));
 
@@ -1498,9 +1498,9 @@ static int dw_i3c_master_attach_i3c_dev(struct i3c_dev_desc *dev)
 	master->free_pos &= ~BIT(pos);
 	i3c_dev_set_master_data(dev, data);
 
-	writel(DEV_ADDR_TABLE_DYNAMIC_ADDR(master->devs[pos].addr),
+	writel(FIELD_PREP(DEV_ADDR_TABLE_DYNAMIC_ADDR, master->devs[pos].addr),
 	       master->regs +
-	       DEV_ADDR_TABLE_LOC(master->datstartaddr, data->index));
+		       DEV_ADDR_TABLE_LOC(master->datstartaddr, data->index));
 
 	return 0;
 }
@@ -1628,7 +1628,7 @@ static int dw_i3c_master_attach_i2c_dev(struct i2c_dev_desc *dev)
 	i2c_dev_set_master_data(dev, data);
 
 	writel(DEV_ADDR_TABLE_LEGACY_I2C_DEV |
-	       DEV_ADDR_TABLE_STATIC_ADDR(dev->addr),
+	       FIELD_PREP(DEV_ADDR_TABLE_STATIC_ADDR, dev->addr),
 	       master->regs +
 	       DEV_ADDR_TABLE_LOC(master->datstartaddr, data->index));
 
@@ -2301,9 +2301,9 @@ static void dw_i3c_master_restore_addrs(struct dw_i3c_master *master)
 
 		if (master->devs[pos].is_i2c_addr)
 			reg_val = DEV_ADDR_TABLE_LEGACY_I2C_DEV |
-			       DEV_ADDR_TABLE_STATIC_ADDR(master->devs[pos].addr);
+			       FIELD_PREP(DEV_ADDR_TABLE_STATIC_ADDR, master->devs[pos].addr);
 		else
-			reg_val = DEV_ADDR_TABLE_DYNAMIC_ADDR(master->devs[pos].addr);
+			reg_val = FIELD_PREP(DEV_ADDR_TABLE_DYNAMIC_ADDR, master->devs[pos].addr);
 
 		writel(reg_val, master->regs + DEV_ADDR_TABLE_LOC(master->datstartaddr, pos));
 	}
