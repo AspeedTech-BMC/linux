@@ -20,7 +20,6 @@ menuconfig I3C
 	  will be called i3c.
 
 if I3C
-
 config I3CDEV
 	tristate "I3C device interface"
 	depends on I3C
@@ -36,6 +35,13 @@ config I3CDEV
 	  and hence SUBJECT TO CHANGE WITHOUT NOTICE while it stabilizes.
 
 source "drivers/i3c/mctp/Kconfig"
+config I3C_MUX_IMX3102
+	bool "IMX/IML3102 I3C multiplexer driver"
+	default y
+	select REGMAP_I3C
+	help
+	  Say y to enable Renesas IMX3102 I3C 2:1 multiplexer.
+
 source "drivers/i3c/master/Kconfig"
 
 config I3C_HUB
@@ -70,6 +76,4 @@ config I3C_HUB_IDENTIFY_TP_NR
 	depends on I3C_HUB_TP_IDENDIFY
 	help
 	  Select which target port is used for the identification.
-
-
 endif # I3C
