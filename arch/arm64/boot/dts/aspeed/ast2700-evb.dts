@@ -570,6 +570,10 @@
 };
 #endif
 
+&can0 {
+	status = "okay";
+};
+
 &mdio0 {
 	status = "okay";
 	#address-cells = <1>;
