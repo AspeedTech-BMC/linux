@@ -2814,10 +2814,18 @@ static void i3c_master_i2c_adapter_cleanup(struct i3c_master_controller *master)
 static void i3c_master_unregister_i3c_devs(struct i3c_master_controller *master)
 {
 	struct i3c_dev_desc *i3cdev;
+	int ret;
 
 	i3c_bus_for_each_i3cdev(&master->bus, i3cdev) {
 		if (!i3cdev->dev)
 			continue;
+
+		ret = i3c_device_disable_ibi(i3cdev->dev);
+		if (!ret)
+			i3c_device_free_ibi(i3cdev->dev);
+		else
+			dev_warn(i3cdev_to_dev(i3cdev->dev), "Failed to disable IBI, ret = %d",
+				 ret);
 
 		i3cdev->dev->desc = NULL;
 		if (device_is_registered(&i3cdev->dev->dev))
