@@ -288,6 +288,25 @@ static ssize_t bus_reset_store(struct device *dev, struct device_attribute *da,
 }
 static DEVICE_ATTR_WO(bus_reset);
 
+static ssize_t status_show(struct device *dev,
+			   struct device_attribute *da,
+			   char *buf)
+{
+	struct i3c_dev_desc *desc = dev_to_i3cdesc(dev);
+	struct i3c_bus *bus = dev_to_i3cbus(dev);
+	ssize_t ret;
+
+	i3c_bus_normaluse_lock(bus);
+	ret = i3c_dev_getstatus_locked(desc, &desc->info);
+	if (!ret)
+		ret = sysfs_emit(buf, "%x\n", desc->info.status);
+
+	i3c_bus_normaluse_unlock(bus);
+
+	return ret;
+}
+static DEVICE_ATTR_RO(status);
+
 static struct attribute *i3c_device_attrs[] = {
 	&dev_attr_bcr.attr,
 	&dev_attr_dcr.attr,
@@ -295,6 +314,7 @@ static struct attribute *i3c_device_attrs[] = {
 	&dev_attr_dynamic_address.attr,
 	&dev_attr_hdrcap.attr,
 	&dev_attr_modalias.attr,
+	&dev_attr_status.attr,
 	NULL,
 };
 ATTRIBUTE_GROUPS(i3c_device);
