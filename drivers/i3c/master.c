@@ -144,7 +144,7 @@ static ssize_t bcr_show(struct device *dev,
 
 	i3c_bus_normaluse_lock(bus);
 	desc = dev_to_i3cdesc(dev);
-	ret = sprintf(buf, "%x\n", desc->info.bcr);
+	ret = sysfs_emit(buf, "%x\n", desc->info.bcr);
 	i3c_bus_normaluse_unlock(bus);
 
 	return ret;
@@ -161,7 +161,7 @@ static ssize_t dcr_show(struct device *dev,
 
 	i3c_bus_normaluse_lock(bus);
 	desc = dev_to_i3cdesc(dev);
-	ret = sprintf(buf, "%x\n", desc->info.dcr);
+	ret = sysfs_emit(buf, "%x\n", desc->info.dcr);
 	i3c_bus_normaluse_unlock(bus);
 
 	return ret;
@@ -178,7 +178,7 @@ static ssize_t pid_show(struct device *dev,
 
 	i3c_bus_normaluse_lock(bus);
 	desc = dev_to_i3cdesc(dev);
-	ret = sprintf(buf, "%llx\n", desc->info.pid);
+	ret = sysfs_emit(buf, "%llx\n", desc->info.pid);
 	i3c_bus_normaluse_unlock(bus);
 
 	return ret;
@@ -201,7 +201,7 @@ static ssize_t dynamic_address_show(struct device *dev,
 	else
 		dyn_addr = desc->info.dyn_addr;
 
-	ret = sprintf(buf, "%02x\n", dyn_addr);
+	ret = sysfs_emit(buf, "%02x\n", dyn_addr);
 	i3c_bus_normaluse_unlock(bus);
 
 	return ret;
@@ -232,15 +232,14 @@ static ssize_t hdrcap_show(struct device *dev,
 		if (!hdrcap_strings[mode])
 			continue;
 
-		ret = sprintf(buf + offset, offset ? " %s" : "%s",
-			      hdrcap_strings[mode]);
+		ret = sysfs_emit(buf + offset, offset ? " %s" : "%s", hdrcap_strings[mode]);
 		if (ret < 0)
 			goto out;
 
 		offset += ret;
 	}
 
-	ret = sprintf(buf + offset, "\n");
+	ret = sysfs_emit(buf + offset, "\n");
 	if (ret < 0)
 		goto out;
 
@@ -279,10 +278,10 @@ static ssize_t modalias_show(struct device *dev,
 	ext = I3C_PID_EXTRA_INFO(devinfo->pid);
 
 	if (I3C_PID_RND_LOWER_32BITS(devinfo->pid))
-		return sprintf(buf, "i3c:dcr %02X manuf %04X\n", devinfo->dcr,
+		return sysfs_emit(buf, "i3c:dcr %02X manuf %04X\n", devinfo->dcr,
 			       manuf);
 
-	return sprintf(buf, "i3c:dcr %02X manuf %04X part %04X ext %04X\n",
+	return sysfs_emit(buf, "i3c:dcr %02X manuf %04X part %04X ext %04X\n",
 		       devinfo->dcr, manuf, part, ext);
 }
 static DEVICE_ATTR_RO(modalias);
@@ -597,9 +596,9 @@ static ssize_t mode_show(struct device *dev,
 	if (i3cbus->mode < 0 ||
 	    i3cbus->mode >= ARRAY_SIZE(i3c_bus_mode_strings) ||
 	    !i3c_bus_mode_strings[i3cbus->mode])
-		ret = sprintf(buf, "unknown\n");
+		ret = sysfs_emit(buf, "unknown\n");
 	else
-		ret = sprintf(buf, "%s\n", i3c_bus_mode_strings[i3cbus->mode]);
+		ret = sysfs_emit(buf, "%s\n", i3c_bus_mode_strings[i3cbus->mode]);
 	i3c_bus_normaluse_unlock(i3cbus);
 
 	return ret;
@@ -614,8 +613,8 @@ static ssize_t current_master_show(struct device *dev,
 	ssize_t ret;
 
 	i3c_bus_normaluse_lock(i3cbus);
-	ret = sprintf(buf, "%d-%llx\n", i3cbus->id,
-		      i3cbus->cur_master->info.pid);
+	ret = sysfs_emit(buf, "%d-%llx\n", i3cbus->id,
+			 i3cbus->cur_master->info.pid);
 	i3c_bus_normaluse_unlock(i3cbus);
 
 	return ret;
@@ -630,7 +629,7 @@ static ssize_t i3c_scl_frequency_show(struct device *dev,
 	ssize_t ret;
 
 	i3c_bus_normaluse_lock(i3cbus);
-	ret = sprintf(buf, "%ld\n", i3cbus->scl_rate.i3c);
+	ret = sysfs_emit(buf, "%ld\n", i3cbus->scl_rate.i3c);
 	i3c_bus_normaluse_unlock(i3cbus);
 
 	return ret;
@@ -645,7 +644,7 @@ static ssize_t i2c_scl_frequency_show(struct device *dev,
 	ssize_t ret;
 
 	i3c_bus_normaluse_lock(i3cbus);
-	ret = sprintf(buf, "%ld\n", i3cbus->scl_rate.i2c);
+	ret = sysfs_emit(buf, "%ld\n", i3cbus->scl_rate.i2c);
 	i3c_bus_normaluse_unlock(i3cbus);
 
 	return ret;
