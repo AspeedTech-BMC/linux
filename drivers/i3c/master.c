@@ -632,6 +632,16 @@ static ssize_t rescan_store(struct device *dev, struct device_attribute *attr,
 
 	i3c_bus_maintenance_lock(bus);
 
+	ret = i3c_master_disec_locked(master, I3C_BROADCAST_ADDR,
+				      I3C_CCC_EVENT_SIR | I3C_CCC_EVENT_MR |
+				      I3C_CCC_EVENT_HJ);
+	if (ret && ret != I3C_ERROR_M2) {
+		dev_dbg(&master->dev,
+			"Failed to run broadcast DISEC for rescan, ret=%d\n", ret);
+		i3c_bus_maintenance_unlock(bus);
+		return ret;
+	}
+
 	ret = i3c_master_rstdaa_locked(master, I3C_BROADCAST_ADDR);
 	if (ret && ret != I3C_ERROR_M2) {
 		dev_dbg(&master->dev,
