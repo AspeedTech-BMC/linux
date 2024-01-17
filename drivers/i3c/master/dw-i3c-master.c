@@ -1751,7 +1751,8 @@ static void dw_i3c_master_free_ibi(struct i3c_dev_desc *dev)
 	data->ibi_pool = NULL;
 }
 
-static void dw_i3c_master_enable_sir_signal(struct dw_i3c_master *master, bool enable)
+/* Enable/Disable the IBI interrupt signal and status */
+static void dw_i3c_master_set_ibi_signal(struct dw_i3c_master *master, bool enable)
 {
 	u32 reg;
 
@@ -1802,7 +1803,7 @@ static void dw_i3c_master_set_sir_enabled(struct dw_i3c_master *master,
 	writel(master->sir_rej_mask, master->regs + IBI_SIR_REQ_REJECT);
 
 	if (global)
-		dw_i3c_master_enable_sir_signal(master, enable);
+		dw_i3c_master_set_ibi_signal(master, enable);
 
 
 	spin_unlock_irqrestore(&master->devs_lock, flags);
@@ -1821,7 +1822,7 @@ static int dw_i3c_master_enable_hotjoin(struct i3c_master_controller *m)
 		return ret;
 	}
 
-	dw_i3c_master_enable_sir_signal(master, true);
+	dw_i3c_master_set_ibi_signal(master, true);
 	writel(readl(master->regs + DEVICE_CTRL) & ~DEV_CTRL_HOT_JOIN_NACK,
 	       master->regs + DEVICE_CTRL);
 
