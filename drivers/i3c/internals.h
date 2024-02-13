@@ -11,7 +11,7 @@
 #include <linux/i3c/master.h>
 #include <linux/i3c/target.h>
 
-extern struct bus_type i3c_bus_type;
+extern const struct bus_type i3c_bus_type;
 extern const struct device_type i3c_masterdev_type;
 
 void i3c_bus_normaluse_lock(struct i3c_bus *bus);
