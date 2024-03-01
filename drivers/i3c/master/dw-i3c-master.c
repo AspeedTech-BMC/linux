@@ -309,7 +309,6 @@
 #define RPM_AUTOSUSPEND_TIMEOUT 1000 /* ms */
 
 #define JESD403_TIMED_RESET_NS_DEF	52428800
-#define JESD403_TBUF_MIN_NS		500
 
 struct dw_i3c_cmd {
 	u32 cmd_lo;
@@ -910,12 +909,13 @@ static int dw_i3c_bus_clk_cfg(struct i3c_master_controller *m)
 	 * - bus free time between a STOP condition and a START condition
 	 *
 	 * The constraints of these parameters differ in various bus contexts:
-	 * JESD403            : BUS_FREE_TIMING = min time between STOP and START = 500 ns
+	 * JESD403            : BUS_FREE_TIMING = I3C OD SCL low period
 	 * MIPI I3C, pure bus : BUS_FREE_TIMING = I3C PP SCL low period
 	 * MIPI I3C, mixed bus: BUS_FREE_TIMING = I2C FM SCL low period
 	 */
 	if (bus->context == I3C_BUS_CONTEXT_JESD403) {
-		lcnt = DIV_ROUND_UP(JESD403_TBUF_MIN_NS, master->timing.core_period);
+		lcnt = FIELD_GET(SCL_I3C_TIMING_LCNT,
+				 readl(master->regs + SCL_I3C_OD_TIMING));
 	} else {
 		if (bus->mode == I3C_BUS_MODE_PURE) {
 			lcnt = FIELD_GET(SCL_I3C_TIMING_LCNT,
