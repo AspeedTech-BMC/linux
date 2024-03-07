@@ -94,6 +94,7 @@ struct dw_i3c_master {
 		u32 i3c_od_scl_high;
 		u32 i3c_pp_scl_low;
 		u32 i3c_pp_scl_high;
+		u32 timed_reset_scl_low_ns;
 	} timing;
 };
 
