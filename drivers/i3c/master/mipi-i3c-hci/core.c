@@ -238,10 +238,9 @@
 
 #define ASPEED_I3C_INTR_RENEW		0xF4
 
-#define ast_inhouse_read(r)		readl(hci->EXTCAPS_regs + (r))
-#define ast_inhouse_write(r, v)		writel(v, hci->EXTCAPS_regs + (r))
+#define ast_inhouse_read(r)		readl(hci->INHOUSE_regs + (r))
+#define ast_inhouse_write(r, v)		writel(v, hci->INHOUSE_regs + (r))
 
-#define ASPEED_PHY_REGS_OFFSET		0xE00
 #define ast_phy_read(r)			readl(hci->PHY_regs + (r))
 #define ast_phy_write(r, v)		writel(v, hci->PHY_regs + (r))
 
@@ -1292,15 +1291,12 @@ static int i3c_hci_init(struct i3c_hci *hci)
 		hci->DCT_entries = 4 * hci->DCT_entries / hci->DCT_entry_size;
 	dev_info(&hci->master.dev, "DCT: %u %u-bytes entries at offset %#x\n",
 		 hci->DCT_entries, hci->DCT_entry_size, offset);
-#ifdef CONFIG_ARCH_ASPEED
-	/* Currently, doesn't support dma mode*/
-	hci->RHS_regs = NULL;
-#else
+
 	regval = reg_read(RING_HEADERS_SECTION);
 	offset = FIELD_GET(RING_HEADERS_OFFSET, regval);
 	hci->RHS_regs = offset ? hci->base_regs + offset : NULL;
 	dev_info(&hci->master.dev, "Ring Headers at offset %#x\n", offset);
-#endif
+
 	regval = reg_read(PIO_SECTION);
 	offset = FIELD_GET(PIO_REGS_OFFSET, regval);
 	hci->PIO_regs = offset ? hci->base_regs + offset : NULL;
@@ -1311,14 +1307,9 @@ static int i3c_hci_init(struct i3c_hci *hci)
 	hci->EXTCAPS_regs = offset ? hci->base_regs + offset : NULL;
 	dev_info(&hci->master.dev, "Extended Caps at offset %#x\n", offset);
 
-#ifdef CONFIG_ARCH_ASPEED
-	hci->PHY_regs = hci->base_regs + ASPEED_PHY_REGS_OFFSET;
-	dev_info(&hci->master.dev, "PHY control at offset %#x\n", ASPEED_PHY_REGS_OFFSET);
-#else
 	ret = i3c_hci_parse_ext_caps(hci);
 	if (ret)
 		return ret;
-#endif
 
 	/*
 	 * Now let's reset the hardware.

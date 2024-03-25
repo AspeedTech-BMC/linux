@@ -46,6 +46,7 @@ struct i3c_hci {
 	void __iomem *PIO_regs;
 	void __iomem *EXTCAPS_regs;
 #ifdef CONFIG_ARCH_ASPEED
+	void __iomem *INHOUSE_regs;
 	void __iomem *PHY_regs;
 #endif
 	void __iomem *AUTOCMD_regs;
