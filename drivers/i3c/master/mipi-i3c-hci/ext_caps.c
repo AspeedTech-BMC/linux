@@ -210,6 +210,19 @@ static int hci_extcap_vendor_NXP(struct i3c_hci *hci, void __iomem *base)
 	return 0;
 }
 
+static int hci_extcap_vendor_ASPEED(struct i3c_hci *hci, void __iomem *base)
+{
+	u32 regs_offset;
+
+	regs_offset = readl(base + 1 * 4);
+	dev_info(&hci->master.dev, "INHOUSE control at offset %#x\n", regs_offset);
+	hci->INHOUSE_regs = hci->base_regs + regs_offset;
+	regs_offset = readl(base + 2 * 4);
+	dev_info(&hci->master.dev, "PHY control at offset %#x\n", regs_offset);
+	hci->PHY_regs = hci->base_regs + regs_offset;
+	return 0;
+}
+
 struct hci_ext_cap_vendor_specific {
 	u32 vendor;
 	u8  cap;
@@ -224,6 +237,7 @@ struct hci_ext_cap_vendor_specific {
 
 static const struct hci_ext_cap_vendor_specific vendor_ext_caps[] = {
 	EXT_CAP_VENDOR(NXP, 0xc0, 0x20),
+	EXT_CAP_VENDOR(ASPEED, 0xc0, 0x3),
 };
 
 static int hci_extcap_vendor_specific(struct i3c_hci *hci, void __iomem *base,
