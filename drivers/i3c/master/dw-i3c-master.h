@@ -142,6 +142,8 @@ struct dw_i3c_platform_ops {
 	int (*flush_dat)(struct dw_i3c_master *i3c, u8 addr);
 	void (*set_ibi_dev)(struct dw_i3c_master *i3c,
 			    struct i3c_dev_desc *dev);
+	void (*unset_ibi_dev)(struct dw_i3c_master *i3c,
+			      struct i3c_dev_desc *dev);
 	struct i3c_dev_desc *(*get_ibi_dev)(struct dw_i3c_master *i3c, u8 addr);
 };
 

@@ -691,6 +691,12 @@ static void ast2600_i3c_set_ibi_dev(struct dw_i3c_master *dw,
 	dw->devs[dev->info.dyn_addr].ibi_dev = dev;
 }
 
+static void ast2600_i3c_unset_ibi_dev(struct dw_i3c_master *dw,
+				      struct i3c_dev_desc *dev)
+{
+	dw->devs[dev->info.dyn_addr].ibi_dev = NULL;
+}
+
 static struct i3c_dev_desc *ast2600_i3c_get_ibi_dev(struct dw_i3c_master *dw,
 						    u8 addr)
 {
@@ -717,6 +723,7 @@ static const struct dw_i3c_platform_ops ast2600_i3c_ops = {
 	.flush_dat = ast2600_i3c_flush_swdat,
 	.set_sir_enabled = ast2600_i3c_set_sir_enabled,
 	.set_ibi_dev = ast2600_i3c_set_ibi_dev,
+	.unset_ibi_dev = ast2600_i3c_unset_ibi_dev,
 	.get_ibi_dev = ast2600_i3c_get_ibi_dev,
 };
 

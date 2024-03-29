@@ -1918,7 +1918,7 @@ static void dw_i3c_master_free_ibi(struct i3c_dev_desc *dev)
 	unsigned long flags;
 
 	spin_lock_irqsave(&master->devs_lock, flags);
-	master->platform_ops->set_ibi_dev(master, NULL);
+	master->platform_ops->unset_ibi_dev(master, dev);
 	spin_unlock_irqrestore(&master->devs_lock, flags);
 
 	i3c_generic_ibi_free_pool(data->ibi_pool);
@@ -2398,6 +2398,14 @@ static void dw_i3c_master_set_ibi_dev(struct dw_i3c_master *i3c,
 	i3c->devs[data->index].ibi_dev = dev;
 }
 
+static void dw_i3c_master_unset_ibi_dev(struct dw_i3c_master *i3c,
+					struct i3c_dev_desc *dev)
+{
+	struct dw_i3c_i2c_dev_data *data = i3c_dev_get_master_data(dev);
+
+	i3c->devs[data->index].ibi_dev = NULL;
+}
+
 static struct i3c_dev_desc *dw_i3c_master_get_ibi_dev(struct dw_i3c_master *i3c,
 						      u8 addr)
 {
@@ -2430,6 +2438,7 @@ static const struct dw_i3c_platform_ops dw_i3c_platform_ops_default = {
 	.flush_dat = dw_i3c_master_flush_dat_nop,
 	.set_sir_enabled = dw_i3c_master_set_sir_enabled,
 	.set_ibi_dev = dw_i3c_master_set_ibi_dev,
+	.unset_ibi_dev = dw_i3c_master_unset_ibi_dev,
 	.get_ibi_dev = dw_i3c_master_get_ibi_dev,
 };
 
