@@ -3251,7 +3251,7 @@ static void i3c_target_unregister_i3c_dev(struct i3c_master_controller *master)
 static void i3c_target_read_device_info(struct device_node *np, struct i3c_device_info *info)
 {
 	u64 pid;
-	u8 dcr;
+	u8 dcr, static_addr;
 	int ret;
 
 	ret = of_property_read_u64(np, "pid", &pid);
@@ -3262,9 +3262,15 @@ static void i3c_target_read_device_info(struct device_node *np, struct i3c_devic
 
 	ret = of_property_read_u8(np, "dcr", &dcr);
 	if (ret)
-		info->pid = 0;
+		info->dcr = 0;
 	else
 		info->dcr = dcr;
+
+	ret = of_property_read_u8(np, "static-address", &static_addr);
+	if (ret)
+		info->static_addr = 0;
+	else
+		info->static_addr = static_addr;
 }
 
 static int i3c_target_check_ops(const struct i3c_target_ops *ops)
