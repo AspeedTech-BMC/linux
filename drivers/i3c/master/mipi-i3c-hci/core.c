@@ -709,6 +709,8 @@ static int i3c_hci_priv_xfers(struct i3c_dev_desc *dev,
 		if (i3c_xfers[i].rnw)
 			i3c_xfers[i].len = RESP_DATA_LENGTH(xfer[i].response);
 		if (RESP_STATUS(xfer[i].response) != RESP_SUCCESS) {
+			dev_err(&hci->master.dev, "resp status = %lx",
+				RESP_STATUS(xfer[i].response));
 			ret = -EIO;
 			goto out;
 		}
@@ -761,6 +763,8 @@ static int i3c_hci_i2c_xfers(struct i2c_dev_desc *dev,
 	}
 	for (i = 0; i < nxfers; i++) {
 		if (RESP_STATUS(xfer[i].response) != RESP_SUCCESS) {
+			dev_err(&hci->master.dev, "resp status = %lx",
+				RESP_STATUS(xfer[i].response));
 			ret = -EIO;
 			goto out;
 		}
