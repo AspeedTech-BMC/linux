@@ -384,9 +384,14 @@ static int aspeed_g6_reset_deassert(struct reset_controller_dev *rcdev,
 	struct aspeed_reset *ar = to_aspeed_reset(rcdev);
 	u32 rst = get_bit(id);
 	u32 reg = id >= 32 ? ASPEED_G6_RESET_CTRL2 : ASPEED_G6_RESET_CTRL;
+	u32 val;
+	int ret;
 
 	/* Use set to clear register */
-	return regmap_write(ar->map, reg + 0x04, rst);
+	ret = regmap_write(ar->map, reg + 0x04, rst);
+	/* Add dummy read to ensure the write transfer is finished */
+	regmap_read(ar->map, reg + 4, &val);
+	return ret;
 }
 
 static int aspeed_g6_reset_assert(struct reset_controller_dev *rcdev,
@@ -645,8 +650,8 @@ static int aspeed_g6_clk_probe(struct platform_device *pdev)
 		return PTR_ERR(hw);
 	aspeed_g6_clk_data->hws[ASPEED_CLK_LHCLK] = hw;
 
-	/* gfx d1clk : use dp clk */
-	regmap_update_bits(map, ASPEED_G6_CLK_SELECTION1, GENMASK(10, 8), BIT(10));
+	/* gfx d1clk : use usb phy */
+	regmap_update_bits(map, ASPEED_G6_CLK_SELECTION1, GENMASK(10, 8), BIT(9));
 	/* SoC Display clock selection */
 	hw = clk_hw_register_mux(dev, "d1clk", d1clk_parent_names,
 			ARRAY_SIZE(d1clk_parent_names), 0,
