@@ -14,6 +14,9 @@
 #include <linux/of_irq.h>
 #include <linux/io.h>
 
+#define INTC_INT_ENABLE_REG	0x00
+#define INTC_INT_STATUS_REG	0x04
+
 struct aspeed_intc_ic {
 	void __iomem		*base;
 	struct irq_domain	*irq_domain;
@@ -27,10 +30,10 @@ static void aspeed_intc_ic_irq_handler(struct irq_desc *desc)
 
 	chained_irq_enter(chip, desc);
 
-	status = readl(intc_ic->base + 4);
+	status = readl(intc_ic->base + INTC_INT_STATUS_REG);
 	for_each_set_bit(bit, &status, 32) {
 		generic_handle_domain_irq(intc_ic->irq_domain, bit);
-		writel(BIT(bit), intc_ic->base + 4);
+		writel(BIT(bit), intc_ic->base + INTC_INT_STATUS_REG);
 	}
 
 	chained_irq_exit(chip, desc);
@@ -39,15 +42,17 @@ static void aspeed_intc_ic_irq_handler(struct irq_desc *desc)
 static void aspeed_intc_irq_mask(struct irq_data *data)
 {
 	struct aspeed_intc_ic *intc_ic = irq_data_get_irq_chip_data(data);
+	unsigned int mask = readl(intc_ic->base + INTC_INT_ENABLE_REG) & ~BIT(data->hwirq);
 
-	writel(readl(intc_ic->base) & ~BIT(data->hwirq), intc_ic->base);
+	writel(mask, intc_ic->base + INTC_INT_ENABLE_REG);
 }
 
 static void aspeed_intc_irq_unmask(struct irq_data *data)
 {
 	struct aspeed_intc_ic *intc_ic = irq_data_get_irq_chip_data(data);
+	unsigned int unmask = readl(intc_ic->base + INTC_INT_ENABLE_REG) | BIT(data->hwirq);
 
-	writel(readl(intc_ic->base) | BIT(data->hwirq), intc_ic->base);
+	writel(unmask, intc_ic->base + INTC_INT_ENABLE_REG);
 }
 
 static int aspeed_intc_irq_set_affinity(struct irq_data *data,
@@ -94,6 +99,8 @@ static int __init aspeed_intc_ic_of_init(struct device_node *node,
 		ret = -ENOMEM;
 		goto err_free_ic;
 	}
+	writel(0xffffffff, intc_ic->base + INTC_INT_STATUS_REG);
+	writel(0x0, intc_ic->base + INTC_INT_ENABLE_REG);
 
 	irq = irq_of_parse_and_map(node, 0);
 	if (!irq) {
@@ -141,6 +148,8 @@ static int __init aspeed_intc_ic_of_init_v2(struct device_node *node,
 		ret = -ENOMEM;
 		goto err_free_ic;
 	}
+	writel(0xffffffff, intc_ic->base + INTC_INT_STATUS_REG);
+	writel(0x0, intc_ic->base + INTC_INT_ENABLE_REG);
 
 	intc_ic->irq_domain = irq_domain_add_linear(node, 32,
 						    &aspeed_intc_ic_irq_domain_ops,
