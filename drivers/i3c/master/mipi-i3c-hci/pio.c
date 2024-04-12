@@ -799,6 +799,20 @@ static void hci_pio_err(struct i3c_hci *hci, struct hci_pio_data *pio,
 
 	/* dump states on programming errors */
 	if (status & STAT_PROG_ERRORS) {
+#ifdef CONFIG_ARCH_ASPEED
+		u32 queue = ast_inhouse_read(ASPEED_I3C_QUEUE_PTR0);
+		u32 data = ast_inhouse_read(ASPEED_I3C_QUEUE_PTR1);
+
+		dev_err(&hci->master.dev,
+			"prog error %#lx (C/R/I = %ld:%ld/%ld:%ld/%ld:%ld, TX/RX/IBI = %ld:%ld/%ld:%ld/%ld:%ld)\n",
+			status & STAT_PROG_ERRORS, QUEUE_PTR0_CMD_W(queue),
+			QUEUE_PTR0_CMD_R(queue), QUEUE_PTR0_RESP_W(queue),
+			QUEUE_PTR0_RESP_R(queue), QUEUE_PTR0_IBI_W(queue),
+			QUEUE_PTR0_IBI_R(queue), QUEUE_PTR0_TX_W(queue),
+			QUEUE_PTR0_TX_R(queue), QUEUE_PTR1_RX_W(data),
+			QUEUE_PTR1_RX_R(data), QUEUE_PTR1_IBI_DATA_W(data),
+			QUEUE_PTR1_IBI_DATA_R(data));
+#else
 		u32 queue = pio_reg_read(QUEUE_CUR_STATUS);
 		u32 data = pio_reg_read(DATA_BUFFER_CUR_STATUS);
 
@@ -810,6 +824,7 @@ static void hci_pio_err(struct i3c_hci *hci, struct hci_pio_data *pio,
 			FIELD_GET(CUR_IBI_Q_LEVEL, queue),
 			FIELD_GET(CUR_TX_BUF_LVL, data),
 			FIELD_GET(CUR_RX_BUF_LVL, data));
+#endif
 	}
 
 	/* just bust out everything with pending responses for now */
