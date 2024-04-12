@@ -729,9 +729,10 @@ static void ast2700_i3c_target_bus_cleanup(struct i3c_master_controller *m)
 	kfree(hci->target_rx.buf);
 }
 
-static int ast2700_i3c_target_priv_xfers_w_tid(struct i3c_dev_desc *dev,
-					       struct i3c_priv_xfer *i3c_xfers,
-					       int nxfers, unsigned int tid)
+static struct hci_xfer *
+ast2700_i3c_target_priv_xfers(struct i3c_dev_desc *dev,
+			      struct i3c_priv_xfer *i3c_xfers, int nxfers,
+			      unsigned int tid)
 {
 	struct i3c_master_controller *m = i3c_dev_get_master(dev);
 	struct i3c_hci *hci = to_i3c_hci(m);
@@ -743,7 +744,7 @@ static int ast2700_i3c_target_priv_xfers_w_tid(struct i3c_dev_desc *dev,
 
 	xfer = hci_alloc_xfer(nxfers);
 	if (!xfer)
-		return -ENOMEM;
+		return xfer;
 
 	size_limit = 1U << (16 + FIELD_GET(HC_CAP_MAX_DATA_LENGTH, hci->caps));
 
@@ -760,21 +761,13 @@ static int ast2700_i3c_target_priv_xfers_w_tid(struct i3c_dev_desc *dev,
 		}
 	}
 	ret = hci->io->queue_xfer(hci, xfer, nxfers);
-	if (ret)
-		goto out;
+	if (ret) {
+		dev_err(&hci->master.dev, "queue xfer error %d", ret);
+		hci_free_xfer(xfer, nxfers);
+		return NULL;
+	}
 
-out:
-	hci_free_xfer(xfer, nxfers);
-
-	return ret;
-}
-
-static int ast2700_i3c_target_priv_xfers(struct i3c_dev_desc *dev,
-					 struct i3c_priv_xfer *i3c_xfers,
-					 int nxfers)
-{
-	return ast2700_i3c_target_priv_xfers_w_tid(dev, i3c_xfers, nxfers,
-						   TID_TARGET_RD_DATA);
+	return xfer;
 }
 
 static int ast2700_i3c_target_generate_ibi(struct i3c_dev_desc *dev, const u8 *data, int len)
@@ -844,6 +837,7 @@ ast2700_i3c_target_pending_read_notify(struct i3c_dev_desc *dev,
 {
 	struct i3c_master_controller *m = i3c_dev_get_master(dev);
 	struct i3c_hci *hci = to_i3c_hci(m);
+	struct hci_xfer *ibi_xfer, *pending_read_xfer;
 	u32 reg;
 
 	if (!pending_read || !ibi_notify)
@@ -853,14 +847,23 @@ ast2700_i3c_target_pending_read_notify(struct i3c_dev_desc *dev,
 	if ((reg & ASPEED_I3C_SLV_STS1_IBI_EN) == 0)
 		return -EPERM;
 	reinit_completion(&hci->pending_r_comp);
-	ast2700_i3c_target_priv_xfers_w_tid(dev, ibi_notify, 1, TID_TARGET_IBI);
-	ast2700_i3c_target_priv_xfers(dev, pending_read, 1);
+	ibi_xfer = ast2700_i3c_target_priv_xfers(dev, ibi_notify, 1,
+						 TID_TARGET_IBI);
+	if (!ibi_xfer)
+		return -EINVAL;
+	pending_read_xfer = ast2700_i3c_target_priv_xfers(dev, pending_read, 1,
+							  TID_TARGET_RD_DATA);
+	if (!pending_read_xfer)
+		return -EINVAL;
 	ast2700_i3c_target_generate_ibi(dev, NULL, 0);
+	hci_free_xfer(ibi_xfer, 1);
 	if (!wait_for_completion_timeout(&hci->pending_r_comp,
 					 msecs_to_jiffies(1000))) {
 		dev_warn(&hci->master.dev, "timeout waiting for master read\n");
+		mipi_i3c_hci_pio_reset(hci);
 		return -EINVAL;
 	}
+	hci_free_xfer(pending_read_xfer, 1);
 
 	return 0;
 }
@@ -889,7 +892,7 @@ static const struct i3c_target_ops ast2700_i3c_target_ops = {
 	.bus_init = ast2700_i3c_target_bus_init,
 	.bus_cleanup = ast2700_i3c_target_bus_cleanup,
 	.hj_req = ast2700_i3c_target_hj_req,
-	.priv_xfers = ast2700_i3c_target_priv_xfers,
+	.priv_xfers = NULL,
 	.generate_ibi = ast2700_i3c_target_generate_ibi,
 	.pending_read_notify = ast2700_i3c_target_pending_read_notify,
 	.is_ibi_enabled = ast2700_i3c_target_is_ibi_enabled,
