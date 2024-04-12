@@ -65,6 +65,20 @@ enum hci_resp_err {
 	/* 0xc to 0xf are reserved for transfer specific errors */
 };
 
+enum hci_target_resp_err {
+	TARGET_RESP_SUCCESS			= 0x0,
+	TARGET_RESP_ERR_CRC			= 0x1,
+	TARGET_RESP_ERR_PARITY			= 0x2,
+	TARGET_RESP_ERR_FRAME			= 0x3,
+	TARGET_RESP_ERR_R_NO_CMD_DESC		= 0x5,
+	TARGET_RESP_ERR_OVERFLOW		= 0x6,
+	TARGET_RESP_ERR_W_RX_QUEUE_FULL		= 0x7,
+	TARGET_RESP_ERR_EARLY_TERMINATED	= 0xa,
+	TARGET_RESP_ERR_I2C_READ_TOO_MUCH	= 0xb,
+	TARGET_RESP_ERR_IBI_NACK		= 0xc,
+	TARGET_RESP_ERR_IBI_LOST_ARBITRATION	= 0xd,
+};
+
 /* Sub command in the internal control command */
 enum hci_m_sub_cmd {
 	M_SUB_CMD_RING_LOCK = 0x1,
