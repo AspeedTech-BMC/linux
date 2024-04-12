@@ -14,10 +14,7 @@
 #include "hci.h"
 #include "cmd.h"
 #include "ibi.h"
-
-#define ASPEED_I3C_INTR_RENEW		0xF4
-#define ast_inhouse_read(r)		readl(hci->EXTCAPS_regs + (r))
-#define ast_inhouse_write(r, v)		writel(v, hci->EXTCAPS_regs + (r))
+#include "vendor_aspeed.h"
 
 /*
  * PIO Access Area
