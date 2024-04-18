@@ -1067,7 +1067,8 @@ static void ast2500_espi_oob_reset(struct ast2500_espi *espi)
 		writel(reg, espi->regs + ESPI_CTRL);
 	}
 
-	writel(ESPI_INT_EN_OOB_RX_CMPLT, espi->regs + ESPI_INT_EN);
+	reg = readl(espi->regs + ESPI_INT_EN) | ESPI_INT_EN_OOB_RX_CMPLT;
+	writel(reg, espi->regs + ESPI_INT_EN);
 
 	reg = readl(espi->regs + ESPI_CTRL) | ESPI_CTRL_OOB_SW_RDY;
 	writel(reg, espi->regs + ESPI_CTRL);
