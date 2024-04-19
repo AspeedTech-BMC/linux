@@ -706,7 +706,7 @@ static void ast2500_espi_vw_isr(struct ast2500_espi *espi)
 
 		if (sts_sysevt & ESPI_VW_SYSEVT1_INT_STS_SUSPEND_WARN) {
 			reg = readl(espi->regs + ESPI_VW_SYSEVT1) | ESPI_VW_SYSEVT1_SUSPEND_ACK;
-			writel(reg, espi->regs);
+			writel(reg, espi->regs + ESPI_VW_SYSEVT1);
 			writel(ESPI_VW_SYSEVT1_INT_STS_SUSPEND_WARN, espi->regs + ESPI_VW_SYSEVT1_INT_STS);
 		}
 
