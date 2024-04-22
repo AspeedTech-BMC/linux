@@ -426,6 +426,9 @@ struct i3c_bus {
  *		      all CCC commands are supported.
  * @send_ccc_cmd: send a CCC command
  *		  This method is mandatory.
+ * @send_hdr_cmds: send one or several HDR commands. If there is more than one
+ *		   command, they should ideally be sent in the same HDR
+ *		   transaction
  * @priv_xfers: do one or several private I3C SDR transfers
  *		This method is mandatory.
  * @attach_i2c_dev: called every time an I2C device is attached to the bus.
@@ -484,6 +487,8 @@ struct i3c_master_controller_ops {
 				 const struct i3c_ccc_cmd *cmd);
 	int (*send_ccc_cmd)(struct i3c_master_controller *master,
 			    struct i3c_ccc_cmd *cmd);
+	int (*send_hdr_cmds)(struct i3c_master_controller *master,
+			     struct i3c_hdr_cmd *cmds, int ncmds);
 	int (*priv_xfers)(struct i3c_dev_desc *dev,
 			  struct i3c_priv_xfer *xfers,
 			  int nxfers);
@@ -607,6 +612,8 @@ void i3c_master_unregister(struct i3c_master_controller *master);
 int i3c_master_enable_hotjoin(struct i3c_master_controller *master);
 int i3c_master_disable_hotjoin(struct i3c_master_controller *master);
 
+int i3c_master_send_hdr_cmds(struct i3c_master_controller *master,
+			     struct i3c_hdr_cmd *cmds, int ncmds);
 int i3c_register(struct i3c_master_controller *master,
 		 struct device *parent,
 		 const struct i3c_master_controller_ops *master_ops,

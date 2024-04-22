@@ -51,6 +51,27 @@ enum i3c_hdr_mode {
 };
 
 /**
+ * struct i3c_hdr_cmd - I3C HDR command
+ * @mode: HDR mode selected for this command
+ * @code: command opcode
+ * @addr: I3C dynamic address
+ * @ndatawords: number of data words (a word is 16bits wide)
+ * @data: input/output buffer
+ * @err: I3C error code
+ */
+struct i3c_hdr_cmd {
+	enum i3c_hdr_mode mode;
+	u8 code;
+	u8 addr;
+	int ndatawords;
+	union {
+		void *in;
+		const void *out;
+	} data;
+	enum i3c_error_code err;
+};
+
+/**
  * struct i3c_priv_xfer - I3C SDR private transfer
  * @rnw: encodes the transfer direction. true for a read, false for a write
  * @len: transfer length in bytes of the transfer
@@ -322,6 +343,9 @@ int i3c_device_do_setdasa(struct i3c_device *dev);
 void i3c_device_get_info(const struct i3c_device *dev, struct i3c_device_info *info);
 
 int i3c_device_getstatus_ccc(struct i3c_device *dev, struct i3c_device_info *info);
+
+int i3c_device_send_hdr_cmds(struct i3c_device *dev, struct i3c_hdr_cmd *cmds,
+			     int ncmds);
 
 int i3c_device_generate_ibi(struct i3c_device *dev, const u8 *data, int len);
 
