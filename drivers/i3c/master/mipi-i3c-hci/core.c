@@ -1111,8 +1111,13 @@ static int i3c_hci_init(struct i3c_hci *hci)
 		if (mode_selector && (reg_read(HC_CONTROL) & HC_CONTROL_PIO_MODE)) {
 			dev_err(&hci->master.dev, "PIO mode is stuck\n");
 			ret = -EIO;
+		} else if (!hci->dma_rst) {
+			dev_err(&hci->master.dev,
+				"missing or invalid i3c dma reset controller device tree entry\n");
+			ret = -EIO;
 		} else {
 			hci->io = &mipi_i3c_hci_dma;
+			reset_control_deassert(hci->dma_rst);
 			dev_info(&hci->master.dev, "Using DMA\n");
 		}
 	}
@@ -1273,7 +1278,7 @@ static int i3c_hci_probe(struct platform_device *pdev)
 	hci->master.dev.init_name = dev_name(&pdev->dev);
 
 	hci->quirks = (unsigned long)device_get_match_data(&pdev->dev);
-	hci->rst = devm_reset_control_get_shared(&pdev->dev, NULL);
+	hci->rst = devm_reset_control_get_optional_exclusive(&pdev->dev, NULL);
 	if (IS_ERR(hci->rst)) {
 		dev_err(&pdev->dev,
 			"missing or invalid reset controller device tree entry");
@@ -1281,6 +1286,10 @@ static int i3c_hci_probe(struct platform_device *pdev)
 	}
 	reset_control_assert(hci->rst);
 	reset_control_deassert(hci->rst);
+
+	hci->dma_rst = devm_reset_control_get_shared_by_index(&pdev->dev, 1);
+	if (IS_ERR(hci->dma_rst))
+		hci->dma_rst = NULL;
 
 	hci->clk = devm_clk_get(&pdev->dev, NULL);
 	if (IS_ERR(hci->clk)) {
