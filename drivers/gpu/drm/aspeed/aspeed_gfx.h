@@ -26,6 +26,11 @@ struct aspeed_gfx {
 	u32				scan_line_max;
 	u32				flags;
 	u32				pcie_int_reg;
+	u32				pcie_int_mask;
+	u32				pcie_int_l_to_h;
+	u32				pcie_int_h_to_l;
+	u32				pcie_link_reg;
+	u32				pcie_link_bit;
 	u32				soc_crt_bit;
 	u32				soc_dp_bit;
 
@@ -141,13 +146,16 @@ int aspeed_gfx_create_output(struct drm_device *drm);
 #define ADDR_64				BIT(12)
 
 /* PCIE interrupt */
-#define PCIE_PERST_L_T_H		BIT(18)
-#define PCIE_PERST_H_T_L		BIT(19)
-#define STS_PERST_STATUS		(PCIE_PERST_L_T_H | PCIE_PERST_H_T_L)
+#define PCIE_PERST_L_T_H_G5		BIT(18)
+#define PCIE_PERST_H_T_L_G5		BIT(19)
+#define PCIE_PERST_L_T_H_G7		BIT(2)
+#define PCIE_PERST_H_T_L_G7		BIT(3)
 
 /* PCIE end pointer define */
-#define PCIE_LINK_REG		0xD0
-#define PCIE_LINK_STATUS	BIT(20)
+#define PCIE_LINK_REG_G5	0xC0
+#define PCIE_LINK_STATUS_G5	BIT(5)
+#define PCIE_LINK_REG_G7	0x358
+#define PCIE_LINK_STATUS_G7	BIT(8)
 
 /* Adaptor function define */
 /* AST2600: DP adaptor define */

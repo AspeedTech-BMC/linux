@@ -65,6 +65,11 @@ struct aspeed_gfx_config {
 	u32 scan_line_max;	/* Max memory size of one scan line */
 	u32 gfx_flags;		/* Flags for gfx chip caps */
 	u32 pcie_int_reg;	/* pcie interrupt */
+	u32 pcie_int_mask;	/* pcie PERST# mask */
+	u32 pcie_int_l_to_h;	/* pcie PERST# low to high */
+	u32 pcie_int_h_to_l;	/* pcie PERST# high to low */
+	u32 pcie_link_reg;	/* pcie link status offset */
+	u32 pcie_link_bit;	/* pcie link status bit */
 	u32 soc_crt_bit;	/* soc display crt switch flag*/
 	u32 soc_dp_bit;		/* soc display dp switch flag*/
 };
@@ -77,6 +82,11 @@ static const struct aspeed_gfx_config ast2400_config = {
 	.scan_line_max = 64,
 	.gfx_flags = CLK_G4,
 	.pcie_int_reg = 0x0,
+	.pcie_int_mask = 0x0,
+	.pcie_int_l_to_h = 0x0,
+	.pcie_int_h_to_l = 0x0,
+	.pcie_link_reg = 0x0,
+	.pcie_link_bit = 0x0,
 	.soc_crt_bit = BIT(16),
 	.soc_dp_bit = 0x0,
 };
@@ -89,6 +99,11 @@ static const struct aspeed_gfx_config ast2500_config = {
 	.scan_line_max = 128,
 	.gfx_flags = 0,
 	.pcie_int_reg = 0x18,
+	.pcie_int_mask = (PCIE_PERST_L_T_H_G5 | PCIE_PERST_H_T_L_G5),
+	.pcie_int_l_to_h = PCIE_PERST_L_T_H_G5,
+	.pcie_int_h_to_l = PCIE_PERST_H_T_L_G5,
+	.pcie_link_reg = PCIE_LINK_REG_G5,
+	.pcie_link_bit = PCIE_LINK_STATUS_G5,
 	.soc_crt_bit = BIT(16),
 	.soc_dp_bit = 0x0,
 };
@@ -101,6 +116,11 @@ static const struct aspeed_gfx_config ast2600_config = {
 	.scan_line_max = 128,
 	.gfx_flags = RESET_G6 | CLK_G6,
 	.pcie_int_reg = 0x560,
+	.pcie_int_mask = (PCIE_PERST_L_T_H_G5 | PCIE_PERST_H_T_L_G5),
+	.pcie_int_l_to_h = PCIE_PERST_L_T_H_G5,
+	.pcie_int_h_to_l = PCIE_PERST_H_T_L_G5,
+	.pcie_link_reg = PCIE_LINK_REG_G5,
+	.pcie_link_bit = PCIE_LINK_STATUS_G5,
 	.soc_crt_bit = BIT(16),
 	.soc_dp_bit = BIT(18),
 };
@@ -112,7 +132,12 @@ static const struct aspeed_gfx_config ast2700_config = {
 	.throd_val = CRT_THROD_LOW(0x50) | CRT_THROD_HIGH(0x70),
 	.scan_line_max = 128,
 	.gfx_flags = CLK_G7 | ADDR_64,
-	.pcie_int_reg = 0x0,
+	.pcie_int_reg = 0x1D0,
+	.pcie_int_mask = (PCIE_PERST_L_T_H_G7 | PCIE_PERST_H_T_L_G7),
+	.pcie_int_l_to_h = PCIE_PERST_L_T_H_G7,
+	.pcie_int_h_to_l = PCIE_PERST_H_T_L_G7,
+	.pcie_link_reg = PCIE_LINK_REG_G7,
+	.pcie_link_bit = PCIE_LINK_STATUS_G7,
 	.soc_crt_bit = BIT(13),
 	.soc_dp_bit = BIT(9),
 };
@@ -168,8 +193,8 @@ static irqreturn_t aspeed_host_irq_handler(int irq, void *data)
 
 	regmap_read(priv->scu, priv->pcie_int_reg, &reg);
 
-	if (reg & STS_PERST_STATUS) {
-		if (reg & PCIE_PERST_L_T_H) {
+	if (reg & priv->pcie_int_mask) {
+		if (reg & priv->pcie_int_l_to_h) {
 			dev_dbg(drm->dev, "pcie active.\n");
 			/*Change the DP back to host*/
 			if (priv->dp_support) {
@@ -181,7 +206,7 @@ static irqreturn_t aspeed_host_irq_handler(int irq, void *data)
 
 			/*Change the CRT back to host*/
 			regmap_update_bits(priv->scu, priv->dac_reg, priv->soc_crt_bit, 0);
-		} else if (reg & PCIE_PERST_H_T_L) {
+		} else if (reg & priv->pcie_int_h_to_l) {
 			dev_dbg(drm->dev, "pcie de-active.\n");
 			/*Change the DP into host*/
 			if (priv->dp_support) {
@@ -227,20 +252,24 @@ static int aspeed_pcie_active_detect(struct drm_device *drm)
 	if (IS_ERR(priv->pcie_ep)) {
 		priv->pcie_ep = syscon_regmap_lookup_by_compatible("aspeed,ast2600-pcie-phy");
 		if (IS_ERR(priv->pcie_ep)) {
-			dev_err(drm->dev, "failed to find pcie_ep regmap\n");
-			return PTR_ERR(priv->pcie_ep);
+			priv->pcie_ep = syscon_regmap_lookup_by_compatible("aspeed,ast2700-pcie-phy");
+				if (IS_ERR(priv->pcie_ep)) {
+					dev_err(drm->dev, "failed to find pcie_ep regmap\n");
+					return PTR_ERR(priv->pcie_ep);
+				}
 		}
 	}
 
 	/* check pcie rst status */
-	regmap_read(priv->pcie_ep, PCIE_LINK_REG, &reg);
-	dev_dbg(drm->dev, "g6 drv link reg v %x\n", reg);
+	regmap_read(priv->pcie_ep, priv->pcie_link_reg, &reg);
 
 	/* host vga is on or not */
-	if (reg & PCIE_LINK_STATUS)
+	if (reg & priv->pcie_link_bit)
 		priv->pcie_active = 0x1;
 	else
 		priv->pcie_active = 0x0;
+
+	dev_dbg(drm->dev, "pcie_active %x\n", priv->pcie_active);
 
 	return 0;
 }
@@ -378,6 +407,11 @@ static int aspeed_gfx_load(struct drm_device *drm)
 	priv->scan_line_max = config->scan_line_max;
 	priv->flags = config->gfx_flags;
 	priv->pcie_int_reg = config->pcie_int_reg;
+	priv->pcie_int_mask = config->pcie_int_mask;
+	priv->pcie_int_l_to_h = config->pcie_int_l_to_h;
+	priv->pcie_int_h_to_l = config->pcie_int_h_to_l;
+	priv->pcie_link_reg = config->pcie_link_reg;
+	priv->pcie_link_bit = config->pcie_link_bit;
 	priv->soc_crt_bit = config->soc_crt_bit;
 	priv->soc_dp_bit = config->soc_dp_bit;
 
