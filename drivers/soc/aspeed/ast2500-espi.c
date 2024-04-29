@@ -710,7 +710,7 @@ static void ast2500_espi_vw_isr(struct ast2500_espi *espi)
 			writel(ESPI_VW_SYSEVT1_INT_STS_SUSPEND_WARN, espi->regs + ESPI_VW_SYSEVT1_INT_STS);
 		}
 
-		writel(ESPI_INT_STS_VW_SYSEVT, espi->regs + ESPI_INT_STS);
+		writel(ESPI_INT_STS_VW_SYSEVT1, espi->regs + ESPI_INT_STS);
 	}
 
 	if (sts & ESPI_INT_STS_VW_GPIO) {
