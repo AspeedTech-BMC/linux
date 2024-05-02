@@ -1035,7 +1035,11 @@ static irqreturn_t i3c_aspeed_irq_handler(int irqn, void *dev_id)
 		val &= ~ASPEED_INTR_SUM_PIO;
 	}
 	if (val & ASPEED_INTR_SUM_RHS) {
-		hci->io->irq_handler(hci, 0);
+		/*
+		 * ASPEED only has one ring, and HCI v1.2 doesn't have a register to indicate which
+		 * ring has the interrupt.
+		 */
+		hci->io->irq_handler(hci, 1);
 		val &= ~ASPEED_INTR_SUM_RHS;
 	}
 	if (val & ASPEED_INTR_SUM_INHOUSE) {
