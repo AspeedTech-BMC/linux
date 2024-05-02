@@ -1197,6 +1197,11 @@
 		groups = "VGAVS";
 	};
 
+	pinctrl_vpa_default: vpa_default {
+		function = "VPA";
+		groups = "VPA";
+	};
+
 	pinctrl_wdtrst1_default: wdtrst1_default {
 		function = "WDTRST1";
 		groups = "WDTRST1";
