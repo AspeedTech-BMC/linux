@@ -14,6 +14,7 @@
 #include <linux/workqueue.h>
 
 #include <linux/i3c/device.h>
+#include <linux/i3c/master.h>
 
 #include <linux/i3c/mctp/i3c-mctp.h>
 
@@ -149,13 +150,26 @@ static struct i3c_mctp_packet *i3c_mctp_read_packet(struct i3c_device *i3c)
 		i3c_mctp_packet_free(rx_packet);
 		return ERR_PTR(-EINVAL);
 	}
+	if (i3c->desc->info.hdr_cap & BIT(I3C_HDR_DDR) &&
+	    IS_ENABLED(CONFIG_I3C_MCTP_HDR_DDR)) {
+		struct i3c_hdr_cmd cmds;
 
-	ret = i3c_device_do_priv_xfers(i3c, &xfers, 1);
+		cmds.mode = I3C_HDR_DDR;
+		cmds.code = 0x80;
+		cmds.ndatawords = DIV_ROUND_UP(rx_packet->size, 2);
+		cmds.data.in = &rx_packet->data;
+		ret = i3c_device_send_hdr_cmds(i3c, &cmds, 1);
+		if (!ret)
+			rx_packet->size = cmds.ndatawords;
+	} else {
+		ret = i3c_device_do_priv_xfers(i3c, &xfers, 1);
+		if (!ret)
+			rx_packet->size = xfers.len;
+	}
 	if (ret) {
 		i3c_mctp_packet_free(rx_packet);
 		return ERR_PTR(ret);
 	}
-	rx_packet->size = xfers.len;
 
 	return rx_packet;
 }
@@ -223,9 +237,20 @@ static ssize_t i3c_mctp_write(struct file *file, const char __user *buf, size_t 
 	if (IS_ERR(data))
 		return PTR_ERR(data);
 
-	xfers.data.out = data;
+	if (i3c->desc->info.hdr_cap & BIT(I3C_HDR_DDR) &&
+	    IS_ENABLED(CONFIG_I3C_MCTP_HDR_DDR)) {
+		struct i3c_hdr_cmd cmds;
 
-	ret = i3c_device_do_priv_xfers(i3c, &xfers, 1);
+		cmds.mode = I3C_HDR_DDR;
+		cmds.code = 0;
+		cmds.ndatawords = DIV_ROUND_UP(count, 2);
+		cmds.data.out = data;
+		ret = i3c_device_send_hdr_cmds(i3c, &cmds, 1);
+	} else {
+		xfers.data.out = data;
+
+		ret = i3c_device_do_priv_xfers(i3c, &xfers, 1);
+	}
 	kfree(data);
 	return ret ?: count;
 }
@@ -466,12 +491,21 @@ EXPORT_SYMBOL_GPL(i3c_mctp_get_eid);
  */
 int i3c_mctp_send_packet(struct i3c_device *i3c, struct i3c_mctp_packet *tx_packet)
 {
-	struct i3c_priv_xfer xfers = {
-		.rnw = false,
-		.len = tx_packet->size,
-		.data.out = &tx_packet->data,
-	};
+	if (i3c->desc->info.hdr_cap & BIT(I3C_HDR_DDR) &&
+	    IS_ENABLED(CONFIG_I3C_MCTP_HDR_DDR)) {
+		struct i3c_hdr_cmd cmds;
 
+		cmds.mode = I3C_HDR_DDR;
+		cmds.code = 0;
+		cmds.ndatawords = DIV_ROUND_UP(tx_packet->size, 2);
+		cmds.data.out = &tx_packet->data;
+		return i3c_device_send_hdr_cmds(i3c, &cmds, 1);
+	}
+	struct i3c_priv_xfer xfers;
+
+	xfers.rnw = false;
+	xfers.len = tx_packet->size;
+	xfers.data.out = &tx_packet->data;
 	return i3c_device_do_priv_xfers(i3c, &xfers, 1);
 }
 EXPORT_SYMBOL_GPL(i3c_mctp_send_packet);

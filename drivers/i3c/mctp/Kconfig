@@ -6,6 +6,14 @@ help
     Say yes here to enable the I3C MCTP driver for I3C HW that is
     configured as an I3C Controller Device on the I3C Bus.
 
+config I3C_MCTP_HDR_DDR
+	bool "transfer with HDR-DDR mode"
+	depends on I3C_MCTP
+	default n
+	help
+	  Say yes here to use the HDR-DDR mode as default to transfer data if
+	  the device support it.
+
 config I3C_TARGET_MCTP
     tristate "I3C Target MCTP driver"
     depends on I3C
