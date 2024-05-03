@@ -43,11 +43,13 @@ enum i3c_error_code {
  * @I3C_HDR_DDR: DDR mode
  * @I3C_HDR_TSP: TSP mode
  * @I3C_HDR_TSL: TSL mode
+ * @I3C_HDR_BT: BT mode
  */
 enum i3c_hdr_mode {
 	I3C_HDR_DDR,
 	I3C_HDR_TSP,
 	I3C_HDR_TSL,
+	I3C_HDR_BT,
 };
 
 /**
