@@ -1327,6 +1327,25 @@ static int aspeed_i3c_of_populate_bus_timing(struct i3c_hci *hci,
 		      FIELD_PREP(PHY_I3C_SDR0_CTRL2_HD_PP, hcnt) |
 			      FIELD_PREP(PHY_I3C_SDR0_CTRL2_TBIT_HD_PP, lcnt));
 
+	hcnt = DIV_ROUND_CLOSEST(PHY_I3C_DDR_DEFAULT_SCL_H_NS, core_period) - 1;
+	lcnt = DIV_ROUND_CLOSEST(PHY_I3C_DDR_DEFAULT_SCL_L_NS, core_period) - 1;
+	ast_phy_write(PHY_I3C_DDR_CTRL0,
+		      FIELD_PREP(PHY_I3C_DDR_CTRL0_SCL_H, hcnt) |
+			      FIELD_PREP(PHY_I3C_DDR_CTRL0_SCL_L, lcnt));
+	hcnt = DIV_ROUND_CLOSEST(PHY_I3C_DDR_DEFAULT_TBIT_H_NS, core_period) - 1;
+	lcnt = DIV_ROUND_CLOSEST(PHY_I3C_DDR_DEFAULT_TBIT_L_NS, core_period) - 1;
+	ast_phy_write(PHY_I3C_DDR_CTRL1,
+		      FIELD_PREP(PHY_I3C_DDR_CTRL1_TBIT_H, hcnt) |
+			      FIELD_PREP(PHY_I3C_DDR_CTRL1_TBIT_L, lcnt));
+	hcnt = DIV_ROUND_CLOSEST(PHY_I3C_DDR_DEFAULT_HD_PP_NS, core_period) -
+	       1;
+	lcnt = DIV_ROUND_CLOSEST(PHY_I3C_DDR_DEFAULT_TBIT_HD_PP_NS,
+				 core_period) -
+	       1;
+	ast_phy_write(PHY_I3C_DDR_CTRL2,
+		      FIELD_PREP(PHY_I3C_DDR_CTRL2_HD_PP, hcnt) |
+			      FIELD_PREP(PHY_I3C_DDR_CTRL2_TBIT_HD_PP, lcnt));
+
 	hcnt = DIV_ROUND_CLOSEST(PHY_I3C_SR_P_DEFAULT_HD_NS, core_period) - 1;
 	lcnt = DIV_ROUND_CLOSEST(PHY_I3C_SR_P_DEFAULT_SCL_L_NS, core_period) - 1;
 	ast_phy_write(PHY_I3C_SR_P_PREPARE_CTRL,
