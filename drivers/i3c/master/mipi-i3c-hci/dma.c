@@ -239,7 +239,13 @@ static int hci_dma_init(struct i3c_hci *hci)
 		xfers_sz = rh->xfer_struct_sz * rh->xfer_entries;
 		resps_sz = rh->resp_struct_sz * rh->xfer_entries;
 
-		dma_set_coherent_mask(&hci->master.dev, DMA_BIT_MASK(64));
+		ret = dma_set_mask_and_coherent(&hci->master.dev,
+						DMA_BIT_MASK(64));
+		if (ret) {
+			dev_err(&hci->master.dev,
+				"cannot set 64-bits DMA mask\n");
+			return ret;
+		}
 
 		rh->xfer = dma_alloc_coherent(&hci->master.dev, xfers_sz,
 					      &rh->xfer_dma, GFP_KERNEL);
