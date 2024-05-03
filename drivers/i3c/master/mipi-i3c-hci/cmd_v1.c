@@ -323,6 +323,46 @@ static int hci_cmd_v1_prep_ccc(struct i3c_hci *hci,
 	return 0;
 }
 
+static int hci_cmd_v1_prep_hdr(struct i3c_hci *hci, struct hci_xfer *xfer,
+			       u8 addr, u8 code, enum i3c_hdr_mode hdr_mode)
+{
+	unsigned int dat_idx = 0;
+	u8 *data = xfer->data;
+	unsigned int data_len = xfer->data_len;
+	bool rnw = xfer->rnw;
+	int ret;
+	enum hci_cmd_mode hdr_to_cmd[] = { MODE_I3C_HDR_DDR, MODE_I3C_HDR_TSx,
+					   MODE_I3C_HDR_TSx, MODE_I3C_HDR_BT };
+
+	if (addr != I3C_BROADCAST_ADDR) {
+		ret = mipi_i3c_hci_dat_v1.get_index(hci, addr);
+		if (ret < 0)
+			return ret;
+		dat_idx = ret;
+	}
+
+	xfer->cmd_tid = hci_get_tid();
+
+	if (!rnw && data_len <= 4) {
+		/* we use an Immediate Data Transfer Command */
+		xfer->cmd_desc[0] = CMD_0_ATTR_I | CMD_I0_TID(xfer->cmd_tid) |
+				    CMD_I0_CMD(code & 0x7f) | CMD_I0_CP |
+				    CMD_I0_DEV_INDEX(dat_idx) |
+				    CMD_I0_DTT(data_len) |
+				    CMD_I0_MODE(hdr_to_cmd[hdr_mode]);
+		fill_data_bytes(xfer, data, data_len);
+	} else {
+		/* we use a Regular Data Transfer Command */
+		xfer->cmd_desc[0] = CMD_0_ATTR_R | CMD_R0_TID(xfer->cmd_tid) |
+				    CMD_R0_CMD(code & 0x7f) | CMD_R0_CP |
+				    CMD_R0_DEV_INDEX(dat_idx) |
+				    CMD_R0_MODE(hdr_to_cmd[hdr_mode]) |
+				    (rnw ? CMD_R0_RNW : 0);
+		xfer->cmd_desc[1] = CMD_R1_DATA_LENGTH(data_len);
+	}
+	return 0;
+}
+
 static void hci_cmd_v1_prep_i3c_xfer(struct i3c_hci *hci,
 				     struct i3c_dev_desc *dev,
 				     struct hci_xfer *xfer)
@@ -527,6 +567,7 @@ static int hci_cmd_v1_daa(struct i3c_hci *hci)
 
 const struct hci_cmd_ops mipi_i3c_hci_cmd_v1 = {
 	.prep_ccc		= hci_cmd_v1_prep_ccc,
+	.prep_hdr		= hci_cmd_v1_prep_hdr,
 	.prep_i3c_xfer		= hci_cmd_v1_prep_i3c_xfer,
 	.prep_i2c_xfer		= hci_cmd_v1_prep_i2c_xfer,
 	.prep_internal		= hci_cmd_v1_prep_internal,

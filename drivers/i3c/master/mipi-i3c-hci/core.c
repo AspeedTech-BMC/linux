@@ -151,6 +151,16 @@ static int i3c_hci_bus_init(struct i3c_master_controller *m)
 		  MASTER_DYNAMIC_ADDR(ret) | MASTER_DYNAMIC_ADDR_VALID);
 	memset(&info, 0, sizeof(info));
 	info.dyn_addr = ret;
+	if (hci->caps & HC_CAP_HDR_DDR_EN)
+		info.hdr_cap |= BIT(I3C_HDR_DDR);
+	if (hci->caps & HC_CAP_HDR_TS_EN) {
+		if (reg_read(HC_CONTROL) & HC_CONTROL_I2C_TARGET_PRESENT)
+			info.hdr_cap |= BIT(I3C_HDR_TSL);
+		else
+			info.hdr_cap |= BIT(I3C_HDR_TSP);
+	}
+	if (hci->caps & HC_CAP_HDR_BT_EN)
+		info.hdr_cap |= BIT(I3C_HDR_BT);
 	ret = i3c_master_set_info(m, &info);
 	if (ret)
 		return ret;
@@ -444,6 +454,71 @@ out:
 	return ret;
 }
 
+static int i3c_hci_send_hdr_cmds(struct i3c_master_controller *m,
+				 struct i3c_hdr_cmd *cmds, int ncmds)
+{
+	struct i3c_hci *hci = to_i3c_hci(m);
+	struct hci_xfer *xfer;
+	DECLARE_COMPLETION_ONSTACK(done);
+	int i, last, ret = 0, ntxwords = 0, nrxwords = 0;
+
+	DBG("ncmds = %d", ncmds);
+
+	for (i = 0; i < ncmds; i++) {
+		DBG("cmds[%d] mode = %x", i, cmds[i].mode);
+		if (!(BIT(cmds[i].mode) & m->this->info.hdr_cap))
+			return -EOPNOTSUPP;
+		if (cmds[i].code & 0x80)
+			nrxwords += DIV_ROUND_UP(cmds[i].ndatawords, 2);
+		else
+			ntxwords += DIV_ROUND_UP(cmds[i].ndatawords, 2);
+	}
+
+	xfer = hci_alloc_xfer(ncmds);
+	if (!xfer)
+		return -ENOMEM;
+
+	for (i = 0; i < ncmds; i++) {
+		xfer[i].data_len = cmds[i].ndatawords << 1;
+
+		xfer[i].rnw = cmds[i].code & 0x80 ? 1 : 0;
+		if (xfer[i].rnw)
+			xfer[i].data = cmds[i].data.in;
+		else
+			xfer[i].data = (void *)cmds[i].data.out;
+		hci->cmd->prep_hdr(hci, xfer, cmds[i].addr, cmds[i].code,
+				   cmds[i].mode);
+
+		xfer[i].cmd_desc[0] |= CMD_0_ROC;
+	}
+	last = i - 1;
+	xfer[last].cmd_desc[0] |= CMD_0_TOC;
+	xfer[last].completion = &done;
+
+	ret = hci->io->queue_xfer(hci, xfer, ncmds);
+	if (ret)
+		goto hdr_out;
+	if (!wait_for_completion_timeout(&done, HZ) &&
+	    hci->io->dequeue_xfer(hci, xfer, ncmds)) {
+		ret = -ETIME;
+		goto hdr_out;
+	}
+	for (i = 0; i < ncmds; i++) {
+		if (RESP_STATUS(xfer[i].response) != RESP_SUCCESS) {
+			dev_err(&hci->master.dev, "resp status = %lx",
+				RESP_STATUS(xfer[i].response));
+			ret = -EIO;
+			goto hdr_out;
+		}
+		if (cmds[i].code & 0x80)
+			cmds[i].ndatawords = DIV_ROUND_UP(RESP_DATA_LENGTH(xfer[i].response), 2);
+	}
+
+hdr_out:
+	hci_free_xfer(xfer, ncmds);
+	return ret;
+}
+
 static int i3c_hci_i2c_xfers(struct i2c_dev_desc *dev,
 			     struct i2c_msg *i2c_xfers, int nxfers)
 {
@@ -659,6 +734,7 @@ static const struct i3c_master_controller_ops i3c_hci_ops = {
 	.bus_reset		= i3c_hci_bus_reset,
 	.do_daa			= i3c_hci_daa,
 	.send_ccc_cmd		= i3c_hci_send_ccc_cmd,
+	.send_hdr_cmds		= i3c_hci_send_hdr_cmds,
 	.priv_xfers		= i3c_hci_priv_xfers,
 	.i2c_xfers		= i3c_hci_i2c_xfers,
 	.attach_i3c_dev		= i3c_hci_attach_i3c_dev,
@@ -994,7 +1070,7 @@ static int i3c_hci_init(struct i3c_hci *hci)
 	}
 
 	hci->caps = reg_read(HC_CAPABILITIES);
-	DBG("caps = %#x", hci->caps);
+	dev_info(&hci->master.dev, "caps = %#x", hci->caps);
 
 	size_in_dwords = hci->version_major < 1 ||
 			 (hci->version_major == 1 && hci->version_minor < 1);
