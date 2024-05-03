@@ -551,8 +551,9 @@ static bool hci_pio_process_resp(struct i3c_hci *hci, struct hci_pio_data *pio)
 								       nbytes);
 			}
 		} else {
-			/* ibi or master read */
-			if (!TARGET_RESP_CCC_HDR(resp)) {
+			/* ibi or master read or HDR read */
+			if (!TARGET_RESP_CCC_HDR(resp) ||
+			    TARGET_RESP_CCC_HDR(resp) & 0x80) {
 				if (TARGET_RESP_TID(resp) == TID_TARGET_IBI)
 					complete(&hci->ibi_comp);
 				else if (TARGET_RESP_TID(resp) ==

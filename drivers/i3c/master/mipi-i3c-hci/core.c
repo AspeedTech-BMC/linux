@@ -779,7 +779,17 @@ static int ast2700_i3c_target_bus_init(struct i3c_master_controller *m)
 	ast_inhouse_write(ASPEED_I3C_SLV_CAP_CTRL,
 			  reg | ASPEED_I3C_SLV_CAP_CTRL_IBI_WAIT |
 				  ASPEED_I3C_SLV_CAP_CTRL_HJ_WAIT);
-
+	if (hci->caps & HC_CAP_HDR_DDR_EN)
+		desc->info.hdr_cap |= BIT(I3C_HDR_DDR);
+	if (hci->caps & HC_CAP_HDR_TS_EN) {
+		if (reg_read(HC_CONTROL) & HC_CONTROL_I2C_TARGET_PRESENT)
+			desc->info.hdr_cap |= BIT(I3C_HDR_TSL);
+		else
+			desc->info.hdr_cap |= BIT(I3C_HDR_TSP);
+	}
+	if (hci->caps & HC_CAP_HDR_BT_EN)
+		desc->info.hdr_cap |= BIT(I3C_HDR_BT);
+	ast_inhouse_write(ASPEED_I3C_SLV_STS8_GETCAPS_TGT, desc->info.hdr_cap);
 	ast_inhouse_write(ASPEED_I3C_CTRL,
 			  ASPEED_I3C_CTRL_INIT |
 				  FIELD_PREP(ASPEED_I3C_CTRL_INIT_MODE,
