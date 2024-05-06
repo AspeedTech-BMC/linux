@@ -13,12 +13,15 @@
 #include <linux/of_address.h>
 #include <linux/of_irq.h>
 #include <linux/io.h>
+#include <linux/spinlock.h>
 
 #define INTC_INT_ENABLE_REG	0x00
 #define INTC_INT_STATUS_REG	0x04
 
 struct aspeed_intc_ic {
 	void __iomem		*base;
+	raw_spinlock_t		gic_lock;
+	raw_spinlock_t		intc_lock;
 	struct irq_domain	*irq_domain;
 };
 
@@ -26,15 +29,17 @@ static void aspeed_intc_ic_irq_handler(struct irq_desc *desc)
 {
 	struct aspeed_intc_ic *intc_ic = irq_desc_get_handler_data(desc);
 	struct irq_chip *chip = irq_desc_get_chip(desc);
-	unsigned long bit, status;
+	unsigned long bit, status, flags;
 
 	chained_irq_enter(chip, desc);
 
+	raw_spin_lock_irqsave(&intc_ic->gic_lock, flags);
 	status = readl(intc_ic->base + INTC_INT_STATUS_REG);
 	for_each_set_bit(bit, &status, 32) {
 		generic_handle_domain_irq(intc_ic->irq_domain, bit);
 		writel(BIT(bit), intc_ic->base + INTC_INT_STATUS_REG);
 	}
+	raw_spin_unlock_irqrestore(&intc_ic->gic_lock, flags);
 
 	chained_irq_exit(chip, desc);
 }
@@ -43,16 +48,22 @@ static void aspeed_intc_irq_mask(struct irq_data *data)
 {
 	struct aspeed_intc_ic *intc_ic = irq_data_get_irq_chip_data(data);
 	unsigned int mask = readl(intc_ic->base + INTC_INT_ENABLE_REG) & ~BIT(data->hwirq);
+	unsigned long flags;
 
+	raw_spin_lock_irqsave(&intc_ic->intc_lock, flags);
 	writel(mask, intc_ic->base + INTC_INT_ENABLE_REG);
+	raw_spin_unlock_irqrestore(&intc_ic->intc_lock, flags);
 }
 
 static void aspeed_intc_irq_unmask(struct irq_data *data)
 {
 	struct aspeed_intc_ic *intc_ic = irq_data_get_irq_chip_data(data);
 	unsigned int unmask = readl(intc_ic->base + INTC_INT_ENABLE_REG) | BIT(data->hwirq);
+	unsigned long flags;
 
+	raw_spin_lock_irqsave(&intc_ic->intc_lock, flags);
 	writel(unmask, intc_ic->base + INTC_INT_ENABLE_REG);
+	raw_spin_unlock_irqrestore(&intc_ic->intc_lock, flags);
 }
 
 static int aspeed_intc_irq_set_affinity(struct irq_data *data,
@@ -117,6 +128,9 @@ static int __init aspeed_intc_ic_of_init(struct device_node *node,
 		goto err_iounmap;
 	}
 
+	raw_spin_lock_init(&intc_ic->gic_lock);
+	raw_spin_lock_init(&intc_ic->intc_lock);
+
 	intc_ic->irq_domain->name = "aspeed-intc-domain";
 
 	irq_set_chained_handler_and_data(irq,
@@ -158,6 +172,9 @@ static int __init aspeed_intc_ic_of_init_v2(struct device_node *node,
 		ret = -ENOMEM;
 		goto err_iounmap;
 	}
+
+	raw_spin_lock_init(&intc_ic->gic_lock);
+	raw_spin_lock_init(&intc_ic->intc_lock);
 
 	intc_ic->irq_domain->name = "aspeed-intc-domain";
 
