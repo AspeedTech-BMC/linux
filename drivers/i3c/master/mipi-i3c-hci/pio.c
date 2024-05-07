@@ -318,6 +318,44 @@ static void ast2700_target_read_rx_fifo(struct i3c_hci *hci, unsigned int count)
 	}
 }
 
+static void aspeed_dummy_data_work_around(struct i3c_hci *hci,
+					  struct hci_pio_data *pio)
+{
+	u32 queue_ptr, remain, data;
+	struct hci_xfer *xfer = pio->curr_rx;
+	u32 *p;
+	u8 *p_byte;
+
+	queue_ptr = ast_inhouse_read(ASPEED_I3C_QUEUE_PTR1);
+	if (QUEUE_PTR1_RX_W(queue_ptr) >= QUEUE_PTR1_RX_R(queue_ptr))
+		remain =
+			QUEUE_PTR1_RX_W(queue_ptr) - QUEUE_PTR1_RX_R(queue_ptr);
+	else
+		remain = 0x20 - (QUEUE_PTR1_RX_R(queue_ptr) -
+				 QUEUE_PTR1_RX_W(queue_ptr));
+	if (remain > 1) {
+		dev_err(&hci->master.dev,
+			"unexpected behavior remain %d queue_ptr = %x response = %x",
+			remain, queue_ptr, xfer->response);
+		return;
+	}
+	remain *= 4;
+	if (remain) {
+		dev_warn_once(&hci->master.dev,
+			      "encounter the dummy data issue");
+		p = xfer->data;
+		memcpy(p, p + 1, RESP_DATA_LENGTH(xfer->response) - 4);
+		p += ((RESP_DATA_LENGTH(xfer->response) >> 2) - 1);
+		data = pio_reg_read(XFER_DATA_PORT);
+		data = (__force u32)cpu_to_le32(data);
+		p_byte = (u8 *)p;
+		while (remain--) {
+			*p_byte++ = data;
+			data >>= 8;
+		}
+	}
+}
+
 static void hci_pio_do_trailing_rx(struct i3c_hci *hci,
 				   struct hci_pio_data *pio, unsigned int count)
 {
@@ -598,7 +636,8 @@ static bool hci_pio_process_resp(struct i3c_hci *hci, struct hci_pio_data *pio)
 				to_keep = DIV_ROUND_UP(expected, 4);
 				hci_pio_push_to_next_rx(hci, xfer, to_keep);
 			}
-
+			/* Workaround for A0 dummy data issue */
+			aspeed_dummy_data_work_around(hci, pio);
 			/* then process the RX list pointer */
 			if (hci_pio_process_rx(hci, pio))
 				pio->enabled_irqs &= ~STAT_RX_THLD;
