@@ -214,6 +214,11 @@
 #define SCU_MISC_CTRL			0xC0
 #define  SCU_DPLL_SOURCE		BIT(20)
 
+#define SCU_MULTI_FUNC_12		0x440
+#define  SCU_MULTI_FUNC_CPU_SLI_DIR	BIT(5)
+#define SCU_MULTI_FUNC_15		0x454
+#define  SCU_MULTI_FUNC_IO_SLI_DIR	BIT(21)
+
 #define GFX_CTRL			0x60
 #define  GFX_CTRL_ENABLE		BIT(0)
 #define  GFX_CTRL_FMT			GENMASK(9, 7)
@@ -540,7 +545,7 @@ static const struct v4l2_dv_timings_cap aspeed_video_timings_cap = {
 
 static const char * const format_str[] = {"Standard JPEG",
 	"Aspeed JPEG", "Partial JPEG"};
-static const char * const input_str[] = {"GFX", "BMC GFX", "MEMORY"};
+static const char * const input_str[] = {"GFX", "BMC GFX", "MEMORY", "DVI"};
 
 static unsigned int debug;
 
@@ -1380,6 +1385,9 @@ static void aspeed_video_get_resolution_vga(struct aspeed_video *video,
 		return;
 	}
 
+	if (video->input == VIDEO_INPUT_DVI)
+		video->frame_right -= 1;
+
 	det->height = (video->frame_bottom - video->frame_top) + 1;
 	det->width = (video->frame_right - video->frame_left) + 1;
 	video->v4l2_input_status = 0;
@@ -1455,6 +1463,11 @@ static void aspeed_video_set_resolution(struct aspeed_video *video)
 		aspeed_video_update(video, VE_CTRL,
 				    VE_CTRL_INT_DE | VE_CTRL_DIRECT_FETCH,
 				    VE_CTRL_INT_DE);
+	} else if (video->input == VIDEO_INPUT_DVI) {
+		v4l2_dbg(1, debug, &video->v4l2_dev, "Capture: Sync Mode for external source\n");
+		aspeed_video_update(video, VE_CTRL,
+				    VE_CTRL_INT_DE | VE_CTRL_DIRECT_FETCH,
+				    0);
 	} else {
 		u32 ctrl, val, bpp;
 
@@ -1550,6 +1563,8 @@ static void aspeed_video_update_regs(struct aspeed_video *video)
 
 	if (video->input == VIDEO_INPUT_VGA)
 		ctrl |= VE_CTRL_AUTO_OR_CURSOR;
+	else if (video->input == VIDEO_INPUT_DVI)
+		ctrl |= VE_CTRL_SOURCE;
 
 	if (video->frame_rate)
 		ctrl |= FIELD_PREP(VE_CTRL_FRC, video->frame_rate);
@@ -1576,7 +1591,9 @@ static void aspeed_video_update_regs(struct aspeed_video *video)
 	aspeed_video_update(video, VE_SEQ_CTRL,
 			    video->jpeg_mode | VE_SEQ_CTRL_YUV420,
 			    seq_ctrl);
-	aspeed_video_update(video, VE_CTRL, VE_CTRL_FRC | VE_CTRL_AUTO_OR_CURSOR, ctrl);
+	aspeed_video_update(video, VE_CTRL,
+			    VE_CTRL_FRC | VE_CTRL_AUTO_OR_CURSOR |
+			    VE_CTRL_SOURCE, ctrl);
 	aspeed_video_update(video, VE_COMP_CTRL,
 			    VE_COMP_CTRL_DCT_LUM | VE_COMP_CTRL_DCT_CHR |
 			    VE_COMP_CTRL_EN_HQ | VE_COMP_CTRL_HQ_DCT_LUM |
@@ -1772,8 +1789,27 @@ static int aspeed_video_set_input(struct file *file, void *fh, unsigned int i)
 	else
 		regmap_update_bits(video->scu, SCU_MISC_CTRL, SCU_DPLL_SOURCE, SCU_DPLL_SOURCE);
 
+	// SLI direction: inverse if DVI
+	if (video->input == VIDEO_INPUT_DVI) {
+		regmap_update_bits(video->scu, SCU_MULTI_FUNC_12,
+				   SCU_MULTI_FUNC_CPU_SLI_DIR,
+				   SCU_MULTI_FUNC_CPU_SLI_DIR);
+		regmap_update_bits(video->scu, SCU_MULTI_FUNC_15,
+				   SCU_MULTI_FUNC_IO_SLI_DIR,
+				   SCU_MULTI_FUNC_IO_SLI_DIR);
+	} else {
+		regmap_update_bits(video->scu, SCU_MULTI_FUNC_12,
+				   SCU_MULTI_FUNC_CPU_SLI_DIR,
+				   0);
+		regmap_update_bits(video->scu, SCU_MULTI_FUNC_15,
+				   SCU_MULTI_FUNC_IO_SLI_DIR,
+				   0);
+	}
+
+	aspeed_video_update_regs(video);
+
 	// update signal status
-	if (i == VIDEO_INPUT_MEM) {
+	if (video->input == VIDEO_INPUT_MEM) {
 		video->v4l2_input_status = 0;
 	} else {
 		aspeed_video_get_resolution(video);
