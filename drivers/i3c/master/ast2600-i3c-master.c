@@ -607,14 +607,15 @@ static void aspeed_i3c_master_iba_ctrl(struct aspeed_i3c_master *master, bool ct
 
 static int aspeed_i3c_master_disable(struct aspeed_i3c_master *master)
 {
-	if (master->secondary)
+	if (master->secondary) {
 		aspeed_i3c_isolate_scl_sda(master, true);
+		/* Clear the internal busy status */
+		aspeed_i3c_gen_stop_to_internal(master);
+	}
 	writel(readl(master->regs + DEVICE_CTRL) & ~DEV_CTRL_ENABLE,
 	       master->regs + DEVICE_CTRL);
 	if (master->secondary) {
 		aspeed_i3c_toggle_scl_in(master, 8);
-		/* Clear the internal busy status */
-		aspeed_i3c_gen_stop_to_internal(master);
 		if (readl(master->regs + DEVICE_CTRL) & DEV_CTRL_ENABLE) {
 			dev_warn(master->dev, "Failed to disable controller");
 			aspeed_i3c_isolate_scl_sda(master, false);
@@ -627,19 +628,22 @@ static int aspeed_i3c_master_disable(struct aspeed_i3c_master *master)
 
 static int aspeed_i3c_master_enable(struct aspeed_i3c_master *master)
 {
-	u32 wait_enable_us;
+	u32 wait_enable_us, clk_count;
 
-	if (master->secondary)
+	if (master->secondary) {
 		aspeed_i3c_isolate_scl_sda(master, true);
+		/* Clear the internal busy status */
+		aspeed_i3c_gen_stop_to_internal(master);
+	}
 	writel(readl(master->regs + DEVICE_CTRL) | DEV_CTRL_ENABLE,
 	       master->regs + DEVICE_CTRL);
 	if (master->secondary) {
-		wait_enable_us =
-			DIV_ROUND_UP(master->timing.core_period *
-					     FIELD_GET(GENMASK(31, 16),
-						       readl(master->regs +
-							     BUS_FREE_TIMING)),
-				     NSEC_PER_USEC);
+		clk_count = FIELD_GET(GENMASK(31, 16),
+				      readl(master->regs + BUS_FREE_TIMING));
+		clk_count = max(clk_count, readl(master->regs + BUS_IDLE_TIMING));
+		wait_enable_us = DIV_ROUND_UP(master->timing.core_period *
+						      clk_count,
+					      NSEC_PER_USEC);
 		udelay(wait_enable_us);
 		aspeed_i3c_toggle_scl_in(master, 8);
 		if (!(readl(master->regs + DEVICE_CTRL) & DEV_CTRL_ENABLE)) {
