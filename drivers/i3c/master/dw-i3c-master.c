@@ -404,15 +404,16 @@ static void dw_i3c_master_disable(struct dw_i3c_master *master)
 	if (!(readl(master->regs + DEVICE_CTRL) & DEV_CTRL_ENABLE))
 		return;
 
-	if (master->base.target)
+	if (master->base.target) {
 		master->platform_ops->enter_sw_mode(master);
+		master->platform_ops->gen_internal_stop(master);
+	}
 
 	writel(readl(master->regs + DEVICE_CTRL) & ~DEV_CTRL_ENABLE,
 	       master->regs + DEVICE_CTRL);
 
 	if (master->base.target) {
 		master->platform_ops->toggle_scl_in(master, 8);
-		master->platform_ops->gen_internal_stop(master);
 		if (readl(master->regs + DEVICE_CTRL) & DEV_CTRL_ENABLE) {
 			dev_warn(&master->base.dev,
 				 "Failed to disable controller");
@@ -425,19 +426,21 @@ static void dw_i3c_master_disable(struct dw_i3c_master *master)
 
 static void dw_i3c_master_enable(struct dw_i3c_master *master)
 {
-	u32 wait_enable_ns;
+	u32 wait_enable_ns, clk_count;
 
-	if (master->base.target)
+	if (master->base.target) {
 		master->platform_ops->enter_sw_mode(master);
+		master->platform_ops->gen_internal_stop(master);
+	}
 
 	writel(readl(master->regs + DEVICE_CTRL) | DEV_CTRL_ENABLE,
 	       master->regs + DEVICE_CTRL);
 
 	if (master->base.target) {
-		wait_enable_ns =
-			master->timing.core_period *
-			FIELD_GET(BUS_AVAIL_TIME,
-				  readl(master->regs + BUS_FREE_TIMING));
+		clk_count = FIELD_GET(BUS_AVAIL_TIME,
+				      readl(master->regs + BUS_FREE_TIMING));
+		clk_count = max(clk_count, readl(master->regs + BUS_IDLE_TIMING));
+		wait_enable_ns = master->timing.core_period * clk_count;
 		udelay(DIV_ROUND_UP(wait_enable_ns, NSEC_PER_USEC));
 
 		master->platform_ops->toggle_scl_in(master, 8);
