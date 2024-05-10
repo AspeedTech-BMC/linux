@@ -273,9 +273,9 @@ static void fill_data_bytes(struct hci_xfer *xfer, u8 *data,
 	xfer->data = NULL;
 }
 
-static int hci_cmd_v1_prep_ccc(struct i3c_hci *hci,
-			       struct hci_xfer *xfer,
-			       u8 ccc_addr, u8 ccc_cmd, bool raw)
+static int hci_cmd_v1_prep_ccc(struct i3c_hci *hci, struct hci_xfer *xfer,
+			       u8 ccc_addr, u8 ccc_cmd, bool ccc_dbp, u8 ccc_db,
+			       bool raw)
 {
 	unsigned int dat_idx = 0;
 	enum hci_cmd_mode mode = get_i3c_mode(hci);
@@ -314,10 +314,13 @@ static int hci_cmd_v1_prep_ccc(struct i3c_hci *hci,
 			CMD_R0_TID(xfer->cmd_tid) |
 			CMD_R0_CMD(ccc_cmd) | CMD_R0_CP |
 			CMD_R0_DEV_INDEX(dat_idx) |
+			(ccc_dbp ? CMD_R0_DBP : 0) |
 			CMD_R0_MODE(mode) |
 			(rnw ? CMD_R0_RNW : 0);
 		xfer->cmd_desc[1] =
 			CMD_R1_DATA_LENGTH(data_len);
+		if (ccc_dbp)
+			xfer->cmd_desc[1] |= CMD_R1_DEF_BYTE(ccc_db);
 	}
 
 	return 0;

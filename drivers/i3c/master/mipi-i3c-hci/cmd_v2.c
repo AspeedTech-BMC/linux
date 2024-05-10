@@ -149,7 +149,8 @@ static void hci_cmd_v2_prep_private_xfer(struct i3c_hci *hci,
 }
 
 static int hci_cmd_v2_prep_ccc(struct i3c_hci *hci, struct hci_xfer *xfer,
-			       u8 ccc_addr, u8 ccc_cmd, bool raw)
+			       u8 ccc_addr, u8 ccc_cmd, bool dbp, u8 db,
+			       bool raw)
 {
 	unsigned int mode = XFERMODE_IDX_I3C_SDR;
 	unsigned int rate = get_i3c_rate_idx(hci);

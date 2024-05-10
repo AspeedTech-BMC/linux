@@ -281,8 +281,9 @@ static int i3c_hci_send_ccc_cmd(struct i3c_master_controller *m,
 	DECLARE_COMPLETION_ONSTACK(done);
 	int i, last, ret = 0;
 
-	DBG("cmd=%#x rnw=%d ndests=%d data[0].len=%d",
-	    ccc->id, ccc->rnw, ccc->ndests, ccc->dests[0].payload.len);
+	DBG("cmd=%#x rnw=%d dbp=%d db=%#x ndests=%d data[0].len=%d", ccc->id,
+	    ccc->rnw, ccc->dbp, ccc->db, ccc->ndests,
+	    ccc->dests[0].payload.len);
 
 	xfer = hci_alloc_xfer(nxfers);
 	if (!xfer)
@@ -292,8 +293,8 @@ static int i3c_hci_send_ccc_cmd(struct i3c_master_controller *m,
 		xfer->data = NULL;
 		xfer->data_len = 0;
 		xfer->rnw = false;
-		hci->cmd->prep_ccc(hci, xfer, I3C_BROADCAST_ADDR,
-				   ccc->id, true);
+		hci->cmd->prep_ccc(hci, xfer, I3C_BROADCAST_ADDR, ccc->id,
+				   ccc->dbp, ccc->db, true);
 		xfer++;
 	}
 
@@ -302,7 +303,7 @@ static int i3c_hci_send_ccc_cmd(struct i3c_master_controller *m,
 		xfer[i].data_len = ccc->dests[i].payload.len;
 		xfer[i].rnw = ccc->rnw;
 		ret = hci->cmd->prep_ccc(hci, &xfer[i], ccc->dests[i].addr,
-					 ccc->id, raw);
+					 ccc->id, ccc->dbp, ccc->db, raw);
 		if (ret)
 			goto out;
 		xfer[i].cmd_desc[0] |= CMD_0_ROC;

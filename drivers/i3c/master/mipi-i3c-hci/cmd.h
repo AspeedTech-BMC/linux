@@ -122,8 +122,8 @@ enum hci_rec_rst_proc {
 
 /* This abstracts operations with our command descriptor formats */
 struct hci_cmd_ops {
-	int (*prep_ccc)(struct i3c_hci *hci, struct hci_xfer *xfer,
-			u8 ccc_addr, u8 ccc_cmd, bool raw);
+	int (*prep_ccc)(struct i3c_hci *hci, struct hci_xfer *xfer, u8 ccc_addr,
+			u8 ccc_cmd, bool ccc_dbp, u8 ccc_db, bool raw);
 	int (*prep_hdr)(struct i3c_hci *hci, struct hci_xfer *xfer, u8 addr,
 			u8 code, enum i3c_hdr_mode mode);
 	void (*prep_i3c_xfer)(struct i3c_hci *hci, struct i3c_dev_desc *dev,
