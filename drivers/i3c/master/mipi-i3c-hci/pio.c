@@ -321,22 +321,16 @@ static void ast2700_target_read_rx_fifo(struct i3c_hci *hci, unsigned int count)
 static void aspeed_dummy_data_work_around(struct i3c_hci *hci,
 					  struct hci_pio_data *pio)
 {
-	u32 queue_ptr, remain, data;
+	u32 remain, data;
 	struct hci_xfer *xfer = pio->curr_rx;
 	u32 *p;
 	u8 *p_byte;
 
-	queue_ptr = ast_inhouse_read(ASPEED_I3C_QUEUE_PTR1);
-	if (QUEUE_PTR1_RX_W(queue_ptr) >= QUEUE_PTR1_RX_R(queue_ptr))
-		remain =
-			QUEUE_PTR1_RX_W(queue_ptr) - QUEUE_PTR1_RX_R(queue_ptr);
-	else
-		remain = 0x20 - (QUEUE_PTR1_RX_R(queue_ptr) -
-				 QUEUE_PTR1_RX_W(queue_ptr));
+	remain = aspeed_get_received_rx_entries(hci);
 	if (remain > 1) {
 		dev_err(&hci->master.dev,
-			"unexpected behavior remain %d queue_ptr = %x response = %x",
-			remain, queue_ptr, xfer->response);
+			"unexpected behavior remain %d response = %x",
+			remain, xfer->response);
 		return;
 	}
 	remain *= 4;
@@ -407,11 +401,21 @@ static bool hci_pio_do_tx(struct i3c_hci *hci, struct hci_pio_data *pio)
 	p += (xfer->data_len - xfer->data_left) / 4;
 
 	while (xfer->data_left >= 4) {
+#ifdef CONFIG_ARCH_ASPEED
+		unsigned int avail_tx = aspeed_get_avail_tx_entries(hci);
+
+		/* bail out if FIFO free space is below set threshold */
+		if (unlikely(!avail_tx))
+			return false;
+		/* we can fill up to that TX threshold */
+		nr_words = min(xfer->data_left / 4, avail_tx);
+#else
 		/* bail out if FIFO free space is below set threshold */
 		if (!(pio_reg_read(INTR_STATUS) & STAT_TX_THLD))
 			return false;
 		/* we can fill up to that TX threshold */
 		nr_words = min(xfer->data_left / 4, pio->tx_thresh_size);
+#endif
 		/* push data into the FIFO */
 		xfer->data_left -= nr_words * 4;
 		DBG("now %d left %d", nr_words * 4, xfer->data_left);
@@ -427,8 +431,13 @@ static bool hci_pio_do_tx(struct i3c_hci *hci, struct hci_pio_data *pio)
 		 * also get some bytes past the actual buffer but no one
 		 * should care as they won't be sent out.
 		 */
+#ifdef CONFIG_ARCH_ASPEED
+		if (unlikely(!aspeed_get_avail_tx_entries(hci)))
+			return false;
+#else
 		if (!(pio_reg_read(INTR_STATUS) & STAT_TX_THLD))
 			return false;
+#endif
 		DBG("trailing %d", xfer->data_left);
 		pio_reg_write(XFER_DATA_PORT, *p);
 		xfer->data_left = 0;

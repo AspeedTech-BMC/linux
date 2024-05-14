@@ -327,4 +327,32 @@
 #define PHY_PULLUP_EN_DDR_SCL	GENMASK(6, 4)
 #define PHY_PULLUP_EN_DDR_SDA	GENMASK(2, 0)
 
+static inline unsigned int aspeed_get_avail_tx_entries(struct i3c_hci *hci)
+{
+	unsigned int queue_ptr, entries;
+
+	queue_ptr = ast_inhouse_read(ASPEED_I3C_QUEUE_PTR0);
+	if (QUEUE_PTR0_TX_W(queue_ptr) >= QUEUE_PTR0_TX_R(queue_ptr))
+		entries = 0x20 - (QUEUE_PTR0_TX_W(queue_ptr) -
+				  QUEUE_PTR0_TX_R(queue_ptr));
+	else
+		entries = QUEUE_PTR0_TX_R(queue_ptr) - QUEUE_PTR0_TX_W(queue_ptr);
+
+	return entries;
+}
+
+static inline unsigned int aspeed_get_received_rx_entries(struct i3c_hci *hci)
+{
+	unsigned int queue_ptr, entries;
+
+	queue_ptr = ast_inhouse_read(ASPEED_I3C_QUEUE_PTR1);
+	if (QUEUE_PTR1_RX_W(queue_ptr) >= QUEUE_PTR1_RX_R(queue_ptr))
+		entries = QUEUE_PTR1_RX_W(queue_ptr) - QUEUE_PTR1_RX_R(queue_ptr);
+	else
+		entries = 0x20 - (QUEUE_PTR1_RX_R(queue_ptr) -
+				  QUEUE_PTR1_RX_W(queue_ptr));
+
+	return entries;
+}
+
 #endif
