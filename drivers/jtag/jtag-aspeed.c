@@ -299,6 +299,8 @@ static int aspeed_jtag_freq_set_26xx(struct jtag *jtag, u32 freq)
 	aspeed_jtag_write(aspeed_jtag,
 			  (tck_val & ~ASPEED_JTAG_CLK_DIVISOR_MASK) | div,
 			  ASPEED_JTAG_GBLCTRL);
+	aspeed_jtag->tck_period =
+		DIV_ROUND_UP_ULL((u64)NSEC_PER_SEC * (div + 1), apb_frq);
 	return 0;
 }
 
