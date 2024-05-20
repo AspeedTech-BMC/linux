@@ -486,6 +486,8 @@ static void aspeed_mctp_rx_trigger(struct mctp_channel *rx)
 static void aspeed_mctp_tx_trigger(struct mctp_channel *tx, bool notify)
 {
 	struct aspeed_mctp *priv = container_of(tx, typeof(*priv), tx);
+	u32 ctrl_val;
+	int ret;
 
 	if (notify) {
 		struct aspeed_mctp_tx_cmd *last_cmd;
@@ -498,6 +500,24 @@ static void aspeed_mctp_tx_trigger(struct mctp_channel *tx, bool notify)
 		regmap_write(priv->map, ASPEED_MCTP_TX_BUF_WR_PTR, tx->wr_ptr);
 	regmap_update_bits(priv->map, ASPEED_MCTP_CTRL, TX_CMD_TRIGGER,
 			   TX_CMD_TRIGGER);
+	ret = regmap_read_poll_timeout_atomic(priv->map, ASPEED_MCTP_CTRL,
+					      ctrl_val,
+					      !(ctrl_val & TX_CMD_TRIGGER), 0,
+					      1000000);
+	if (ret) {
+		u32 rd_ptr, wr_ptr;
+
+		regmap_write(priv->map, ASPEED_MCTP_TX_BUF_RD_PTR, UPDATE_RX_RD_PTR);
+		regmap_read(priv->map, ASPEED_MCTP_TX_BUF_RD_PTR, &rd_ptr);
+		rd_ptr &= RX_BUF_RD_PTR_MASK;
+		regmap_read(priv->map, ASPEED_MCTP_TX_BUF_WR_PTR, &wr_ptr);
+		wr_ptr &= TX_BUF_RD_PTR_MASK;
+		dev_warn(priv->dev,
+			 "Wait tx completed timeout rd_ptr = %x, wr_ptr = %x\n",
+			 rd_ptr, wr_ptr);
+		regmap_update_bits(priv->map, ASPEED_MCTP_CTRL, TX_CMD_TRIGGER,
+				   0);
+	}
 }
 
 static void aspeed_mctp_tx_cmd_prep(u32 *tx_hdr, struct aspeed_mctp_tx_cmd *tx_cmd)
