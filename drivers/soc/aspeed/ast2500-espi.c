@@ -1382,7 +1382,7 @@ static void ast2500_espi_flash_isr(struct ast2500_espi *espi)
 
 	flash = &espi->flash;
 
-	sts = readl(espi->regs + ESPI_INT_STS_FLASH);
+	sts = readl(espi->regs + ESPI_INT_STS);
 
 	if (sts & ESPI_INT_STS_FLASH_RX_CMPLT) {
 		spin_lock_irqsave(&flash->lock, flags);
@@ -1391,7 +1391,7 @@ static void ast2500_espi_flash_isr(struct ast2500_espi *espi)
 
 		wake_up_interruptible(&flash->wq);
 
-		writel(ESPI_INT_STS_FLASH_RX_CMPLT, espi->regs + ESPI_INT_STS_FLASH);
+		writel(ESPI_INT_STS_FLASH_RX_CMPLT, espi->regs + ESPI_INT_STS);
 	}
 }
 

@@ -1780,10 +1780,10 @@ static void ast2600_espi_flash_isr(struct ast2600_espi *espi)
 
 	flash = &espi->flash;
 
-	sts = readl(espi->regs + ESPI_INT_STS_FLASH);
+	sts = readl(espi->regs + ESPI_INT_STS);
 
 	if (sts & ESPI_INT_STS_FLASH_RX_CMPLT) {
-		writel(ESPI_INT_STS_FLASH_RX_CMPLT, espi->regs + ESPI_INT_STS_FLASH);
+		writel(ESPI_INT_STS_FLASH_RX_CMPLT, espi->regs + ESPI_INT_STS);
 
 		spin_lock_irqsave(&flash->lock, flags);
 		flash->rx_ready = true;
