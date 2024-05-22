@@ -214,6 +214,9 @@
 #define SCU_MISC_CTRL			0xC0
 #define  SCU_DPLL_SOURCE		BIT(20)
 
+#define SCU_CLK_SEL2			0x304
+#define  SCU_VIDEO_OUTPUT_DELAY		GENMASK(5, 0)
+
 #define SCU_MULTI_FUNC_12		0x440
 #define  SCU_MULTI_FUNC_CPU_SLI_DIR	BIT(5)
 #define SCU_MULTI_FUNC_15		0x454
@@ -1797,6 +1800,10 @@ static int aspeed_video_set_input(struct file *file, void *fh, unsigned int i)
 		regmap_update_bits(video->scu, SCU_MULTI_FUNC_15,
 				   SCU_MULTI_FUNC_IO_SLI_DIR,
 				   SCU_MULTI_FUNC_IO_SLI_DIR);
+		// Add delay from SLI to VE
+		regmap_update_bits(video->scu, SCU_CLK_SEL2,
+				   SCU_VIDEO_OUTPUT_DELAY,
+				   4);
 	} else {
 		regmap_update_bits(video->scu, SCU_MULTI_FUNC_12,
 				   SCU_MULTI_FUNC_CPU_SLI_DIR,
