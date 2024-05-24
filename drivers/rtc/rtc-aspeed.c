@@ -95,7 +95,7 @@ static int aspeed_rtc_read_time(struct device *dev, struct rtc_time *tm)
 	tm->tm_mon = ((reg2 >>  0) & 0x0f) - 1;
 	tm->tm_year = year + (cent * 100) - 1900;
 
-	dev_dbg(dev, "%s %ptR", __func__, tm);
+	dev_dbg(dev, "%s %ptR\n", __func__, tm);
 
 	return 0;
 }
@@ -105,6 +105,8 @@ static int aspeed_rtc_set_time(struct device *dev, struct rtc_time *tm)
 	struct aspeed_rtc *rtc = dev_get_drvdata(dev);
 	u32 reg1, reg2, ctrl;
 	int year, cent;
+
+	dev_dbg(dev, "%s %ptR\n", __func__, tm);
 
 	cent = (tm->tm_year + 1900) / 100;
 	year = tm->tm_year % 100;
@@ -132,7 +134,9 @@ static int aspeed_rtc_alarm_irq_enable(struct device *dev, unsigned int enabled)
 	struct aspeed_rtc *rtc = dev_get_drvdata(dev);
 	unsigned int alarm_enable;
 
-	alarm_enable = RTC_ALARM_SEC_ENABLE | RTC_ALARM_MIN_ENABLE |
+	dev_dbg(dev, "%s, enabled:%x\n", __func__, enabled);
+
+	alarm_enable = RTC_ALARM_MODE | RTC_ALARM_SEC_ENABLE | RTC_ALARM_MIN_ENABLE |
 		       RTC_ALARM_HOUR_ENABLE | RTC_ALARM_MDAY_ENABLE;
 	if (enabled)
 		aspeed_rtc_int_enable(rtc, alarm_enable);
@@ -165,19 +169,23 @@ static int aspeed_rtc_read_alarm(struct device *dev, struct rtc_wkalrm *alarm)
 	alarm->time.tm_min = (reg1 >> 8) & 0x3f;
 	alarm->time.tm_sec = (reg1 >> 0) & 0x3f;
 
-	/* don't allow the ALARM read to mess up ALARM_STATUS */
-	mutex_lock(&rtc->write_mutex);
+	dev_dbg(dev, "%s %ptR\n", __func__, &alarm->time);
 
 	alarm_enable = RTC_ALARM_SEC_ENABLE | RTC_ALARM_MIN_ENABLE |
 		       RTC_ALARM_HOUR_ENABLE | RTC_ALARM_MDAY_ENABLE;
+	alarm_status = RTC_ALARM_SEC_CB_STATUS | RTC_ALARM_MIN_STATUS |
+		       RTC_ALARM_HOUR_STATUS | RTC_ALARM_MDAY_STATUS;
+
+	/* don't allow the ALARM read to mess up ALARM_STATUS */
+	mutex_lock(&rtc->write_mutex);
+
 	/* alarm is enabled if the interrupt is enabled */
 	if (readl(rtc->base + RTC_CTRL) & alarm_enable)
 		alarm->enabled = true;
 	else
 		alarm->enabled = false;
 
-	alarm_status = RTC_ALARM_SEC_CB_STATUS | RTC_ALARM_MIN_STATUS |
-		       RTC_ALARM_HOUR_STATUS | RTC_ALARM_MDAY_STATUS;
+	/* alarm interrupt asserted or not */
 	if (readl(rtc->base + RTC_ALARM_STATUS) & alarm_status)
 		alarm->pending = true;
 	else
@@ -199,16 +207,19 @@ static int aspeed_rtc_set_alarm(struct device *dev, struct rtc_wkalrm *alarm)
 		return -EINVAL;
 	}
 
+	dev_dbg(dev, "%s %ptR\n", __func__, &alarm->time);
+
+	alarm_enable = RTC_ALARM_MODE | RTC_ALARM_SEC_ENABLE | RTC_ALARM_MIN_ENABLE |
+		       RTC_ALARM_HOUR_ENABLE | RTC_ALARM_MDAY_ENABLE;
+
 	/* don't allow the ALARM read to mess up ALARM_STATUS */
 	mutex_lock(&rtc->write_mutex);
 
 	/* write the new alarm time */
-	reg  = (((alarm->time.tm_mday >> 24) & 0x1f) | ((alarm->time.tm_hour >> 16) & 0x1f) |
-		((alarm->time.tm_min >> 8) & 0x3f)  | ((alarm->time.tm_sec >> 0) & 0x3f));
+	reg  = (alarm->time.tm_mday << 24) | (alarm->time.tm_hour << 16) |
+		(alarm->time.tm_min << 8)  | alarm->time.tm_sec;
 	writel(reg, rtc->base + RTC_ALARM);
 
-	alarm_enable = RTC_ALARM_SEC_ENABLE | RTC_ALARM_MIN_ENABLE |
-		       RTC_ALARM_HOUR_ENABLE | RTC_ALARM_MDAY_ENABLE;
 	/* alarm is enabled if the interrupt is enabled */
 	if (alarm->enabled)
 		aspeed_rtc_int_enable(rtc, alarm_enable);
@@ -233,7 +244,7 @@ static irqreturn_t aspeed_rtc_irq(int irq, void *dev_id)
 	struct aspeed_rtc *rtc = dev_id;
 	unsigned int alarm_enable;
 
-	alarm_enable = RTC_ALARM_SEC_ENABLE | RTC_ALARM_MIN_ENABLE |
+	alarm_enable = RTC_ALARM_MODE | RTC_ALARM_SEC_ENABLE | RTC_ALARM_MIN_ENABLE |
 		       RTC_ALARM_HOUR_ENABLE | RTC_ALARM_MDAY_ENABLE;
 	aspeed_rtc_int_disable(rtc, alarm_enable);
 	aspeed_rtc_clean_alarm(rtc);
@@ -294,13 +305,16 @@ static int aspeed_rtc_probe(struct platform_device *pdev)
 	 * and re-lock and ensure enable is set now that a time is programmed.
 	 */
 	ctrl = readl(rtc->base + RTC_CTRL);
-	writel(ctrl | RTC_UNLOCK | RTC_ENABLE, rtc->base + RTC_CTRL);
+	writel(ctrl | RTC_UNLOCK, rtc->base + RTC_CTRL);
+
 	/*
 	 * Initial value set to year:70,mon:0,mday:1,hour:1,min:1,sec:1
 	 * rtc_valid_tm check whether in suitable range or not.
 	 */
 	writel(0x01010101, rtc->base + RTC_TIME);
 	writel(0x00134601, rtc->base + RTC_YEAR);
+
+	/* Re-lock and ensure enable is set now that a time is programmed */
 	writel(ctrl | RTC_ENABLE, rtc->base + RTC_CTRL);
 
 	rc = devm_rtc_register_device(rtc->rtc_dev);
