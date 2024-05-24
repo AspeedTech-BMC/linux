@@ -17,6 +17,7 @@
 #include <linux/vmalloc.h>
 #include <linux/poll.h>
 #include <linux/delay.h>
+#include <linux/reset.h>
 
 #include "ast2600-espi.h"
 
@@ -170,6 +171,7 @@ struct ast2600_espi_flash {
 struct ast2600_espi {
 	struct device *dev;
 	void __iomem *regs;
+	struct reset_control *rst;
 	struct clk *clk;
 	int irq;
 
@@ -1962,11 +1964,17 @@ static irqreturn_t ast2600_espi_isr(int irq, void *arg)
 		ast2600_espi_flash_isr(espi);
 
 	if (sts & ESPI_INT_STS_RST_DEASSERT) {
+		/* this will clear all interrupt enable and status */
+		reset_control_assert(espi->rst);
+		reset_control_deassert(espi->rst);
+
 		ast2600_espi_perif_reset(espi);
 		ast2600_espi_vw_reset(espi);
 		ast2600_espi_oob_reset(espi);
 		ast2600_espi_flash_reset(espi);
-		writel(ESPI_INT_STS_RST_DEASSERT, espi->regs + ESPI_INT_STS);
+
+		/* re-enable eSPI_RESET# interrupt */
+		writel(ESPI_INT_EN_RST_DEASSERT, espi->regs + ESPI_INT_EN);
 	}
 
 	return IRQ_HANDLED;
@@ -2009,6 +2017,12 @@ static int ast2600_espi_probe(struct platform_device *pdev)
 	if (espi->irq < 0) {
 		dev_err(dev, "cannot get IRQ number\n");
 		return -ENODEV;
+	}
+
+	espi->rst = devm_reset_control_get_exclusive_by_index(dev, 0);
+	if (IS_ERR(espi->rst)) {
+		dev_err(dev, "cannot get reset control\n");
+		return PTR_ERR(espi->rst);
 	}
 
 	espi->clk = devm_clk_get(dev, NULL);
