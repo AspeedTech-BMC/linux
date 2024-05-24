@@ -289,6 +289,9 @@ static int i3c_mctp_open(struct inode *inode, struct file *file)
 		return -EBUSY;
 	}
 	priv->device_open++;
+	/* Discard all of the packet in the rx_queue */
+	while (ptr_ring_consume(&priv->default_client->rx_queue))
+		;
 	spin_unlock(&priv->device_file_lock);
 
 	file->private_data = priv;
