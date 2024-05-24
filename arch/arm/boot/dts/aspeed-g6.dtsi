@@ -740,6 +740,7 @@
 				interrupts = <GIC_SPI 42 IRQ_TYPE_LEVEL_HIGH>,
 					     <GIC_SPI 108 IRQ_TYPE_LEVEL_HIGH>;
 				clocks = <&syscon ASPEED_CLK_GATE_ESPICLK>;
+				resets = <&syscon ASPEED_RESET_ESPI>;
 				status = "disabled";
 			};
 
