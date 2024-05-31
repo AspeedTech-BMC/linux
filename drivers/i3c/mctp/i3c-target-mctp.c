@@ -252,7 +252,7 @@ static ssize_t i3c_target_mctp_write(struct file *file, const char __user *buf,
 	struct i3c_priv_xfer xfers[2] = {};
 	struct i3c_device_info info;
 	u8 *tx_data;
-	u8 ibi_data[2] = { I3C_MCTP_MDB, 0 };
+	u8 *ibi_data;
 	int ret;
 	bool ibi_enabled = i3c_device_is_ibi_enabled(priv->i3cdev);
 
@@ -260,6 +260,11 @@ static ssize_t i3c_target_mctp_write(struct file *file, const char __user *buf,
 		dev_warn(i3cdev_to_dev(priv->i3cdev), "IBI not enabled\n");
 		return count;
 	}
+
+	ibi_data = kzalloc(2, GFP_KERNEL);
+	if (!ibi_data)
+		return -ENOMEM;
+	ibi_data[0] = I3C_MCTP_MDB;
 
 	tx_data = kzalloc(count, GFP_KERNEL);
 	if (!tx_data)
