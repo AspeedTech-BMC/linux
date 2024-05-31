@@ -312,6 +312,18 @@ static int hci_dma_init(struct i3c_hci *hci)
 		rh->ibi_data_dma =
 			dma_map_single(&hci->master.dev, rh->ibi_data,
 				       ibi_data_ring_sz, DMA_FROM_DEVICE);
+		if (hci->master.target) {
+			/*
+			 * Set max private write length value based on read-only register.
+			 * TODO: Handle updates after receiving SETMWL CCC.
+			 */
+			hci->target_rx.max_len = ibi_data_ring_sz;
+
+			hci->target_rx.buf = kzalloc(hci->target_rx.max_len, GFP_KERNEL);
+			if (!hci->target_rx.buf)
+				return -ENOMEM;
+		}
+
 		if (dma_mapping_error(&hci->master.dev, rh->ibi_data_dma)) {
 			rh->ibi_data_dma = 0;
 			ret = -ENOMEM;
@@ -378,13 +390,18 @@ static int hci_dma_queue_xfer(struct i3c_hci *hci,
 
 	op1_val = rh_reg_read(RING_OPERATION1);
 	enqueue_ptr = FIELD_GET(RING_OP1_CR_ENQ_PTR, op1_val);
+	DBG("RING_OPERATION1 = %x", op1_val);
 	for (i = 0; i < n; i++) {
 		struct hci_xfer *xfer = xfer_list + i;
 		u32 *ring_data = rh->xfer + rh->xfer_struct_sz * enqueue_ptr;
 
 		/* store cmd descriptor */
 		*ring_data++ = xfer->cmd_desc[0];
-		*ring_data++ = xfer->cmd_desc[1];
+		DBG("CMD Descriptor[0]=%x", *(ring_data - 1));
+		if (!hci->master.target) {
+			*ring_data++ = xfer->cmd_desc[1];
+			DBG("CMD Descriptor[1]=%x", *(ring_data - 1));
+		}
 		if (hci->cmd == &mipi_i3c_hci_cmd_v2) {
 			*ring_data++ = xfer->cmd_desc[2];
 			*ring_data++ = xfer->cmd_desc[3];
@@ -397,6 +414,7 @@ static int hci_dma_queue_xfer(struct i3c_hci *hci,
 			FIELD_PREP(DATA_BUF_BLOCK_SIZE, xfer->data_len) |
 			((i == n - 1) ? DATA_BUF_IOC : 0);
 
+		DBG("Data Buffer Descriptor[0]=%x", *(ring_data - 1));
 		/* 2nd and 3rd words of Data Buffer Descriptor Structure */
 		if (xfer->data) {
 			buf = xfer->bounce_buf ? xfer->bounce_buf : xfer->data;
@@ -418,6 +436,8 @@ static int hci_dma_queue_xfer(struct i3c_hci *hci,
 			*ring_data++ = 0;
 			*ring_data++ = 0;
 		}
+		DBG("Data Buffer Descriptor[1]=%x [2]=%x", *(ring_data - 2),
+		    *(ring_data - 1));
 
 		/* remember corresponding xfer struct */
 		rh->src_xfers[enqueue_ptr] = xfer;
@@ -432,6 +452,7 @@ static int hci_dma_queue_xfer(struct i3c_hci *hci,
 		 * only if we didn't reach its dequeue pointer.
 		 */
 		op2_val = rh_reg_read(RING_OPERATION2);
+		DBG("RING_OPERATION2 = %x", op2_val);
 		if (enqueue_ptr == FIELD_GET(RING_OP2_CR_DEQ_PTR, op2_val)) {
 			/* the ring is full */
 			hci_dma_unmap_xfer(hci, xfer_list, i + 1);
@@ -444,8 +465,12 @@ static int hci_dma_queue_xfer(struct i3c_hci *hci,
 	op1_val = rh_reg_read(RING_OPERATION1);
 	op1_val &= ~RING_OP1_CR_ENQ_PTR;
 	op1_val |= FIELD_PREP(RING_OP1_CR_ENQ_PTR, enqueue_ptr);
+	DBG("Write RING_OPERATION1 = %x", op1_val);
 	rh_reg_write(RING_OPERATION1, op1_val);
 	spin_unlock_irq(&rh->lock);
+	DBG("INT status = %x enable = %x sig_enable = %x",
+	    rh_reg_read(INTR_STATUS), rh_reg_read(INTR_STATUS_ENABLE),
+	    rh_reg_read(INTR_SIGNAL_ENABLE));
 
 	return 0;
 }
@@ -513,6 +538,7 @@ static void hci_dma_xfer_done(struct i3c_hci *hci, struct hci_rh_data *rh)
 
 	for (;;) {
 		op2_val = rh_reg_read(RING_OPERATION2);
+		DBG("RING_OPERATION2 = %x, done_ptr = %x", op2_val, done_ptr);
 		if (done_ptr == FIELD_GET(RING_OP2_CR_DEQ_PTR, op2_val))
 			break;
 
@@ -520,24 +546,39 @@ static void hci_dma_xfer_done(struct i3c_hci *hci, struct hci_rh_data *rh)
 		resp = *ring_resp;
 		tid = RESP_TID(resp);
 		DBG("resp = 0x%08x", resp);
-
-		xfer = rh->src_xfers[done_ptr];
-		if (!xfer) {
-			DBG("orphaned ring entry");
-		} else {
-			hci_dma_unmap_xfer(hci, xfer, 1);
-			xfer->ring_entry = -1;
-			xfer->response = resp;
-			if (tid != xfer->cmd_tid) {
-				dev_err(&hci->master.dev,
-					"response tid=%d when expecting %d\n",
-					tid, xfer->cmd_tid);
-				/* TODO: do something about it? */
+		if (hci->master.target) {
+			DBG("resp status:%lx, xfer type:%lx, tid:%lx, CCC_HDR: %lx, data len: %lx",
+			    TARGET_RESP_STATUS(resp),
+			    TARGET_RESP_XFER_TYPE(resp), TARGET_RESP_TID(resp),
+			    TARGET_RESP_CCC_HDR(resp),
+			    TARGET_RESP_DATA_LENGTH(resp));
+			/* ibi or master read or HDR read */
+			if (!TARGET_RESP_CCC_HDR(resp) ||
+			    TARGET_RESP_CCC_HDR(resp) & 0x80) {
+				if (TARGET_RESP_TID(resp) == TID_TARGET_IBI)
+					complete(&hci->ibi_comp);
+				else if (TARGET_RESP_TID(resp) ==
+					 TID_TARGET_RD_DATA)
+					complete(&hci->pending_r_comp);
 			}
-			if (xfer->completion)
-				complete(xfer->completion);
+		} else {
+			xfer = rh->src_xfers[done_ptr];
+			if (!xfer) {
+				DBG("orphaned ring entry");
+			} else {
+				hci_dma_unmap_xfer(hci, xfer, 1);
+				xfer->ring_entry = -1;
+				xfer->response = resp;
+				if (tid != xfer->cmd_tid) {
+					dev_err(&hci->master.dev,
+						"response tid=%d when expecting %d\n",
+						tid, xfer->cmd_tid);
+					/* TODO: do something about it? */
+				}
+				if (xfer->completion)
+					complete(xfer->completion);
+			}
 		}
-
 		done_ptr = (done_ptr + 1) % rh->xfer_entries;
 		rh->done_ptr = done_ptr;
 	}
@@ -547,6 +588,7 @@ static void hci_dma_xfer_done(struct i3c_hci *hci, struct hci_rh_data *rh)
 	op1_val = rh_reg_read(RING_OPERATION1);
 	op1_val &= ~RING_OP1_CR_SW_DEQ_PTR;
 	op1_val |= FIELD_PREP(RING_OP1_CR_SW_DEQ_PTR, done_ptr);
+	DBG("Write RING_OPERATION1 = %x", op1_val);
 	rh_reg_write(RING_OPERATION1, op1_val);
 	spin_unlock(&rh->lock);
 }
@@ -604,12 +646,17 @@ static void hci_dma_process_ibi(struct i3c_hci *hci, struct hci_rh_data *rh)
 	int ibi_addr, last_ptr;
 	void *ring_ibi_data;
 	dma_addr_t ring_ibi_data_dma;
+	u32 ibi_status, *ring_ibi_status;
+	unsigned int chunks;
 
 	op1_val = rh_reg_read(RING_OPERATION1);
 	deq_ptr = FIELD_GET(RING_OP1_IBI_DEQ_PTR, op1_val);
 
 	op2_val = rh_reg_read(RING_OPERATION2);
 	enq_ptr = FIELD_GET(RING_OP2_IBI_ENQ_PTR, op2_val);
+
+	DBG("RING_OP1_IBI_DEQ_PTR = %x, RING_OP2_IBI_ENQ_PTR = %x", deq_ptr,
+	    enq_ptr);
 
 	ibi_status_error = 0;
 	ibi_addr = -1;
@@ -620,13 +667,28 @@ static void hci_dma_process_ibi(struct i3c_hci *hci, struct hci_rh_data *rh)
 	/* let's find all we can about this IBI */
 	for (ptr = deq_ptr; ptr != enq_ptr;
 	     ptr = (ptr + 1) % rh->ibi_status_entries) {
-		u32 ibi_status, *ring_ibi_status;
-		unsigned int chunks;
-
 		ring_ibi_status = rh->ibi_status + rh->ibi_status_sz * ptr;
 		ibi_status = *ring_ibi_status;
-		DBG("status = %#x", ibi_status);
+		DBG("ptr = %#x status = %#x", ptr, ibi_status);
 
+		if (hci->master.target) {
+			dev = hci->master.this;
+			size_t nbytes = TARGET_RESP_DATA_LENGTH(ibi_status);
+
+			DBG("resp status:%lx, xfer type:%lx, tid:%lx, CCC_HDR: %lx, data len: %lx",
+			    TARGET_RESP_STATUS(ibi_status),
+			    TARGET_RESP_XFER_TYPE(ibi_status),
+			    TARGET_RESP_TID(ibi_status),
+			    TARGET_RESP_CCC_HDR(ibi_status),
+			    TARGET_RESP_DATA_LENGTH(ibi_status));
+			if (TARGET_RESP_XFER_TYPE(ibi_status)) {
+				chunks = DIV_ROUND_UP(nbytes, rh->ibi_chunk_sz);
+				ibi_chunks += chunks;
+				ibi_size += nbytes;
+			}
+			last_ptr = ptr;
+			break;
+		}
 		if (ibi_status_error) {
 			/* we no longer care */
 		} else if (ibi_status & IBI_ERROR) {
@@ -658,44 +720,46 @@ static void hci_dma_process_ibi(struct i3c_hci *hci, struct hci_rh_data *rh)
 	}
 	deq_ptr = last_ptr + 1;
 	deq_ptr %= rh->ibi_status_entries;
+	if (!hci->master.target) {
+		if (ibi_status_error) {
+			dev_err(&hci->master.dev, "IBI error from %#x\n",
+				ibi_addr);
+			goto done;
+		}
 
-	if (ibi_status_error) {
-		dev_err(&hci->master.dev, "IBI error from %#x\n", ibi_addr);
-		goto done;
+		/* determine who this is for */
+		dev = i3c_hci_addr_to_dev(hci, ibi_addr);
+		if (!dev) {
+			dev_err(&hci->master.dev,
+				"IBI for unknown device %#x\n", ibi_addr);
+			goto done;
+		}
+
+		dev_data = i3c_dev_get_master_data(dev);
+		dev_ibi = dev_data->ibi_data;
+		if (ibi_size > dev_ibi->max_len) {
+			dev_err(&hci->master.dev,
+				"IBI payload too big (%d > %d)\n", ibi_size,
+				dev_ibi->max_len);
+			goto done;
+		}
+
+		/*
+		 * This ring model is not suitable for zero-copy processing of IBIs.
+		 * We have the data chunk ring wrap-around to deal with, meaning
+		 * that the payload might span multiple chunks beginning at the
+		 * end of the ring and wrap to the start of the ring. Furthermore
+		 * there is no guarantee that those chunks will be released in order
+		 * and in a timely manner by the upper driver. So let's just copy
+		 * them to a discrete buffer. In practice they're supposed to be
+		 * small anyway.
+		 */
+		slot = i3c_generic_ibi_get_free_slot(dev_ibi->pool);
+		if (!slot) {
+			dev_err(&hci->master.dev, "no free slot for IBI\n");
+			goto done;
+		}
 	}
-
-	/* determine who this is for */
-	dev = i3c_hci_addr_to_dev(hci, ibi_addr);
-	if (!dev) {
-		dev_err(&hci->master.dev,
-			"IBI for unknown device %#x\n", ibi_addr);
-		goto done;
-	}
-
-	dev_data = i3c_dev_get_master_data(dev);
-	dev_ibi = dev_data->ibi_data;
-	if (ibi_size > dev_ibi->max_len) {
-		dev_err(&hci->master.dev, "IBI payload too big (%d > %d)\n",
-			ibi_size, dev_ibi->max_len);
-		goto done;
-	}
-
-	/*
-	 * This ring model is not suitable for zero-copy processing of IBIs.
-	 * We have the data chunk ring wrap-around to deal with, meaning
-	 * that the payload might span multiple chunks beginning at the
-	 * end of the ring and wrap to the start of the ring. Furthermore
-	 * there is no guarantee that those chunks will be released in order
-	 * and in a timely manner by the upper driver. So let's just copy
-	 * them to a discrete buffer. In practice they're supposed to be
-	 * small anyway.
-	 */
-	slot = i3c_generic_ibi_get_free_slot(dev_ibi->pool);
-	if (!slot) {
-		dev_err(&hci->master.dev, "no free slot for IBI\n");
-		goto done;
-	}
-
 	/* copy first part of the payload */
 	ibi_data_offset = rh->ibi_chunk_sz * rh->ibi_chunk_ptr;
 	ring_ibi_data = rh->ibi_data + ibi_data_offset;
@@ -704,10 +768,17 @@ static void hci_dma_process_ibi(struct i3c_hci *hci, struct hci_rh_data *rh)
 			* rh->ibi_chunk_sz;
 	if (first_part > ibi_size)
 		first_part = ibi_size;
+	DBG("ibi_data_offset = %x, first_part = %x", ibi_data_offset,
+	    first_part);
 	dma_sync_single_for_cpu(&hci->master.dev, ring_ibi_data_dma,
 				first_part, DMA_FROM_DEVICE);
-	memcpy(slot->data, ring_ibi_data, first_part);
-
+	if (hci->master.target) {
+		memcpy(hci->target_rx.buf, ring_ibi_data, first_part);
+		DBG("first_part got: %*ph", (u32)first_part, hci->target_rx.buf);
+	} else {
+		memcpy(slot->data, ring_ibi_data, first_part);
+		DBG("first_part got: %*ph", (u32)first_part, slot->data);
+	}
 	/* copy second part if any */
 	if (ibi_size > first_part) {
 		/* we wrap back to the start and copy remaining data */
@@ -715,14 +786,28 @@ static void hci_dma_process_ibi(struct i3c_hci *hci, struct hci_rh_data *rh)
 		ring_ibi_data_dma = rh->ibi_data_dma;
 		dma_sync_single_for_cpu(&hci->master.dev, ring_ibi_data_dma,
 					ibi_size - first_part, DMA_FROM_DEVICE);
-		memcpy(slot->data + first_part, ring_ibi_data,
-		       ibi_size - first_part);
+		if (hci->master.target) {
+			memcpy(hci->target_rx.buf + first_part, ring_ibi_data,
+			       ibi_size - first_part);
+			DBG("remain got: %*ph", (u32)ibi_size - first_part,
+			    hci->target_rx.buf + first_part);
+		} else {
+			memcpy(slot->data + first_part, ring_ibi_data,
+			       ibi_size - first_part);
+			DBG("remain got: %*ph", (u32)ibi_size - first_part,
+			    slot->data + first_part);
+		}
 	}
-
-	/* submit it */
-	slot->dev = dev;
-	slot->len = ibi_size;
-	i3c_master_queue_ibi(dev, slot);
+	if (hci->master.target) {
+		/* Bypass the priv_xfer data to target layer */
+		if (dev->target_info.read_handler && !TARGET_RESP_CCC_HDR(ibi_status))
+			dev->target_info.read_handler(dev->dev, hci->target_rx.buf, ibi_size);
+	} else {
+		/* submit it */
+		slot->dev = dev;
+		slot->len = ibi_size;
+		i3c_master_queue_ibi(dev, slot);
+	}
 
 done:
 	/* take care to update the ibi dequeue pointer atomically */
@@ -730,12 +815,15 @@ done:
 	op1_val = rh_reg_read(RING_OPERATION1);
 	op1_val &= ~RING_OP1_IBI_DEQ_PTR;
 	op1_val |= FIELD_PREP(RING_OP1_IBI_DEQ_PTR, deq_ptr);
+	DBG("Write RING_OP1_IBI_DEQ_PTR = %x", op1_val);
 	rh_reg_write(RING_OPERATION1, op1_val);
 	spin_unlock(&rh->lock);
 
 	/* update the chunk pointer */
 	rh->ibi_chunk_ptr += ibi_chunks;
 	rh->ibi_chunk_ptr %= rh->ibi_chunks_total;
+	DBG("rh->ibi_chunk_ptr = %x ibi_chunk_ptr = %x", ibi_chunks,
+	    rh->ibi_chunk_ptr);
 
 	/* and tell the hardware about freed chunks */
 	rh_reg_write(CHUNK_CONTROL, rh_reg_read(CHUNK_CONTROL) + ibi_chunks);
