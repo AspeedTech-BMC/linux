@@ -3309,6 +3309,10 @@ int i3c_target_register(struct i3c_master_controller *master, struct device *par
 	device_initialize(&master->dev);
 	dev_set_name(&master->dev, "i3c-%d", i3cbus->id);
 
+	master->dev.dma_mask = parent->dma_mask;
+	master->dev.coherent_dma_mask = parent->coherent_dma_mask;
+	master->dev.dma_parms = parent->dma_parms;
+
 	ret = device_add(&master->dev);
 	if (ret)
 		goto err_put_device;
