@@ -644,6 +644,7 @@ static void hci_dma_process_ibi(struct i3c_hci *hci, struct hci_rh_data *rh)
 	unsigned int ptr, enq_ptr, deq_ptr;
 	unsigned int ibi_size, ibi_chunks, ibi_data_offset, first_part;
 	int ibi_addr, last_ptr;
+	bool ibi_rnw;
 	void *ring_ibi_data;
 	dma_addr_t ring_ibi_data_dma;
 	u32 ibi_status, *ring_ibi_status;
@@ -699,6 +700,7 @@ static void hci_dma_process_ibi(struct i3c_hci *hci, struct hci_rh_data *rh)
 			/* the address changed unexpectedly */
 			ibi_status_error = ibi_status;
 		}
+		ibi_rnw = FIELD_GET(IBI_TARGET_RNW, ibi_status);
 
 		chunks = FIELD_GET(IBI_CHUNKS, ibi_status);
 		ibi_chunks += chunks;
@@ -724,6 +726,10 @@ static void hci_dma_process_ibi(struct i3c_hci *hci, struct hci_rh_data *rh)
 		if (ibi_status_error) {
 			dev_err(&hci->master.dev, "IBI error from %#x\n",
 				ibi_addr);
+			goto done;
+		}
+		if (IBI_TYPE_HJ(ibi_addr, ibi_rnw)) {
+			queue_work(hci->master.wq, &hci->hj_work);
 			goto done;
 		}
 
