@@ -731,6 +731,11 @@ static void hci_dma_process_ibi(struct i3c_hci *hci, struct hci_rh_data *rh)
 		if (IBI_TYPE_HJ(ibi_addr, ibi_rnw)) {
 			queue_work(hci->master.wq, &hci->hj_work);
 			goto done;
+		} else if (IBI_TYPE_CR(ibi_addr, ibi_rnw)) {
+			dev_info(&hci->master.dev,
+				 "get control role requeset from %02x\n",
+				 ibi_addr);
+			goto done;
 		}
 
 		/* determine who this is for */
