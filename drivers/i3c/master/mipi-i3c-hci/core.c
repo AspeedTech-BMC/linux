@@ -224,6 +224,14 @@ out:
 	return ret;
 }
 
+static void mipi_i3c_hci_iba_ctrl(struct i3c_hci *hci, bool enable)
+{
+	DBG("%s IBA\n", enable ? "ENABLE" : "DISABLE");
+	reg_write(HC_CONTROL,
+		  enable ? reg_read(HC_CONTROL) | HC_CONTROL_IBA_INCLUDE :
+			   reg_read(HC_CONTROL) & ~HC_CONTROL_IBA_INCLUDE);
+}
+
 void mipi_i3c_hci_hj_ctrl(struct i3c_hci *hci, bool ack_nack)
 {
 	DBG("%s Hot-join requeset\n", ack_nack ? "ACK" : "NACK");
@@ -1437,6 +1445,8 @@ static int i3c_hci_probe(struct platform_device *pdev)
 			   &ast2700_i3c_target_ops, false);
 	if (ret)
 		return ret;
+	if (!hci->master.target && hci->master.bus.context != I3C_BUS_CONTEXT_JESD403)
+		mipi_i3c_hci_iba_ctrl(hci, true);
 
 	return 0;
 }
