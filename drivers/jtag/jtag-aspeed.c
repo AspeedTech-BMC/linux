@@ -703,13 +703,10 @@ static void aspeed_jtag_set_tap_state_hw2(struct aspeed_jtag *aspeed_jtag,
 		while (aspeed_jtag_read(aspeed_jtag, ASPEED_JTAG_GBLCTRL) & ASPEED_JTAG_GBLCTRL_FORCE_TMS)
 			;
 		aspeed_jtag->current_state = JTAG_STATE_TLRESET;
-	} else if (tapstate->endstate == JTAG_STATE_IDLE &&
-		   aspeed_jtag->current_state != JTAG_STATE_IDLE) {
-		/* Always go to RTI, do not wait for shift operation */
+	} else {
 		aspeed_jtag_set_tap_state(aspeed_jtag,
 					  aspeed_jtag->current_state,
-					  JTAG_STATE_IDLE);
-		aspeed_jtag->current_state = JTAG_STATE_IDLE;
+					  tapstate->endstate);
 	}
 	/* Run TCK */
 	if (tapstate->tck) {
