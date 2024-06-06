@@ -49,6 +49,7 @@
 #define COMMAND_PORT_READ_TRANSFER	BIT(28)
 #define COMMAND_PORT_SDAP		BIT(27)
 #define COMMAND_PORT_ROC		BIT(26)
+#define COMMAND_PORT_DBP(x)		((x) << 25)
 #define COMMAND_PORT_SPEED(x)		(((x) << 21) & GENMASK(23, 21))
 #define   SPEED_I3C_SDR0		0x0
 #define   SPEED_I3C_SDR1		0x1
@@ -65,6 +66,7 @@
 #define COMMAND_PORT_CMD(x)		(((x) << 7) & GENMASK(14, 7))
 #define COMMAND_PORT_TID(x)		(((x) << 3) & GENMASK(6, 3))
 
+#define COMMAND_PORT_ARG_DBP(x)		(((x) << 8) & GENMASK(15, 8))
 #define COMMAND_PORT_ARG_DATA_LEN(x)	(((x) << 16) & GENMASK(31, 16))
 #define COMMAND_PORT_ARG_DATA_LEN_MAX	65536
 #define COMMAND_PORT_TRANSFER_ARG	0x01
@@ -1138,13 +1140,14 @@ static int dw_i3c_ccc_set(struct dw_i3c_master *master,
 	cmd->tx_len = ccc->dests[0].payload.len;
 
 	cmd->cmd_hi = COMMAND_PORT_ARG_DATA_LEN(ccc->dests[0].payload.len) |
-		      COMMAND_PORT_TRANSFER_ARG;
+		      COMMAND_PORT_TRANSFER_ARG | COMMAND_PORT_ARG_DBP(ccc->db);
 
 	cmd->cmd_lo = COMMAND_PORT_CP |
 		      COMMAND_PORT_DEV_INDEX(pos) |
 		      COMMAND_PORT_CMD(ccc->id) |
 		      COMMAND_PORT_TOC |
-		      COMMAND_PORT_ROC;
+		      COMMAND_PORT_ROC |
+		      COMMAND_PORT_DBP(ccc->dbp);
 
 	if (ccc->id == I3C_CCC_SETHID || ccc->id == I3C_CCC_DEVCTRL)
 		cmd->cmd_lo |= COMMAND_PORT_SPEED(SPEED_I3C_I2C_FM);
@@ -1196,14 +1199,15 @@ static int dw_i3c_ccc_get(struct dw_i3c_master *master, struct i3c_ccc_cmd *ccc)
 	cmd->rx_len = ccc->dests[0].payload.len;
 
 	cmd->cmd_hi = COMMAND_PORT_ARG_DATA_LEN(ccc->dests[0].payload.len) |
-		      COMMAND_PORT_TRANSFER_ARG;
+		      COMMAND_PORT_TRANSFER_ARG | COMMAND_PORT_ARG_DBP(ccc->db);
 
 	cmd->cmd_lo = COMMAND_PORT_READ_TRANSFER |
 		      COMMAND_PORT_CP |
 		      COMMAND_PORT_DEV_INDEX(pos) |
 		      COMMAND_PORT_CMD(ccc->id) |
 		      COMMAND_PORT_TOC |
-		      COMMAND_PORT_ROC;
+		      COMMAND_PORT_ROC |
+		      COMMAND_PORT_DBP(ccc->dbp);
 
 	sda_lvl_pre = FIELD_GET(SDA_LINE_SIGNAL_LEVEL,
 				readl(master->regs + PRESENT_STATE));
