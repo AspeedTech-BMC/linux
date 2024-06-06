@@ -42,6 +42,8 @@
 #define DEV_ADDR_DYNAMIC		GENMASK(22, 16)
 
 #define HW_CAPABILITY			0x8
+#define HW_CAP_HDR_TS			BIT(4)
+#define HW_CAP_HDR_DDR			BIT(3)
 #define COMMAND_QUEUE_PORT		0xc
 #define COMMAND_PORT_TOC		BIT(30)
 #define COMMAND_PORT_READ_TRANSFER	BIT(28)
@@ -1014,7 +1016,7 @@ static int dw_i3c_master_bus_init(struct i3c_master_controller *m)
 {
 	struct dw_i3c_master *master = to_dw_i3c_master(m);
 	struct i3c_device_info info = { };
-	u32 thld_ctrl;
+	u32 thld_ctrl, caps;
 	int ret;
 
 	ret = pm_runtime_resume_and_get(master->dev);
@@ -1060,6 +1062,16 @@ static int dw_i3c_master_bus_init(struct i3c_master_controller *m)
 	master->dev_addr = ret;
 	memset(&info, 0, sizeof(info));
 	info.dyn_addr = ret;
+
+	caps =  readl(master->regs + HW_CAPABILITY);
+	if (caps & HW_CAP_HDR_DDR)
+		info.hdr_cap |= BIT(I3C_HDR_DDR);
+	if (caps & HW_CAP_HDR_TS) {
+		if (readl(master->regs + DEVICE_CTRL) | DEV_CTRL_I2C_SLAVE_PRESENT)
+			info.hdr_cap |= BIT(I3C_HDR_TSL);
+		else
+			info.hdr_cap |= BIT(I3C_HDR_TSP);
+	}
 
 	ret = i3c_master_set_info(&master->base, &info);
 	if (ret)
@@ -1446,6 +1458,115 @@ static int dw_i3c_master_priv_xfers(struct i3c_dev_desc *dev,
 
 	pm_runtime_mark_last_busy(master->dev);
 	pm_runtime_put_autosuspend(master->dev);
+	return ret;
+}
+
+static int dw_i3c_master_send_hdr_cmds(struct i3c_dev_desc *dev,
+				       struct i3c_hdr_cmd *cmds, int ncmds)
+{
+	struct i3c_master_controller *m = i3c_dev_get_master(dev);
+	struct dw_i3c_master *master = to_dw_i3c_master(m);
+	u8 dat_index;
+	int ret, i, ntxwords = 0, nrxwords = 0;
+	u32 sda_lvl_pre, sda_lvl_post;
+	struct dw_i3c_xfer *xfer;
+
+	if (ncmds < 1)
+		return 0;
+
+	dev_dbg(&master->base.dev, "ncmds = %x", ncmds);
+
+	if (ncmds > master->caps.cmdfifodepth)
+		return -EOPNOTSUPP;
+
+	for (i = 0; i < ncmds; i++) {
+		dev_dbg(&master->base.dev, "cmds[%d] mode = %x", i,
+			cmds[i].mode);
+		if (cmds[i].mode != I3C_HDR_DDR)
+			return -EOPNOTSUPP;
+		if (cmds[i].code & 0x80)
+			nrxwords += DIV_ROUND_UP(cmds[i].ndatawords, 2);
+		else
+			ntxwords += DIV_ROUND_UP(cmds[i].ndatawords, 2);
+	}
+	dev_dbg(&master->base.dev, "ntxwords = %x, nrxwords = %x", ntxwords,
+		nrxwords);
+	if (ntxwords > master->caps.datafifodepth ||
+	    nrxwords > master->caps.datafifodepth)
+		return -EOPNOTSUPP;
+
+	xfer = dw_i3c_master_alloc_xfer(master, ncmds);
+	if (!xfer)
+		return -ENOMEM;
+
+	for (i = 0; i < ncmds; i++) {
+		struct dw_i3c_cmd *cmd = &xfer->cmds[i];
+
+		dat_index = master->platform_ops->get_addr_pos(master, dev->info.dyn_addr);
+
+		if (dat_index < 0)
+			return dat_index;
+		master->platform_ops->flush_dat(master, dev->info.dyn_addr);
+
+		cmd->cmd_hi =
+			COMMAND_PORT_ARG_DATA_LEN(cmds[i].ndatawords << 1) |
+			COMMAND_PORT_TRANSFER_ARG;
+
+		if (cmds[i].code & 0x80) {
+			cmd->rx_buf = cmds[i].data.in;
+			cmd->rx_len = cmds[i].ndatawords << 1;
+			cmd->cmd_lo = COMMAND_PORT_READ_TRANSFER |
+				      COMMAND_PORT_CP |
+				      COMMAND_PORT_CMD(cmds[i].code) |
+				      COMMAND_PORT_SPEED(SPEED_I3C_HDR_DDR);
+
+		} else {
+			cmd->tx_buf = cmds[i].data.out;
+			cmd->tx_len = cmds[i].ndatawords << 1;
+			cmd->cmd_lo = COMMAND_PORT_CP |
+				      COMMAND_PORT_CMD(cmds[i].code) |
+				      COMMAND_PORT_SPEED(SPEED_I3C_HDR_DDR);
+		}
+
+		cmd->cmd_lo |= COMMAND_PORT_TID(i) |
+			       COMMAND_PORT_DEV_INDEX(dat_index) |
+			       COMMAND_PORT_ROC;
+
+		if (i == (ncmds - 1))
+			cmd->cmd_lo |= COMMAND_PORT_TOC;
+
+		dev_dbg(&master->base.dev,
+			"%s:cmd_hi=0x%08x cmd_lo=0x%08x tx_len=%d rx_len=%d\n",
+			__func__, cmd->cmd_hi, cmd->cmd_lo, cmd->tx_len,
+			cmd->rx_len);
+	}
+
+	sda_lvl_pre = FIELD_GET(SDA_LINE_SIGNAL_LEVEL,
+				readl(master->regs + PRESENT_STATE));
+	dw_i3c_master_enqueue_xfer(master, xfer);
+	if (!wait_for_completion_timeout(&xfer->comp, XFER_TIMEOUT)) {
+		dw_i3c_master_enter_halt(master, true);
+		dw_i3c_master_dequeue_xfer(master, xfer);
+		sda_lvl_post = FIELD_GET(SDA_LINE_SIGNAL_LEVEL,
+					 readl(master->regs + PRESENT_STATE));
+		if (sda_lvl_pre == 0 && sda_lvl_post == 0) {
+			dev_warn(&master->base.dev,
+				 "SDA stuck low! Try to recover the bus...\n");
+			master->platform_ops->bus_recovery(master);
+		}
+		dw_i3c_master_exit_halt(master);
+	}
+
+	for (i = 0; i < ncmds; i++) {
+		struct dw_i3c_cmd *cmd = &xfer->cmds[i];
+
+		if (cmds[i].code & 0x80)
+			cmds[i].ndatawords = DIV_ROUND_UP(cmd->rx_len, 2);
+	}
+
+	ret = xfer->ret;
+	dw_i3c_master_free_xfer(xfer);
+
 	return ret;
 }
 
@@ -2308,6 +2429,7 @@ static const struct i3c_master_controller_ops dw_mipi_i3c_ops = {
 	.do_daa = dw_i3c_master_daa,
 	.supports_ccc_cmd = dw_i3c_master_supports_ccc_cmd,
 	.send_ccc_cmd = dw_i3c_master_send_ccc_cmd,
+	.send_hdr_cmds = dw_i3c_master_send_hdr_cmds,
 	.priv_xfers = dw_i3c_master_priv_xfers,
 	.attach_i2c_dev = dw_i3c_common_attach_i2c_dev,
 	.detach_i2c_dev = dw_i3c_common_detach_i2c_dev,
