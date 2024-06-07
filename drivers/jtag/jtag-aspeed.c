@@ -71,7 +71,7 @@
 #define ASPEED_JTAG_SW_MODE_TDIO		BIT(16)
 
 /* ASPEED_JTAG_TCK : TCK Control */
-#define ASPEED_JTAG_TCK_DIVISOR_MASK	GENMASK(10, 0)
+#define ASPEED_JTAG_TCK_DIVISOR_MASK	GENMASK(11, 0)
 #define ASPEED_JTAG_TCK_GET_DIV(x)	((x) & ASPEED_JTAG_TCK_DIVISOR_MASK)
 
 /* ASPEED_JTAG_EC : Controller set for go to IDLE */
@@ -269,6 +269,8 @@ static int aspeed_jtag_freq_set(struct jtag *jtag, u32 freq)
 		return -EOPNOTSUPP;
 
 	div = (apb_frq - 1) / freq;
+	if (div > ASPEED_JTAG_TCK_DIVISOR_MASK)
+		div = ASPEED_JTAG_TCK_DIVISOR_MASK;
 	tck_val = aspeed_jtag_read(aspeed_jtag, ASPEED_JTAG_TCK);
 	aspeed_jtag_write(aspeed_jtag,
 			  (tck_val & ~ASPEED_JTAG_TCK_DIVISOR_MASK) | div,
