@@ -572,6 +572,7 @@
 
 &can0 {
 	status = "okay";
+	can-stb-mode;
 };
 
 &mdio0 {

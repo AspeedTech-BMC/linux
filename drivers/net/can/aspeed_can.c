@@ -115,6 +115,8 @@
 /* CAN_TSTAT(0x001C) bit description */
 #define CAN_TSTAT1_MASK			GENMASK(10, 8)
 #define CAN_TSTAT1_BITOFF		8
+#define CAN_TSTAT2_HANDLE_MASK		GENMASK(23, 16)
+#define CAN_TSTAT2_HANDLE_BITOFF	16
 #define CAN_TSTAT2_MASK			GENMASK(26, 24)
 #define CAN_TSTAT2_BITOFF		24
 
@@ -123,14 +125,21 @@
 #define CAN_CTRL_LBMIMOD_BIT		BIT(5) /* set loop back mode, internal */
 #define CAN_CTRL_LBMEMOD_BIT		BIT(6) /* set loop back mode, external */
 #define CAN_CTRL_RST_BIT		BIT(7) /* set reset bit */
+#define CAN_CTRL_TSALL_BIT		BIT(9) /* transmit secondary all frame */
+#define CAN_CTRL_TSONE_BIT		BIT(10) /* transmit secondary one frame */
 #define CAN_CTRL_TPE_BIT		BIT(12) /* transmit primary enable */
 #define CAN_CTRL_STBY_BIT		BIT(13) /* transceiver standby */
-#define CAN_CTRL_TBSEL_BIT		BIT(15) /* message writen in STB */
+#define CAN_CTRL_TBSEL_BIT		BIT(15) /* transmit buffer select */
+#define CAN_CTRL_TSSTAT_MASK		GENMASK(17, 16) /* Transmission secondary status bits */
+#define CAN_CTRL_TSFF_BIT		BIT(18) /* transmit secondary buffer full flag */
 #define CAN_CTRL_TTBM_BIT		BIT(20) /* set TTTBM as 1->full TTCAN mode */
 #define CAN_CTRL_TSMODE_BIT		BIT(21) /* set TSMODE as 1->FIFO mode */
 #define CAN_CTRL_TSNEXT_BIT		BIT(22) /* transmit buffer secondary NEXT */
 #define CAN_CTRL_RSTAT_NOT_EMPTY_MASKT	GENMASK(25, 24)
 #define CAN_CTRL_RREL_BIT		BIT(28) /* receive buffer release */
+#define CAN_CTRL_SACK_BIT		BIT(31) /* self-ack mode */
+
+#define STB_IS_EMPTY			0x0
 
 /* CAN_ERR(0x002c) bit description */
 #define CAN_ERR_EWL_MASK		GENMASK(3, 0) /* programmable error warning limit */
@@ -156,6 +165,7 @@
 #define CAN_BUF_FDF_BIT			BIT(17) /* CAN FD frame format */
 #define CAN_BUF_BRS_BIT			BIT(18) /* CAN FD bit rate switch enable */
 #define CAN_BUF_RMF_BIT			BIT(20) /* remot frame */
+#define CAN_BUF_HANDLE_BITOFF		24
 
 #define KOER_BIT_ERROR_MASK		(BIT(0))
 #define KOER_FORM_ERROR_MASK		(BIT(1))
@@ -164,16 +174,27 @@
 #define KOER_CRC_ERROR_MASK		(BIT(2) | BIT(0))
 #define KOER_OTH_ERROR_MASK		(BIT(2) | BIT(1))
 
-#define STAT_AFWL			0x03
+#define STAT_AFWL			0x04
 #define STAT_EWL			0x0b
 
-struct aspeed_can_data {
-	u32 flags;
-	const struct can_bittiming_const *bittiming_const;
-	const struct can_bittiming_const *data_bittiming_const;
-	u32 btr_ts2_shift;
-	u32 btr_sjw_shift;
-	u32 btr_fdssp_shift;
+#define STB_IDX_RING_SZ			3
+
+#define PTB_MODE			0x01
+#define STB_MODE			0x02
+
+#define STB_TX_MODE_ALL			0x01 /* secondary tx buffer mode */
+#define STB_TX_MODE_ONE			0x02 /* secondary tx buffer mode */
+#define STB_POLICY_FIFO			0x10 /* secondary tx buffer fifo mode */
+#define STB_POLICY_PRIO			0x20 /* secondary tx buffer prioity mode */
+
+#define STB_INVALID_HANDLE_VAL		0xffffffff
+#define STB_INVALID_SKB_IDX		0xffffffff
+
+struct can_stb_ring_obj {
+	u32 idx;
+	u32 skb_idx;
+	u32 handle;
+	struct can_stb_ring_obj *next;
 };
 
 struct aspeed_can_priv {
@@ -185,14 +206,16 @@ struct aspeed_can_priv {
 	struct device *dev;
 	/* Lock for synchronizing TX interrupt handling */
 	spinlock_t tx_lock;
-	u32 tx_head;
-	u32 tx_tail;
+	struct can_stb_ring_obj *stb_ring;
+	struct can_stb_ring_obj *head_ptr;
+	struct can_stb_ring_obj *tail_ptr;
 	u32 tx_max;
 	struct napi_struct napi;
-	unsigned long irq_flags;
 	struct clk *clk;
 	struct reset_control *reset;
-	const struct aspeed_can_data *data;
+	u32 tb_mode;
+	u32 stb_mode_policy;
+	u32 frame_handle;
 };
 
 static const struct can_bittiming_const aspeed_can_bittiming_const = {
@@ -255,6 +278,99 @@ static bool aspeed_can_check_reset_mode(struct net_device *ndev)
 	return true;
 }
 
+static void aspeed_can_stb_ring_obj_init(struct net_device *ndev)
+{
+	struct aspeed_can_priv *priv = netdev_priv(ndev);
+	int i;
+
+	for (i = 0; i < STB_IDX_RING_SZ; i++) {
+		priv->stb_ring[i].idx = i + 1;
+		priv->stb_ring[i].skb_idx = i + 1;
+		priv->stb_ring[i].handle = STB_INVALID_HANDLE_VAL;
+
+		if (i == STB_IDX_RING_SZ - 1) {
+			priv->stb_ring[i].next = &priv->stb_ring[0];
+		} else {
+			priv->stb_ring[i].next =
+				&priv->stb_ring[i + 1];
+		}
+	}
+
+	priv->head_ptr = &priv->stb_ring[0];
+	priv->tail_ptr = &priv->stb_ring[0];
+}
+
+static u32 aspeed_can_get_skb_idx(struct net_device *ndev,
+				  u32 handle)
+{
+	struct aspeed_can_priv *priv = netdev_priv(ndev);
+	struct can_stb_ring_obj *tmp_ptr = priv->tail_ptr;
+
+	if (tmp_ptr->handle == handle)
+		return tmp_ptr->skb_idx;
+
+	tmp_ptr = priv->tail_ptr->next;
+
+	while (tmp_ptr != priv->head_ptr) {
+		if (tmp_ptr->handle == handle)
+			return tmp_ptr->skb_idx;
+		tmp_ptr = tmp_ptr->next;
+	}
+
+	return STB_INVALID_SKB_IDX;
+}
+
+static int aspeed_can_drop_ring_obj(struct net_device *ndev,
+				    u32 handle)
+{
+	struct aspeed_can_priv *priv = netdev_priv(ndev);
+	struct can_stb_ring_obj *tmp_ptr = priv->tail_ptr;
+	u32 tmp_skb_idx;
+
+	if (tmp_ptr->handle == handle) {
+		/* keep original skb idx */
+		tmp_ptr->handle = STB_INVALID_HANDLE_VAL;
+		priv->tail_ptr = priv->tail_ptr->next;
+		return 0;
+	}
+
+	tmp_ptr = priv->tail_ptr->next;
+
+	while (tmp_ptr != priv->head_ptr) {
+		if (tmp_ptr->handle == handle) {
+			tmp_skb_idx = tmp_ptr->skb_idx;
+			tmp_ptr->handle = priv->tail_ptr->handle;
+			tmp_ptr->skb_idx = priv->tail_ptr->skb_idx;
+
+			priv->tail_ptr->skb_idx = tmp_skb_idx;
+			priv->tail_ptr->handle = STB_INVALID_HANDLE_VAL;
+			priv->tail_ptr = priv->tail_ptr->next;
+			return 0;
+		}
+
+		tmp_ptr = tmp_ptr->next;
+	}
+
+	return -1;
+}
+
+static u32 aspeed_can_get_frame_num(struct net_device *ndev)
+{
+	struct aspeed_can_priv *priv = netdev_priv(ndev);
+	struct can_stb_ring_obj *tmp_ptr = priv->tail_ptr;
+	u32 len = 0;
+
+	if (tmp_ptr == priv->head_ptr)
+		return STB_IDX_RING_SZ;
+
+	while (tmp_ptr != priv->head_ptr) {
+		len++;
+		tmp_ptr = tmp_ptr->next;
+	}
+
+	return len;
+}
+
 static int aspeed_can_set_reset_mode(struct net_device *ndev)
 {
 	struct aspeed_can_priv *priv = netdev_priv(ndev);
@@ -272,8 +388,7 @@ static int aspeed_can_set_reset_mode(struct net_device *ndev)
 		usleep_range(500, 10000);
 	}
 
-	priv->tx_head = 0;
-	priv->tx_tail = 0;
+	aspeed_can_stb_ring_obj_init(ndev);
 
 	return 0;
 }
@@ -322,14 +437,41 @@ static void aspeed_can_interrupt_conf(struct net_device *ndev)
 	writel(inte, priv->reg_base + CAN_INTE);
 }
 
+static void aspeed_can_tb_mode_conf(struct net_device *ndev)
+{
+	struct aspeed_can_priv *priv = netdev_priv(ndev);
+
+	if (priv->tb_mode == STB_MODE) {
+		aspeed_can_set_bit(priv, CAN_CTRL, CAN_CTRL_TBSEL_BIT);
+		netdev_dbg(ndev, "CAN STB mode\n");
+	} else {
+		aspeed_can_clr_bit(priv, CAN_CTRL, CAN_CTRL_TBSEL_BIT);
+		netdev_dbg(ndev, "CAN PTB mode\n");
+	}
+}
+
+static void aspeed_can_sack_conf(struct net_device *ndev, bool enable)
+{
+	struct aspeed_can_priv *priv = netdev_priv(ndev);
+
+	if (enable) {
+		aspeed_can_set_bit(priv, CAN_CTRL, CAN_CTRL_SACK_BIT);
+		netdev_dbg(ndev, "CAN sack mode\n");
+	} else {
+		aspeed_can_clr_bit(priv, CAN_CTRL, CAN_CTRL_SACK_BIT);
+	}
+}
+
 static void aspeed_can_loopback_ext_conf(struct net_device *ndev, bool enable)
 {
 	struct aspeed_can_priv *priv = netdev_priv(ndev);
 
-	if (enable)
+	if (enable) {
 		aspeed_can_set_bit(priv, CAN_CTRL, CAN_CTRL_LBMEMOD_BIT);
-	else
+		netdev_dbg(ndev, "CAN ext loopback mode\n");
+	} else {
 		aspeed_can_clr_bit(priv, CAN_CTRL, CAN_CTRL_LBMEMOD_BIT);
+	}
 }
 
 static void aspeed_can_loopback_int_conf(struct net_device *ndev, bool enable)
@@ -504,10 +646,10 @@ static int aspeed_can_set_bittiming(struct net_device *ndev)
 	btr1 = (1 + bt->prop_seg + bt->phase_seg1 - 2);
 
 	/* Setting Time Segment 2 in SEG_2 Register */
-	btr1 |= (bt->phase_seg2 - 1) << priv->data->btr_ts2_shift;
+	btr1 |= (bt->phase_seg2 - 1) << 16;
 
 	/* Setting Synchronous jump width in BTR Register */
-	btr1 |= (bt->sjw - 1) << priv->data->btr_sjw_shift;
+	btr1 |= (bt->sjw - 1) << 24;
 
 	writel(btr1, priv->reg_base + CAN_AC_SEG);
 
@@ -520,14 +662,9 @@ static int aspeed_can_set_bittiming(struct net_device *ndev)
 			return -EPERM;
 		}
 
-		if (dbt->brp < 1 || dbt->prop_seg + dbt->phase_seg1 < 1 ||
-		    dbt->phase_seg2 < 1 || bt->sjw < 1) {
+		if (dbt->sjw < 1) {
 			netdev_alert(ndev,
-				     "invalid data bittiming parameters\n");
-			netdev_alert(ndev,
-				     "brp: %x, prop: %x, seg1: %x, seg2: %x, sjw: %x\n",
-				     dbt->brp, dbt->prop_seg, dbt->phase_seg1,
-				     dbt->phase_seg2, dbt->sjw);
+				     "invalid data sjw %x\n", dbt->sjw);
 			return -EPERM;
 		}
 
@@ -535,17 +672,17 @@ static int aspeed_can_set_bittiming(struct net_device *ndev)
 		btr1 = 1 + dbt->prop_seg + dbt->phase_seg1 - 2;
 
 		/* Setting Time Segment 2 in BTR Register */
-		btr1 |= (dbt->phase_seg2 - 1) << priv->data->btr_ts2_shift;
+		btr1 |= (dbt->phase_seg2 - 1) << 16;
 
 		/* Setting Synchronous jump width in BTR Register */
-		btr1 |= (dbt->sjw - 1) << priv->data->btr_sjw_shift;
+		btr1 |= (dbt->sjw - 1) << 24;
 
 		writel(btr1, priv->reg_base + CAN_FD_SEG);
 
 		/* seg_1 + 1 */
 		can_fd_ssp = 1 + dbt->prop_seg + dbt->phase_seg1 + 1;
 
-		btr0 |= can_fd_ssp << priv->data->btr_fdssp_shift;
+		btr0 |= can_fd_ssp << 8;
 
 		netdev_dbg(ndev, "btr0: 0x%08x, brp: 0x%08x, seg_1: 0x%08x, seg_2: 0x%08x, sjw: %x\n",
 			   btr0, bt->brp, 1 + bt->prop_seg + bt->phase_seg1, bt->phase_seg2, bt->sjw);
@@ -554,7 +691,7 @@ static int aspeed_can_set_bittiming(struct net_device *ndev)
 			   btr1, dbt->prop_seg + dbt->phase_seg1, dbt->phase_seg2, dbt->sjw, can_fd_ssp);
 	}
 
-	writel(btr0, priv->reg_base + CAN_BITITME);
+	writel(btr0 | 0x10000000, priv->reg_base + CAN_BITITME);
 
 	return 0;
 }
@@ -573,22 +710,30 @@ static int aspeed_can_chip_start(struct net_device *ndev)
 	if (err < 0)
 		return err;
 
+	/* Always config to FD mode since it is
+	 * backward compatibility with CAN2.0B.
+	 */
 	aspeed_can_fd_init(ndev);
-
-	aspeed_can_err_init(ndev);
-	aspeed_can_interrupt_conf(ndev);
-
-	aspeed_can_loopback_ext_conf(ndev, false);
-	aspeed_can_loopback_int_conf(ndev, false);
-
-	/* PTB mode */
-	aspeed_can_clr_bit(priv, CAN_CTRL, CAN_CTRL_TBSEL_BIT);
 
 	err = aspeed_can_exit_reset_mode(ndev);
 	if (err < 0)
 		return err;
 
+	aspeed_can_err_init(ndev);
+	aspeed_can_interrupt_conf(ndev);
+
+	aspeed_can_tb_mode_conf(ndev);
+
+	aspeed_can_loopback_ext_conf(ndev, false);
+	if (priv->can.ctrlmode & CAN_CTRLMODE_LOOPBACK) {
+		aspeed_can_loopback_ext_conf(ndev, true);
+		aspeed_can_sack_conf(ndev, true);
+	}
+
+	aspeed_can_loopback_int_conf(ndev, false);
+
 	priv->can.state = CAN_STATE_ERROR_ACTIVE;
+	priv->frame_handle = 0;
 
 	return 0;
 }
@@ -623,8 +768,13 @@ static void aspeed_can_write_frame(struct net_device *ndev,
 	u32 i;
 	struct aspeed_can_priv *priv = netdev_priv(ndev);
 	u32 buf_ctrl = 0;
+	u32 can_ctrl;
+	u32 can_type;
 
 	netdev_dbg(ndev, "can_id = 0x%08x\n", cf->can_id);
+
+	can_ctrl = readl(priv->reg_base + CAN_CTRL);
+
 	/* Watch carefully on the bit sequence */
 	if (cf->can_id & CAN_EFF_FLAG) {
 		id = (cf->can_id & CAN_EFF_MASK) << CAN_BUF_ID_EFF_BITOFF;
@@ -645,16 +795,19 @@ static void aspeed_can_write_frame(struct net_device *ndev,
 			buf_ctrl |= CAN_BUF_BRS_BIT;
 	}
 
-	can_put_echo_skb(skb, ndev, 0, 0);
-
-	priv->tx_head++;
+	can_type = priv->frame_handle << CAN_BUF_HANDLE_BITOFF;
 
 	writel(id, priv->reg_base + CAN_TBUF_ID);
 	writel(buf_ctrl, priv->reg_base + CAN_TBUF_CTL);
+	writel(can_type, priv->reg_base + CAN_TBUF_TYPE);
+
 	netdev_dbg(ndev, "TX id (Mirror): 0x%08x\n",
 		   readl(priv->reg_base + CAN_TBUF_READ_ID));
-	netdev_dbg(ndev, "TX ctrl (M): 0x%08x\n",
+	netdev_dbg(ndev, "TX ctrl (Mirror): 0x%08x\n",
 		   readl(priv->reg_base + CAN_TBUF_READ_CTL));
+	netdev_dbg(ndev, "TX type (Mirror): 0x%08x\n",
+		   readl(priv->reg_base + CAN_TBUF_READ_TYPE) >>
+		   CAN_BUF_HANDLE_BITOFF);
 
 	writel(0x0, priv->reg_base + CAN_TBUF_TYPE);
 	writel(0x0, priv->reg_base + CAN_TBUF_ACF);
@@ -678,23 +831,86 @@ static void aspeed_can_write_frame(struct net_device *ndev,
 static int aspeed_can_start_frame_xmit(struct sk_buff *skb,
 				       struct net_device *ndev)
 {
+	struct canfd_frame *cf = (struct canfd_frame *)skb->data;
 	struct aspeed_can_priv *priv = netdev_priv(ndev);
-	unsigned long flags;
+	u32 i = 0;
+	u32 can_ctrl;
+	u32 int_flag;
+	u32 skb_idx;
+	int ret;
 
-	/* something has not been transferred */
-	if (readl(priv->reg_base + CAN_CTRL) & CAN_CTRL_TPE_BIT)
+	netdev_dbg(ndev, "can_id = 0x%08x\n", cf->can_id);
+
+	/* avoid transmitting data finish suddenly */
+	while (i < 3) {
+		can_ctrl = readl(priv->reg_base + CAN_CTRL);
+		int_flag = readl(priv->reg_base + CAN_INTF);
+		i++;
+	}
+
+	/* check whether STB or PTB is full */
+	if ((can_ctrl & CAN_CTRL_TBSEL_BIT) &&
+	    (can_ctrl & CAN_CTRL_TSFF_BIT))
 		return -ENOSPC;
 
-	spin_lock_irqsave(&priv->tx_lock, flags);
+	if (!(can_ctrl & CAN_CTRL_TBSEL_BIT) &&
+	    ((can_ctrl & CAN_CTRL_TPE_BIT) ||
+	     (int_flag & CAN_INT_TPIF_BIT)))
+		return -ENOSPC;
 
-	netif_stop_queue(ndev);
+	if (priv->frame_handle == 0x100)
+		priv->frame_handle = 0;
+
+	/* Use skb idex to check whether
+	 * the same handle already in STB.
+	 */
+	skb_idx = aspeed_can_get_skb_idx(ndev, priv->frame_handle);
+	if (skb_idx != STB_INVALID_SKB_IDX) {
+		netdev_err(ndev, "repeat handle %d\n", priv->frame_handle);
+		return -ENOSPC;
+	}
 
 	aspeed_can_write_frame(ndev, skb);
 
-	/* Mark buffer as ready for transmit */
-	aspeed_can_set_bit(priv, CAN_CTRL, CAN_CTRL_TPE_BIT);
+	if (can_ctrl & CAN_CTRL_TBSEL_BIT) {
+		/* STB */
+		ret = can_put_echo_skb(skb, ndev, priv->head_ptr->skb_idx, 0);
+		if (ret) {
+			netdev_err(ndev, "fail to put skb for stb %d\n", ret);
+			return ret;
+		}
 
-	spin_unlock_irqrestore(&priv->tx_lock, flags);
+		priv->head_ptr->handle = priv->frame_handle;
+		priv->head_ptr = priv->head_ptr->next;
+
+		/* STB is full */
+		if (priv->head_ptr == priv->tail_ptr)
+			netif_stop_queue(ndev);
+
+		aspeed_can_set_bit(priv, CAN_CTRL, CAN_CTRL_TSNEXT_BIT);
+
+		/* no frame is transmitting or there is no unhandled finish flag */
+		if ((priv->stb_mode_policy & STB_TX_MODE_ONE) &&
+		    !(can_ctrl & CAN_CTRL_TSONE_BIT) &&
+		    !(int_flag & CAN_INT_TSIF_BIT))
+			aspeed_can_set_bit(priv, CAN_CTRL, CAN_CTRL_TSONE_BIT);
+		else if ((priv->stb_mode_policy & STB_TX_MODE_ALL) &&
+			 !(can_ctrl & CAN_CTRL_TSALL_BIT) &&
+			 !(int_flag & CAN_INT_TSIF_BIT))
+			aspeed_can_set_bit(priv, CAN_CTRL, CAN_CTRL_TSALL_BIT);
+	} else {
+		/* PTB */
+		ret = can_put_echo_skb(skb, ndev, 0, 0);
+		if (ret) {
+			netdev_err(ndev, "fail to put skb for ptb %d\n", ret);
+			return ret;
+		}
+
+		netif_stop_queue(ndev);
+		aspeed_can_set_bit(priv, CAN_CTRL, CAN_CTRL_TPE_BIT);
+	}
+
+	priv->frame_handle++;
 
 	return 0;
 }
@@ -703,15 +919,22 @@ static netdev_tx_t aspeed_can_start_xmit(struct sk_buff *skb,
 					 struct net_device *ndev)
 {
 	int ret;
+	struct aspeed_can_priv *priv = netdev_priv(ndev);
+	unsigned long flags;
 
 	if (can_dev_dropped_skb(ndev, skb))
-		return NETDEV_TX_OK;
+		return NET_XMIT_DROP;
+
+	spin_lock_irqsave(&priv->tx_lock, flags);
 
 	ret = aspeed_can_start_frame_xmit(skb, ndev);
-	if (ret < 0) {
-		netdev_err(ndev, "BUG!, TX full when queue awake!\n");
+
+	spin_unlock_irqrestore(&priv->tx_lock, flags);
+
+	if (ret) {
+		netdev_err(ndev, "Fail to transmit data!\n");
 		netif_stop_queue(ndev);
-		return NETDEV_TX_BUSY;
+		return NET_XMIT_DROP;
 	}
 
 	return NETDEV_TX_OK;
@@ -1017,40 +1240,98 @@ static void aspeed_can_tx_interrupt(struct net_device *ndev, u32 intr_flag)
 {
 	struct aspeed_can_priv *priv = netdev_priv(ndev);
 	struct net_device_stats *stats = &ndev->stats;
-	unsigned int frames_in_fifo;
-	int frames_sent = 1; /* TXOK => at least 1 frame was sent */
+	u32 frames_in_fifo;
 	unsigned long flags;
+	u32 can_ctrl;
+	u32 stauts_2;
+	u32 handle;
+	u32 skb_idx;
+	int ret;
 
 	spin_lock_irqsave(&priv->tx_lock, flags);
 
-	frames_in_fifo = priv->tx_head - priv->tx_tail;
-
-	if (WARN_ON_ONCE(frames_in_fifo != 1)) {
-		if (intr_flag & CAN_INT_TPIF_BIT) {
-			aspeed_can_clr_irq_bits(priv, CAN_INTF, CAN_INT_TPIF_BIT);
-		} else {
-			netdev_warn(ndev, "TSIF is preparing...\n");
-			aspeed_can_clr_irq_bits(priv, CAN_INTF, CAN_INT_TSIF_BIT);
-		}
-
-		spin_unlock_irqrestore(&priv->tx_lock, flags);
-		return;
-	}
-
+	/* PTB */
 	if (intr_flag & CAN_INT_TPIF_BIT) {
 		aspeed_can_clr_irq_bits(priv, CAN_INTF, CAN_INT_TPIF_BIT);
-	} else {
-		netdev_warn(ndev, "TSIF is preparing...\n");
+		stats->tx_bytes += can_get_echo_skb(ndev, 0, NULL);
+		goto exit;
+	}
+
+	/* STB */
+	can_ctrl = readl(priv->reg_base + CAN_CTRL);
+	stauts_2 = readl(priv->reg_base + CAN_TSTAT);
+
+	switch (priv->stb_mode_policy) {
+	case (STB_TX_MODE_ONE | STB_POLICY_PRIO):
 		aspeed_can_clr_irq_bits(priv, CAN_INTF, CAN_INT_TSIF_BIT);
-	}
 
-	while (frames_sent--) {
-		stats->tx_bytes += can_get_echo_skb(ndev, priv->tx_tail %
-						    priv->tx_max, NULL);
-		priv->tx_tail++;
+		handle = (stauts_2 & CAN_TSTAT2_HANDLE_MASK) >>
+			 CAN_TSTAT2_HANDLE_BITOFF;
+		skb_idx = aspeed_can_get_skb_idx(ndev, handle);
+		if (skb_idx == STB_INVALID_SKB_IDX) {
+			netdev_err(ndev, "fail to get skb idx (%x)\n",
+				   STB_TX_MODE_ONE | STB_POLICY_PRIO);
+		} else {
+			stats->tx_bytes += can_get_echo_skb(ndev, skb_idx, NULL);
+			stats->tx_packets++;
+			ret = aspeed_can_drop_ring_obj(ndev, handle);
+			/* priv->tail_ptr = priv->tail_ptr.next; */
+			if (ret < 0) {
+				netdev_err(ndev, "fail to drop a ring obj (%x)\n",
+					   STB_TX_MODE_ONE | STB_POLICY_PRIO);
+			}
+		}
+
+		/* something still in STB */
+		if ((can_ctrl & CAN_CTRL_TSSTAT_MASK) != 0x0)
+			aspeed_can_set_bit(priv, CAN_CTRL, CAN_CTRL_TSONE_BIT);
+		break;
+
+	case (STB_TX_MODE_ALL | STB_POLICY_FIFO):
+	case (STB_TX_MODE_ALL | STB_POLICY_PRIO):
+
+		aspeed_can_clr_irq_bits(priv, CAN_INTF, CAN_INT_TSIF_BIT);
+
+		frames_in_fifo = aspeed_can_get_frame_num(ndev);
+
+		/* Potential situation: A frame is submitted before this ISR.
+		 *                      That new frame waits for transmission.
+		 * This frame should be handled in the next ISR.
+		 */
+		if (can_ctrl & CAN_CTRL_TSSTAT_MASK)
+			frames_in_fifo--;
+
+		while (frames_in_fifo != 0) {
+			stats->tx_bytes += can_get_echo_skb(ndev,
+							    priv->tail_ptr->skb_idx,
+							    NULL);
+			priv->tail_ptr->handle = STB_INVALID_HANDLE_VAL;
+			priv->tail_ptr = priv->tail_ptr->next;
+			stats->tx_packets++;
+			frames_in_fifo--;
+		}
+
+		/* something still in STB */
+		if (can_ctrl & CAN_CTRL_TSSTAT_MASK)
+			aspeed_can_set_bit(priv, CAN_CTRL, CAN_CTRL_TSALL_BIT);
+
+		break;
+	default:
+		/* including STB_TX_MODE_ONE and STB_POLICY_FIFO mode */
+		aspeed_can_clr_irq_bits(priv, CAN_INTF, CAN_INT_TSIF_BIT);
+
+		stats->tx_bytes += can_get_echo_skb(ndev,
+						    priv->tail_ptr->skb_idx,
+						    NULL);
+		priv->tail_ptr = priv->tail_ptr->next;
 		stats->tx_packets++;
+
+		/* something in STB */
+		if ((can_ctrl & CAN_CTRL_TSSTAT_MASK) != 0x0)
+			aspeed_can_set_bit(priv, CAN_CTRL, CAN_CTRL_TSONE_BIT);
 	}
 
+exit:
 	netif_wake_queue(ndev);
 
 	spin_unlock_irqrestore(&priv->tx_lock, flags);
@@ -1133,7 +1414,7 @@ static int aspeed_can_open(struct net_device *ndev)
 		goto err;
 	}
 
-	ret = request_irq(ndev->irq, aspeed_can_interrupt, priv->irq_flags,
+	ret = request_irq(ndev->irq, aspeed_can_interrupt, 0,
 			  ndev->name, ndev);
 	if (ret < 0) {
 		netdev_err(ndev, "irq allocation for CAN failed\n");
@@ -1226,6 +1507,7 @@ static const struct net_device_ops aspeed_can_netdev_ops = {
 	.ndo_stop	= aspeed_can_close,
 	.ndo_start_xmit	= aspeed_can_start_xmit,
 	.ndo_change_mtu	= can_change_mtu,
+	/* TODO: ioctl here */
 };
 
 static const struct ethtool_ops aspeed_can_ethtool_ops = {
@@ -1300,18 +1582,9 @@ static const struct dev_pm_ops aspeed_can_dev_pm_ops = {
 	SET_RUNTIME_PM_OPS(aspeed_can_runtime_suspend, aspeed_can_runtime_resume, NULL)
 };
 
-static const struct aspeed_can_data aspeed_canfd_data = {
-	.flags = 0,
-	.bittiming_const = &aspeed_can_bittiming_const,
-	.data_bittiming_const = &aspeed_canfd_bittiming_const,
-	.btr_ts2_shift = 16,
-	.btr_sjw_shift = 24,
-	.btr_fdssp_shift = 8,
-};
-
 /* Match table for OF platform binding */
 static const struct of_device_id aspeed_can_of_match[] = {
-	{ .compatible = "aspeed,canfd", .data = &aspeed_canfd_data },
+	{ .compatible = "aspeed,canfd", .data = NULL },
 	{ /* end of list */ },
 };
 MODULE_DEVICE_TABLE(of, aspeed_can_of_match);
@@ -1323,19 +1596,13 @@ static int aspeed_can_probe(struct platform_device *pdev)
 	int ret;
 	/* Fixed to temporarily. */
 	u32 rx_max = 3;
-	u32 tx_max = 1;
 	u32 can_clk;
 
-	ndev = alloc_candev(sizeof(struct aspeed_can_priv), tx_max);
+	ndev = alloc_candev(sizeof(struct aspeed_can_priv), 4);
 	if (!ndev)
 		return -ENOMEM;
 
 	priv = netdev_priv(ndev);
-	priv->data = of_device_get_match_data(&pdev->dev);
-	if (!priv->data) {
-		ret = -ENODEV;
-		goto err_free;
-	}
 
 	priv->dev = &pdev->dev;
 	priv->reg_base = devm_platform_ioremap_resource(pdev, 0);
@@ -1344,8 +1611,8 @@ static int aspeed_can_probe(struct platform_device *pdev)
 		goto err;
 	};
 
-	priv->can.bittiming_const = priv->data->bittiming_const;
-	priv->can.data_bittiming_const = priv->data->data_bittiming_const;
+	priv->can.bittiming_const = &aspeed_can_bittiming_const;
+	priv->can.data_bittiming_const = &aspeed_canfd_bittiming_const;
 	priv->can.do_set_mode = aspeed_can_do_set_mode;
 	priv->can.do_get_berr_counter = aspeed_can_get_berr_counter;
 	priv->can.ctrlmode_supported = CAN_CTRLMODE_LOOPBACK |
@@ -1355,7 +1622,7 @@ static int aspeed_can_probe(struct platform_device *pdev)
 				       CAN_CTRLMODE_TDC_AUTO;
 	priv->can.do_get_auto_tdcv = aspeed_can_get_auto_tdcv;
 
-	priv->tx_max = tx_max;
+	priv->tx_max = 3;
 	spin_lock_init(&priv->tx_lock);
 
 	/* Get IRQ for the device */
@@ -1393,6 +1660,23 @@ static int aspeed_can_probe(struct platform_device *pdev)
 	}
 
 	priv->can.clock.freq = can_clk;
+
+	priv->tb_mode = PTB_MODE;
+	if (of_property_read_bool(priv->dev->of_node, "can-stb-mode"))
+		priv->tb_mode = STB_MODE;
+
+	priv->stb_mode_policy = STB_TX_MODE_ONE;
+	if (of_property_read_bool(priv->dev->of_node, "can-stb-tx-all"))
+		priv->stb_mode_policy = STB_TX_MODE_ALL;
+
+	if (of_property_read_bool(priv->dev->of_node, "can-stb-priority"))
+		priv->stb_mode_policy |= STB_POLICY_PRIO;
+	else
+		priv->stb_mode_policy |= STB_POLICY_FIFO;
+
+	priv->stb_ring = kzalloc(sizeof(*priv->stb_ring) *
+				 STB_IDX_RING_SZ, GFP_KERNEL);
+	aspeed_can_stb_ring_obj_init(ndev);
 
 	priv->reset = devm_reset_control_get_exclusive(&pdev->dev, NULL);
 	if (IS_ERR(priv->reset))
@@ -1433,6 +1717,8 @@ err_disableclks:
 err_free:
 	free_candev(ndev);
 err:
+	kfree(priv->stb_ring);
+
 	return ret;
 }
 
@@ -1444,6 +1730,8 @@ static void aspeed_can_remove(struct platform_device *pdev)
 	reset_control_assert(priv->reset);
 	unregister_candev(ndev);
 	pm_runtime_disable(&pdev->dev);
+	kfree(priv->stb_ring);
+
 	free_candev(ndev);
 }
 
