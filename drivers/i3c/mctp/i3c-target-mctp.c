@@ -267,8 +267,10 @@ static ssize_t i3c_target_mctp_write(struct file *file, const char __user *buf,
 	ibi_data[0] = I3C_MCTP_MDB;
 
 	tx_data = kzalloc(count, GFP_KERNEL);
-	if (!tx_data)
-		return -ENOMEM;
+	if (!tx_data) {
+		ret = -ENOMEM;
+		goto free_ibi;
+	}
 
 	if (copy_from_user(tx_data, buf, count)) {
 		ret = -EFAULT;
@@ -291,6 +293,8 @@ static ssize_t i3c_target_mctp_write(struct file *file, const char __user *buf,
 
 out_packet:
 	kfree(tx_data);
+free_ibi:
+	kfree(ibi_data);
 	return ret;
 }
 
