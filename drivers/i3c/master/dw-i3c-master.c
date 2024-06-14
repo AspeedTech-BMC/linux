@@ -455,7 +455,6 @@ static void dw_i3c_master_enable(struct dw_i3c_master *master)
 			return;
 		}
 
-		master->platform_ops->gen_internal_stop(master);
 		master->platform_ops->exit_sw_mode(master);
 	}
 }
