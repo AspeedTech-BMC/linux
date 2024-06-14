@@ -32,6 +32,7 @@ obj-y				+= $(sfp-obj-y) $(sfp-obj-m)
 
 obj-$(CONFIG_ADIN_PHY)		+= adin.o
 obj-$(CONFIG_AMD_PHY)		+= amd.o
+obj-$(CONFIG_AIROHA_AN8801_PHY) += an8801.o
 aquantia-objs			+= aquantia_main.o
 ifdef CONFIG_HWMON
 aquantia-objs			+= aquantia_hwmon.o
