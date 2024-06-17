@@ -42,6 +42,7 @@
 #define DEV_ADDR_DYNAMIC		GENMASK(22, 16)
 
 #define HW_CAPABILITY			0x8
+#define HW_CAP_SLV_HJ			BIT(18)
 #define HW_CAP_HDR_TS			BIT(4)
 #define HW_CAP_HDR_DDR			BIT(3)
 #define COMMAND_QUEUE_PORT		0xc
@@ -152,6 +153,7 @@
 #define SLV_EVENT_CTRL			0x38
 #define   SLV_EVENT_CTRL_MWL_UPD	BIT(7)
 #define   SLV_EVENT_CTRL_MRL_UPD	BIT(6)
+#define   SLV_EVENT_CTRL_HJ_REQ		BIT(3)
 #define   SLV_EVENT_CTRL_SIR_EN		BIT(0)
 
 #define INTR_STATUS			0x3c
@@ -1000,6 +1002,9 @@ static int dw_i3c_target_bus_init(struct i3c_master_controller *m)
 	reg = readl(master->regs + BUS_FREE_TIMING) |
 	      FIELD_PREP(BUS_AVAIL_TIME, MAX_BUS_AVAIL_CNT);
 	writel(reg, master->regs + BUS_FREE_TIMING);
+	/* Clear Hot-join request before enabling the controller*/
+	writel(0, master->regs + SLV_EVENT_CTRL);
+
 
 	dw_i3c_master_enable(master);
 
@@ -2414,12 +2419,40 @@ static irqreturn_t dw_i3c_master_irq_handler(int irq, void *dev_id)
 	return IRQ_HANDLED;
 }
 
+static int dw_i3c_target_hj_req(struct i3c_dev_desc *dev)
+{
+	struct i3c_master_controller *m = i3c_dev_get_master(dev);
+	struct dw_i3c_master *master = to_dw_i3c_master(m);
+
+	if (!(readl(master->regs + HW_CAPABILITY) & HW_CAP_SLV_HJ)) {
+		dev_err(&master->base.dev, "HJ not supported");
+		return -EOPNOTSUPP;
+	}
+
+	if (readl(master->regs + DEVICE_ADDR) & DEV_ADDR_DYNAMIC_ADDR_VALID) {
+		dev_err(&master->base.dev, "DA already assigned");
+		return -EACCES;
+	}
+
+	writel(SLV_EVENT_CTRL_HJ_REQ, master->regs + SLV_EVENT_CTRL);
+
+	return 0;
+}
+
+static bool dw_i3c_target_is_hj_enabled(struct i3c_dev_desc *dev)
+{
+	/* DW i3c doesn't have the hardware flag to identify the hj enable status */
+	return true;
+}
+
 static const struct i3c_target_ops dw_mipi_i3c_target_ops = {
 	.bus_init = dw_i3c_target_bus_init,
+	.hj_req = dw_i3c_target_hj_req,
 	.bus_cleanup = dw_i3c_target_bus_cleanup,
 	.priv_xfers = dw_i3c_target_priv_xfers,
 	.generate_ibi = dw_i3c_target_generate_ibi,
 	.pending_read_notify = dw_i3c_target_pending_read_notify,
+	.is_hj_enabled =  dw_i3c_target_is_hj_enabled,
 	.is_ibi_enabled = dw_i3c_target_is_ibi_enabled,
 };
 
