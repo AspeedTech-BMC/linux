@@ -541,6 +541,25 @@ static ssize_t i2c_scl_frequency_show(struct device *dev,
 }
 static DEVICE_ATTR_RO(i2c_scl_frequency);
 
+static ssize_t hotjoin_req_store(struct device *dev,
+				 struct device_attribute *da, const char *buf,
+				 size_t count)
+{
+	struct i3c_master_controller *master;
+	ssize_t ret = count;
+
+	master = dev_to_i3cmaster(dev);
+
+	if (!master->ops->hj_req)
+		return -EOPNOTSUPP;
+	ret = master->ops->hj_req(master->this);
+	if (ret)
+		return ret;
+
+	return count;
+}
+static DEVICE_ATTR_WO(hotjoin_req);
+
 static struct attribute *i3c_masterdev_attrs[] = {
 	&dev_attr_mode.attr,
 	&dev_attr_current_master.attr,
@@ -552,6 +571,7 @@ static struct attribute *i3c_masterdev_attrs[] = {
 	&dev_attr_dynamic_address.attr,
 	&dev_attr_hdrcap.attr,
 	&dev_attr_bus_reset.attr,
+	&dev_attr_hotjoin_req.attr,
 	NULL,
 };
 ATTRIBUTE_GROUPS(i3c_masterdev);
