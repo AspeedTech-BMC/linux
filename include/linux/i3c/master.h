@@ -482,6 +482,7 @@ struct i3c_master_controller_ops {
 	int (*put_read_data)(struct i3c_master_controller *master,
 			     struct i3c_slave_payload *data,
 			     struct i3c_slave_payload *ibi_notify);
+	int (*hj_req)(struct i3c_dev_desc *dev);
 };
 
 /**

@@ -51,6 +51,7 @@ DECLARE_CRC8_TABLE(i3c_crc8_table);
 #define DEV_ADDR_STATIC(x)		(((x) << 0) & DEV_ADDR_STATIC_MASK)
 
 #define HW_CAPABILITY			0x8
+#define HW_CAP_SLV_HJ			BIT(18)
 #define COMMAND_QUEUE_PORT		0xc
 #define COMMAND_PORT_PEC		BIT(31)
 #define COMMAND_PORT_TOC		BIT(30)
@@ -178,6 +179,7 @@ DECLARE_CRC8_TABLE(i3c_crc8_table);
 #define SLV_EVENT_CTRL			0x38
 #define SLV_EVENT_CTRL_MWL_UPD		BIT(7)
 #define SLV_EVENT_CTRL_MRL_UPD		BIT(6)
+#define SLV_EVENT_CTRL_HJ_REQ		BIT(3)
 #define SLV_EVENT_CTRL_SIR_EN		BIT(0)
 #define SLV_EVETN_CTRL_W1C_MASK		(SLV_EVENT_CTRL_MWL_UPD |\
 					 SLV_EVENT_CTRL_MRL_UPD)
@@ -1496,9 +1498,11 @@ static int aspeed_i3c_master_bus_init(struct i3c_master_controller *m)
 
 	/* For now don't support Hot-Join */
 	ast_setbits(master->regs + DEVICE_CTRL,
-		   DEV_CTRL_AUTO_HJ_DISABLE |
-		   DEV_CTRL_HOT_JOIN_NACK |
-		   DEV_CRTL_IBI_PAYLOAD_EN);
+		    DEV_CTRL_HOT_JOIN_NACK | DEV_CRTL_IBI_PAYLOAD_EN);
+
+	if (master->secondary)
+		/* Clear Hot-join request before enabling the controller*/
+		writel(0, master->regs + SLV_EVENT_CTRL);
 
 	ret = aspeed_i3c_master_enable(master);
 	if (ret)
@@ -2912,6 +2916,32 @@ static int aspeed_i3c_master_put_read_data(struct i3c_master_controller *m,
 	return 0;
 }
 
+static int aspeed_i3c_master_hj_req(struct i3c_dev_desc *dev)
+{
+	struct i3c_master_controller *m = i3c_dev_get_master(dev);
+	struct aspeed_i3c_master *master = to_aspeed_i3c_master(m);
+
+	if (!master->secondary) {
+		dev_err(&master->base.dev,
+			"HJ request not supported in master mode");
+		return -EOPNOTSUPP;
+	}
+
+	if (!(readl(master->regs + HW_CAPABILITY) & HW_CAP_SLV_HJ)) {
+		dev_err(&master->base.dev, "HJ not supported");
+		return -EOPNOTSUPP;
+	}
+
+	if (readl(master->regs + DEVICE_ADDR) & DEV_ADDR_DYNAMIC_ADDR_VALID) {
+		dev_err(&master->base.dev, "DA already assigned");
+		return -EACCES;
+	}
+
+	writel(SLV_EVENT_CTRL_HJ_REQ, master->regs + SLV_EVENT_CTRL);
+
+	return 0;
+}
+
 static int aspeed_i3c_master_timing_config(struct aspeed_i3c_master *master,
 					   struct device_node *np)
 {
@@ -2990,6 +3020,7 @@ static const struct i3c_master_controller_ops aspeed_i3c_ops = {
 	.unregister_slave = aspeed_i3c_master_unregister_slave,
 	.send_sir = aspeed_i3c_master_send_sir,
 	.put_read_data = aspeed_i3c_master_put_read_data,
+	.hj_req = aspeed_i3c_master_hj_req,
 };
 
 static void aspeed_i3c_master_hj(struct work_struct *work)
