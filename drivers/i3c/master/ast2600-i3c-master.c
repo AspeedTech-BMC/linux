@@ -652,6 +652,7 @@ static int aspeed_i3c_master_enable(struct aspeed_i3c_master *master)
 			aspeed_i3c_isolate_scl_sda(master, false);
 			return -EACCES;
 		}
+		aspeed_i3c_gen_stop_to_internal(master);
 		aspeed_i3c_isolate_scl_sda(master, false);
 	}
 
