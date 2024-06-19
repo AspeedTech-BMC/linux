@@ -588,7 +588,6 @@ static int an8801r_config_init(struct phy_device *phydev)
 	mdiobus_lock(phydev);
 	__phy_write(phydev, 0x1f, 0x1);
 	__phy_write(phydev, 0x14, 0x3a14);
-	__phy_write(phydev, 0x19, 0x3f);
 	__phy_write(phydev, 0x1f, 0x0);
 	mdiobus_unlock(phydev);
 
