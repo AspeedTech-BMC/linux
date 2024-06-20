@@ -441,37 +441,30 @@ static void aspeed_can_tb_mode_conf(struct net_device *ndev)
 {
 	struct aspeed_can_priv *priv = netdev_priv(ndev);
 
-	if (priv->tb_mode == STB_MODE) {
+	if (priv->tb_mode == STB_MODE)
 		aspeed_can_set_bit(priv, CAN_CTRL, CAN_CTRL_TBSEL_BIT);
-		netdev_dbg(ndev, "CAN STB mode\n");
-	} else {
+	else
 		aspeed_can_clr_bit(priv, CAN_CTRL, CAN_CTRL_TBSEL_BIT);
-		netdev_dbg(ndev, "CAN PTB mode\n");
-	}
 }
 
 static void aspeed_can_sack_conf(struct net_device *ndev, bool enable)
 {
 	struct aspeed_can_priv *priv = netdev_priv(ndev);
 
-	if (enable) {
+	if (enable)
 		aspeed_can_set_bit(priv, CAN_CTRL, CAN_CTRL_SACK_BIT);
-		netdev_dbg(ndev, "CAN sack mode\n");
-	} else {
+	else
 		aspeed_can_clr_bit(priv, CAN_CTRL, CAN_CTRL_SACK_BIT);
-	}
 }
 
 static void aspeed_can_loopback_ext_conf(struct net_device *ndev, bool enable)
 {
 	struct aspeed_can_priv *priv = netdev_priv(ndev);
 
-	if (enable) {
+	if (enable)
 		aspeed_can_set_bit(priv, CAN_CTRL, CAN_CTRL_LBMEMOD_BIT);
-		netdev_dbg(ndev, "CAN ext loopback mode\n");
-	} else {
+	else
 		aspeed_can_clr_bit(priv, CAN_CTRL, CAN_CTRL_LBMEMOD_BIT);
-	}
 }
 
 static void aspeed_can_loopback_int_conf(struct net_device *ndev, bool enable)
@@ -683,12 +676,6 @@ static int aspeed_can_set_bittiming(struct net_device *ndev)
 		can_fd_ssp = 1 + dbt->prop_seg + dbt->phase_seg1 + 1;
 
 		btr0 |= can_fd_ssp << 8;
-
-		netdev_dbg(ndev, "btr0: 0x%08x, brp: 0x%08x, seg_1: 0x%08x, seg_2: 0x%08x, sjw: %x\n",
-			   btr0, bt->brp, 1 + bt->prop_seg + bt->phase_seg1, bt->phase_seg2, bt->sjw);
-
-		netdev_dbg(ndev, "FD btr1: 0x%08x, seg_1: 0x%08x, seg_2: 0x%08x, sjw: %x, ssp: %x\n",
-			   btr1, dbt->prop_seg + dbt->phase_seg1, dbt->phase_seg2, dbt->sjw, can_fd_ssp);
 	}
 
 	writel(btr0 | 0x10000000, priv->reg_base + CAN_BITITME);
@@ -771,8 +758,6 @@ static void aspeed_can_write_frame(struct net_device *ndev,
 	u32 can_ctrl;
 	u32 can_type;
 
-	netdev_dbg(ndev, "can_id = 0x%08x\n", cf->can_id);
-
 	can_ctrl = readl(priv->reg_base + CAN_CTRL);
 
 	/* Watch carefully on the bit sequence */
@@ -801,14 +786,6 @@ static void aspeed_can_write_frame(struct net_device *ndev,
 	writel(buf_ctrl, priv->reg_base + CAN_TBUF_CTL);
 	writel(can_type, priv->reg_base + CAN_TBUF_TYPE);
 
-	netdev_dbg(ndev, "TX id (Mirror): 0x%08x\n",
-		   readl(priv->reg_base + CAN_TBUF_READ_ID));
-	netdev_dbg(ndev, "TX ctrl (Mirror): 0x%08x\n",
-		   readl(priv->reg_base + CAN_TBUF_READ_CTL));
-	netdev_dbg(ndev, "TX type (Mirror): 0x%08x\n",
-		   readl(priv->reg_base + CAN_TBUF_READ_TYPE) >>
-		   CAN_BUF_HANDLE_BITOFF);
-
 	writel(0x0, priv->reg_base + CAN_TBUF_TYPE);
 	writel(0x0, priv->reg_base + CAN_TBUF_ACF);
 
@@ -816,30 +793,20 @@ static void aspeed_can_write_frame(struct net_device *ndev,
 		return;
 
 	for (i = 0; i < (cf->len / 4 + 3) * 4; i += 4) {
-		netdev_dbg(ndev, "data(%d): 0x%08x\n", i, *(u32 *)(cf->data + i));
 		writel(*(u32 *)(cf->data + i),
 		       priv->reg_base + CAN_TBUF_DATA + i);
-
-		if (i < 8) {
-			netdev_dbg(ndev, "TX BUF (0x%02x) 0x%08x",
-				   i,
-				   readl(priv->reg_base + CAN_TBUF_DATA + i));
-		}
 	}
 }
 
 static int aspeed_can_start_frame_xmit(struct sk_buff *skb,
 				       struct net_device *ndev)
 {
-	struct canfd_frame *cf = (struct canfd_frame *)skb->data;
 	struct aspeed_can_priv *priv = netdev_priv(ndev);
 	u32 i = 0;
 	u32 can_ctrl;
 	u32 int_flag;
 	u32 skb_idx;
 	int ret;
-
-	netdev_dbg(ndev, "can_id = 0x%08x\n", cf->can_id);
 
 	/* avoid transmitting data finish suddenly */
 	while (i < 3) {
@@ -968,15 +935,12 @@ static int aspeed_can_rx(struct net_device *ndev)
 	}
 
 	reg_val = readl(priv->reg_base + CAN_RBUF_ID);
-	netdev_dbg(ndev, "buf_ctrl_reg = 0x%08x\n", buf_ctrl_reg);
 	if (buf_ctrl_reg & CAN_BUF_IDE_BIT) {
 		cf->can_id = reg_val & CAN_BUF_ID_EFF_MASK;
 		cf->can_id |= CAN_EFF_FLAG;
-		netdev_dbg(ndev, "EXT CAN ID: 0x%08x\n", cf->can_id);
 	} else {
 		cf->can_id = (reg_val & CAN_BUF_ID_BFF_MASK) >>
 			     CAN_BUF_ID_BFF_BITOFF;
-		netdev_dbg(ndev, "CAN ID: 0x%08x\n", (u32)(reg_val >> 18));
 	}
 
 	if (buf_ctrl_reg & CAN_BUF_RMF_BIT)
@@ -991,8 +955,6 @@ static int aspeed_can_rx(struct net_device *ndev)
 	for (i = 0; i < cf->len; i += 4) {
 		data = readl(priv->reg_base + CAN_RBUF_DATA + i);
 		*(u32 *)(cf->data + i) = data;
-		netdev_dbg(ndev, "CAN RX DATA (0x%02x) 0x%08x\n",
-			   i, *(u32 *)(cf->data + i));
 	}
 
 	if (!(cf->can_id & CAN_RTR_FLAG))
@@ -1211,13 +1173,10 @@ static int aspeed_can_rx_poll(struct napi_struct *napi, int quota)
 	u32 rx_stat;
 	u32 ier;
 
-	netdev_dbg(ndev, "quota = %x\n", quota);
-
 	rx_stat = readl(priv->reg_base + CAN_CTRL);
 
 	while ((rx_stat & CAN_CTRL_RSTAT_NOT_EMPTY_MASKT) != 0 &&
 	       (work_done < quota)) {
-		netdev_dbg(ndev, "work_done = %d\n", work_done);
 		work_done += aspeed_can_rx(ndev);
 		rx_stat = readl(priv->reg_base + CAN_CTRL);
 	}
@@ -1351,8 +1310,6 @@ static irqreturn_t aspeed_can_interrupt(int irq, void *dev_id)
 	isr = readl(priv->reg_base + CAN_INTF);
 	if (!isr)
 		return IRQ_NONE;
-
-	netdev_dbg(ndev, "isr = 0x%08x\n", isr);
 
 	/* Check for Tx interrupt and Processing it */
 	if (isr & (CAN_INT_TPIF_BIT | CAN_INT_TSIF_BIT))
