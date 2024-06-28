@@ -147,21 +147,6 @@ struct hci_dma_dev_ibi_data {
 	unsigned int max_len;
 };
 
-static inline u32 lo32(dma_addr_t physaddr)
-{
-	return physaddr;
-}
-
-static inline u32 hi32(dma_addr_t physaddr)
-{
-	/* trickery to avoid compiler warnings on 32-bit build targets */
-	if (sizeof(dma_addr_t) > 4) {
-		u64 hi = physaddr;
-		return hi >> 32;
-	}
-	return 0;
-}
-
 static void hci_dma_cleanup(struct i3c_hci *hci)
 {
 	struct hci_rings_data *rings = hci->io_data;
@@ -273,10 +258,10 @@ static int hci_dma_init(struct i3c_hci *hci)
 		if (!rh->xfer || !rh->resp || !rh->src_xfers)
 			goto err_out;
 
-		rh_reg_write(CMD_RING_BASE_LO, lo32(rh->xfer_dma));
-		rh_reg_write(CMD_RING_BASE_HI, hi32(rh->xfer_dma));
-		rh_reg_write(RESP_RING_BASE_LO, lo32(rh->resp_dma));
-		rh_reg_write(RESP_RING_BASE_HI, hi32(rh->resp_dma));
+		rh_reg_write(CMD_RING_BASE_LO, lower_32_bits(rh->xfer_dma));
+		rh_reg_write(CMD_RING_BASE_HI, upper_32_bits(rh->xfer_dma));
+		rh_reg_write(RESP_RING_BASE_LO, lower_32_bits(rh->resp_dma));
+		rh_reg_write(RESP_RING_BASE_HI, upper_32_bits(rh->resp_dma));
 
 		regval = FIELD_PREP(CR_RING_SIZE, rh->xfer_entries);
 		rh_reg_write(CR_SETUP, regval);
@@ -317,8 +302,8 @@ static int hci_dma_init(struct i3c_hci *hci)
 		ret = -ENOMEM;
 		if (!rh->ibi_status || !rh->ibi_data)
 			goto err_out;
-		rh_reg_write(IBI_STATUS_RING_BASE_LO, lo32(rh->ibi_status_dma));
-		rh_reg_write(IBI_STATUS_RING_BASE_HI, hi32(rh->ibi_status_dma));
+		rh_reg_write(IBI_STATUS_RING_BASE_LO, lower_32_bits(rh->ibi_status_dma));
+		rh_reg_write(IBI_STATUS_RING_BASE_HI, upper_32_bits(rh->ibi_status_dma));
 		rh->ibi_data_dma =
 			dma_map_single(&hci->master.dev, rh->ibi_data,
 				       ibi_data_ring_sz, DMA_FROM_DEVICE);
@@ -339,8 +324,8 @@ static int hci_dma_init(struct i3c_hci *hci)
 			ret = -ENOMEM;
 			goto err_out;
 		}
-		rh_reg_write(IBI_DATA_RING_BASE_LO, lo32(rh->ibi_data_dma));
-		rh_reg_write(IBI_DATA_RING_BASE_HI, hi32(rh->ibi_data_dma));
+		rh_reg_write(IBI_DATA_RING_BASE_LO, lower_32_bits(rh->ibi_data_dma));
+		rh_reg_write(IBI_DATA_RING_BASE_HI, upper_32_bits(rh->ibi_data_dma));
 
 		regval = FIELD_PREP(IBI_STATUS_RING_SIZE,
 				    rh->ibi_status_entries) |
@@ -437,8 +422,8 @@ static int hci_dma_queue_xfer(struct i3c_hci *hci,
 				hci_dma_unmap_xfer(hci, xfer_list, i);
 				return -ENOMEM;
 			}
-			*ring_data++ = lo32(xfer->data_dma);
-			*ring_data++ = hi32(xfer->data_dma);
+			*ring_data++ = lower_32_bits(xfer->data_dma);
+			*ring_data++ = upper_32_bits(xfer->data_dma);
 		} else {
 			*ring_data++ = 0;
 			*ring_data++ = 0;
