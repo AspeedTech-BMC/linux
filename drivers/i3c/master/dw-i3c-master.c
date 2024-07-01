@@ -683,6 +683,9 @@ static void dw_i3c_master_end_xfer_locked(struct dw_i3c_master *master, u32 isr)
 	}
 
 	for (i = 0; i < nresp; i++) {
+		if (xfer->cmds[i].error)
+			dev_err(&master->base.dev, "xfer error: %x\n",
+				xfer->cmds[i].error);
 		switch (xfer->cmds[i].error) {
 		case RESPONSE_NO_ERROR:
 			break;
