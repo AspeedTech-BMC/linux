@@ -1172,6 +1172,22 @@
 			#clock-cells = <1>;
 			#reset-cells = <1>;
 
+			scu_ic2: interrupt-controller@100 {
+				#interrupt-cells = <1>;
+				compatible = "aspeed,ast2700-scu-ic2";
+				reg = <0 0x100 0 0x8>;
+				interrupts-extended = <&soc1_intc5 0>;
+				interrupt-controller;
+			};
+
+			scu_ic3: interrupt-controller@108 {
+				#interrupt-cells = <1>;
+				compatible = "aspeed,ast2700-scu-ic3";
+				reg = <0 0x108 0 0x8>;
+				interrupts-extended = <&soc1_intc5 26>;
+				interrupt-controller;
+			};
+
 			soc1_rst: reset-controller@200 {
 				#reset-cells = <1>;
 			};

@@ -48,6 +48,20 @@
 	GENMASK(3, ASPEED_AST2700_SCU_IC1_SHIFT)
 #define ASPEED_AST2700_SCU_IC1_NUM_IRQS	4
 
+#define ASPEED_AST2700_SCU_IC2_EN_REG	0x104
+#define ASPEED_AST2700_SCU_IC2_STS_REG	0x100
+#define ASPEED_AST2700_SCU_IC2_SHIFT	0
+#define ASPEED_AST2700_SCU_IC2_ENABLE	\
+	GENMASK(3, ASPEED_AST2700_SCU_IC2_SHIFT)
+#define ASPEED_AST2700_SCU_IC2_NUM_IRQS	4
+
+#define ASPEED_AST2700_SCU_IC3_EN_REG	0x10c
+#define ASPEED_AST2700_SCU_IC3_STS_REG	0x108
+#define ASPEED_AST2700_SCU_IC3_SHIFT	0
+#define ASPEED_AST2700_SCU_IC3_ENABLE	\
+	GENMASK(1, ASPEED_AST2700_SCU_IC3_SHIFT)
+#define ASPEED_AST2700_SCU_IC3_NUM_IRQS	2
+
 struct aspeed_scu_ic {
 	unsigned long irq_enable;
 	unsigned long irq_shift;
@@ -325,6 +339,42 @@ static int __init aspeed_ast2700_scu_ic1_of_init(struct device_node *node,
 	return aspeed_scu_ic_of_init_common(scu_ic, node);
 }
 
+static int __init aspeed_ast2700_scu_ic2_of_init(struct device_node *node,
+						 struct device_node *parent)
+{
+	struct aspeed_scu_ic *scu_ic = kzalloc(sizeof(*scu_ic), GFP_KERNEL);
+
+	if (!scu_ic)
+		return -ENOMEM;
+
+	scu_ic->irq_enable = ASPEED_AST2700_SCU_IC2_ENABLE;
+	scu_ic->irq_shift = ASPEED_AST2700_SCU_IC2_SHIFT;
+	scu_ic->num_irqs = ASPEED_AST2700_SCU_IC2_NUM_IRQS;
+	scu_ic->en_sts_split = true;
+	scu_ic->en_reg = ASPEED_AST2700_SCU_IC2_EN_REG;
+	scu_ic->sts_reg = ASPEED_AST2700_SCU_IC2_STS_REG;
+
+	return aspeed_scu_ic_of_init_common(scu_ic, node);
+}
+
+static int __init aspeed_ast2700_scu_ic3_of_init(struct device_node *node,
+						 struct device_node *parent)
+{
+	struct aspeed_scu_ic *scu_ic = kzalloc(sizeof(*scu_ic), GFP_KERNEL);
+
+	if (!scu_ic)
+		return -ENOMEM;
+
+	scu_ic->irq_enable = ASPEED_AST2700_SCU_IC3_ENABLE;
+	scu_ic->irq_shift = ASPEED_AST2700_SCU_IC3_SHIFT;
+	scu_ic->num_irqs = ASPEED_AST2700_SCU_IC3_NUM_IRQS;
+	scu_ic->en_sts_split = true;
+	scu_ic->en_reg = ASPEED_AST2700_SCU_IC3_EN_REG;
+	scu_ic->sts_reg = ASPEED_AST2700_SCU_IC3_STS_REG;
+
+	return aspeed_scu_ic_of_init_common(scu_ic, node);
+}
+
 IRQCHIP_DECLARE(ast2400_scu_ic, "aspeed,ast2400-scu-ic", aspeed_scu_ic_of_init);
 IRQCHIP_DECLARE(ast2500_scu_ic, "aspeed,ast2500-scu-ic", aspeed_scu_ic_of_init);
 IRQCHIP_DECLARE(ast2600_scu_ic0, "aspeed,ast2600-scu-ic0",
@@ -335,3 +385,7 @@ IRQCHIP_DECLARE(ast2700_scu_ic0, "aspeed,ast2700-scu-ic0",
 		aspeed_ast2700_scu_ic0_of_init);
 IRQCHIP_DECLARE(ast2700_scu_ic1, "aspeed,ast2700-scu-ic1",
 		aspeed_ast2700_scu_ic1_of_init);
+IRQCHIP_DECLARE(ast2700_scu_ic2, "aspeed,ast2700-scu-ic2",
+		aspeed_ast2700_scu_ic2_of_init);
+IRQCHIP_DECLARE(ast2700_scu_ic3, "aspeed,ast2700-scu-ic3",
+		aspeed_ast2700_scu_ic3_of_init);
