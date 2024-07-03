@@ -5,8 +5,10 @@ Required Properties:
  - compatible			: must be "aspeed,ast2500-scu-ic",
 				  "aspeed,ast2600-scu-ic0",
 				  "aspeed,ast2600-scu-ic1",
-                  "aspeed,ast2700-scu-ic0" or
-                  "aspeed,ast2700-scu-ic1"
+                  "aspeed,ast2700-scu-ic0",
+                  "aspeed,ast2700-scu-ic1",
+                  "aspeed,ast2700-scu-ic2" or
+                  "aspeed,ast2700-scu-ic3"
  - interrupts			: interrupt from the parent controller
  - interrupt-controller		: indicates that the controller receives and
 				  fires new interrupts for child busses
