@@ -1018,9 +1018,9 @@
 #endif
 
 &wdt0 {
-	status = "disabled";
+	status = "okay";
 };
 
 &wdt1 {
-	status = "disabled";
+	status = "okay";
 };
