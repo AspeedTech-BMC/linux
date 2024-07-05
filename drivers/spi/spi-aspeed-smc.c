@@ -1323,6 +1323,8 @@ static int aspeed_spi_dirmap_create(struct spi_mem_dirmap_desc *desc)
 				chip->ctl_val[i] = (chip->ctl_val[i] &
 						    aspi->data->hclk_mask) |
 						   div;
+
+			writel(chip->ctl_val[ASPEED_SPI_READ], chip->ctl);
 		} else {
 			ret = aspeed_spi_do_calibration(chip);
 		}
