@@ -26,7 +26,6 @@ static DEFINE_IDA(bmc_device_ida);
 
 #define SCU_TRIGGER_MSI
 
-#define BMC_MEM_BAR_SIZE		0x100000
 /* =================== AST2600 SCU Define ================================================ */
 #define ASPEED_SCU04				0x04
 #define AST2600A3_SCU04	0x05030303
@@ -120,6 +119,7 @@ struct aspeed_bmc_device {
 	void __iomem *reg_base;
 	void __iomem *bmc_mem_virt;
 	dma_addr_t bmc_mem_phy;
+	phys_addr_t bmc_mem_size;
 
 	int pcie2lpc;
 	int irq;
@@ -149,7 +149,7 @@ static int aspeed_bmc_device_mmap(struct file *file, struct vm_area_struct *vma)
 	unsigned long vsize = vma->vm_end - vma->vm_start;
 	pgprot_t prot = vma->vm_page_prot;
 
-	if (vma->vm_pgoff + vsize > bmc_device->bmc_mem_phy + 0x100000)
+	if (((vma->vm_pgoff << PAGE_SHIFT) + vsize) > bmc_device->bmc_mem_size)
 		return -EINVAL;
 
 	prot = pgprot_noncached(prot);
@@ -380,7 +380,7 @@ static int aspeed_ast2600_init(struct platform_device *pdev)
 	regmap_update_bits(bmc_device->scu, 0xc24, BIT(18) | BIT(14), BIT(18) | BIT(14));
 #endif
 
-	writel((~(BMC_MEM_BAR_SIZE - 1) & 0xFFFFFFFF) | HOST2BMC_MEM_BAR_ENABLE,
+	writel((~(bmc_device->bmc_mem_size - 1) & 0xFFFFFFFF) | HOST2BMC_MEM_BAR_ENABLE,
 	       bmc_device->reg_base + ASPEED_BMC_MEM_BAR);
 	writel(bmc_device->bmc_mem_phy, bmc_device->reg_base + ASPEED_BMC_MEM_BAR_REMAP);
 
@@ -439,20 +439,20 @@ static int aspeed_ast2700_init(struct platform_device *pdev)
 
 	//bar size check for 4k align
 	for (i = 1; i < 16; i++) {
-		if ((BMC_MEM_BAR_SIZE / 4096) == (1 << (i - 1)))
+		if ((bmc_device->bmc_mem_size / 4096) == (1 << (i - 1)))
 			break;
 	}
 	if (i == 16) {
 		i = 0;
 		dev_warn(bmc_device->dev,
-			 "Bar size not align for 4K : %dK\n", BMC_MEM_BAR_SIZE / 1024);
+			 "Bar size not align for 4K : %dK\n", (u32)bmc_device->bmc_mem_size / 1024);
 	}
 
 	/*
 	 * BAR assign in scu
 	 * ((bar_mem / 4k) << 8) | per_size
 	 */
-	regmap_write(bmc_device->device, 0x1c, ((bmc_device->bmc_mem_phy & ~BIT_ULL(34)) >> 4) | i);
+	regmap_write(bmc_device->device, 0x1c, ((bmc_device->bmc_mem_phy) >> 4) | i);
 
 	/*
 	 * BAR assign in e2m
@@ -464,9 +464,9 @@ static int aspeed_ast2700_init(struct platform_device *pdev)
 	 * 128:host2bmc-1 for pcie1
 	 */
 	if (bmc_device->id)
-		regmap_write(bmc_device->e2m, 0x128, ((bmc_device->bmc_mem_phy & ~BIT_ULL(34)) >> 4) | i);
+		regmap_write(bmc_device->e2m, 0x128, ((bmc_device->bmc_mem_phy) >> 4) | i);
 	else
-		regmap_write(bmc_device->e2m, 0x108, ((bmc_device->bmc_mem_phy & ~BIT_ULL(34)) >> 4) | i);
+		regmap_write(bmc_device->e2m, 0x108, ((bmc_device->bmc_mem_phy) >> 4) | i);
 
 	//Setting BMC to Host Q register
 	writel(BMC2HOST_Q2_FULL_UNMASK | BMC2HOST_Q1_FULL_UNMASK | BMC2HOST_ENABLE_INTB,
@@ -561,6 +561,7 @@ static int aspeed_bmc_device_probe(struct platform_device *pdev)
 {
 	struct aspeed_bmc_device *bmc_device;
 	struct device *dev = &pdev->dev;
+	struct reserved_mem *mem;
 	const struct of_device_id *match;
 	struct device_node *np;
 	int ret = 0, i;
@@ -588,13 +589,30 @@ static int aspeed_bmc_device_probe(struct platform_device *pdev)
 	if (IS_ERR(bmc_device->reg_base))
 		goto out_region;
 
+	np = of_parse_phandle(dev->of_node, "memory-region", 0);
+	if (!np) {
+		dev_err(dev, "Failed to find memory-region.\n");
+		ret = -ENOMEM;
+		goto out_region;
+	}
+
+	mem = of_reserved_mem_lookup(np);
+	of_node_put(np);
+	if (!mem) {
+		dev_err(dev, "Failed to find reserved memory.\n");
+		ret = -ENOMEM;
+		goto out_region;
+	}
+
+	bmc_device->bmc_mem_size = mem->size;
+
 	dma_set_mask_and_coherent(dev, DMA_BIT_MASK(64));
 
 	if (of_reserved_mem_device_init(dev))
 		dev_err(dev, "can't get reserved memory\n");
-	bmc_device->bmc_mem_virt = dma_alloc_coherent(&pdev->dev, BMC_MEM_BAR_SIZE,
+	bmc_device->bmc_mem_virt = dma_alloc_coherent(&pdev->dev, bmc_device->bmc_mem_size,
 						      &bmc_device->bmc_mem_phy, GFP_KERNEL);
-	memset(bmc_device->bmc_mem_virt, 0, BMC_MEM_BAR_SIZE);
+	memset(bmc_device->bmc_mem_virt, 0, bmc_device->bmc_mem_size);
 
 	bmc_device->irq = platform_get_irq(pdev, 0);
 	if (bmc_device->irq < 0) {
@@ -656,7 +674,7 @@ out_irq:
 	devm_free_irq(&pdev->dev, bmc_device->irq, bmc_device);
 out_unmap:
 	iounmap(bmc_device->reg_base);
-	dma_free_coherent(&pdev->dev, BMC_MEM_BAR_SIZE,
+	dma_free_coherent(&pdev->dev, bmc_device->bmc_mem_size,
 			  bmc_device->bmc_mem_virt, bmc_device->bmc_mem_phy);
 out_region:
 	devm_kfree(&pdev->dev, bmc_device);
@@ -677,7 +695,7 @@ static int  aspeed_bmc_device_remove(struct platform_device *pdev)
 
 	iounmap(bmc_device->reg_base);
 
-	dma_free_coherent(&pdev->dev, BMC_MEM_BAR_SIZE,
+	dma_free_coherent(&pdev->dev, bmc_device->bmc_mem_size,
 			  bmc_device->bmc_mem_virt, bmc_device->bmc_mem_phy);
 
 	devm_kfree(&pdev->dev, bmc_device);
