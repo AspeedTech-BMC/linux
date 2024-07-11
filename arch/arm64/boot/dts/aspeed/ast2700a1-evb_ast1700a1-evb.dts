@@ -2,11 +2,11 @@
 
 /dts-v1/;
 
-#include "ast2700-fpga.dts"
+#include "ast2700a1-evb.dts"
 #include "aspeed-ltpi0-a1.dtsi"
 
 / {
-	model = "AST2700-FPGA_AST1700-FPGA";
+	model = "AST2700A1-EVB_AST1700A1-EVB";
 
 	/delete-node/ fan0;
 	/delete-node/ fan1;
