@@ -126,7 +126,7 @@ struct aspeed_bmc_device {
 
 	struct aspeed_queue_message queue[ASPEED_QUEUE_NUM];
 
-	struct aspeed_platform *platform;
+	const struct aspeed_platform *platform;
 
 	/* AST2700 */
 	struct regmap *config;
@@ -562,23 +562,19 @@ static int aspeed_bmc_device_probe(struct platform_device *pdev)
 	struct aspeed_bmc_device *bmc_device;
 	struct device *dev = &pdev->dev;
 	struct reserved_mem *mem;
-	const struct of_device_id *match;
+	const void *md = of_device_get_match_data(dev);
 	struct device_node *np;
 	int ret = 0, i;
 
-	np = of_find_matching_node_and_match(NULL, aspeed_bmc_device_of_matches, &match);
-	if (!np) {
-		pr_err("Failed to find bmc device node\n");
+	if (!md)
 		return -ENODEV;
-	}
 
 	bmc_device = devm_kzalloc(&pdev->dev, sizeof(struct aspeed_bmc_device), GFP_KERNEL);
 	if (!bmc_device)
 		return -ENOMEM;
 	dev_set_drvdata(dev, bmc_device);
 
-	bmc_device->platform = (struct aspeed_platform *)match->data;
-	of_node_put(np);
+	bmc_device->platform = md;
 
 	bmc_device->id = ida_simple_get(&bmc_device_ida, 0, 0, GFP_KERNEL);
 	if (bmc_device->id < 0)
