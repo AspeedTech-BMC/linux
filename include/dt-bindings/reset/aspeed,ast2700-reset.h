@@ -40,7 +40,7 @@
 #define ASPEED_RESET_DP			(28)
 #define ASPEED_RESET_DP_MCU		(29)
 #define ASPEED_RESET_GP_MCU		(30)
-#define ASPEED_RESET_H2X		(31)
+#define ASPEED_RESET_H2X0		(31)
 #define ASPEED_RESET_P0_VHUB2		(32)
 #define ASPEED_RESET_P0_PHY3		(33)
 #define ASPEED_RESET_P0_XHCI		(34)
@@ -50,8 +50,11 @@
 #define ASPEED_RESET_P0_USB2		(38)
 #define ASPEED_RESET_P1_USB2		(39)
 #define ASPEED_RESET_USB11		(40)
+#define ASPEED_RESET_RESERVED		(41)
+#define ASPEED_RESET_E2M0		(42)
+#define ASPEED_RESET_E2M1		(43)
 
-#define ASPEED_SOC0_RESET_NUMS		(ASPEED_RESET_USB11 + 1)
+#define ASPEED_SOC0_RESET_NUMS		(ASPEED_RESET_E2M1 + 1)
 
 /* SOC1 */
 #define ASPEED_RESET_LPC0		(0)
@@ -107,7 +110,10 @@
 #define ASPEED_RESET_UART9		(51)
 #define ASPEED_RESET_LTPI		(52)
 #define ASPEED_RESET_VGAL		(53)
-/* reserved 54:62 */
+/* reserved 54:55 */
+#define ASPEED_RESET_E2M2		(56)
+/* reserved 57:61 */
+#define ASPEED_RESET_H2X2		(62)
 #define ASPEED_RESET_I3CDMA             (63)
 
 #define ASPEED_SOC1_RESET_NUMS		(ASPEED_RESET_I3CDMA + 1)
