@@ -783,6 +783,7 @@
 			interrupts = <GIC_SPI 56 IRQ_TYPE_LEVEL_HIGH>;
 			resets = <&syscon0 ASPEED_RESET_H2X0>,
 				 <&syscon0 ASPEED_RESET_E2M0>,
+				 <&syscon0 ASPEED_RESET_PCIE0RST>,
 				 <&syscon0 ASPEED_RESET_PCIE0RSTOE>;
 			status = "disabled";
 
@@ -816,6 +817,7 @@
 			interrupts = <GIC_SPI 57 IRQ_TYPE_LEVEL_HIGH>;
 			resets = <&syscon0 ASPEED_RESET_H2X1>,
 				 <&syscon0 ASPEED_RESET_E2M1>,
+				 <&syscon0 ASPEED_RESET_PCIE1RST>,
 				 <&syscon0 ASPEED_RESET_PCIE1RSTOE>;
 			status = "disabled";
 
