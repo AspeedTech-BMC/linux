@@ -771,6 +771,9 @@ static int ast2700_i3c_target_bus_init(struct i3c_master_controller *m)
 	if (ret)
 		return ret;
 
+	reg_set(HC_CONTROL, HC_CONTROL_BUS_ENABLE);
+	DBG("HC_CONTROL = %#x", reg_read(HC_CONTROL));
+
 	return 0;
 }
 
