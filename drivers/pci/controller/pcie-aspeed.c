@@ -92,7 +92,12 @@
 
 #define MAX_MSI_HOST_IRQS		64
 
+struct aspeed_pcie_rc_platform {
+	int (*setup)(struct platform_device *pdev);
+};
+
 struct aspeed_pcie {
+	struct pci_host_bridge *host;
 	struct device *dev;
 	void __iomem *reg;	//rc slot base
 	struct regmap *ahbc;
@@ -116,6 +121,9 @@ struct aspeed_pcie {
 	struct gpio_desc *perst_owner;
 	struct delayed_work rst_dwork;
 	DECLARE_BITMAP(msi_irq_in_use, MAX_MSI_HOST_IRQS);
+
+	const struct aspeed_pcie_rc_platform *platform;
+	bool support_msi;
 };
 
 static void aspeed_pcie_intx_ack_irq(struct irq_data *d)
@@ -249,8 +257,8 @@ out:
 	pcie->tx_tag++;
 }
 
-static int aspeed_h2x_rd_conf(struct pci_bus *bus, unsigned int devfn,
-			      int where, int size, u32 *val)
+static int aspeed_ast2600_rd_conf(struct pci_bus *bus, unsigned int devfn,
+				  int where, int size, u32 *val)
 {
 	struct aspeed_pcie *pcie = bus->sysdata;
 	u32 bdf_offset;
@@ -409,8 +417,8 @@ out:
 	return PCIBIOS_SUCCESSFUL;
 }
 
-static int aspeed_h2x_wr_conf(struct pci_bus *bus, unsigned int devfn,
-			      int where, int size, u32 val)
+static int aspeed_ast2600_wr_conf(struct pci_bus *bus, unsigned int devfn,
+				  int where, int size, u32 val)
 {
 	u32 type = 0;
 	u32 shift = 8 * (where & 3);
@@ -546,9 +554,9 @@ out:
 }
 
 /* PCIe operations */
-static struct pci_ops aspeed_pcie_ops = {
-	.read = aspeed_h2x_rd_conf,
-	.write = aspeed_h2x_wr_conf,
+static struct pci_ops aspeed_ast2600_pcie_ops = {
+	.read = aspeed_ast2600_rd_conf,
+	.write = aspeed_ast2600_wr_conf,
 };
 
 #ifdef CONFIG_PCI_MSI
@@ -669,8 +677,7 @@ static int aspeed_pcie_init_irq_domain(struct aspeed_pcie *pcie)
 
 	of_node_put(pcie_intc_node);
 
-	//080 can't config for msi
-	if (pcie->domain)
+	if (!pcie->support_msi)
 		return 0;
 
 #ifdef CONFIG_PCI_MSI
@@ -756,85 +763,6 @@ static void aspeed_pcie_port_init(struct aspeed_pcie *pcie)
 	}
 }
 
-#define AHBC_UNLOCK	0xAEED1A03
-static int aspeed_pcie_setup(struct aspeed_pcie *pcie)
-{
-	struct device *dev = pcie->dev;
-	struct platform_device *pdev = to_platform_device(dev);
-	struct device_node *node = dev->of_node;
-	struct device_node *cfg_node;
-	int err;
-
-	pcie->perst_rc_out =
-		devm_gpiod_get_optional(pcie->dev, "perst-rc-out",
-					GPIOD_OUT_LOW |
-					GPIOD_FLAGS_BIT_NONEXCLUSIVE);
-
-	pcie->perst = devm_reset_control_get_exclusive(pcie->dev, NULL);
-	if (IS_ERR(pcie->perst)) {
-		dev_err(&pdev->dev, "can't get pcie phy reset\n");
-		return PTR_ERR(pcie->perst);
-	}
-	reset_control_assert(pcie->perst);
-
-	pcie->ahbc = syscon_regmap_lookup_by_compatible("aspeed,aspeed-ahbc");
-	if (IS_ERR(pcie->ahbc))
-		return IS_ERR(pcie->ahbc);
-
-	cfg_node =
-		of_find_compatible_node(NULL, NULL, "aspeed,ast2600-pciecfg");
-	if (cfg_node) {
-		pcie->cfg = syscon_node_to_regmap(cfg_node);
-		if (IS_ERR(pcie->cfg))
-			return PTR_ERR(pcie->cfg);
-	}
-
-	//workaround : Send vender define message for avoid when PCIE RESET send unknown message out
-	regmap_write(pcie->cfg, 0x10, 0x34000000);
-	regmap_write(pcie->cfg, 0x14, 0x0000007f);
-	regmap_write(pcie->cfg, 0x18, 0x00001a03);
-	regmap_write(pcie->cfg, 0x1c, 0x00000000);
-
-	regmap_write(pcie->ahbc, 0x00, AHBC_UNLOCK);
-	regmap_update_bits(pcie->ahbc, 0x8C, BIT(5), BIT(5));
-	regmap_write(pcie->ahbc, 0x00, 0x1);
-
-	//ahb to pcie rc
-	regmap_write(pcie->cfg, 0x60, 0xe0006000);
-	regmap_write(pcie->cfg, 0x64, 0x00000000);
-	regmap_write(pcie->cfg, 0x68, 0xFFFFFFFF);
-
-	//PCIe Host Enable
-	regmap_write(pcie->cfg, 0x00, BIT(0));
-
-	pcie->reg = devm_platform_ioremap_resource(pdev, 0);
-
-	pcie->pciephy = syscon_regmap_lookup_by_phandle(node, "pciephy");
-	if (IS_ERR(pcie->pciephy)) {
-		dev_err(dev, "failed to map pciephy base\n");
-		return PTR_ERR(pcie->pciephy);
-	}
-
-	of_property_read_u32(node, "msi_address", &pcie->msi_address);
-	of_property_read_u32(node, "linux,pci-domain", &pcie->domain);
-
-	pcie->irq = irq_of_parse_and_map(node, 0);
-	if (pcie->irq < 0)
-		return pcie->irq;
-
-	aspeed_pcie_port_init(pcie);
-
-	err = aspeed_pcie_init_irq_domain(pcie);
-	if (err) {
-		dev_err(dev, "failed to init PCIe IRQ domain\n");
-		return err;
-	}
-
-	irq_set_chained_handler_and_data(pcie->irq, aspeed_pcie_intr_handler,
-					 pcie);
-
-	return 0;
-}
 
 static ssize_t hotplug_store(struct device *dev, struct device_attribute *attr,
 			     const char *buf, size_t len)
@@ -903,30 +831,78 @@ static irqreturn_t pcie_rst_irq_handler(int irq, void *dev_id)
 	return IRQ_HANDLED;
 }
 
-static int aspeed_pcie_probe(struct platform_device *pdev)
+#define AHBC_UNLOCK	0xAEED1A03
+static int aspeed_ast2600_setup(struct platform_device *pdev)
 {
-	struct device *dev = &pdev->dev;
-	struct pci_host_bridge *host;
-	struct aspeed_pcie *pcie;
+	struct aspeed_pcie *pcie = platform_get_drvdata(pdev);
+	struct device *dev = pcie->dev;
+	struct device_node *node = dev->of_node;
+	struct device_node *cfg_node;
 	int err;
 
-	host = devm_pci_alloc_host_bridge(dev, sizeof(*pcie));
-	if (!host)
-		return -ENODEV;
+	pcie->perst_rc_out =
+		devm_gpiod_get_optional(pcie->dev, "perst-rc-out",
+					GPIOD_OUT_LOW |
+					GPIOD_FLAGS_BIT_NONEXCLUSIVE);
 
-	pcie = pci_host_bridge_priv(host);
-	pcie->dev = dev;
-	pcie->tx_tag = 0;
-	platform_set_drvdata(pdev, pcie);
+	pcie->perst = devm_reset_control_get_exclusive(pcie->dev, NULL);
+	if (IS_ERR(pcie->perst)) {
+		dev_err(&pdev->dev, "can't get pcie phy reset\n");
+		return PTR_ERR(pcie->perst);
+	}
+	reset_control_assert(pcie->perst);
 
-	err = aspeed_pcie_setup(pcie);
-	if (err) {
-		dev_err(dev, "Parsing DT failed\n");
-		return err;
+	pcie->ahbc = syscon_regmap_lookup_by_compatible("aspeed,aspeed-ahbc");
+	if (IS_ERR(pcie->ahbc))
+		return IS_ERR(pcie->ahbc);
+
+	cfg_node =
+		of_find_compatible_node(NULL, NULL, "aspeed,ast2600-pciecfg");
+	if (cfg_node) {
+		pcie->cfg = syscon_node_to_regmap(cfg_node);
+		if (IS_ERR(pcie->cfg))
+			return PTR_ERR(pcie->cfg);
 	}
 
-	host->ops = &aspeed_pcie_ops;
-	host->sysdata = pcie;
+	//workaround : Send vender define message for avoid when PCIE RESET send unknown message out
+	regmap_write(pcie->cfg, 0x10, 0x34000000);
+	regmap_write(pcie->cfg, 0x14, 0x0000007f);
+	regmap_write(pcie->cfg, 0x18, 0x00001a03);
+	regmap_write(pcie->cfg, 0x1c, 0x00000000);
+
+	regmap_write(pcie->ahbc, 0x00, AHBC_UNLOCK);
+	regmap_update_bits(pcie->ahbc, 0x8C, BIT(5), BIT(5));
+	regmap_write(pcie->ahbc, 0x00, 0x1);
+
+	//ahb to pcie rc
+	regmap_write(pcie->cfg, 0x60, 0xe0006000);
+	regmap_write(pcie->cfg, 0x64, 0x00000000);
+	regmap_write(pcie->cfg, 0x68, 0xFFFFFFFF);
+
+	//PCIe Host Enable
+	regmap_write(pcie->cfg, 0x00, BIT(0));
+
+	pcie->reg = devm_platform_ioremap_resource(pdev, 0);
+
+	pcie->pciephy = syscon_regmap_lookup_by_phandle(node, "pciephy");
+	if (IS_ERR(pcie->pciephy)) {
+		dev_err(dev, "failed to map pciephy base\n");
+		return PTR_ERR(pcie->pciephy);
+	}
+
+	of_property_read_u32(node, "msi_address", &pcie->msi_address);
+	of_property_read_u32(node, "linux,pci-domain", &pcie->domain);
+
+	pcie->irq = irq_of_parse_and_map(node, 0);
+	if (pcie->irq < 0)
+		return pcie->irq;
+
+	//080 can't config for msi
+	pcie->support_msi = (pcie->domain) ? false : true;
+
+	aspeed_pcie_port_init(pcie);
+
+	pcie->host->ops = &aspeed_ast2600_pcie_ops;
 
 	err = sysfs_create_file(&pdev->dev.kobj, &dev_attr_hotplug.attr);
 	if (err) {
@@ -958,13 +934,58 @@ static int aspeed_pcie_probe(struct platform_device *pdev)
 			devm_gpiod_get_optional(pcie->dev, "perst-owner", GPIOD_OUT_HIGH);
 	}
 
+	return 0;
+}
+
+static int aspeed_pcie_probe(struct platform_device *pdev)
+{
+	struct device *dev = &pdev->dev;
+	struct pci_host_bridge *host;
+	struct aspeed_pcie *pcie;
+	const void *md = of_device_get_match_data(dev);
+	int err;
+
+	if (!md)
+		return -ENODEV;
+
+	host = devm_pci_alloc_host_bridge(dev, sizeof(*pcie));
+	if (!host)
+		return -ENOMEM;
+
+	pcie = pci_host_bridge_priv(host);
+	pcie->dev = dev;
+	pcie->tx_tag = 0;
+	platform_set_drvdata(pdev, pcie);
+
+	pcie->platform = md;
+	pcie->host = host;
+
+	err = pcie->platform->setup(pdev);
+	if (err) {
+		dev_err(dev, "Setup PCIe RC failed\n");
+		return err;
+	}
+
+	host->sysdata = pcie;
+
+	err = aspeed_pcie_init_irq_domain(pcie);
+	if (err) {
+		dev_err(dev, "failed to init PCIe IRQ domain\n");
+		return err;
+	}
+
+	irq_set_chained_handler_and_data(pcie->irq, aspeed_pcie_intr_handler,
+					 pcie);
+
 	return pci_host_probe(host);
 }
 
+static struct aspeed_pcie_rc_platform pcie_rc_ast2600 = {
+	.setup = aspeed_ast2600_setup,
+};
+
 static const struct of_device_id aspeed_pcie_of_match[] = {
-	{
-		.compatible = "aspeed,ast2600-pcie",
-	},
+	{ .compatible = "aspeed,ast2600-pcie", .data = &pcie_rc_ast2600 },
 	{}
 };
 
