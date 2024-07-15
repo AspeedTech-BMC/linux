@@ -110,9 +110,14 @@
 #define ASPEED_RESET_UART9		(51)
 #define ASPEED_RESET_LTPI		(52)
 #define ASPEED_RESET_VGAL		(53)
-/* reserved 54:55 */
+#define ASPEED_RESET_LTPI1		(54)
+#define ASPEED_RESET_ACE		(55)
 #define ASPEED_RESET_E2M2		(56)
-/* reserved 57:61 */
+#define ASPEED_RESET_UHCI		(57)
+#define ASPEED_RESET_PORTC_USB2H	(58)
+#define ASPEED_RESET_PORTC_USB2V	(59)
+#define ASPEED_RESET_PORTD_USB2H	(60)
+#define ASPEED_RESET_PORTD_USB2V	(61)
 #define ASPEED_RESET_H2X2		(62)
 #define ASPEED_RESET_I3CDMA             (63)
 
