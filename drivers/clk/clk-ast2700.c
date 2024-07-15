@@ -454,7 +454,7 @@ static int ast2700_soc1_clk_init(struct device_node *soc1_node)
 	 * I3C reset should assert all of the I3C controllers simultaneously.
 	 * Otherwise, it may lead to failure in accessing I3C registers.
 	 */
-	for (id = ASPEED_RESET_I3C0; id <= ASPEED_RESET_I3C15; id++)
+	for (id = SCU_IO_RESET_I3C0; id <= SCU_IO_RESET_I3C15; id++)
 		ast2700_reset_assert(&reset->rcdev, id);
 
 	clks[AST2700_SOC1_CLKIN] =
