@@ -440,7 +440,7 @@ static int ast2700_soc1_clk_init(struct device_node *soc1_node)
 	reset->base = clk_base;
 
 	reset->rcdev.owner = THIS_MODULE;
-	reset->rcdev.nr_resets = ASPEED_SOC1_RESET_NUMS;
+	reset->rcdev.nr_resets = SOC1_RESET_NUMS;
 	reset->rcdev.ops = &ast2700_reset_ops;
 	reset->rcdev.of_node = soc1_node;
 
@@ -454,7 +454,7 @@ static int ast2700_soc1_clk_init(struct device_node *soc1_node)
 	 * I3C reset should assert all of the I3C controllers simultaneously.
 	 * Otherwise, it may lead to failure in accessing I3C registers.
 	 */
-	for (id = SCU_IO_RESET_I3C0; id <= SCU_IO_RESET_I3C15; id++)
+	for (id = SCU1_RESET_I3C0; id <= SCU1_RESET_I3C15; id++)
 		ast2700_reset_assert(&reset->rcdev, id);
 
 	clks[AST2700_SOC1_CLKIN] =
@@ -915,7 +915,7 @@ static int ast2700_soc0_clk_init(struct device_node *soc0_node)
 	reset->base = clk_base;
 
 	reset->rcdev.owner = THIS_MODULE;
-	reset->rcdev.nr_resets = ASPEED_SOC0_RESET_NUMS;
+	reset->rcdev.nr_resets = SOC0_RESET_NUMS;
 	reset->rcdev.ops = &ast2700_reset_ops;
 	reset->rcdev.of_node = soc0_node;
 
