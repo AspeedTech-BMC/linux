@@ -750,9 +750,9 @@
 	mac1-clk-delay = <0x35 0x33
 			  0x10 0x10
 			  0x10 0x10>;
-	assigned-clocks = <&syscon1 AST2700_SOC1_CLK_MACHCLK>,
-			  <&syscon1 AST2700_SOC1_CLK_RGMII>,
-			  <&syscon1 AST2700_SOC1_CLK_RMII>;
+	assigned-clocks = <&syscon1 SCU1_CLK_MACHCLK>,
+			  <&syscon1 SCU1_CLK_RGMII>,
+			  <&syscon1 SCU1_CLK_RMII>;
 	assigned-clock-rates = <200000000>, <125000000>, <50000000>;
 };
 
