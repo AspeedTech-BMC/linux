@@ -94,6 +94,11 @@
 
 struct aspeed_pcie_rc_platform {
 	int (*setup)(struct platform_device *pdev);
+	/* Interrupt Register Offset */
+	int reg_intx_en;
+	int reg_intx_sts;
+	int reg_msi_en;
+	int reg_msi_sts;
 };
 
 struct aspeed_pcie {
@@ -104,7 +109,7 @@ struct aspeed_pcie {
 	int domain;
 	char name[10];
 	u32 msi_address;
-	int	irq;
+	int irq;
 	u8 tx_tag;
 	struct regmap *cfg;	//pciecfg
 	struct regmap *pciephy; //pcie_phy
@@ -129,22 +134,25 @@ struct aspeed_pcie {
 static void aspeed_pcie_intx_ack_irq(struct irq_data *d)
 {
 	struct aspeed_pcie *pcie = irq_data_get_irq_chip_data(d);
+	int intx_en = pcie->platform->reg_intx_en;
 
-	writel(readl(pcie->reg + 0x04) | BIT(d->hwirq), pcie->reg + 0x04);
+	writel(readl(pcie->reg + intx_en) | BIT(d->hwirq), pcie->reg + intx_en);
 }
 
 static void aspeed_pcie_intx_mask_irq(struct irq_data *d)
 {
 	struct aspeed_pcie *pcie = irq_data_get_irq_chip_data(d);
+	int intx_en = pcie->platform->reg_intx_en;
 
-	writel(readl(pcie->reg + 0x04) & ~BIT(d->hwirq), pcie->reg + 0x04);
+	writel(readl(pcie->reg + intx_en) & ~BIT(d->hwirq), pcie->reg + intx_en);
 }
 
 static void aspeed_pcie_intx_unmask_irq(struct irq_data *d)
 {
 	struct aspeed_pcie *pcie = irq_data_get_irq_chip_data(d);
+	int intx_en = pcie->platform->reg_intx_en;
 
-	writel(readl(pcie->reg + 0x04) | BIT(d->hwirq), pcie->reg + 0x04);
+	writel(readl(pcie->reg + intx_en) | BIT(d->hwirq), pcie->reg + intx_en);
 }
 
 static struct irq_chip aspeed_intx_irq_chip = {
@@ -173,6 +181,7 @@ static void aspeed_pcie_intr_handler(struct irq_desc *desc)
 {
 	struct aspeed_pcie *pcie = irq_desc_get_handler_data(desc);
 	struct irq_chip *irqchip = irq_desc_get_chip(desc);
+	const struct aspeed_pcie_rc_platform *platform = pcie->platform;
 	unsigned long status;
 	unsigned long intx;
 	u32 bit;
@@ -180,7 +189,7 @@ static void aspeed_pcie_intr_handler(struct irq_desc *desc)
 
 	chained_irq_enter(irqchip, desc);
 
-	intx = readl(pcie->reg + 0x08) & 0xf;
+	intx = readl(pcie->reg + platform->reg_intx_sts) & 0xf;
 	if (intx) {
 		for_each_set_bit(bit, &intx, PCI_NUM_INTX)
 			generic_handle_domain_irq(pcie->irq_domain, bit);
@@ -188,8 +197,8 @@ static void aspeed_pcie_intr_handler(struct irq_desc *desc)
 
 	if (IS_ENABLED(CONFIG_PCI_MSI)) {
 		for (i = 0; i < 2; i++) {
-			status = readl(pcie->reg + 0x28 + (i * 4));
-			writel(status, pcie->reg + 0x28 + (i * 4));
+			status = readl(pcie->reg + platform->reg_msi_sts + (i * 4));
+			writel(status, pcie->reg + platform->reg_msi_sts + (i * 4));
 			if (!status)
 				continue;
 
@@ -626,8 +635,8 @@ static void aspeed_irq_msi_domain_free(struct irq_domain *domain,
 
 static void aspeed_pcie_msi_enable(struct aspeed_pcie *pcie)
 {
-	writel(0xffffffff, pcie->reg + 0x20);
-	writel(0xffffffff, pcie->reg + 0x24);
+	writel(0xffffffff, pcie->reg + pcie->platform->reg_msi_en);
+	writel(0xffffffff, pcie->reg + pcie->platform->reg_msi_en + 0x04);
 }
 
 static const struct irq_domain_ops aspeed_msi_domain_ops = {
@@ -982,6 +991,10 @@ static int aspeed_pcie_probe(struct platform_device *pdev)
 
 static struct aspeed_pcie_rc_platform pcie_rc_ast2600 = {
 	.setup = aspeed_ast2600_setup,
+	.reg_intx_en = 0x04,
+	.reg_intx_sts = 0x08,
+	.reg_msi_en = 0x20,
+	.reg_msi_sts = 0x28,
 };
 
 static const struct of_device_id aspeed_pcie_of_match[] = {
