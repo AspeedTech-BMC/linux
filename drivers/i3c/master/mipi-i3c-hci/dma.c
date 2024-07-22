@@ -565,23 +565,22 @@ static void hci_dma_xfer_done(struct i3c_hci *hci, struct hci_rh_data *rh)
 					 TID_TARGET_RD_DATA)
 					complete(&hci->pending_r_comp);
 			}
+		}
+		xfer = rh->src_xfers[done_ptr];
+		if (!xfer) {
+			DBG("orphaned ring entry");
 		} else {
-			xfer = rh->src_xfers[done_ptr];
-			if (!xfer) {
-				DBG("orphaned ring entry");
-			} else {
-				hci_dma_unmap_xfer(hci, xfer, 1);
-				xfer->ring_entry = -1;
-				xfer->response = resp;
-				if (tid != xfer->cmd_tid) {
-					dev_err(&hci->master.dev,
-						"response tid=%d when expecting %d\n",
-						tid, xfer->cmd_tid);
-					/* TODO: do something about it? */
-				}
-				if (xfer->completion)
-					complete(xfer->completion);
+			hci_dma_unmap_xfer(hci, xfer, 1);
+			xfer->ring_entry = -1;
+			xfer->response = resp;
+			if (tid != xfer->cmd_tid) {
+				dev_err(&hci->master.dev,
+					"response tid=%d when expecting %d\n",
+					tid, xfer->cmd_tid);
+				/* TODO: do something about it? */
 			}
+			if (xfer->completion)
+				complete(xfer->completion);
 		}
 		done_ptr = (done_ptr + 1) % rh->xfer_entries;
 		rh->done_ptr = done_ptr;
