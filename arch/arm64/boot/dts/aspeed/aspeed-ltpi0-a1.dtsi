@@ -138,8 +138,8 @@
 			#size-cells = <0>;
 			reg = <0x0 0x30c20000 0x0 0x1000>;
 			interrupts-extended = <&ltpi0_soc1_intc1 0>;
-			clocks = <&ltpi0_syscon SCU1_CLK_GATE_I3C0CLK>;
-			resets = <&ltpi0_syscon SCU1_RESET_I3C0>;
+			clocks = <&ltpi0_syscon AST1700_CLK_GATE_I3C0CLK>;
+			resets = <&ltpi0_syscon AST1700_RESET_I3C0>, <&ltpi0_syscon AST1700_RESET_I3CDMA>;
 			status = "disabled";
 		};
 
@@ -149,8 +149,8 @@
 			#size-cells = <0>;
 			reg = <0x0 0x30c21000 0x0 0x1000>;
 			interrupts-extended = <&ltpi0_soc1_intc1 1>;
-			clocks = <&ltpi0_syscon SCU1_CLK_GATE_I3C1CLK>;
-			resets = <&ltpi0_syscon SCU1_RESET_I3C1>;
+			clocks = <&ltpi0_syscon AST1700_CLK_GATE_I3C1CLK>;
+			resets = <&ltpi0_syscon AST1700_RESET_I3C1>, <&ltpi0_syscon AST1700_RESET_I3CDMA>;
 			status = "disabled";
 		};
 
@@ -160,8 +160,8 @@
 			#size-cells = <0>;
 			reg = <0x0 0x30c22000 0x0 0x1000>;
 			interrupts-extended = <&ltpi0_soc1_intc1 2>;
-			clocks = <&ltpi0_syscon SCU1_CLK_GATE_I3C2CLK>;
-			resets = <&ltpi0_syscon SCU1_RESET_I3C2>;
+			clocks = <&ltpi0_syscon AST1700_CLK_GATE_I3C2CLK>;
+			resets = <&ltpi0_syscon AST1700_RESET_I3C2>, <&ltpi0_syscon AST1700_RESET_I3CDMA>;
 			status = "disabled";
 		};
 
@@ -171,8 +171,8 @@
 			#size-cells = <0>;
 			reg = <0x0 0x30c23000 0x0 0x1000>;
 			interrupts-extended = <&ltpi0_soc1_intc1 3>;
-			clocks = <&ltpi0_syscon SCU1_CLK_GATE_I3C3CLK>;
-			resets = <&ltpi0_syscon SCU1_RESET_I3C3>;
+			clocks = <&ltpi0_syscon AST1700_CLK_GATE_I3C3CLK>;
+			resets = <&ltpi0_syscon AST1700_RESET_I3C3>, <&ltpi0_syscon AST1700_RESET_I3CDMA>;
 			status = "disabled";
 		};
 
@@ -183,7 +183,7 @@
 			reg = <0x0 0x30c24000 0x0 0x1000>;
 			interrupts-extended = <&ltpi0_soc1_intc1 4>;
 			clocks = <&ltpi0_syscon AST1700_CLK_GATE_I3C4CLK>;
-			resets = <&ltpi0_syscon AST1700_RESET_I3C4>;
+			resets = <&ltpi0_syscon AST1700_RESET_I3C4>, <&ltpi0_syscon AST1700_RESET_I3CDMA>;
 			status = "disabled";
 		};
 
@@ -194,7 +194,7 @@
 			reg = <0x0 0x30c25000 0x0 0x1000>;
 			interrupts-extended = <&ltpi0_soc1_intc1 5>;
 			clocks = <&ltpi0_syscon AST1700_CLK_GATE_I3C5CLK>;
-			resets = <&ltpi0_syscon AST1700_RESET_I3C5>;
+			resets = <&ltpi0_syscon AST1700_RESET_I3C5>, <&ltpi0_syscon AST1700_RESET_I3CDMA>;
 			status = "disabled";
 		};
 
@@ -205,7 +205,7 @@
 			reg = <0x0 0x30c26000 0x0 0x1000>;
 			interrupts-extended = <&ltpi0_soc1_intc1 6>;
 			clocks = <&ltpi0_syscon AST1700_CLK_GATE_I3C6CLK>;
-			resets = <&ltpi0_syscon AST1700_RESET_I3C6>;
+			resets = <&ltpi0_syscon AST1700_RESET_I3C6>, <&ltpi0_syscon AST1700_RESET_I3CDMA>;
 			status = "disabled";
 		};
 
@@ -216,7 +216,7 @@
 			reg = <0x0 0x30c27000 0x0 0x1000>;
 			interrupts-extended = <&ltpi0_soc1_intc1 7>;
 			clocks = <&ltpi0_syscon AST1700_CLK_GATE_I3C7CLK>;
-			resets = <&ltpi0_syscon AST1700_RESET_I3C7>;
+			resets = <&ltpi0_syscon AST1700_RESET_I3C7>, <&ltpi0_syscon AST1700_RESET_I3CDMA>;
 			status = "disabled";
 		};
 
@@ -227,7 +227,7 @@
 			reg = <0x0 0x30c28000 0x0 0x1000>;
 			interrupts-extended = <&ltpi0_soc1_intc1 8>;
 			clocks = <&ltpi0_syscon AST1700_CLK_GATE_I3C8CLK>;
-			resets = <&ltpi0_syscon AST1700_RESET_I3C8>;
+			resets = <&ltpi0_syscon AST1700_RESET_I3C8>, <&ltpi0_syscon AST1700_RESET_I3CDMA>;
 			status = "disabled";
 		};
 
@@ -238,7 +238,7 @@
 			reg = <0x0 0x30c29000 0x0 0x1000>;
 			interrupts-extended = <&ltpi0_soc1_intc1 9>;
 			clocks = <&ltpi0_syscon AST1700_CLK_GATE_I3C9CLK>;
-			resets = <&ltpi0_syscon AST1700_RESET_I3C9>;
+			resets = <&ltpi0_syscon AST1700_RESET_I3C9>, <&ltpi0_syscon AST1700_RESET_I3CDMA>;
 			status = "disabled";
 		};
 
@@ -249,7 +249,7 @@
 			reg = <0x0 0x30c2a000 0x0 0x1000>;
 			interrupts-extended = <&ltpi0_soc1_intc1 10>;
 			clocks = <&ltpi0_syscon AST1700_CLK_GATE_I3C10CLK>;
-			resets = <&ltpi0_syscon AST1700_RESET_I3C10>;
+			resets = <&ltpi0_syscon AST1700_RESET_I3C10>, <&ltpi0_syscon AST1700_RESET_I3CDMA>;
 			status = "disabled";
 		};
 
@@ -260,7 +260,7 @@
 			reg = <0x0 0x30c2b000 0x0 0x1000>;
 			interrupts-extended = <&ltpi0_soc1_intc1 11>;
 			clocks = <&ltpi0_syscon AST1700_CLK_GATE_I3C11CLK>;
-			resets = <&ltpi0_syscon AST1700_RESET_I3C11>;
+			resets = <&ltpi0_syscon AST1700_RESET_I3C11>, <&ltpi0_syscon AST1700_RESET_I3CDMA>;
 			status = "disabled";
 		};
 
@@ -270,8 +270,8 @@
 			#size-cells = <0>;
 			reg = <0x0 0x30c2c000 0x0 0x1000>;
 			interrupts-extended = <&ltpi0_soc1_intc1 12>;
-			clocks = <&ltpi0_syscon SCU1_CLK_GATE_I3C12CLK>;
-			resets = <&ltpi0_syscon SCU1_RESET_I3C12>;
+			clocks = <&ltpi0_syscon  AST1700_CLK_GATE_I3C12CLK>;
+			resets = <&ltpi0_syscon AST1700_RESET_I3C12>, <&ltpi0_syscon AST1700_RESET_I3CDMA>;
 			status = "disabled";
 		};
 
@@ -281,8 +281,8 @@
 			#size-cells = <0>;
 			reg = <0x0 0x30c2d000 0x0 0x1000>;
 			interrupts-extended = <&ltpi0_soc1_intc1 13>;
-			clocks = <&ltpi0_syscon SCU1_CLK_GATE_I3C13CLK>;
-			resets = <&ltpi0_syscon SCU1_RESET_I3C13>;
+			clocks = <&ltpi0_syscon  AST1700_CLK_GATE_I3C13CLK>;
+			resets = <&ltpi0_syscon AST1700_RESET_I3C13>, <&ltpi0_syscon AST1700_RESET_I3CDMA>;
 			status = "disabled";
 		};
 
@@ -292,8 +292,8 @@
 			#size-cells = <0>;
 			reg = <0x0 0x30c2e000 0x0 0x1000>;
 			interrupts-extended = <&ltpi0_soc1_intc1 14>;
-			clocks = <&ltpi0_syscon SCU1_CLK_GATE_I3C14CLK>;
-			resets = <&ltpi0_syscon SCU1_RESET_I3C14>;
+			clocks = <&ltpi0_syscon  AST1700_CLK_GATE_I3C14CLK>;
+			resets = <&ltpi0_syscon AST1700_RESET_I3C14>, <&ltpi0_syscon AST1700_RESET_I3CDMA>;
 			status = "disabled";
 		};
 
@@ -303,8 +303,8 @@
 			#size-cells = <0>;
 			reg = <0x0 0x30c2f000 0x0 0x1000>;
 			interrupts-extended = <&ltpi0_soc1_intc1 15>;
-			clocks = <&ltpi0_syscon SCU1_CLK_GATE_I3C15CLK>;
-			resets = <&ltpi0_syscon SCU1_RESET_I3C15>;
+			clocks = <&ltpi0_syscon AST1700_CLK_GATE_I3C15CLK>;
+			resets = <&ltpi0_syscon AST1700_RESET_I3C15>, <&ltpi0_syscon AST1700_RESET_I3CDMA>;
 			status = "disabled";
 		};
 
