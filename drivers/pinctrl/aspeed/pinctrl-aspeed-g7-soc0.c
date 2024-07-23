@@ -19,6 +19,8 @@
 #include "pinctrl-aspeed.h"
 #include "../pinctrl-utils.h"
 
+#define SCU200 0x200 /* System Reset Control #1  */
+
 #define SCU400 0x400 /* Multi-function Pin Control #1  */
 #define SCU404 0x404 /* Multi-function Pin Control #2  */
 #define SCU408 0x408 /* Multi-function Pin Control #3  */
@@ -63,6 +65,7 @@ enum {
 	PORTB_U2_PHY,
 	PORTB_U3_PHY,
 	JTAG_PORT,
+	PCIERC_PERST,
 };
 
 GROUP_DECL(EMMCG1, AC14, AE15, AD14);
@@ -132,6 +135,9 @@ GROUP_DECL(USB3B, JTAG_PORT);
 GROUP_DECL(PCIEA, JTAG_PORT);
 GROUP_DECL(PCIEB, JTAG_PORT);
 GROUP_DECL(JTAGM0, JTAG_PORT);
+//PCIE RC PERST
+GROUP_DECL(PCIERC0PERST, PCIERC_PERST);
+GROUP_DECL(PCIERC1PERST, PCIERC_PERST);
 
 static struct aspeed_pin_group aspeed_g7_soc0_pingroups[] = {
 	ASPEED_PINCTRL_GROUP(EMMCG1),
@@ -185,6 +191,8 @@ static struct aspeed_pin_group aspeed_g7_soc0_pingroups[] = {
 	ASPEED_PINCTRL_GROUP(PCIEA),
 	ASPEED_PINCTRL_GROUP(PCIEB),
 	ASPEED_PINCTRL_GROUP(JTAGM0),
+	ASPEED_PINCTRL_GROUP(PCIERC0PERST),
+	ASPEED_PINCTRL_GROUP(PCIERC1PERST),
 };
 
 FUNC_DECL_(EMMC, "EMMCG1", "EMMCG4", "EMMCG8", "EMMCWPN", "EMMCCDN");
@@ -202,6 +210,7 @@ FUNC_DECL_(USB2B, "USB2BXHD1", "USB2BXHPD1", "USB2BXH", "USB2BXHP", "USB2BXH2A",
 	   "USB2BD0");
 FUNC_DECL_(JTAG0, "PSP", "SSP", "TSP", "DDR", "USB3A", "USB3B",
 	   "PCIEA", "PCIEB", "JTAGM0");
+FUNC_DECL_(PCIERC, "PCIERC0PERST", "PCIERC1PERST");
 
 static struct aspeed_pin_function aspeed_g7_soc0_funcs[] = {
 	ASPEED_PINCTRL_FUNC(EMMC),
@@ -212,6 +221,7 @@ static struct aspeed_pin_function aspeed_g7_soc0_funcs[] = {
 	ASPEED_PINCTRL_FUNC(USB3B),
 	ASPEED_PINCTRL_FUNC(USB2B),
 	ASPEED_PINCTRL_FUNC(JTAG0),
+	ASPEED_PINCTRL_FUNC(PCIERC),
 };
 
 static const struct pinctrl_pin_desc aspeed_g7_soc0_pins[] = {
@@ -242,6 +252,7 @@ static const struct pinctrl_pin_desc aspeed_g7_soc0_pins[] = {
 	PINCTRL_PIN(PORTB_U3_PHY, "PORTB_U3_PHY"),
 	PINCTRL_PIN(PORTB_U2_PHY, "PORTB_U2_PHY"),
 	PINCTRL_PIN(JTAG_PORT, "JTAG_PORT"),
+	PINCTRL_PIN(PCIERC_PERST, "PCIERC_PERST"),
 };
 
 FUNCFG_DESCL(AC14, PIN_CFG(EMMCG1, SCU400, BIT_MASK(0), BIT(0)),
@@ -346,6 +357,8 @@ FUNCFG_DESCL(JTAG_PORT, PIN_CFG(PSP, SCU408, GENMASK(12, 5), 0x0 << 5),
 	     PIN_CFG(PCIEA, SCU408, GENMASK(12, 5), 0x46 << 5),
 	     PIN_CFG(PCIEB, SCU408, GENMASK(12, 5), 0x47 << 5),
 	     PIN_CFG(JTAGM0, SCU408, GENMASK(12, 5), 0x8 << 5));
+FUNCFG_DESCL(PCIERC_PERST, PIN_CFG(PCIERC0PERST, SCU200, BIT_MASK(21), 1 << 21),
+	     PIN_CFG(PCIERC1PERST, SCU200, BIT_MASK(19), 1 << 19));
 
 static const struct aspeed_g7_pincfg pin_cfg[] = {
 	PINCFG_PIN(AC14),	   PINCFG_PIN(AE15),
@@ -361,7 +374,7 @@ static const struct aspeed_g7_pincfg pin_cfg[] = {
 	PINCFG_PIN(PORTA_MODE),	   PINCFG_PIN(PORTB_MODE),
 	PINCFG_PIN(PORTA_U3_PHY),  PINCFG_PIN(PORTA_U2_PHY),
 	PINCFG_PIN(PORTB_U3_PHY),  PINCFG_PIN(PORTB_U2_PHY),
-	PINCFG_PIN(JTAG_PORT),
+	PINCFG_PIN(JTAG_PORT),     PINCFG_PIN(PCIERC_PERST),
 };
 
 static const struct pinctrl_ops aspeed_g7_soc0_pinctrl_ops = {
