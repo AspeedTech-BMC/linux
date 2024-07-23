@@ -783,6 +783,7 @@
 			interrupts = <GIC_SPI 56 IRQ_TYPE_LEVEL_HIGH>;
 			resets = <&syscon0 SCU0_RESET_H2X0>,
 				 <&syscon0 SCU0_RESET_PCIE0RST>;
+			reset-names = "h2x", "perst";
 			status = "disabled";
 
 			pinctrl-0 = <&pinctrl_pcierc0_perst_default>;
@@ -818,6 +819,7 @@
 			interrupts = <GIC_SPI 57 IRQ_TYPE_LEVEL_HIGH>;
 			resets = <&syscon0 SCU0_RESET_H2X1>,
 				 <&syscon0 SCU0_RESET_PCIE1RST>;
+			reset-names = "h2x", "perst";
 			status = "disabled";
 
 			pinctrl-0 = <&pinctrl_pcierc1_perst_default>;
@@ -2134,6 +2136,7 @@
 				 <0x02000000 0 0xa0000000 0x0 0xa0000000 0x0 0x10000000>; /* memory */
 			interrupts-extended = <&soc1_intc4 31>;
 			resets = <&syscon1 SCU1_RESET_H2X2>;
+			reset-names = "h2x";
 			status = "disabled";
 
 			#interrupt-cells = <1>;
