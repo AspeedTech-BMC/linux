@@ -246,6 +246,15 @@
 		groups = "PCIEB";
 	};
 
+	pinctrl_pcierc0_perst_default: pcierc0_perst_default {
+		function = "PCIERC";
+		groups = "PCIERC0PERST";
+	};
+
+	pinctrl_pcierc1_perst_default: pcierc1_perst_default {
+		function = "PCIERC";
+		groups = "PCIERC1PERST";
+	};
 };
 
 &pinctrl1 {
