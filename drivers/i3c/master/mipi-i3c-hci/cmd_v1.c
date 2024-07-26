@@ -123,7 +123,8 @@
 #define CMD_T0_DATA_LENGTH(v)		FIELD_PREP(W0_MASK(31, 16), v)
 #define CMD_T0_MDB(v)			FIELD_PREP(W0_MASK(15, 8), v)
 #define CMD_T0_MDB_EN			W0_BIT_(6)
-#define CMD_T0_TID(v)			FIELD_PREP(W0_MASK(5, 3), v)
+#define CMD_T0_TID(v)			FIELD_PREP(W0_MASK(4, 3), v)
+#define CMD_T0_TID_A0(v)		FIELD_PREP(W0_MASK(5, 3), v)
 
 #include "vendor_aspeed.h"
 
@@ -297,8 +298,12 @@ static void hci_cmd_v1_prep_i3c_xfer(struct i3c_hci *hci,
 	unsigned int data_len = xfer->data_len;
 
 	if (hci->master.target) {
-		xfer->cmd_desc[0] = CMD_0_ATTR_T | CMD_T0_TID(xfer->cmd_tid) |
-				    CMD_T0_DATA_LENGTH(data_len);
+		if (!aspeed_get_i3c_revision_id(hci))
+			xfer->cmd_desc[0] = CMD_0_ATTR_T | CMD_T0_TID_A0(xfer->cmd_tid) |
+					CMD_T0_DATA_LENGTH(data_len);
+		else
+			xfer->cmd_desc[0] = CMD_0_ATTR_T | CMD_T0_TID(xfer->cmd_tid) |
+					CMD_T0_DATA_LENGTH(data_len);
 	} else {
 		struct i3c_hci_dev_data *dev_data = i3c_dev_get_master_data(dev);
 		unsigned int dat_idx = dev_data->dat_idx;

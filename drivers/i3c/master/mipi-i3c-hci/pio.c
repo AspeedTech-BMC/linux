@@ -211,8 +211,12 @@ static int hci_pio_init(struct i3c_hci *hci)
 	 */
 	val = FIELD_PREP(QUEUE_IBI_STATUS_THLD, 1) |
 	      FIELD_PREP(QUEUE_IBI_DATA_THLD, pio->max_ibi_thresh) |
-	      FIELD_PREP(QUEUE_RESP_BUF_THLD, 1) |
-	      FIELD_PREP(QUEUE_CMD_EMPTY_BUF_THLD, hci->master.target ? 0 : 1);
+	      FIELD_PREP(QUEUE_RESP_BUF_THLD, 1);
+	if (!aspeed_get_i3c_revision_id(hci))
+		val |= FIELD_PREP(QUEUE_CMD_EMPTY_BUF_THLD,
+				  hci->master.target ? 0 : 1);
+	else
+		val |= FIELD_PREP(QUEUE_CMD_EMPTY_BUF_THLD, 1);
 	pio_reg_write(QUEUE_THLD_CTRL, val);
 	pio->reg_queue_thresh = val;
 
@@ -582,25 +586,57 @@ static bool hci_pio_process_resp(struct i3c_hci *hci, struct hci_pio_data *pio)
 		u32 resp = pio_reg_read(RESPONSE_QUEUE_PORT);
 		size_t nbytes = TARGET_RESP_DATA_LENGTH(resp);
 
-		DBG("resp status:%lx, xfer type:%lx, tid:%lx, CCC_HDR: %lx, data legth: %lx",
-		    TARGET_RESP_STATUS(resp), TARGET_RESP_XFER_TYPE(resp),
-		    TARGET_RESP_TID(resp), TARGET_RESP_CCC_HDR(resp),
-		    TARGET_RESP_DATA_LENGTH(resp));
+		if (!aspeed_get_i3c_revision_id(hci)) {
+			if (TARGET_RESP_XFER_TYPE(resp)) {
+				ast2700_target_read_rx_fifo(hci, nbytes);
+				DBG("got: %*ph", (u32)nbytes,
+				    hci->target_rx.buf);
+				if (!TARGET_RESP_CCC_HDR(resp)) {
+					/* Bypass the priv_xfer data to target layer */
+					if (desc->target_info.read_handler)
+						desc->target_info.read_handler(desc->dev,
+									       hci->target_rx.buf,
+									       nbytes);
+				}
+			} else {
+				/* ibi or master read or HDR read */
+				if (!TARGET_RESP_CCC_HDR(resp) ||
+				    TARGET_RESP_CCC_HDR(resp) & 0x80) {
+					if (TARGET_RESP_TID_A0(resp) ==
+					    TID_TARGET_IBI)
+						complete(&hci->ibi_comp);
+					else if (TARGET_RESP_TID_A0(resp) ==
+						 TID_TARGET_RD_DATA)
+						complete(&hci->pending_r_comp);
+				}
+			}
+		} else {
+			DBG(a1_debug_s,
+			    TARGET_RESP_STATUS(resp),
+			    TARGET_RESP_XFER_TYPE(resp),
+			    TARGET_RESP_CCC_INDICATE(resp),
+			    TARGET_RESP_TID(resp), TARGET_RESP_CCC_HDR(resp),
+			    TARGET_RESP_DATA_LENGTH(resp));
 
-		if (TARGET_RESP_XFER_TYPE(resp)) {
-			ast2700_target_read_rx_fifo(hci, nbytes);
-			DBG("got: %*ph", (u32)nbytes, hci->target_rx.buf);
-			if (!TARGET_RESP_CCC_HDR(resp)) {
+			if (TARGET_RESP_CCC_INDICATE(resp)) {
+				if (TARGET_RESP_XFER_TYPE(resp)) {
+					ast2700_target_read_rx_fifo(hci,
+								    nbytes);
+					DBG("got: %*ph", (u32)nbytes,
+					    hci->target_rx.buf);
+					/* TODO: Handle the SET CCC */
+				}
+			} else if (TARGET_RESP_XFER_TYPE(resp)) {
+				ast2700_target_read_rx_fifo(hci, nbytes);
+				DBG("got: %*ph", (u32)nbytes,
+				    hci->target_rx.buf);
 				/* Bypass the priv_xfer data to target layer */
 				if (desc->target_info.read_handler)
 					desc->target_info.read_handler(desc->dev,
 								       hci->target_rx.buf,
 								       nbytes);
-			}
-		} else {
-			/* ibi or master read or HDR read */
-			if (!TARGET_RESP_CCC_HDR(resp) ||
-			    TARGET_RESP_CCC_HDR(resp) & 0x80) {
+			} else {
+				/* TODO: Pass the HDR command to user space */
 				if (TARGET_RESP_TID(resp) == TID_TARGET_IBI)
 					complete(&hci->ibi_comp);
 				else if (TARGET_RESP_TID(resp) ==
