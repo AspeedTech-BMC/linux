@@ -3,6 +3,7 @@
 #define VENDOR_ASPEED_H
 
 /* Aspeed in-house register */
+#include "linux/bitfield.h"
 #define ast_inhouse_read(r)		readl(hci->INHOUSE_regs + (r))
 #define ast_inhouse_write(r, v)		writel(v, hci->INHOUSE_regs + (r))
 
@@ -353,6 +354,11 @@ static inline unsigned int aspeed_get_received_rx_entries(struct i3c_hci *hci)
 				  QUEUE_PTR1_RX_W(queue_ptr));
 
 	return entries;
+}
+
+static inline unsigned int aspeed_get_i3c_revision_id(struct i3c_hci *hci)
+{
+	return FIELD_GET(GENMASK(23, 16), hci->vendor_product_id);
 }
 
 #endif
