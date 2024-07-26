@@ -187,7 +187,7 @@
 			compatible = "aspeed,ast2700-phy3a";
 			reg = <0x0 0x12010000 0x0 0x820>;
 			clocks = <&syscon0 SCU0_CLK_GATE_USB0CLK>;
-			resets = <&syscon0 SCU0_RESET_P0_PHY3>;
+			resets = <&syscon0 SCU0_RESET_PORTA_PHY3>;
 			aspeed,scu = <&syscon0>;
 			status = "disabled";
 		};
@@ -197,7 +197,7 @@
 			reg = <0x0 0x12011000 0x0 0x350>;
 			interrupts = <GIC_SPI 32 IRQ_TYPE_LEVEL_HIGH>;
 			clocks = <&syscon0 SCU0_CLK_GATE_USB0CLK>;
-			resets = <&syscon0 SCU0_RESET_P0_VHUB2>;
+			resets = <&syscon0 SCU0_RESET_PORTA_VHUB1>;
 			aspeed,vhub-downstream-ports = <7>;
 			aspeed,vhub-generic-endpoints = <21>;
 			pinctrl-names = "default";
@@ -219,7 +219,7 @@
 			compatible = "aspeed,ast2700-phy3b";
 			reg = <0x0 0x12020000 0x0 0x820>;
 			clocks = <&syscon0 SCU0_CLK_GATE_USB2CLK>;
-			resets = <&syscon0 SCU0_RESET_P1_PHY3>;
+			resets = <&syscon0 SCU0_RESET_PORTB_PHY3>;
 			aspeed,scu = <&syscon0>;
 			status = "disabled";
 		};
@@ -229,7 +229,7 @@
 			reg = <0x0 0x12021000 0x0 0x350>;
 			interrupts = <GIC_SPI 36 IRQ_TYPE_LEVEL_HIGH>;
 			clocks = <&syscon0 SCU0_CLK_GATE_USB2CLK>;
-			resets = <&syscon0 SCU0_RESET_P1_VHUB2>;
+			resets = <&syscon0 SCU0_RESET_PORTB_VHUB1>;
 			aspeed,vhub-downstream-ports = <7>;
 			aspeed,vhub-generic-endpoints = <21>;
 			pinctrl-names = "default";
@@ -255,7 +255,7 @@
 				 <&syscon0 SCU0_CLK_U2PHY_REFCLK>,
 				 <&syscon0 SCU0_CLK_U2PHY_CLK12M>;
 			clock-names = "bus_early", "ref", "suspend";
-			resets = <&syscon0 SCU0_RESET_P0_XHCI>;
+			resets = <&syscon0 SCU0_RESET_PORTA_XHCI>;
 			pinctrl-names = "default";
 			pinctrl-0 = <&pinctrl_usb3axh_default &pinctrl_usb2axh_default>;
 			dr_mode = "host";
@@ -265,7 +265,7 @@
 		usb3ahp: usb3ahp {
 			compatible = "aspeed,ast2700-usb3ahp";
 			clocks = <&syscon0 SCU0_CLK_GATE_USB0CLK>;
-			resets = <&syscon0 SCU0_RESET_P0_XHCI>;
+			resets = <&syscon0 SCU0_RESET_PORTA_XHCI>;
 			pinctrl-names = "default";
 			pinctrl-0 = <&pinctrl_usb3axhp_default>;
 			aspeed,device = <&pcie_device0>;
@@ -278,7 +278,7 @@
 			interrupts = <GIC_SPI 10 IRQ_TYPE_LEVEL_HIGH>;
 			#ports = <2>;
 			clocks = <&syscon0 SCU0_CLK_GATE_USB1CLK>;
-			resets = <&syscon0 SCU0_RESET_USB11>;
+			resets = <&syscon0 SCU0_RESET_UHCI>;
 			status = "disabled";
 		};
 
@@ -290,7 +290,7 @@
 				 <&syscon0 SCU0_CLK_U2PHY_REFCLK>,
 				 <&syscon0 SCU0_CLK_U2PHY_CLK12M>;
 			clock-names = "bus_early", "ref", "suspend";
-			resets = <&syscon0 SCU0_RESET_P1_XHCI>;
+			resets = <&syscon0 SCU0_RESET_PORTB_XHCI>;
 			pinctrl-names = "default";
 			pinctrl-0 = <&pinctrl_usb3bxh_default &pinctrl_usb2bxh_default>;
 			dr_mode = "host";
@@ -300,7 +300,7 @@
 		usb3bhp: usb3bhp {
 			compatible = "aspeed,ast2700-usb3bhp";
 			clocks = <&syscon0 SCU0_CLK_GATE_USB2CLK>;
-			resets = <&syscon0 SCU0_RESET_P1_XHCI>;
+			resets = <&syscon0 SCU0_RESET_PORTB_XHCI>;
 			pinctrl-names = "default";
 			pinctrl-0 = <&pinctrl_usb3bxhp_default>;
 			aspeed,device = <&pcie_device1>;
@@ -312,7 +312,7 @@
 			reg = <0x0 0x12060000 0x0 0x350>;
 			interrupts = <GIC_SPI 33 IRQ_TYPE_LEVEL_HIGH>;
 			clocks = <&syscon0 SCU0_CLK_GATE_USB0CLK>;
-			resets = <&syscon0 SCU0_RESET_P0_USB2>;
+			resets = <&syscon0 SCU0_RESET_PORTA_VHUB0>;
 			aspeed,vhub-downstream-ports = <7>;
 			aspeed,vhub-generic-endpoints = <21>;
 			pinctrl-names = "default";
@@ -327,7 +327,7 @@
 			reg = <0x0 0x12061000 0x0 0x100>;
 			interrupts = <GIC_SPI 33 IRQ_TYPE_LEVEL_HIGH>;
 			clocks = <&syscon0 SCU0_CLK_GATE_USB0CLK>;
-			resets = <&syscon0 SCU0_RESET_P0_USB2>;
+			resets = <&syscon0 SCU0_RESET_PORTA_EHCI>;
 			pinctrl-names = "default";
 			pinctrl-0 = <&pinctrl_usb2ah_default>;
 			status = "disabled";
@@ -336,7 +336,7 @@
 		usb2ahp: usb2ahp {
 			compatible = "aspeed,ast2700-usb2ahp";
 			clocks = <&syscon0 SCU0_CLK_GATE_USB0CLK>;
-			resets = <&syscon0 SCU0_RESET_P0_USB2>;
+			resets = <&syscon0 SCU0_RESET_PORTA_VHUB0>;
 			pinctrl-names = "default";
 			pinctrl-0 = <&pinctrl_usb2ahp_default>;
 			aspeed,device = <&pcie_device0>;
@@ -348,7 +348,7 @@
 			reg = <0x0 0x12062000 0x0 0x350>;
 			interrupts = <GIC_SPI 37 IRQ_TYPE_LEVEL_HIGH>;
 			clocks = <&syscon0 SCU0_CLK_GATE_USB2CLK>;
-			resets = <&syscon0 SCU0_RESET_P1_USB2>;
+			resets = <&syscon0 SCU0_RESET_PORTB_VHUB0>;
 			aspeed,vhub-downstream-ports = <7>;
 			aspeed,vhub-generic-endpoints = <21>;
 			pinctrl-names = "default";
@@ -363,7 +363,7 @@
 			reg = <0x0 0x12063000 0x0 0x100>;
 			interrupts = <GIC_SPI 37 IRQ_TYPE_LEVEL_HIGH>;
 			clocks = <&syscon0 SCU0_CLK_GATE_USB2CLK>;
-			resets = <&syscon0 SCU0_RESET_P1_USB2>;
+			resets = <&syscon0 SCU0_RESET_PORTB_EHCI>;
 			pinctrl-names = "default";
 			pinctrl-0 = <&pinctrl_usb2bh_default>;
 			status = "disabled";
@@ -372,7 +372,7 @@
 		usb2bhp: usb2bhp {
 			compatible = "aspeed,ast2700-usb2bhp";
 			clocks = <&syscon0 SCU0_CLK_GATE_USB2CLK>;
-			resets = <&syscon0 SCU0_RESET_P1_USB2>;
+			resets = <&syscon0 SCU0_RESET_PORTB_VHUB0>;
 			pinctrl-names = "default";
 			pinctrl-0 = <&pinctrl_usb2bhp_default>;
 			aspeed,device = <&pcie_device1>;
@@ -852,7 +852,7 @@
 			reg= <0x0 0x12c20000 0x0 0x40>;
 			interrupts = <GIC_SPI 27 IRQ_TYPE_LEVEL_HIGH>;
 			clocks = <&syscon0 SCU0_CLK_APB>;
-			resets = <&syscon0 SCU0_RESET_JTAG0>;
+			resets = <&syscon0 SCU0_RESET_JTAG>;
 			pinctrl-0 = <&pinctrl_jtagm0_default>;
 			pinctrl-names = "default";
 			status = "disabled";
