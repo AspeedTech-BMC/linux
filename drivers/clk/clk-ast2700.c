@@ -35,6 +35,8 @@
 #define SCU0_MPHYCLK_PARAM 0x360
 
 /* SOC1 */
+#define SCU1_REVISION_ID 0x0
+#define REVISION_ID GENMASK(23, 16)
 #define SCU1_CLK_STOP 0x240
 #define SCU1_CLK_STOP2 0x260
 #define SCU1_CLK_SEL1 0x280
@@ -467,8 +469,9 @@ static int ast2700_soc1_clk_init(struct device_node *soc1_node)
 	 * I3C reset should assert all of the I3C controllers simultaneously.
 	 * Otherwise, it may lead to failure in accessing I3C registers.
 	 */
-	for (id = SCU1_RESET_I3C0; id <= SCU1_RESET_I3C15; id++)
-		ast2700_reset_assert(&reset->rcdev, id);
+	if (!FIELD_GET(REVISION_ID, readl(clk_base)))
+		for (id = SCU1_RESET_I3C0; id <= SCU1_RESET_I3C15; id++)
+			ast2700_reset_assert(&reset->rcdev, id);
 
 	clks[SCU1_CLKIN] =
 		clk_hw_register_fixed_rate(NULL, "soc1-clkin", NULL, 0, SCU_CLK_25MHZ);
