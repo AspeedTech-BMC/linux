@@ -2139,6 +2139,9 @@
 			reset-names = "h2x";
 			status = "disabled";
 
+			pinctrl-0 = <&pinctrl_pcierc2_perst_default>;
+			pinctrl-names = "default";
+
 			#interrupt-cells = <1>;
 			msi-parent = <&pcie2>;
 			msi_address = <0x000000F0>;
