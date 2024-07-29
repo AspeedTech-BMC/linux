@@ -314,7 +314,10 @@ static int ast2700_reset_assert(struct reset_controller_dev *rcdev, unsigned lon
 	u32 rst = BIT(id % 32);
 	u32 reg = id >= 32 ? 0x220 : 0x200;
 
-	writel(rst, rc->base + reg);
+	if (id == SCU1_RESET_PCIE2RST)
+		writel(readl(rc->base + 0x908) & ~BIT(0), rc->base + 0x908);
+	else
+		writel(rst, rc->base + reg);
 	return 0;
 }
 
@@ -324,8 +327,11 @@ static int ast2700_reset_deassert(struct reset_controller_dev *rcdev, unsigned l
 	u32 rst = BIT(id % 32);
 	u32 reg = id >= 32 ? 0x220 : 0x200;
 
-	/* Use set to clear register */
-	writel(rst, rc->base + reg + 0x04);
+	if (id == SCU1_RESET_PCIE2RST)
+		writel(readl(rc->base + 0x908) | BIT(0), rc->base + 0x908);
+	else
+		/* Use set to clear register */
+		writel(rst, rc->base + reg + 0x04);
 	return 0;
 }
 
