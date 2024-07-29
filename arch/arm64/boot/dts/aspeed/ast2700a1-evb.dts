@@ -790,6 +790,7 @@
 	status = "okay";
 };
 
+#if 1
 &bmc_dev0 {
 	status = "okay";
 	memory-region = <&bmc_dev0_memory>;
@@ -839,7 +840,13 @@
 	status = "okay";
 	bt-channel = <2>;
 };
+#else
+&pcie0 {
+	status = "okay";
+};
+#endif
 
+#if 1
 &bmc_dev1 {
 	status = "okay";
 	memory-region = <&bmc_dev1_memory>;
@@ -860,6 +867,11 @@
 
 	status = "okay";
 };
+#else
+&pcie1 {
+	status = "okay";
+};
+#endif
 
 #if 0
 &mctp0 {
