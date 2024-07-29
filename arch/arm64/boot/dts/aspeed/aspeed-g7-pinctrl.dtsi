@@ -1242,4 +1242,9 @@
 		function = "UART11";
 		groups = "RXD11";
 	};
+
+	pinctrl_pcierc2_perst_default: pcierc2_perst_default {
+		function = "PCIERC";
+		groups = "PCIERC2PERST";
+	};
 };

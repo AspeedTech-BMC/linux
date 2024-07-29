@@ -58,6 +58,8 @@
 #define SCU4D8 0x4D8 /* Driving Strength #6 T-U */
 #define SCU4DC 0x4DC /* Driving Strength #7 W */
 
+#define SCU908 0x908 /* PCIe RC PERST Pin Control */
+
 enum {
 	C16,
 	C14,
@@ -276,6 +278,7 @@ enum {
 	V24,
 	U24,
 	SGMII0,
+	PCIERC2_PERST
 };
 
 GROUP_DECL(ESPI0, B16, D14, B15, B14, C17, B13, E14, C15);
@@ -527,6 +530,8 @@ GROUP_DECL(NRTS2, V24);
 GROUP_DECL(SMON0, U26, U25, W26, Y26);
 GROUP_DECL(SMON1, U23, T24, W25, V24);
 GROUP_DECL(SGMII, SGMII0);
+//PCIE RC PERST
+GROUP_DECL(PCIERC2PERST, PCIERC2_PERST);
 
 static struct aspeed_pin_group aspeed_g7_soc1_pingroups[] = {
 	ASPEED_PINCTRL_GROUP(ESPI0),
@@ -788,7 +793,8 @@ static struct aspeed_pin_group aspeed_g7_soc1_pingroups[] = {
 	ASPEED_PINCTRL_GROUP(NRTS2),
 	ASPEED_PINCTRL_GROUP(SMON0),
 	ASPEED_PINCTRL_GROUP(SMON1),
-	ASPEED_PINCTRL_GROUP(SGMII)
+	ASPEED_PINCTRL_GROUP(SGMII),
+	ASPEED_PINCTRL_GROUP(PCIERC2PERST),
 };
 
 FUNC_DECL_(ESPI0, "ESPI0");
@@ -989,6 +995,7 @@ FUNC_DECL_(MACLINK2, "MACLINK2");
 FUNC_DECL_(SMON0, "SMON0");
 FUNC_DECL_(SMON1, "SMON1");
 FUNC_DECL_(SGMII, "SGMII");
+FUNC_DECL_(PCIERC, "PCIERC2PERST");
 
 static struct aspeed_pin_function aspeed_g7_soc1_funcs[] = {
 	ASPEED_PINCTRL_FUNC(ESPI0),
@@ -1192,6 +1199,7 @@ static struct aspeed_pin_function aspeed_g7_soc1_funcs[] = {
 	ASPEED_PINCTRL_FUNC(SMON0),
 	ASPEED_PINCTRL_FUNC(SMON1),
 	ASPEED_PINCTRL_FUNC(SGMII),
+	ASPEED_PINCTRL_FUNC(PCIERC),
 };
 
 /* number, name, drv_data */
@@ -1413,6 +1421,7 @@ static const struct pinctrl_pin_desc aspeed_g7_soc1_pins[] = {
 	PINCTRL_PIN(V24, "V24"),
 	PINCTRL_PIN(U24, "U24"),
 	PINCTRL_PIN(SGMII0, "SGMII0"),
+	PINCTRL_PIN(PCIERC2_PERST, "PCIERC2_PERST"),
 };
 
 FUNCFG_DESCL(C16, PIN_CFG(ESPI1, SCU400, GENMASK(2, 0), 1),
@@ -1925,6 +1934,7 @@ FUNCFG_DESCL(U24, PIN_CFG(SGPM1LD_R, SCU468, GENMASK(30, 28), (1 << 28)),
 	     PIN_CFG(WDTRST6N, SCU468, GENMASK(30, 28), (2 << 28)),
 	     PIN_CFG(MACLINK1, SCU468, GENMASK(30, 28), (3 << 28)));
 FUNCFG_DESCL(SGMII0, PIN_CFG(SGMII, SCU47C, BIT(0), 1 << 0));
+FUNCFG_DESCL(PCIERC2_PERST, PIN_CFG(PCIERC2PERST, SCU908, BIT(1), 1 << 1));
 
 static const struct aspeed_g7_pincfg pin_cfg[] = {
 	PINCFG_PIN(C16),    PINCFG_PIN(C14),   PINCFG_PIN(C11),
@@ -1999,7 +2009,7 @@ static const struct aspeed_g7_pincfg pin_cfg[] = {
 	PINCFG_PIN(AB19),   PINCFG_PIN(U26),   PINCFG_PIN(U25),
 	PINCFG_PIN(V26),    PINCFG_PIN(W26),   PINCFG_PIN(Y26),
 	PINCFG_PIN(W25),    PINCFG_PIN(V24),   PINCFG_PIN(U24),
-	PINCFG_PIN(SGMII0),
+	PINCFG_PIN(SGMII0), PINCFG_PIN(PCIERC2_PERST),
 };
 
 static int aspeed_g7_soc1_dt_node_to_map(struct pinctrl_dev *pctldev,
