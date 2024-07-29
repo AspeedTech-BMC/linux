@@ -736,6 +736,23 @@
 	pinctrl-0 = <&pinctrl_rgmii1_default>;
 };
 
+#if 1
+&sgmii {
+	status = "okay";
+};
+
+&mac2 {
+	status = "okay";
+
+	phy-mode = "sgmii";
+	phy-handle = <&ethphy2>;
+};
+#else
+&pcie2 {
+	status = "okay";
+};
+#endif
+
 &syscon1 {
 	mac0-clk-delay = <0x35 0x34
 			  0x10 0x10
