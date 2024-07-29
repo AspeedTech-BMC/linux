@@ -1103,6 +1103,8 @@ static int aspeed_ast2700_setup(struct platform_device *pdev)
 	if (IS_ERR(pcie->device))
 		return dev_err_probe(dev, PTR_ERR(pcie->device), "failed to map device base\n");
 
+	reset_control_assert(pcie->perst);
+
 	regmap_write(pcie->pciephy, 0x00, 0x11501a02);
 	regmap_write(pcie->pciephy, 0x70, 0xa00c0);
 	regmap_write(pcie->pciephy, 0x78, 0x80030);
@@ -1131,16 +1133,15 @@ static int aspeed_ast2700_setup(struct platform_device *pdev)
 	 */
 	writel(0x60000000 + (0x20000000 * pcie->domain), pcie->reg + H2X_REMAP_DIRECT_ADDR);
 
+	reset_control_deassert(pcie->perst);
+	mdelay(500);
+
 	/* Clear INTx isr */
 	writel(0, pcie->reg + pcie->platform->reg_intx_sts);
 
 	/* Clear MSI/MSI-X isr */
 	writel(~0, pcie->reg + pcie->platform->reg_msi_sts);
 	writel(~0, pcie->reg + pcie->platform->reg_msi_sts + 0x04);
-
-	mdelay(500);
-
-	reset_control_assert(pcie->perst);
 
 	pcie->host->ops = &aspeed_ast2700_pcie_ops;
 
