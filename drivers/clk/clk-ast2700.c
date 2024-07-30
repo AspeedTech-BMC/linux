@@ -586,7 +586,7 @@ static int ast2700_soc1_clk_init(struct device_node *soc1_node)
 					     0, clk_base + SCU1_CLK_STOP,
 					     4, 0, &ast2700_clk_lock);
 
-	clks[SCU1_CLK_GATE_REFCLK] =
+	clks[SCU1_CLK_GATE_IPEREFCLK] =
 		ast2700_clk_hw_register_gate(NULL, "soc1-refclk-gate", NULL,
 					     CLK_IS_CRITICAL, clk_base + SCU1_CLK_STOP,
 					     6, 0, &ast2700_clk_lock);
@@ -977,16 +977,16 @@ static int ast2700_soc0_clk_init(struct device_node *soc0_node)
 	clks[SCU0_CLK_MPLL_DIV8] = clk_hw_register_fixed_factor(NULL, "soc0-mpll_div8", "soc0-mpll", 0, 1, 8);
 
 	val = readl(clk_base + SCU0_D1CLK_PARAM);
-	clks[SCU0_CLK_D1CLK] = ast2700_soc0_hw_pll("d1clk", "soc0-clkin", val);
+	clks[SCU0_CLK_VGA0] = ast2700_soc0_hw_pll("d1clk", "soc0-clkin", val);
 
 	val = readl(clk_base + SCU0_D2CLK_PARAM);
-	clks[SCU0_CLK_D2CLK] = ast2700_soc0_hw_pll("d2clk", "soc0-clkin", val);
+	clks[SCU0_CLK_VGA1] = ast2700_soc0_hw_pll("d2clk", "soc0-clkin", val);
 
 	val = readl(clk_base + SCU0_CRT1CLK_PARAM);
-	clks[SCU0_CLK_CRT1] = ast2700_soc0_hw_pll("crt1clk", "soc0-clkin", val);
+	clks[SCU0_CLK_CRT0] = ast2700_soc0_hw_pll("crt0clk", "soc0-clkin", val);
 
 	val = readl(clk_base + SCU0_CRT2CLK_PARAM);
-	clks[SCU0_CLK_CRT2] = ast2700_soc0_hw_pll("crt2clk", "soc0-clkin", val);
+	clks[SCU0_CLK_CRT1] = ast2700_soc0_hw_pll("crt1clk", "soc0-clkin", val);
 
 	val = readl(clk_base + SCU0_MPHYCLK_PARAM);
 	clks[SCU0_CLK_MPHY] = clk_hw_register_fixed_factor(NULL, "mphyclk", "soc0-hpll", 0, 1, val + 1);
@@ -996,7 +996,7 @@ static int ast2700_soc0_clk_init(struct device_node *soc0_node)
 				    0, clk_base + SCU0_HWSTRAP1,
 				    4, 1, 0, &ast2700_clk_lock);
 
-	clks[SCU0_CLK_AXI] =
+	clks[SCU0_CLK_AXI0] =
 		clk_hw_register_fixed_factor(NULL, "axi0clk", "pspclk", 0, 1, 2);
 
 	val = readl(clk_base + SCU0_HWSTRAP1);
@@ -1030,7 +1030,7 @@ static int ast2700_soc0_clk_init(struct device_node *soc0_node)
 					     0, clk_base + SCU0_CLK_STOP,
 					     1, 0, &ast2700_clk_lock);
 
-	clks[SCU0_CLK_GATE_GCLK] =
+	clks[SCU0_CLK_GATE_2DCLK] =
 		ast2700_clk_hw_register_gate(NULL, "gclk", NULL,
 					     CLK_IS_CRITICAL, clk_base + SCU0_CLK_STOP,
 					     2, 0, &ast2700_clk_lock);
@@ -1045,7 +1045,7 @@ static int ast2700_soc0_clk_init(struct device_node *soc0_node)
 					     CLK_IS_CRITICAL, clk_base + SCU0_CLK_STOP,
 					     4, 0, &ast2700_clk_lock);
 
-	clks[SCU0_CLK_GATE_D1CLK] =
+	clks[SCU0_CLK_GATE_VGA0CLK] =
 		ast2700_clk_hw_register_gate(NULL, "d1clk-gate", NULL,
 					     CLK_IS_CRITICAL, clk_base + SCU0_CLK_STOP,
 					     5, 0, &ast2700_clk_lock);
@@ -1061,28 +1061,28 @@ static int ast2700_soc0_clk_init(struct device_node *soc0_node)
 	clks[SCU0_CLK_U2PHY_CLK12M] =
 		clk_hw_register_fixed_rate(NULL, "xhci_suspend_clk", NULL, 0, SCU_CLK_12MHZ);
 
-	clks[SCU0_CLK_GATE_USB0CLK] =
-		ast2700_clk_hw_register_gate(NULL, "usb0clk", NULL,
+	clks[SCU0_CLK_GATE_PORTBUSB2CLK] =
+		ast2700_clk_hw_register_gate(NULL, "portb-usb2clk", NULL,
 					     0, clk_base + SCU0_CLK_STOP,
 					     7, 0, &ast2700_clk_lock);
 
-	clks[SCU0_CLK_GATE_USB1CLK] =
-		ast2700_clk_hw_register_gate(NULL, "usb1clk", NULL,
+	clks[SCU0_CLK_GATE_UHCICLK] =
+		ast2700_clk_hw_register_gate(NULL, "uhciclk", NULL,
 					     0, clk_base + SCU0_CLK_STOP,
 					     9, 0, &ast2700_clk_lock);
 
-	clks[SCU0_CLK_GATE_D2CLK] =
+	clks[SCU0_CLK_GATE_VGA1CLK] =
 		ast2700_clk_hw_register_gate(NULL, "d2clk-gate", NULL,
 					     CLK_IS_CRITICAL, clk_base + SCU0_CLK_STOP,
 					     10, 0, &ast2700_clk_lock);
 
-	clks[SCU0_CLK_GATE_YCLK] =
-		ast2700_clk_hw_register_gate(NULL, "yclk", NULL,
+	clks[SCU0_CLK_GATE_HACCLK] =
+		ast2700_clk_hw_register_gate(NULL, "hac-clk", NULL,
 					     0, clk_base + SCU0_CLK_STOP,
 					     13, 0, &ast2700_clk_lock);
 
-	clks[SCU0_CLK_GATE_USB2CLK] =
-		ast2700_clk_hw_register_gate(NULL, "usb2clk", NULL,
+	clks[SCU0_CLK_GATE_PORTAUSB2CLK] =
+		ast2700_clk_hw_register_gate(NULL, "porta-usb2clk", NULL,
 					     0, clk_base + SCU0_CLK_STOP,
 					     14, 0, &ast2700_clk_lock);
 
@@ -1109,17 +1109,17 @@ static int ast2700_soc0_clk_init(struct device_node *soc0_node)
 					     CLK_IS_CRITICAL, clk_base + SCU0_CLK_STOP,
 					     17, 0, &ast2700_clk_lock);
 
-	clks[SCU0_CLK_GATE_CRT1CLK] =
-		ast2700_clk_hw_register_gate(NULL, "crt1clk-gate", NULL,
+	clks[SCU0_CLK_GATE_CRT0CLK] =
+		ast2700_clk_hw_register_gate(NULL, "crt0clk-gate", NULL,
 					     0, clk_base + SCU0_CLK_STOP,
 					     20, 0, &ast2700_clk_lock);
 
-	clks[SCU0_CLK_GATE_CRT2CLK] =
-		ast2700_clk_hw_register_gate(NULL, "crt2clk-gate", NULL,
+	clks[SCU0_CLK_GATE_CRT1CLK] =
+		ast2700_clk_hw_register_gate(NULL, "crt1clk-gate", NULL,
 					     0, clk_base + SCU0_CLK_STOP,
 					     21, 0, &ast2700_clk_lock);
 
-	clks[SCU0_CLK_GATE_ECCCLK] =
+	clks[SCU0_CLK_GATE_ECDSACLK] =
 		ast2700_clk_hw_register_gate(NULL, "eccclk", NULL,
 					     0, clk_base + SCU0_CLK_STOP,
 					     23, 0, &ast2700_clk_lock);
