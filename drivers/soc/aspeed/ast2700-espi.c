@@ -8,6 +8,7 @@
 #include <linux/sizes.h>
 #include <linux/module.h>
 #include <linux/bitfield.h>
+#include <linux/count_zeros.h>
 #include <linux/of_device.h>
 #include <linux/of_address.h>
 #include <linux/interrupt.h>
@@ -713,7 +714,7 @@ static void ast2700_espi_perif_reset(struct ast2700_espi *espi)
 
 		writel((0x1 << (perif->mmbi.inst_num * 2)) - 1, espi->regs + ESPI_MMBI_INT_EN);
 
-		reg = FIELD_PREP(ESPI_MMBI_CTRL_INST_NUM, perif->mmbi.inst_num - 1)
+		reg = FIELD_PREP(ESPI_MMBI_CTRL_INST_NUM, count_trailing_zeros(perif->mmbi.inst_num))
 		    | ESPI_MMBI_CTRL_EN;
 		writel(reg, espi->regs + ESPI_MMBI_CTRL);
 
@@ -802,8 +803,11 @@ static int ast2700_espi_perif_probe(struct ast2700_espi *espi)
 		}
 
 		rc = of_property_read_u32(dev->of_node, "perif-mmbi-instance-num", &perif->mmbi.inst_num);
-		if (rc || perif->mmbi.inst_num > PERIF_MMBI_MAX_INST) {
-			dev_err(dev, "cannot get valid MMBI instance number\n");
+		if (rc ||
+		    perif->mmbi.inst_num == 0 ||
+		    perif->mmbi.inst_num > PERIF_MMBI_MAX_INST ||
+		    (perif->mmbi.inst_num & (perif->mmbi.inst_num - 1))) {
+			dev_err(dev, "cannot get valid MMBI instance number, expect 1/2/4/8\n");
 			return -EINVAL;
 		}
 
