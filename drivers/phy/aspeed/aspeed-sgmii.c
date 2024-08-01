@@ -8,6 +8,7 @@
 #include <linux/platform_device.h>
 #include <linux/mfd/syscon.h>
 #include <linux/regmap.h>
+#include <linux/ethtool.h>
 
 #define SGMII_CFG		0x00
 #define SGMII_PHY_PIPE_CTL	0x20
@@ -70,13 +71,26 @@ static int aspeed_sgmii_phy_set_speed(struct phy *phy, int speed)
 	u32 reg;
 
 	reg = SGMII_CFG_FIFO_MODE;
-	if (speed == 10)
-		reg |= SGMII_CFG_SPEED_10M;
-	else if (speed == 100)
-		reg |= SGMII_CFG_SPEED_100M;
-	else
+	switch (speed) {
+	case SPEED_1000:
+	case SPEED_2500:
 		reg |= SGMII_CFG_SPEED_1G;
+		break;
+	case SPEED_100:
+		reg |= SGMII_CFG_SPEED_100M;
+		break;
+	case SPEED_10:
+	default:
+		reg |= SGMII_CFG_SPEED_10M;
+		break;
+	}
 	writel(reg, sgmii->regs + SGMII_CFG);
+
+	if (speed == SPEED_2500) {
+		/* For HiSGMII 2.5G speed */
+		reg = PLDA_CLK_SEL_INTERNAL_25M | FIELD_PREP(PLDA_CLK_FREQ_MULTI, 0x64);
+		regmap_write(sgmii->plda_regmap, PLDA_CLK, reg);
+	}
 
 	return 0;
 }
