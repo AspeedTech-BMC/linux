@@ -55,7 +55,7 @@ static int aspeed_sgmii_phy_init(struct phy *phy)
 	reg = SGMII_CFG_SW_RESET | SGMII_CFG_PWR_DOWN | SGMII_CFG_FIFO_MODE;
 	writel(reg, sgmii->regs + SGMII_CFG);
 
-	reg = SGMII_CFG_FIFO_MODE | SGMII_CFG_SPEED_1G;
+	reg = SGMII_CFG_FIFO_MODE | SGMII_CFG_AN_ENABLE;
 	writel(reg, sgmii->regs + SGMII_CFG);
 
 	writel(SGMII_PCTL_TX_DEEMPH_3_5DB, sgmii->regs + SGMII_PHY_PIPE_CTL);
