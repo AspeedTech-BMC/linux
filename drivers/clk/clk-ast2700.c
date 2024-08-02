@@ -1,10 +1,14 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
-// Copyright ASPEED Technology
+// SPDX-License-Identifier: GPL-2.0
+/*
+ * Copyright (c) 2024 ASPEED Technology Inc.
+ * Author: Ryan Chen <ryan_chen@aspeedtech.com>
+ */
 
 #include <linux/clk-provider.h>
 #include <linux/of_address.h>
 #include <linux/of_device.h>
 #include <linux/reset-controller.h>
+#include <linux/slab.h>
 
 #include <dt-bindings/clock/aspeed,ast2700-clk.h>
 #include <dt-bindings/reset/aspeed,ast2700-reset.h>
@@ -141,13 +145,14 @@ static const struct clk_div_table ast2700_clk_div_table2[] = {
 };
 
 /* HPLL/DPLL: 2000Mhz(default) */
-struct clk_hw *ast2700_soc0_hw_pll(const char *name, const char *parent_name, u32 val)
+static struct clk_hw *ast2700_soc0_hw_pll(const char *name, const char *parent_name, u32 val)
 {
 	unsigned int mult, div;
 
 	if (val & BIT(24)) {
 		/* Pass through mode */
-		mult = div = 1;
+		mult = 1;
+		div = 1;
 	} else {
 		/* F = CLKIN(25MHz) * [(M+1) / 2(N+1)] / (P+1) */
 		u32 m = val & 0x1fff;
@@ -162,13 +167,14 @@ struct clk_hw *ast2700_soc0_hw_pll(const char *name, const char *parent_name, u3
 };
 
 /* MPLL 1600Mhz(default) */
-struct clk_hw *ast2700_calc_mpll(const char *name, const char *parent_name, u32 val)
+static struct clk_hw *ast2700_calc_mpll(const char *name, const char *parent_name, u32 val)
 {
 	unsigned int mult, div;
 
 	if (val & BIT(24)) {
 		/* Pass through mode */
-		mult = div = 1;
+		mult = 1;
+		div = 1;
 	} else {
 		/* F = CLKIN(25MHz) * [CLKF/(CLKR+1)] /(CLKOD+1) */
 		u32 m = val & 0x1fff;
@@ -209,13 +215,14 @@ static struct clk_hw *ast2700_calc_huclk(const char *name, u32 val)
 	return clk_hw_register_fixed_factor(NULL, name, "huxclk", 0, mult, div);
 };
 
-struct clk_hw *ast2700_calc_soc1_pll(const char *name, const char *parent_name, u32 val)
+static struct clk_hw *ast2700_calc_soc1_pll(const char *name, const char *parent_name, u32 val)
 {
 	unsigned int mult, div;
 
 	if (val & BIT(24)) {
 		/* Pass through mode */
-		mult = div = 1;
+		mult = 1;
+		div = 1;
 	} else {
 		/* F = 25Mhz * [(M + 1) / (n + 1)] / (p + 1) */
 		u32 m = val & 0x1fff;
@@ -962,8 +969,10 @@ static int ast2700_soc0_clk_init(struct device_node *soc0_node)
 		val = readl(clk_base + SCU0_HPLL_PARAM);
 		clks[SCU0_CLK_HPLL] = ast2700_soc0_hw_pll("soc0-hpll", "soc0-clkin", val);
 	}
-	clks[SCU0_CLK_HPLL_DIV2] = clk_hw_register_fixed_factor(NULL, "soc0-hpll_div2", "soc0-hpll", 0, 1, 2);
-	clks[SCU0_CLK_HPLL_DIV4] = clk_hw_register_fixed_factor(NULL, "soc0-hpll_div4", "soc0-hpll", 0, 1, 4);
+	clks[SCU0_CLK_HPLL_DIV2] =
+			clk_hw_register_fixed_factor(NULL, "soc0-hpll_div2", "soc0-hpll", 0, 1, 2);
+	clks[SCU0_CLK_HPLL_DIV4] =
+			clk_hw_register_fixed_factor(NULL, "soc0-hpll_div4", "soc0-hpll", 0, 1, 4);
 
 	//dpll
 	val = readl(clk_base + SCU0_DPLL_PARAM);
@@ -972,9 +981,12 @@ static int ast2700_soc0_clk_init(struct device_node *soc0_node)
 	//mpll
 	val = readl(clk_base + SCU0_MPLL_PARAM);
 	clks[SCU0_CLK_MPLL] = ast2700_calc_mpll("soc0-mpll", "soc0-clkin", val);
-	clks[SCU0_CLK_MPLL_DIV2] = clk_hw_register_fixed_factor(NULL, "soc0-mpll_div2", "soc0-mpll", 0, 1, 2);
-	clks[SCU0_CLK_MPLL_DIV4] = clk_hw_register_fixed_factor(NULL, "soc0-mpll_div4", "soc0-mpll", 0, 1, 4);
-	clks[SCU0_CLK_MPLL_DIV8] = clk_hw_register_fixed_factor(NULL, "soc0-mpll_div8", "soc0-mpll", 0, 1, 8);
+	clks[SCU0_CLK_MPLL_DIV2] =
+			clk_hw_register_fixed_factor(NULL, "soc0-mpll_div2", "soc0-mpll", 0, 1, 2);
+	clks[SCU0_CLK_MPLL_DIV4] =
+			clk_hw_register_fixed_factor(NULL, "soc0-mpll_div4", "soc0-mpll", 0, 1, 4);
+	clks[SCU0_CLK_MPLL_DIV8] =
+			clk_hw_register_fixed_factor(NULL, "soc0-mpll_div8", "soc0-mpll", 0, 1, 8);
 
 	val = readl(clk_base + SCU0_D1CLK_PARAM);
 	clks[SCU0_CLK_VGA0] = ast2700_soc0_hw_pll("d1clk", "soc0-clkin", val);
@@ -989,7 +1001,8 @@ static int ast2700_soc0_clk_init(struct device_node *soc0_node)
 	clks[SCU0_CLK_CRT1] = ast2700_soc0_hw_pll("crt1clk", "soc0-clkin", val);
 
 	val = readl(clk_base + SCU0_MPHYCLK_PARAM);
-	clks[SCU0_CLK_MPHY] = clk_hw_register_fixed_factor(NULL, "mphyclk", "soc0-hpll", 0, 1, val + 1);
+	clks[SCU0_CLK_MPHY] =
+		clk_hw_register_fixed_factor(NULL, "mphyclk", "soc0-hpll", 0, 1, val + 1);
 
 	clks[SCU0_CLK_PSP] =
 		clk_hw_register_mux(NULL, "pspclk", pspclk_sel, ARRAY_SIZE(pspclk_sel),
@@ -1004,12 +1017,14 @@ static int ast2700_soc0_clk_init(struct device_node *soc0_node)
 		clks[SCU0_CLK_AHB] =
 			clk_hw_register_divider_table(NULL, "soc0-ahb", "soc0-hpll",
 						      0, clk_base + SCU0_HWSTRAP1,
-						      5, 2, 0, ast2700_clk_div_table, &ast2700_clk_lock);
+						      5, 2, 0, ast2700_clk_div_table,
+						      &ast2700_clk_lock);
 	} else {
 		clks[SCU0_CLK_AHB] =
 			clk_hw_register_divider_table(NULL, "soc0-ahb", "soc0-mpll",
 						      0, clk_base + SCU0_HWSTRAP1,
-						      5, 2, 0, ast2700_clk_div_table, &ast2700_clk_lock);
+						      5, 2, 0, ast2700_clk_div_table,
+						      &ast2700_clk_lock);
 	}
 
 	clks[SCU0_CLK_AXI1] =
@@ -1056,7 +1071,8 @@ static int ast2700_soc0_clk_init(struct device_node *soc0_node)
 					     6, 0, &ast2700_clk_lock);
 
 	div = (GET_USB_REFCLK_DIV(readl(clk_base + SCU0_CLK_SEL2)) + 1) * 2;
-	clks[SCU0_CLK_U2PHY_REFCLK] = clk_hw_register_fixed_factor(NULL, "xhci_ref_clk", "soc0-mpll_div8", 0, 1, div);
+	clks[SCU0_CLK_U2PHY_REFCLK] =
+		clk_hw_register_fixed_factor(NULL, "xhci_ref_clk", "soc0-mpll_div8", 0, 1, div);
 
 	clks[SCU0_CLK_U2PHY_CLK12M] =
 		clk_hw_register_fixed_rate(NULL, "xhci_suspend_clk", NULL, 0, SCU_CLK_12MHZ);
@@ -1087,7 +1103,8 @@ static int ast2700_soc0_clk_init(struct device_node *soc0_node)
 					     14, 0, &ast2700_clk_lock);
 
 	clks[SCU0_CLK_UART] =
-		clk_hw_register_mux(NULL, "soc0-uartclk", soc0_uartclk_sel, ARRAY_SIZE(soc0_uartclk_sel),
+		clk_hw_register_mux(NULL, "soc0-uartclk", soc0_uartclk_sel,
+				    ARRAY_SIZE(soc0_uartclk_sel),
 				    0, clk_base + SCU0_CLK_SEL2,
 				    14, 1, 0, &ast2700_clk_lock);
 
