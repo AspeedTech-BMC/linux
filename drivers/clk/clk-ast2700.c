@@ -439,11 +439,11 @@ static int ast2700_soc1_clk_init(struct device_node *soc1_node)
 	clk_base = of_iomap(soc1_node, 0);
 	WARN_ON(!clk_base);
 
-	clk_data = kzalloc(struct_size(clk_data, hws, SOC1_NUM_CLKS), GFP_KERNEL);
+	clk_data = kzalloc(struct_size(clk_data, hws, SCU1_NUM_CLKS), GFP_KERNEL);
 	if (!clk_data)
 		return -ENOMEM;
 
-	clk_data->num = SOC1_NUM_CLKS;
+	clk_data->num = SCU1_NUM_CLKS;
 	clks = clk_data->hws;
 
 	reset = kzalloc(sizeof(*reset), GFP_KERNEL);
@@ -453,7 +453,7 @@ static int ast2700_soc1_clk_init(struct device_node *soc1_node)
 	reset->base = clk_base;
 
 	reset->rcdev.owner = THIS_MODULE;
-	reset->rcdev.nr_resets = SOC1_RESET_NUMS;
+	reset->rcdev.nr_resets = SCU1_RESET_NUMS;
 	reset->rcdev.ops = &ast2700_reset_ops;
 	reset->rcdev.of_node = soc1_node;
 
@@ -910,11 +910,11 @@ static int ast2700_soc0_clk_init(struct device_node *soc0_node)
 	u32 val;
 	int ret;
 
-	clk_data = kzalloc(struct_size(clk_data, hws, SOC0_NUM_CLKS), GFP_KERNEL);
+	clk_data = kzalloc(struct_size(clk_data, hws, SCU0_NUM_CLKS), GFP_KERNEL);
 	if (!clk_data)
 		return -ENOMEM;
 
-	clk_data->num = SOC0_NUM_CLKS;
+	clk_data->num = SCU0_NUM_CLKS;
 	clks = clk_data->hws;
 
 	clk_base = of_iomap(soc0_node, 0);
@@ -928,7 +928,7 @@ static int ast2700_soc0_clk_init(struct device_node *soc0_node)
 	reset->base = clk_base;
 
 	reset->rcdev.owner = THIS_MODULE;
-	reset->rcdev.nr_resets = SOC0_RESET_NUMS;
+	reset->rcdev.nr_resets = SCU0_RESET_NUMS;
 	reset->rcdev.ops = &ast2700_reset_ops;
 	reset->rcdev.of_node = soc0_node;
 

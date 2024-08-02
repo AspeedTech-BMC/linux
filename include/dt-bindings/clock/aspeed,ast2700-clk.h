@@ -2,7 +2,7 @@
 /*
  * Device Tree binding constants for AST2700 clock controller.
  *
- * Copyright (c) 2023 Aspeed Technology Inc.
+ * Copyright (c) 2024 Aspeed Technology Inc.
  */
 
 #ifndef __DT_BINDINGS_CLOCK_AST2700_H
@@ -77,7 +77,7 @@
 #define SCU0_CLK_U2PHY_CLK12M	(SCU0_CLK_GATE_NUM + 32)
 #define SCU0_CLK_U2PHY_REFCLK	(SCU0_CLK_GATE_NUM + 33)
 
-#define SOC0_NUM_CLKS		(SCU0_CLK_U2PHY_REFCLK + 1)
+#define SCU0_NUM_CLKS		(SCU0_CLK_U2PHY_REFCLK + 1)
 
 /* SOC1 clk gate */
 #define SCU1_CLK_GATE_LCLK0		(0)
@@ -170,6 +170,6 @@
 #define SCU1_CLK_MAC0RCLK	(SCU1_CLK_GATE_NUM + 30)
 #define SCU1_CLK_MAC1RCLK	(SCU1_CLK_GATE_NUM + 31)
 
-#define SOC1_NUM_CLKS		(SCU1_CLK_MAC1RCLK + 1)
+#define SCU1_NUM_CLKS		(SCU1_CLK_MAC1RCLK + 1)
 
 #endif

@@ -2,7 +2,7 @@
 /*
  * Device Tree binding constants for AST2700 reset controller.
  *
- * Copyright (c) 2023 Aspeed Technology Inc.
+ * Copyright (c) 2024 Aspeed Technology Inc.
  */
 
 #ifndef _MACH_ASPEED_AST2700_RESET_H_
@@ -57,7 +57,7 @@
 #define SCU0_RESET_E2M1		(43)
 #define SCU0_RESET_VLINK		(44)
 
-#define SOC0_RESET_NUMS		(SCU0_RESET_VLINK + 1)
+#define SCU0_RESET_NUMS		(SCU0_RESET_VLINK + 1)
 
 /* SOC1 */
 #define SCU1_RESET_LPC0		(0)
@@ -127,6 +127,6 @@
 #define SCU1_RESET_I3CDMA             (63)
 #define SCU1_RESET_PCIE2RST	(64)
 
-#define SOC1_RESET_NUMS		(SCU1_RESET_PCIE2RST + 1)
+#define SCU1_RESET_NUMS		(SCU1_RESET_PCIE2RST + 1)
 
 #endif  /* _MACH_ASPEED_AST2700_RESET_H_ */
