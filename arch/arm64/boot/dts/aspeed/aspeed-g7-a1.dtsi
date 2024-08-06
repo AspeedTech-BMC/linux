@@ -2119,6 +2119,17 @@
 			reg = <0 0x14c02a80 0 0x80>;
 		};
 
+		mctp2: mctp2@14c1a000 {
+			compatible = "aspeed,ast2700-mctp1";
+			reg = <0x0 0x14c1a000 0x0 0x40>;
+			interrupts-extended = <&soc1_intc4 3>, <&scu_ic2 ASPEED_AST2700_SCU_IC2_PCIE_PERST_LO_TO_HI>;
+			interrupt-names = "mctp", "pcie";
+			resets = <&syscon1 SCU1_RESET_MCTP>;
+			aspeed,scu = <&syscon1>;
+			aspeed,pcieh = <&pcie_phy2>;
+			status = "disabled";
+		};
+
 		pcie_phy2: rc_bridge@14c1c000 {
 			compatible = "aspeed,ast2700-pcie-phy", "syscon";
 			reg = <0x0 0x14c1c000 0x0 0x800>;

@@ -82,6 +82,12 @@
 			no-map;
 		};
 
+		mctp2_reserved: mctp2_reserved@4310c0000 {
+			reg = <0x4 0x310c0000 0x0 0x10000>;
+			compatible = "shared-dma-pool";
+			no-map;
+		};
+
 		espi_mmbi_memory: espi-mmbi-memory@434000000 {
 			reg = <0x4 0x34000000 0x0 0x4000000>;
 			no-map;
@@ -351,6 +357,21 @@
 	fan-15 {
 		tach-ch = /bits/ 8 <0xF>;
 	};
+};
+
+&mctp0 {
+	status = "okay";
+	memory-region = <&mctp0_reserved>;
+};
+
+&mctp1 {
+	status = "okay";
+	memory-region = <&mctp1_reserved>;
+};
+
+&mctp2 {
+	status = "okay";
+	memory-region = <&mctp2_reserved>;
 };
 
 &sgpiom0 {
@@ -923,16 +944,6 @@
 #endif
 
 #if 0
-&mctp0 {
-	status = "okay";
-	memory-region = <&mctp0_reserved>;
-};
-
-&mctp1 {
-	status = "okay";
-	memory-region = <&mctp1_reserved>;
-};
-
 &i3c0 {
 	status = "okay";
 };
