@@ -162,8 +162,12 @@ static DEFINE_IDA(mctp_ida);
 #define ASPEED_PCIE_MISC_STS_1	0x0c4
 
 /* PCIe Host Controller registers */
+#define ASPEED_G7_PCIE_CAP	0x160
+#define PCIE_GEN4_SUP		BIT(0)
 #define ASPEED_G7_PCIE_LINK	0x358
 #define PCIE_G7_LINK_STS	BIT(8)
+#define ASPEED_G7_IO_PCIE_LINK	0x344
+#define PCIE_G7_IO_LINK_STS	BIT(18)
 
 /* PCI address definitions */
 #define PCI_DEV_NUM_MASK	GENMASK(4, 0)
@@ -396,11 +400,21 @@ static int _get_bdf(struct aspeed_mctp *priv)
 	u16 bdf, devfn;
 
 	if (priv->match_data->dma_need_64bits_width) {
-		regmap_read(priv->pcie.map, ASPEED_G7_PCIE_LINK, &reg);
-		if (!(reg & PCIE_G7_LINK_STS))
-			return -ENETDOWN;
-		regmap_read(priv->map, ASPEED_G7_MCTP_PCIE_BDF, &reg);
-		bdf = PCI_DEVID(PCI_BUS_NUM(reg), reg & 0xff);
+		regmap_read(priv->pcie.map, ASPEED_G7_PCIE_CAP, &reg);
+		if (reg & PCIE_GEN4_SUP) {
+			regmap_read(priv->pcie.map, ASPEED_G7_PCIE_LINK, &reg);
+			if (!(reg & PCIE_G7_LINK_STS))
+				return -ENETDOWN;
+			regmap_read(priv->map, ASPEED_G7_MCTP_PCIE_BDF, &reg);
+			bdf = PCI_DEVID(PCI_BUS_NUM(reg), reg & 0xff);
+		} else {
+			regmap_read(priv->pcie.map, ASPEED_G7_IO_PCIE_LINK,
+				    &reg);
+			if (!(reg & PCIE_G7_LINK_STS))
+				return -ENETDOWN;
+			regmap_read(priv->map, PCIE_G7_IO_LINK_STS, &reg);
+			bdf = PCI_DEVID(PCI_BUS_NUM(reg), reg & 0xff);
+		}
 	} else {
 		regmap_read(priv->pcie.map, ASPEED_PCIE_LINK, &reg);
 		if (!(reg & PCIE_LINK_STS))
