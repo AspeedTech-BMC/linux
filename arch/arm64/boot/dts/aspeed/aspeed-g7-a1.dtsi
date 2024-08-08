@@ -52,6 +52,9 @@
 		mdio0 = &mdio0;
 		mdio1 = &mdio1;
 		mdio2 = &mdio2;
+		mctp0 = &mctp0;
+		mctp1 = &mctp1;
+		mctp2 = &mctp2;
 		video0 = &video0;
 		video1 = &video1;
 		rvas0 = &rvas0;
