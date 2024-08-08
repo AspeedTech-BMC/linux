@@ -409,9 +409,9 @@ static int _get_bdf(struct aspeed_mctp *priv)
 		} else {
 			regmap_read(priv->pcie.map, ASPEED_G7_IO_PCIE_LINK,
 				    &reg);
-			if (!(reg & PCIE_G7_LINK_STS))
+			if (!(reg & PCIE_G7_IO_LINK_STS))
 				return -ENETDOWN;
-			regmap_read(priv->map, PCIE_G7_IO_LINK_STS, &reg);
+			regmap_read(priv->map, ASPEED_G7_MCTP_PCIE_BDF, &reg);
 			bdf = PCI_DEVID(PCI_BUS_NUM(reg), reg & 0xff);
 		}
 	} else {
