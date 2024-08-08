@@ -36,6 +36,8 @@
 		i2c13 = &i2c13;
 		i2c14 = &i2c14;
 		i2c15 = &i2c15;
+		mctp0 = &mctp0;
+		mctp1 = &mctp1;
 		serial0 = &uart1;
 		serial1 = &uart2;
 		serial2 = &uart3;
