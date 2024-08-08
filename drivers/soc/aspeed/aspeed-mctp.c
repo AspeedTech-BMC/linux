@@ -2175,7 +2175,7 @@ static void aspeed_mctp_hw_reset(struct aspeed_mctp *priv)
 static int aspeed_mctp_probe(struct platform_device *pdev)
 {
 	struct aspeed_mctp *priv;
-	int ret;
+	int ret, id;
 	u16 bdf;
 
 	priv = devm_kzalloc(&pdev->dev, sizeof(*priv), GFP_KERNEL);
@@ -2229,10 +2229,12 @@ static int aspeed_mctp_probe(struct platform_device *pdev)
 
 	aspeed_mctp_channels_init(priv);
 
+	id = of_alias_get_id(priv->dev->of_node, "mctp");
+	if (id < 0)
+		return id;
 	priv->mctp_miscdev.parent = priv->dev;
 	priv->mctp_miscdev.minor = MISC_DYNAMIC_MINOR;
-	priv->mctp_miscdev.name =
-		priv->rc_f ? "aspeed-mctp1" : "aspeed-mctp";
+	priv->mctp_miscdev.name = kasprintf(GFP_KERNEL, "aspeed-mctp%d", id);
 	priv->mctp_miscdev.fops = &aspeed_mctp_fops;
 	ret = misc_register(&priv->mctp_miscdev);
 	if (ret) {
