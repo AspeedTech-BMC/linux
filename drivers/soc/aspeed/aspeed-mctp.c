@@ -29,7 +29,6 @@
 
 #include <uapi/linux/aspeed-mctp.h>
 
-static DEFINE_IDA(mctp_ida);
 /* AST2600 MCTP Controller registers */
 #define ASPEED_MCTP_CTRL	0x000
 #define  TX_CMD_TRIGGER		BIT(0)
@@ -2360,7 +2359,7 @@ static int aspeed_mctp_probe(struct platform_device *pdev)
 
 	aspeed_mctp_channels_init(priv);
 
-	id = ida_simple_get(&mctp_ida, 0, 0, GFP_KERNEL);
+	id = of_alias_get_id(priv->dev->of_node, "mctp");
 	if (id < 0)
 		return id;
 	priv->mctp_miscdev.parent = priv->dev;
