@@ -3253,6 +3253,12 @@ static DEVICE_ATTR_WO(hotjoin_req);
 
 static struct attribute *i3c_targetdev_attrs[] = {
 	&dev_attr_hotjoin_req.attr,
+	&dev_attr_bcr.attr,
+	&dev_attr_dcr.attr,
+	&dev_attr_pid.attr,
+	&dev_attr_dynamic_address.attr,
+	&dev_attr_hdrcap.attr,
+	&dev_attr_modalias.attr,
 	NULL,
 };
 ATTRIBUTE_GROUPS(i3c_targetdev);
