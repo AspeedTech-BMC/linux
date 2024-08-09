@@ -587,6 +587,10 @@ static bool hci_pio_process_resp(struct i3c_hci *hci, struct hci_pio_data *pio)
 		size_t nbytes = TARGET_RESP_DATA_LENGTH(resp);
 
 		if (!aspeed_get_i3c_revision_id(hci)) {
+			DBG(a0_debug_s, TARGET_RESP_STATUS(resp),
+			    TARGET_RESP_XFER_TYPE(resp),
+			    TARGET_RESP_TID_A0(resp), TARGET_RESP_CCC_HDR(resp),
+			    TARGET_RESP_DATA_LENGTH(resp));
 			if (TARGET_RESP_XFER_TYPE(resp)) {
 				ast2700_target_read_rx_fifo(hci, nbytes);
 				DBG("got: %*ph", (u32)nbytes,
@@ -597,6 +601,8 @@ static bool hci_pio_process_resp(struct i3c_hci *hci, struct hci_pio_data *pio)
 						desc->target_info.read_handler(desc->dev,
 									       hci->target_rx.buf,
 									       nbytes);
+				} else {
+					aspeed_i3c_ccc_handler(hci, TARGET_RESP_CCC_HDR(resp));
 				}
 			} else {
 				/* ibi or master read or HDR read */
@@ -624,7 +630,7 @@ static bool hci_pio_process_resp(struct i3c_hci *hci, struct hci_pio_data *pio)
 								    nbytes);
 					DBG("got: %*ph", (u32)nbytes,
 					    hci->target_rx.buf);
-					/* TODO: Handle the SET CCC */
+					aspeed_i3c_ccc_handler(hci, TARGET_RESP_CCC_HDR(resp));
 				}
 			} else if (TARGET_RESP_XFER_TYPE(resp)) {
 				ast2700_target_read_rx_fifo(hci, nbytes);
