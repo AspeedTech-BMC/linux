@@ -591,9 +591,6 @@ static void aspeed_jtag_set_tap_state(struct aspeed_jtag *aspeed_jtag,
 	from = from_state;
 	to = end_state;
 
-	if (from == JTAG_STATE_CURRENT)
-		from = aspeed_jtag->current_state;
-
 	for (i = 0; i < _tms_cycle_lookup[from][to].count; i++)
 		aspeed_jtag_tck_cycle(aspeed_jtag,
 				      ((_tms_cycle_lookup[from][to].tmsbits
@@ -629,6 +626,10 @@ static int aspeed_jtag_status_set(struct jtag *jtag,
 	struct aspeed_jtag *aspeed_jtag = jtag_priv(jtag);
 	int i;
 
+	if (tapstate->from == JTAG_STATE_CURRENT)
+		tapstate->from = aspeed_jtag->current_state;
+	if (tapstate->endstate == JTAG_STATE_CURRENT)
+		tapstate->endstate = aspeed_jtag->current_state;
 #ifdef DEBUG_JTAG
 	dev_dbg(aspeed_jtag->dev, "Set TAP state: %s\n",
 		end_status_str[tapstate->endstate]);
@@ -737,6 +738,10 @@ static int aspeed_jtag_status_set_26xx(struct jtag *jtag,
 {
 	struct aspeed_jtag *aspeed_jtag = jtag_priv(jtag);
 
+	if (tapstate->from == JTAG_STATE_CURRENT)
+		tapstate->from = aspeed_jtag->current_state;
+	if (tapstate->endstate == JTAG_STATE_CURRENT)
+		tapstate->endstate = aspeed_jtag->current_state;
 #ifdef DEBUG_JTAG
 	dev_dbg(aspeed_jtag->dev, "Set TAP state: status %s from %s to %s\n",
 		end_status_str[aspeed_jtag->current_state],
