@@ -551,38 +551,18 @@ static void hci_dma_xfer_done(struct i3c_hci *hci, struct hci_rh_data *rh)
 		tid = RESP_TID(resp);
 		DBG("resp = 0x%08x", resp);
 		if (hci->master.target) {
-			if (!aspeed_get_i3c_revision_id(hci)) {
-				DBG(a0_debug_s, TARGET_RESP_STATUS(resp),
-				    TARGET_RESP_XFER_TYPE(resp),
-				    TARGET_RESP_TID_A0(resp),
-				    TARGET_RESP_CCC_HDR(resp),
-				    TARGET_RESP_DATA_LENGTH(resp));
-				/* ibi or master read or HDR read */
-				if (!TARGET_RESP_CCC_HDR(resp) ||
-				    TARGET_RESP_CCC_HDR(resp) & 0x80) {
-					if (TARGET_RESP_TID_A0(resp) ==
-					    TID_TARGET_IBI)
-						complete(&hci->ibi_comp);
-					else if (TARGET_RESP_TID_A0(resp) ==
-						 TID_TARGET_RD_DATA)
-						complete(&hci->pending_r_comp);
-				}
-			} else {
-				DBG(a1_debug_s, TARGET_RESP_STATUS(resp),
-				    TARGET_RESP_XFER_TYPE(resp),
-				    TARGET_RESP_CCC_INDICATE(resp),
-				    TARGET_RESP_TID(resp),
-				    TARGET_RESP_CCC_HDR(resp),
-				    TARGET_RESP_DATA_LENGTH(resp));
-				/* ibi or master read or HDR read */
-				if (!TARGET_RESP_CCC_INDICATE(resp)) {
-					if (TARGET_RESP_TID(resp) ==
-					    TID_TARGET_IBI)
-						complete(&hci->ibi_comp);
-					else if (TARGET_RESP_TID(resp) ==
-						 TID_TARGET_RD_DATA)
-						complete(&hci->pending_r_comp);
-				}
+			DBG(a1_debug_s, TARGET_RESP_STATUS(resp),
+			    TARGET_RESP_XFER_TYPE(resp),
+			    TARGET_RESP_CCC_INDICATE(resp),
+			    TARGET_RESP_TID(resp), TARGET_RESP_CCC_HDR(resp),
+			    TARGET_RESP_DATA_LENGTH(resp));
+			/* ibi or master read or HDR read */
+			if (!TARGET_RESP_CCC_INDICATE(resp)) {
+				if (TARGET_RESP_TID(resp) == TID_TARGET_IBI)
+					complete(&hci->ibi_comp);
+				else if (TARGET_RESP_TID(resp) ==
+					 TID_TARGET_RD_DATA)
+					complete(&hci->pending_r_comp);
 			}
 		}
 		xfer = rh->src_xfers[done_ptr];
@@ -697,21 +677,12 @@ static void hci_dma_process_ibi(struct i3c_hci *hci, struct hci_rh_data *rh)
 		if (hci->master.target) {
 			dev = hci->master.this;
 			size_t nbytes = TARGET_RESP_DATA_LENGTH(ibi_status);
-			if (!aspeed_get_i3c_revision_id(hci))
-				DBG(a0_debug_s,
-				    TARGET_RESP_STATUS(ibi_status),
-				    TARGET_RESP_XFER_TYPE(ibi_status),
-				    TARGET_RESP_TID_A0(ibi_status),
-				    TARGET_RESP_CCC_HDR(ibi_status),
-				    TARGET_RESP_DATA_LENGTH(ibi_status));
-			else
-				DBG(a1_debug_s,
-				    TARGET_RESP_STATUS(ibi_status),
-				    TARGET_RESP_XFER_TYPE(ibi_status),
-				    TARGET_RESP_CCC_INDICATE(ibi_status),
-				    TARGET_RESP_TID(ibi_status),
-				    TARGET_RESP_CCC_HDR(ibi_status),
-				    TARGET_RESP_DATA_LENGTH(ibi_status));
+			DBG(a1_debug_s, TARGET_RESP_STATUS(ibi_status),
+			    TARGET_RESP_XFER_TYPE(ibi_status),
+			    TARGET_RESP_CCC_INDICATE(ibi_status),
+			    TARGET_RESP_TID(ibi_status),
+			    TARGET_RESP_CCC_HDR(ibi_status),
+			    TARGET_RESP_DATA_LENGTH(ibi_status));
 			if (TARGET_RESP_XFER_TYPE(ibi_status)) {
 				chunks = DIV_ROUND_UP(nbytes, rh->ibi_chunk_sz);
 				ibi_chunks += chunks;
@@ -841,23 +812,13 @@ static void hci_dma_process_ibi(struct i3c_hci *hci, struct hci_rh_data *rh)
 	}
 	if (hci->master.target) {
 		/* Bypass the priv_xfer data to target layer */
-		if (!aspeed_get_i3c_revision_id(hci)) {
-			if (dev->target_info.read_handler &&
-			    !TARGET_RESP_CCC_HDR(ibi_status))
-				dev->target_info.read_handler(dev->dev,
-							      hci->target_rx.buf,
-							      ibi_size);
-			if (TARGET_RESP_CCC_HDR(ibi_status))
-				aspeed_i3c_ccc_handler(hci, TARGET_RESP_CCC_HDR(ibi_status));
-		} else {
-			if (dev->target_info.read_handler &&
-			    !TARGET_RESP_CCC_INDICATE(ibi_status))
-				dev->target_info.read_handler(dev->dev,
-							      hci->target_rx.buf,
-							      ibi_size);
-			if (TARGET_RESP_CCC_INDICATE(ibi_status))
-				aspeed_i3c_ccc_handler(hci, TARGET_RESP_CCC_HDR(ibi_status));
-		}
+		if (dev->target_info.read_handler &&
+		    !TARGET_RESP_CCC_INDICATE(ibi_status))
+			dev->target_info.read_handler(dev->dev,
+						      hci->target_rx.buf,
+						      ibi_size);
+		if (TARGET_RESP_CCC_INDICATE(ibi_status))
+			aspeed_i3c_ccc_handler(hci, TARGET_RESP_CCC_HDR(ibi_status));
 	} else {
 		/* submit it */
 		slot->dev = dev;
