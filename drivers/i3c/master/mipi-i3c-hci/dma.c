@@ -847,12 +847,16 @@ static void hci_dma_process_ibi(struct i3c_hci *hci, struct hci_rh_data *rh)
 				dev->target_info.read_handler(dev->dev,
 							      hci->target_rx.buf,
 							      ibi_size);
+			if (TARGET_RESP_CCC_HDR(ibi_status))
+				aspeed_i3c_ccc_handler(hci, TARGET_RESP_CCC_HDR(ibi_status));
 		} else {
 			if (dev->target_info.read_handler &&
 			    !TARGET_RESP_CCC_INDICATE(ibi_status))
 				dev->target_info.read_handler(dev->dev,
 							      hci->target_rx.buf,
 							      ibi_size);
+			if (TARGET_RESP_CCC_INDICATE(ibi_status))
+				aspeed_i3c_ccc_handler(hci, TARGET_RESP_CCC_HDR(ibi_status));
 		}
 	} else {
 		/* submit it */

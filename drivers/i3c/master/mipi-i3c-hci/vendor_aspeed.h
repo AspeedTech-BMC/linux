@@ -361,4 +361,27 @@ static inline unsigned int aspeed_get_i3c_revision_id(struct i3c_hci *hci)
 	return FIELD_GET(GENMASK(23, 16), hci->vendor_product_id);
 }
 
+static inline void aspeed_i3c_ccc_handler(struct i3c_hci *hci, u8 ccc)
+{
+	u32 reg;
+	u8 dynamic_addr;
+
+	switch (ccc) {
+	case I3C_CCC_RSTDAA(true):
+	case I3C_CCC_RSTDAA(false):
+		hci->master.this->info.dyn_addr = 0;
+		break;
+	case I3C_CCC_ENTDAA:
+	case I3C_CCC_SETDASA:
+	case I3C_CCC_SETNEWDA:
+	case I3C_CCC_SETAASA:
+		reg = ast_inhouse_read(ASPEED_I3C_STS);
+		if (reg & ASPEED_I3C_STS_SLV_DYNAMIC_ADDRESS_VALID) {
+			dynamic_addr = FIELD_GET(ASPEED_I3C_STS_SLV_DYNAMIC_ADDRESS, reg);
+			hci->master.this->info.dyn_addr = dynamic_addr;
+		}
+		break;
+	}
+}
+
 #endif
