@@ -161,8 +161,8 @@
 #define ASPEED_PCIE_MISC_STS_1	0x0c4
 
 /* PCIe Host Controller registers */
-#define ASPEED_G7_PCIE_CAP	0x160
-#define PCIE_GEN4_SUP		BIT(0)
+#define ASPEED_G7_PCIE_LOCATE	0x300
+#define PCIE_LOCATE_IO		BIT(0)
 #define ASPEED_G7_PCIE_LINK	0x358
 #define PCIE_G7_LINK_STS	BIT(8)
 #define ASPEED_G7_IO_PCIE_LINK	0x344
@@ -399,8 +399,8 @@ static int _get_bdf(struct aspeed_mctp *priv)
 	u16 bdf, devfn;
 
 	if (priv->match_data->dma_need_64bits_width) {
-		regmap_read(priv->pcie.map, ASPEED_G7_PCIE_CAP, &reg);
-		if (reg & PCIE_GEN4_SUP) {
+		regmap_read(priv->pcie.map, ASPEED_G7_PCIE_LOCATE, &reg);
+		if (!(reg & PCIE_LOCATE_IO)) {
 			regmap_read(priv->pcie.map, ASPEED_G7_PCIE_LINK, &reg);
 			if (!(reg & PCIE_G7_LINK_STS))
 				return -ENETDOWN;
