@@ -206,8 +206,9 @@ int i3c_device_getstatus_ccc(struct i3c_device *dev, struct i3c_device_info *inf
 
 	i3c_bus_normaluse_lock(dev->bus);
 	if (dev->desc)
-		ret = i3c_dev_getstatus_locked(dev->desc, info);
+		ret = i3c_dev_getstatus_locked(dev->desc, &dev->desc->info);
 	i3c_bus_normaluse_unlock(dev->bus);
+	i3c_device_get_info(dev, info);
 
 	return ret;
 }
@@ -473,8 +474,9 @@ int i3c_device_setmrl_ccc(struct i3c_device *dev, struct i3c_device_info *info, 
 
 	i3c_bus_normaluse_lock(dev->bus);
 	if (master)
-		ret = i3c_master_setmrl_locked(master, info, read_len, ibi_len);
+		ret = i3c_master_setmrl_locked(master, &dev->desc->info, read_len, ibi_len);
 	i3c_bus_normaluse_unlock(dev->bus);
+	i3c_device_get_info(dev, info);
 
 	return ret;
 }
@@ -498,8 +500,9 @@ int i3c_device_setmwl_ccc(struct i3c_device *dev, struct i3c_device_info *info, 
 
 	i3c_bus_normaluse_lock(dev->bus);
 	if (master)
-		ret = i3c_master_setmwl_locked(master, info, write_len);
+		ret = i3c_master_setmwl_locked(master, &dev->desc->info, write_len);
 	i3c_bus_normaluse_unlock(dev->bus);
+	i3c_device_get_info(dev, info);
 
 	return ret;
 }
@@ -522,8 +525,9 @@ int i3c_device_getmrl_ccc(struct i3c_device *dev, struct i3c_device_info *info)
 
 	i3c_bus_normaluse_lock(dev->bus);
 	if (master)
-		ret = i3c_master_getmrl_locked(master, info);
+		ret = i3c_master_getmrl_locked(master, &dev->desc->info);
 	i3c_bus_normaluse_unlock(dev->bus);
+	i3c_device_get_info(dev, info);
 
 	return ret;
 }
@@ -546,8 +550,9 @@ int i3c_device_getmwl_ccc(struct i3c_device *dev, struct i3c_device_info *info)
 
 	i3c_bus_normaluse_lock(dev->bus);
 	if (master)
-		ret = i3c_master_getmwl_locked(master, info);
+		ret = i3c_master_getmwl_locked(master, &dev->desc->info);
 	i3c_bus_normaluse_unlock(dev->bus);
+	i3c_device_get_info(dev, info);
 
 	return ret;
 }
