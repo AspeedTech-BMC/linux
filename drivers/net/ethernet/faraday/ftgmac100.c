@@ -1529,8 +1529,19 @@ static int ftgmac100_open(struct net_device *netdev)
 		return err;
 	}
 
-	priv->cur_duplex = 0;
-	priv->cur_speed = 0;
+	/* When using NC-SI we force the speed to 100Mbit/s full duplex,
+	 *
+	 * Otherwise we leave it set to 0 (no link), the link
+	 * message from the PHY layer will handle setting it up to
+	 * something else if needed.
+	 */
+	if (priv->use_ncsi) {
+		priv->cur_duplex = DUPLEX_FULL;
+		priv->cur_speed = SPEED_100;
+	} else {
+		priv->cur_duplex = 0;
+		priv->cur_speed = 0;
+	}
 
 	/* Reset the hardware */
 	err = ftgmac100_reset_and_config_mac(priv);
@@ -1557,7 +1568,11 @@ static int ftgmac100_open(struct net_device *netdev)
 	if (netdev->phydev) {
 		/* If we have a PHY, start polling */
 		phy_start(netdev->phydev);
-	} else if (priv->use_ncsi) {
+	}
+	if (priv->use_ncsi) {
+		/* If using NC-SI, set our carrier on and start the stack */
+		netif_carrier_on(netdev);
+
 		/* Start the NCSI device */
 		err = ncsi_start_dev(priv->ndev);
 		if (err)
@@ -1567,6 +1582,7 @@ static int ftgmac100_open(struct net_device *netdev)
 	return 0;
 
 err_ncsi:
+	phy_stop(netdev->phydev);
 	napi_disable(&priv->napi);
 	netif_stop_queue(netdev);
 err_alloc:
@@ -1600,7 +1616,7 @@ static int ftgmac100_stop(struct net_device *netdev)
 	netif_napi_del(&priv->napi);
 	if (netdev->phydev)
 		phy_stop(netdev->phydev);
-	else if (priv->use_ncsi)
+	if (priv->use_ncsi)
 		ncsi_stop_dev(priv->ndev);
 
 	ftgmac100_stop_hw(priv);
@@ -1817,7 +1833,6 @@ static int ftgmac100_probe(struct platform_device *pdev)
 	struct net_device *netdev;
 	struct ftgmac100 *priv;
 	struct device_node *np;
-	struct phy_device *phydev;
 	int err = 0;
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
@@ -1891,6 +1906,8 @@ static int ftgmac100_probe(struct platform_device *pdev)
 	}
 
 	if (np && of_get_property(np, "use-ncsi", NULL)) {
+		struct phy_device *phy;
+
 		if (!IS_ENABLED(CONFIG_NET_NCSI)) {
 			dev_err(&pdev->dev, "NCSI stack not enabled\n");
 			err = -EINVAL;
@@ -1905,13 +1922,15 @@ static int ftgmac100_probe(struct platform_device *pdev)
 			goto err_phy_connect;
 		}
 
-		phydev = fixed_phy_register(PHY_POLL, &ncsi_phy_status, NULL);
-		err = phy_connect_direct(netdev, phydev, ftgmac100_adjust_link,
+		phy = fixed_phy_register(PHY_POLL, &ncsi_phy_status, NULL);
+		err = phy_connect_direct(netdev, phy, ftgmac100_adjust_link,
 					 PHY_INTERFACE_MODE_MII);
 		if (err) {
 			dev_err(&pdev->dev, "Connecting PHY failed\n");
 			goto err_phy_connect;
 		}
+		/* Display what we found */
+		phy_attached_info(phy);
 	} else if (np && of_phy_is_fixed_link(np)) {
 		struct phy_device *phy;
 
