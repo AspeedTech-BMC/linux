@@ -2061,6 +2061,17 @@
 			status = "disabled";
 		};
 
+		ltpi0_gpio: ltpi0_gpio@14c34c00 {
+			#gpio-cells = <2>;
+			gpio-controller;
+			compatible = "aspeed,ast2700-ltpi-gpio";
+			reg = <0x0 0x14c34c00 0x0 0x300>;
+			interrupts-extended = <&soc1_intc0 22>;
+			ngpios = <112>;
+			interrupt-controller;
+			#interrupt-cells = <2>;
+		};
+
 		ltpi1: ltpi@14c35000 {
 			compatible = "aspeed-ltpi";
 			reg = <0x0 0x14c35000 0x0 0x100>;
@@ -2068,6 +2079,17 @@
 			resets = <&syscon1 SCU1_RESET_LTPI>;
 			interrupts-extended = <&soc1_intc5 13>;
 			status = "disabled";
+		};
+
+		ltpi1_gpio: ltpi1_gpio@14c35c00 {
+			#gpio-cells = <2>;
+			gpio-controller;
+			compatible = "aspeed,ast2700-ltpi-gpio";
+			reg = <0x0 0x14c35c00 0x0 0x300>;
+			interrupts-extended = <&soc1_intc1 22>;
+			ngpios = <112>;
+			interrupt-controller;
+			#interrupt-cells = <2>;
 		};
 
 		wdt0: watchdog@14c37000 {
