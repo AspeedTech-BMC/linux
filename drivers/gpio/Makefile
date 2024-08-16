@@ -34,6 +34,7 @@ obj-$(CONFIG_GPIO_AMD_FCH)		+= gpio-amd-fch.o
 obj-$(CONFIG_GPIO_AMDPT)		+= gpio-amdpt.o
 obj-$(CONFIG_GPIO_ARIZONA)		+= gpio-arizona.o
 obj-$(CONFIG_GPIO_ASPEED)		+= gpio-aspeed.o
+obj-$(CONFIG_GPIO_ASPEED_G7)		+= gpio-aspeed-g7.o
 obj-$(CONFIG_GPIO_ASPEED_SGPIO)		+= gpio-aspeed-sgpio.o
 obj-$(CONFIG_GPIO_ASPEED_LTPI)		+= gpio-aspeed-ltpi.o
 obj-$(CONFIG_GPIO_ATH79)		+= gpio-ath79.o
