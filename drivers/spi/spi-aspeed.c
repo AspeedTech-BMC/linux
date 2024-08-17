@@ -32,6 +32,7 @@
 #define OFFSET_ADDR_DATA_MASK		0x0c
 #define OFFSET_CE0_CTRL_REG		0x10
 #define OFFSET_CE0_DECODE_RANGE_REG	0x30
+#define MISC_CTRL_REG			0x54
 #define OFFSET_HOST_DIRECT_ACCESS_CMD_CTRL4	0x6c
 #define OFFSET_HOST_DIRECT_ACCESS_CMD_CTRL2	0x74
 #define OFFSET_DMA_CTRL			0x80
@@ -43,12 +44,17 @@
 
 #define CTRL_IO_SINGLE_DATA	0
 #define CTRL_IO_DUAL_DATA	BIT(29)
+#define CTRL_IO_DUAL_ADDR_DATA	GENMASK(29, 28)
 #define CTRL_IO_QUAD_DATA	BIT(30)
+#define CTRL_IO_QUAD_ADDR_DATA	(BIT(30) | BIT(28))
+#define   CTRL_IO_QUAD_IO	BIT(31)
 
 #define CTRL_IO_MODE_USER	GENMASK(1, 0)
 #define CTRL_IO_MODE_CMD_READ	BIT(0)
 #define CTRL_IO_MODE_CMD_WRITE	BIT(1)
 #define CTRL_STOP_ACTIVE	BIT(2)
+
+#define DUMMY_OUTPUT_DATA	GENMASK(7, 0)
 
 #define CALIBRATION_LEN		0x400
 #define SPI_DMA_IRQ_EN		BIT(3)
@@ -69,13 +75,21 @@ enum aspeed_spi_ctl_reg_value {
 	ASPEED_SPI_MAX,
 };
 
+enum aspeed_spi_op_field {
+	SPI_OP_CMD = 1,
+	SPI_OP_ADDR,
+	SPI_OP_DATA,
+	SPI_OP_ALL,
+};
+
 #define ASPEED_SPI_MAX_CS 5
 
 /* definition for controller flag */
-#define SPI_MODE_USER	0x00000001
-#define SPI_FIXED_LOW_W_CLK 0x00000002
-#define SPI_DMA_WRITE	0x00000004
-#define SPI_DMA_READ	0x00000008
+#define SPI_MODE_USER			0x00000001
+#define SPI_FIXED_LOW_W_CLK		0x00000002
+#define SPI_DMA_WRITE			0x00000004
+#define SPI_DMA_READ			0x00000008
+#define ASPEED_SPI_QUAD_ADDR_SUPPORT	0x00000100
 
 #define MAX_READ_SZ_ONCE	0x3000 /* 12KB */
 #define FIXED_REMAPPED_MEM_SZ	0x1000
@@ -99,8 +113,7 @@ struct aspeed_spi_info {
 	uint32_t (*segment_reg)(struct aspeed_spi_controller *ast_ctrl,
 				uint32_t start, uint32_t end);
 	void (*safs_support)(struct aspeed_spi_controller *ast_ctrl,
-		enum spi_mem_data_dir dir, uint8_t cmd, uint8_t addr_len,
-		uint8_t bus_width);
+			     struct spi_mem_op *op);
 };
 
 struct aspeed_spi_chip {
@@ -174,18 +187,29 @@ static void aspeed_spi_chip_set_4byte(struct aspeed_spi_controller *ast_ctrl,
 	writel(reg_val, ast_ctrl->regs + OFFSET_CE_ADDR_MODE_CTRL);
 }
 
-uint32_t aspeed_spi_get_io_mode(uint32_t bus_width)
+uint32_t aspeed_spi_get_io_mode(const struct spi_mem_op *op,
+				enum aspeed_spi_op_field field)
 {
-	switch (bus_width) {
-	case 1:
-		return CTRL_IO_SINGLE_DATA;
-	case 2:
-		return CTRL_IO_DUAL_DATA;
-	case 4:
-		return CTRL_IO_QUAD_DATA;
-	default:
-		return CTRL_IO_SINGLE_DATA;
+	if (field == SPI_OP_ALL || field == SPI_OP_CMD) {
+		if (op->cmd.buswidth == 4)
+			return CTRL_IO_QUAD_IO;
 	}
+
+	if (field == SPI_OP_ALL || field == SPI_OP_ADDR) {
+		if (op->addr.buswidth == 4)
+			return CTRL_IO_QUAD_ADDR_DATA;
+		else if (op->addr.buswidth == 2)
+			return CTRL_IO_DUAL_ADDR_DATA;
+	}
+
+	if (field == SPI_OP_ALL || field == SPI_OP_DATA) {
+		if (op->data.buswidth == 4)
+			return CTRL_IO_QUAD_DATA;
+		else if (op->data.buswidth == 2)
+			return CTRL_IO_DUAL_DATA;
+	}
+
+	return CTRL_IO_SINGLE_DATA;
 }
 
 /*
@@ -543,7 +567,7 @@ aspeed_spi_decode_range_config(struct aspeed_spi_controller *ast_ctrl,
 
 static const struct aspeed_spi_info ast2600_fmc_info = {
 	.max_data_bus_width = 4,
-	.cmd_io_ctrl_mask = 0xf0ff40c7,
+	.cmd_io_ctrl_mask = 0xf0ffc0c7,
 	/* for ast2600, the minimum decode size for each CE is 2MB */
 	.min_decode_sz = 0x200000,
 	.set_4byte = aspeed_spi_chip_set_4byte,
@@ -555,34 +579,33 @@ static const struct aspeed_spi_info ast2600_fmc_info = {
 };
 
 void aspeed_2600_spi_fill_safs_cmd(struct aspeed_spi_controller *ast_ctrl,
-		enum spi_mem_data_dir dir, uint8_t cmd,
-		uint8_t addr_len, uint8_t bus_width)
+				   struct spi_mem_op *op)
 {
 	uint32_t tmp_val;
 
-	if (dir == SPI_MEM_DATA_IN) {
+	if (op->data.dir == SPI_MEM_DATA_IN) {
 		tmp_val = readl(ast_ctrl->regs + OFFSET_HOST_DIRECT_ACCESS_CMD_CTRL4);
-		if (addr_len == 4)
-			tmp_val = (tmp_val & 0xffff00ff) | (cmd << 8);
+		if (op->addr.nbytes == 4)
+			tmp_val = (tmp_val & 0xffff00ff) | (op->cmd.opcode << 8);
 		else
-			tmp_val = (tmp_val & 0xffffff00) | cmd;
+			tmp_val = (tmp_val & 0xffffff00) | op->cmd.opcode;
 
-		tmp_val = (tmp_val & 0x0fffffff) | aspeed_spi_get_io_mode(bus_width);
+		tmp_val = (tmp_val & 0x0fffffff) | aspeed_spi_get_io_mode(op, SPI_OP_ALL);
 
 		writel(tmp_val, ast_ctrl->regs + OFFSET_HOST_DIRECT_ACCESS_CMD_CTRL4);
 
-	} else if (dir == SPI_MEM_DATA_OUT) {
+	} else if (op->data.dir == SPI_MEM_DATA_OUT) {
 		tmp_val = readl(ast_ctrl->regs + OFFSET_HOST_DIRECT_ACCESS_CMD_CTRL4);
 		tmp_val = (tmp_val & 0xf0ffffff) |
-				(aspeed_spi_get_io_mode(bus_width) >> 4);
+			  (aspeed_spi_get_io_mode(op, SPI_OP_ALL) >> 4);
 
 		writel(tmp_val, ast_ctrl->regs + OFFSET_HOST_DIRECT_ACCESS_CMD_CTRL4);
 
 		tmp_val = readl(ast_ctrl->regs + OFFSET_HOST_DIRECT_ACCESS_CMD_CTRL2);
-		if (addr_len == 4)
-			tmp_val = (tmp_val & 0xffff00ff) | (cmd << 8);
+		if (op->addr.nbytes == 4)
+			tmp_val = (tmp_val & 0xffff00ff) | (op->cmd.opcode << 8);
 		else
-			tmp_val = (tmp_val & 0xffffff00) | cmd;
+			tmp_val = (tmp_val & 0xffffff00) | op->cmd.opcode;
 
 		writel(tmp_val, ast_ctrl->regs + OFFSET_HOST_DIRECT_ACCESS_CMD_CTRL2);
 	}
@@ -590,7 +613,7 @@ void aspeed_2600_spi_fill_safs_cmd(struct aspeed_spi_controller *ast_ctrl,
 
 static const struct aspeed_spi_info ast2600_spi_info = {
 	.max_data_bus_width = 4,
-	.cmd_io_ctrl_mask = 0xf0ff40c7,
+	.cmd_io_ctrl_mask = 0xf0ffc0c7,
 	/* for ast2600, the minimum decode size for each CE is 2MB */
 	.min_decode_sz = 0x200000,
 	.set_4byte = aspeed_spi_chip_set_4byte,
@@ -650,6 +673,7 @@ static int aspeed_spi_exec_op_cmd_mode(
 
 	ctrl_val = chip->ctrl_val[ASPEED_SPI_BASE];
 	ctrl_val &= ~ast_ctrl->info->cmd_io_ctrl_mask;
+	ctrl_val |= aspeed_spi_get_io_mode(op, SPI_OP_ALL);
 
 	/* configure opcode */
 	ctrl_val |= op->cmd.opcode << 16;
@@ -689,10 +713,6 @@ static int aspeed_spi_exec_op_cmd_mode(
 		} else {
 			data_buf = op->data.buf.in;
 		}
-
-		if (op->data.buswidth)
-			ctrl_val |= aspeed_spi_get_io_mode(op->data.buswidth);
-
 	} else {
 		addr_data_mask |= 0x0f;
 		data_byte = 1;
@@ -792,8 +812,12 @@ static int aspeed_spi_exec_op_user_mode(
 	writel(ctrl_val, ast_ctrl->regs + OFFSET_CE0_CTRL_REG + cs * 4);
 
 	/* send command */
+	ctrl_val |= aspeed_spi_get_io_mode(op, SPI_OP_CMD);
+	writel(ctrl_val, ast_ctrl->regs + OFFSET_CE0_CTRL_REG + cs * 4);
 	aspeed_spi_write_to_ahb(chip->ahb_base, &op->cmd.opcode, 1);
 
+	ctrl_val |= aspeed_spi_get_io_mode(op, SPI_OP_ADDR);
+	writel(ctrl_val, ast_ctrl->regs + OFFSET_CE0_CTRL_REG + cs * 4);
 	/* send address */
 	for (i = op->addr.nbytes; i > 0; i--) {
 		addr[op->addr.nbytes - i] =
@@ -805,7 +829,7 @@ static int aspeed_spi_exec_op_user_mode(
 	aspeed_spi_write_to_ahb(chip->ahb_base, dummy_data, op->dummy.nbytes);
 
 	/* change io_mode */
-	ctrl_val |= aspeed_spi_get_io_mode(op->data.buswidth);
+	ctrl_val |= aspeed_spi_get_io_mode(op, SPI_OP_DATA);
 	writel(ctrl_val, ast_ctrl->regs + OFFSET_CE0_CTRL_REG + cs * 4);
 
 	/* send data */
@@ -1123,7 +1147,13 @@ static int aspeed_spi_dirmap_create(struct spi_mem_dirmap_desc *desc)
 		reg_val = readl(ast_ctrl->regs + OFFSET_CE0_CTRL_REG +
 				target_cs * 4) &
 			  (~info->cmd_io_ctrl_mask);
-		reg_val |= aspeed_spi_get_io_mode(op_tmpl.data.buswidth) |
+
+		if (op_tmpl.addr.buswidth == 4) {
+			reg_val |= BIT(15);
+			writel(0xff, ast_ctrl->regs + MISC_CTRL_REG);
+		}
+
+		reg_val |= aspeed_spi_get_io_mode(&op_tmpl, SPI_OP_ALL) |
 			   op_tmpl.cmd.opcode << 16 |
 			   ((op_tmpl.dummy.nbytes) & 0x3) << 6 |
 			   ((op_tmpl.dummy.nbytes) & 0x4) << 14 |
@@ -1156,7 +1186,7 @@ static int aspeed_spi_dirmap_create(struct spi_mem_dirmap_desc *desc)
 			reg_val = (reg_val & (~0x0f000f00)) | 0x03000000;
 		}
 
-		reg_val |= aspeed_spi_get_io_mode(op_tmpl.data.buswidth) |
+		reg_val |= aspeed_spi_get_io_mode(&op_tmpl, SPI_OP_ALL) |
 			   op_tmpl.cmd.opcode << 16 | CTRL_IO_MODE_CMD_WRITE;
 
 		ast_ctrl->chips[target_cs].ctrl_val[ASPEED_SPI_WRITE] = reg_val;
@@ -1166,11 +1196,8 @@ static int aspeed_spi_dirmap_create(struct spi_mem_dirmap_desc *desc)
 			 ast_ctrl->chips[target_cs].ctrl_val[ASPEED_SPI_WRITE]);
 	}
 
-
-	if (info->safs_support) {
-		info->safs_support(ast_ctrl, desc->info.op_tmpl.data.dir,
-			op_tmpl.cmd.opcode, op_tmpl.addr.nbytes, op_tmpl.data.buswidth);
-	}
+	if (info->safs_support)
+		info->safs_support(ast_ctrl, &op_tmpl);
 
 	if (desc->info.op_tmpl.data.dir == SPI_MEM_DATA_OUT &&
 		desc->mem->spi->controller->mem_ops->dirmap_write == NULL)
@@ -1213,12 +1240,18 @@ static bool aspeed_spi_support_op(struct spi_mem *mem,
 		return false;
 
 	if (op->addr.nbytes != 0) {
-		if (op->addr.buswidth > 1 || op->addr.nbytes > 4)
+		if (op->addr.buswidth > 1 &&
+		    !(ast_ctrl->flag & ASPEED_SPI_QUAD_ADDR_SUPPORT))
+			return false;
+		if (op->addr.nbytes < 3 || op->addr.nbytes > 4)
 			return false;
 	}
 
 	if (op->dummy.nbytes != 0) {
-		if (op->dummy.buswidth > 1 || op->dummy.nbytes > 7)
+		if (op->dummy.buswidth > 1 &&
+		    !(ast_ctrl->flag & ASPEED_SPI_QUAD_ADDR_SUPPORT))
+			return false;
+		if (op->dummy.nbytes > 7)
 			return false;
 	}
 
@@ -1396,6 +1429,9 @@ static int aspeed_spi_probe(struct platform_device *pdev)
 
 	ast_ctrl->pure_spi_mode_only =
 		of_property_read_bool(dev->of_node, "pure-spi-mode-only");
+
+	if (of_property_read_bool(dev->of_node, "spi-quad-address"))
+		ast_ctrl->flag |= ASPEED_SPI_QUAD_ADDR_SUPPORT;
 
 	ast_ctrl->irq = platform_get_irq(pdev, 0);
 	if (ast_ctrl->irq < 0) {
