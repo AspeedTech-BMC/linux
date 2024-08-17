@@ -61,9 +61,10 @@
 /* CEx Address Decoding Range Register */
 #define CE0_SEGMENT_ADDR_REG		0x30
 
-#define CS_MODE_CTRL_REG		0x54
+#define MISC_CTRL_REG			0x54
 #define   SPI_CS_TO_DIS			BIT(26)
 #define   SPI_CS_CONTINUOUS		BIT(16)
+#define   DUMMY_OUTPUT_DATA		GENMASK(7, 0)
 
 #define HOST_DIRECT_ACCESS_CMD_CTRL4	0x6c
 #define HOST_DIRECT_ACCESS_CMD_CTRL2	0x74
@@ -770,9 +771,9 @@ static ssize_t aspeed_2700_spi_dirmap_dma_read(struct spi_mem_dirmap_desc *desc,
 			read_len += extra;
 		}
 
-		reg_val = readl(aspi->regs + CS_MODE_CTRL_REG);
+		reg_val = readl(aspi->regs + MISC_CTRL_REG);
 		reg_val |= (SPI_CS_CONTINUOUS | SPI_CS_TO_DIS);
-		writel(reg_val, aspi->regs + CS_MODE_CTRL_REG);
+		writel(reg_val, aspi->regs + MISC_CTRL_REG);
 
 		writel(chip->ctl_val[ASPEED_SPI_READ], chip->ctl);
 
@@ -821,7 +822,7 @@ static ssize_t aspeed_2700_spi_dirmap_dma_read(struct spi_mem_dirmap_desc *desc,
 	}
 
 end:
-	writel(0x0, aspi->regs + CS_MODE_CTRL_REG);
+	writel(0x0, aspi->regs + MISC_CTRL_REG);
 	writel(chip->ctl_val[ASPEED_SPI_READ], chip->ctl);
 
 	return ret ? 0 : len;
@@ -857,9 +858,9 @@ static ssize_t aspeed_2700_spi_dirmap_dma_write(struct spi_mem_dirmap_desc *desc
 	dev_dbg(dev, "write op:0x%x, addr:0x%08llx, len:0x%08zx\n",
 		op_tmpl.cmd.opcode, offs, len);
 
-	reg_val = readl(aspi->regs + CS_MODE_CTRL_REG);
+	reg_val = readl(aspi->regs + MISC_CTRL_REG);
 	reg_val |= (SPI_CS_TO_DIS);
-	writel(reg_val, aspi->regs + CS_MODE_CTRL_REG);
+	writel(reg_val, aspi->regs + MISC_CTRL_REG);
 
 	writel(chip->ctl_val[ASPEED_SPI_WRITE], chip->ctl);
 
@@ -897,7 +898,7 @@ static ssize_t aspeed_2700_spi_dirmap_dma_write(struct spi_mem_dirmap_desc *desc
 	       chip->ctl);
 
 	writel(chip->ctl_val[ASPEED_SPI_READ], chip->ctl);
-	writel(0x0, aspi->regs + CS_MODE_CTRL_REG);
+	writel(0x0, aspi->regs + MISC_CTRL_REG);
 
 	return ret ? 0 : len;
 }
@@ -1281,6 +1282,7 @@ static int aspeed_spi_dirmap_create(struct spi_mem_dirmap_desc *desc)
 	struct aspeed_spi_chip *chip = &aspi->chips[spi_get_chipselect(desc->mem->spi, 0)];
 	struct spi_mem_op *op = &desc->info.op_tmpl;
 	u32 ctl_val;
+	u32 reg_val;
 	u32 div = 0;
 	int i;
 	int ret = 0;
@@ -1316,6 +1318,13 @@ static int aspeed_spi_dirmap_create(struct spi_mem_dirmap_desc *desc)
 
 		if (op->dummy.nbytes)
 			ctl_val |= CTRL_IO_DUMMY_SET(op->dummy.nbytes);
+
+		if (op->addr.buswidth == 4) {
+			ctl_val |= BIT(15);
+			reg_val = readl(aspi->regs + MISC_CTRL_REG);
+			reg_val |= DUMMY_OUTPUT_DATA;
+			writel(reg_val, aspi->regs + MISC_CTRL_REG);
+		}
 
 		/* Tune 4BYTE address mode */
 		if (op->addr.nbytes) {
