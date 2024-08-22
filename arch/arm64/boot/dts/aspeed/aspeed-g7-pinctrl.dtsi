@@ -1247,4 +1247,34 @@
 		function = "PCIERC";
 		groups = "PCIERC2PERST";
 	};
+
+	pinctrl_usb2cud_default: usb2cud_default {
+		function = "USB2C";
+		groups = "USB2CUD";
+	};
+
+	pinctrl_usb2cd_default: usb2cd_default {
+		function = "USB2C";
+		groups = "USB2CD";
+	};
+
+	pinctrl_usb2ch_default: usb2ch_default {
+		function = "USB2C";
+		groups = "USB2CH";
+	};
+
+	pinctrl_usb2cu_default: usb2cu_default {
+		function = "USB2C";
+		groups = "USB2CU";
+	};
+
+	pinctrl_usb2dd_default: usb2dd_default {
+		function = "USB2D";
+		groups = "USB2DD";
+	};
+
+	pinctrl_usb2dh_default: usb2dh_default {
+		function = "USB2D";
+		groups = "USB2DH";
+	};
 };

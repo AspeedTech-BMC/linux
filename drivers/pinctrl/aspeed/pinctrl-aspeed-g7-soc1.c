@@ -17,6 +17,11 @@
 #include <linux/property.h>
 #include "pinctrl-aspeed.h"
 
+#define SCU3B0 0x3B0 /* USB Controller Register */
+#define SCU3B4 0x3B4 /* USB Controller Lock Register */
+#define SCU3B8 0x3B8 /* USB Controller Secure Register #1 */
+#define SCU3BC 0x3BC /* USB Controller Secure Register #2 */
+#define SCU3C0 0x3C0 /* USB Controller Secure Register #3 */
 #define SCU400 0x400 /* Multi-function Pin Control #1 */
 #define SCU404 0x404 /* Multi-function Pin Control #2 */
 #define SCU408 0x408 /* Multi-function Pin Control #3 */
@@ -278,7 +283,9 @@ enum {
 	V24,
 	U24,
 	SGMII0,
-	PCIERC2_PERST
+	PCIERC2_PERST,
+	PORTC_MODE, // SCU3B0[1:0]
+	PORTD_MODE, // SCU3B0[3:2]
 };
 
 GROUP_DECL(ESPI0, B16, D14, B15, B14, C17, B13, E14, C15);
@@ -532,6 +539,12 @@ GROUP_DECL(SMON1, U23, T24, W25, V24);
 GROUP_DECL(SGMII, SGMII0);
 //PCIE RC PERST
 GROUP_DECL(PCIERC2PERST, PCIERC2_PERST);
+GROUP_DECL(USB2CUD, PORTC_MODE);
+GROUP_DECL(USB2CD, PORTC_MODE);
+GROUP_DECL(USB2CH, PORTC_MODE);
+GROUP_DECL(USB2CU, PORTC_MODE);
+GROUP_DECL(USB2DD, PORTD_MODE);
+GROUP_DECL(USB2DH, PORTD_MODE);
 
 static struct aspeed_pin_group aspeed_g7_soc1_pingroups[] = {
 	ASPEED_PINCTRL_GROUP(ESPI0),
@@ -795,6 +808,12 @@ static struct aspeed_pin_group aspeed_g7_soc1_pingroups[] = {
 	ASPEED_PINCTRL_GROUP(SMON1),
 	ASPEED_PINCTRL_GROUP(SGMII),
 	ASPEED_PINCTRL_GROUP(PCIERC2PERST),
+	ASPEED_PINCTRL_GROUP(USB2CUD),
+	ASPEED_PINCTRL_GROUP(USB2CD),
+	ASPEED_PINCTRL_GROUP(USB2CH),
+	ASPEED_PINCTRL_GROUP(USB2CU),
+	ASPEED_PINCTRL_GROUP(USB2DD),
+	ASPEED_PINCTRL_GROUP(USB2DH),
 };
 
 FUNC_DECL_(ESPI0, "ESPI0");
@@ -996,6 +1015,8 @@ FUNC_DECL_(SMON0, "SMON0");
 FUNC_DECL_(SMON1, "SMON1");
 FUNC_DECL_(SGMII, "SGMII");
 FUNC_DECL_(PCIERC, "PCIERC2PERST");
+FUNC_DECL_(USB2C, "USB2CUD", "USB2CD", "USB2CH", "USB2CU");
+FUNC_DECL_(USB2D, "USB2DD", "USB2DH");
 
 static struct aspeed_pin_function aspeed_g7_soc1_funcs[] = {
 	ASPEED_PINCTRL_FUNC(ESPI0),
@@ -1200,6 +1221,8 @@ static struct aspeed_pin_function aspeed_g7_soc1_funcs[] = {
 	ASPEED_PINCTRL_FUNC(SMON1),
 	ASPEED_PINCTRL_FUNC(SGMII),
 	ASPEED_PINCTRL_FUNC(PCIERC),
+	ASPEED_PINCTRL_FUNC(USB2C),
+	ASPEED_PINCTRL_FUNC(USB2D),
 };
 
 /* number, name, drv_data */
@@ -1422,6 +1445,8 @@ static const struct pinctrl_pin_desc aspeed_g7_soc1_pins[] = {
 	PINCTRL_PIN(U24, "U24"),
 	PINCTRL_PIN(SGMII0, "SGMII0"),
 	PINCTRL_PIN(PCIERC2_PERST, "PCIERC2_PERST"),
+	PINCTRL_PIN(PORTC_MODE, "PORTC_MODE"),
+	PINCTRL_PIN(PORTD_MODE, "PORTD_MODE"),
 };
 
 FUNCFG_DESCL(C16, PIN_CFG(ESPI1, SCU400, GENMASK(2, 0), 1),
@@ -1935,6 +1960,12 @@ FUNCFG_DESCL(U24, PIN_CFG(SGPM1LD_R, SCU468, GENMASK(30, 28), (1 << 28)),
 	     PIN_CFG(MACLINK1, SCU468, GENMASK(30, 28), (3 << 28)));
 FUNCFG_DESCL(SGMII0, PIN_CFG(SGMII, SCU47C, BIT(0), 1 << 0));
 FUNCFG_DESCL(PCIERC2_PERST, PIN_CFG(PCIERC2PERST, SCU908, BIT(1), 1 << 1));
+FUNCFG_DESCL(PORTC_MODE, PIN_CFG(USB2CUD, SCU3B0, GENMASK(1, 0), 0),
+	     PIN_CFG(USB2CD, SCU3B0, GENMASK(1, 0), 1 << 0),
+	     PIN_CFG(USB2CH, SCU3B0, GENMASK(1, 0), 2 << 0),
+	     PIN_CFG(USB2CU, SCU3B0, GENMASK(1, 0), 3 << 0));
+FUNCFG_DESCL(PORTD_MODE, PIN_CFG(USB2DD, SCU3B0, GENMASK(3, 2), 1 << 2),
+	     PIN_CFG(USB2DH, SCU3B0, GENMASK(3, 2), 2 << 2));
 
 static const struct aspeed_g7_pincfg pin_cfg[] = {
 	PINCFG_PIN(C16),    PINCFG_PIN(C14),   PINCFG_PIN(C11),
@@ -2010,6 +2041,7 @@ static const struct aspeed_g7_pincfg pin_cfg[] = {
 	PINCFG_PIN(V26),    PINCFG_PIN(W26),   PINCFG_PIN(Y26),
 	PINCFG_PIN(W25),    PINCFG_PIN(V24),   PINCFG_PIN(U24),
 	PINCFG_PIN(SGMII0), PINCFG_PIN(PCIERC2_PERST),
+	PINCFG_PIN(PORTC_MODE), PINCFG_PIN(PORTD_MODE),
 };
 
 static int aspeed_g7_soc1_dt_node_to_map(struct pinctrl_dev *pctldev,
