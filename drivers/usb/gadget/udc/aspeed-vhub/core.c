@@ -383,46 +383,43 @@ static int ast_vhub_probe(struct platform_device *pdev)
 		goto err;
 
 	pdata = of_device_get_match_data(&pdev->dev);
-	if (!pdata) {
-		dev_err(&pdev->dev, "failed to get match data\n");
-		rc = -EINVAL;
-		goto err;
-	}
-	scu = syscon_regmap_lookup_by_phandle(pdev->dev.of_node, "aspeed,scu");
-	if (IS_ERR(scu)) {
-		dev_err(&pdev->dev, "failed to find SCU regmap\n");
-		rc = PTR_ERR(scu);
-		goto err;
-	}
+	if (pdata) {
+		scu = syscon_regmap_lookup_by_phandle(pdev->dev.of_node, "aspeed,scu");
+		if (IS_ERR(scu)) {
+			dev_err(&pdev->dev, "failed to find SCU regmap\n");
+			rc = PTR_ERR(scu);
+			goto err;
+		}
 
-	regmap_read(scu, ASPEED_G7_SCU_VHUB_USB_FUNC_OFFSET, &scu_usb);
+		regmap_read(scu, ASPEED_G7_SCU_VHUB_USB_FUNC_OFFSET, &scu_usb);
 
-	device = syscon_regmap_lookup_by_phandle(pdev->dev.of_node,
-						 "aspeed,device");
-	if (IS_ERR(device)) {
-		dev_err(&pdev->dev, "failed to find PCIe device regmap\n");
-		rc = PTR_ERR(device);
-		goto err;
-	}
-	/* Check EHCI or xHCI to virtual hub */
-	if ((scu_usb & pdata->usb_mode_mask) == 0) {
-		if (pdata->is_pcie_xhci) {
-			/* Check PCIe xHCI or BMC xHCI to virtual hub */
-			if ((scu_usb & pdata->xhci_mode_mask) == 0) {
-				dev_info(&pdev->dev, "PCIe xHCI to vhub\n");
+		device = syscon_regmap_lookup_by_phandle(pdev->dev.of_node,
+							 "aspeed,device");
+		if (IS_ERR(device)) {
+			dev_err(&pdev->dev, "failed to find PCIe device regmap\n");
+			rc = PTR_ERR(device);
+			goto err;
+		}
+		/* Check EHCI or xHCI to virtual hub */
+		if ((scu_usb & pdata->usb_mode_mask) == 0) {
+			if (pdata->is_pcie_xhci) {
+				/* Check PCIe xHCI or BMC xHCI to virtual hub */
+				if ((scu_usb & pdata->xhci_mode_mask) == 0) {
+					dev_info(&pdev->dev, "PCIe xHCI to vhub\n");
+					//EnPCIaMSI_EnPCIaIntA_EnPCIaMst_EnPCIaDev
+					/* Turn on PCIe xHCI without MSI */
+					regmap_update_bits(device, 0x70,
+							   BIT(19) | BIT(11) | BIT(3),
+							   BIT(19) | BIT(11) | BIT(3));
+				}
+			} else {
+				dev_info(&pdev->dev, "PCIe EHCI to vhub\n");
 				//EnPCIaMSI_EnPCIaIntA_EnPCIaMst_EnPCIaDev
-				/* Turn on PCIe xHCI without MSI */
+				/* Turn on PCIe EHCI without MSI */
 				regmap_update_bits(device, 0x70,
-						   BIT(19) | BIT(11) | BIT(3),
-						   BIT(19) | BIT(11) | BIT(3));
+						   BIT(18) | BIT(10) | BIT(2),
+						   BIT(18) | BIT(10) | BIT(2));
 			}
-		} else {
-			dev_info(&pdev->dev, "PCIe EHCI to vhub\n");
-			//EnPCIaMSI_EnPCIaIntA_EnPCIaMst_EnPCIaDev
-			/* Turn on PCIe EHCI without MSI */
-			regmap_update_bits(device, 0x70,
-					   BIT(18) | BIT(10) | BIT(2),
-					   BIT(18) | BIT(10) | BIT(2));
 		}
 	}
 #endif
@@ -545,6 +542,12 @@ static const struct of_device_id ast_vhub_dt_ids[] = {
 	{
 		.compatible = "aspeed,ast2700-usb-vhubb1",
 		.data = &ast2700_vhubb1_match_data,
+	},
+	{
+		.compatible = "aspeed,ast2700-usb-vhubc",
+	},
+	{
+		.compatible = "aspeed,ast2700-usb-vhubd",
 	},
 	{ }
 };
