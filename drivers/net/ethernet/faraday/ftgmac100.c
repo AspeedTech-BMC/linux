@@ -54,7 +54,7 @@
 #define FTGMAC_25MHZ		25000000
 
 /* For NC-SI to register a fixed-link phy device */
-struct fixed_phy_status ncsi_phy_status = {
+static struct fixed_phy_status ncsi_phy_status = {
 	.link = 1,
 	.speed = SPEED_100,
 	.duplex = DUPLEX_FULL,
