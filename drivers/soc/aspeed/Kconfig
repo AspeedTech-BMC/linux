@@ -157,6 +157,9 @@ config ASPEED_DISP_INTF
 	help
 	  Say yes to support control the display interface of ASPEED BMC.
 
+config ASPEED_PCIE_MMBI
+	tristate "ASPEED PCIE MMBI"
+
 source "drivers/soc/aspeed/rvas/Kconfig"
 
 endmenu
