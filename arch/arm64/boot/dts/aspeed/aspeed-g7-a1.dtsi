@@ -3,6 +3,7 @@
 #include <dt-bindings/reset/aspeed,ast2700-reset.h>
 #include <dt-bindings/interrupt-controller/arm-gic.h>
 #include <dt-bindings/interrupt-controller/aspeed-scu-ic.h>
+#include <dt-bindings/interrupt-controller/aspeed-e2m-ic.h>
 
 / {
 	model = "Aspeed BMC";
@@ -876,12 +877,37 @@
 
 		e2m_config0: e2m_config@12c21000 {
 			compatible = "syscon", "simple-mfd";
-			reg = <0 0x12c21000 0 0x200>;
+			reg = <0 0x12c21000 0 0x300>;
+			ranges = <0 0 0 0x12c21000 0 0x300>;
+			#address-cells = <2>;
+			#size-cells = <2>;
+			aspeed,device = <&pcie_device0>;
+
+			e2m_ic0: interrupt-controller@14 {
+				#interrupt-cells = <1>;
+				compatible = "aspeed,ast2700-e2m-ic";
+				reg = <0 0x14 0 0x8>;
+				interrupts-extended = <&gic GIC_SPI 116 IRQ_TYPE_LEVEL_HIGH>;
+				interrupt-names = "e2m";
+				interrupt-controller;
+			};
 		};
 
 		e2m_config1: e2m_config@12c22000 {
 			compatible = "syscon", "simple-mfd";
-			reg = <0 0x12c22000 0 0x200>;
+			reg = <0 0x12c22000 0 0x300>;
+			ranges = <0x0 0x0 0 0x12c22000 0 0x300>;
+			#address-cells = <2>;
+			#size-cells = <2>;
+			aspeed,device = <&pcie_device1>;
+
+			e2m_ic1: interrupt-controller@14 {
+				#interrupt-cells = <1>;
+				compatible = "aspeed,ast2700-e2m-ic";
+				reg = <0 0x14 0 0x8>;
+				interrupts-extended = <&gic GIC_SPI 117 IRQ_TYPE_LEVEL_HIGH>;
+				interrupt-controller;
+			};
 		};
 
 		hace: crypto@12070000 {
@@ -2193,6 +2219,23 @@
 				interrupt-controller;
 				#address-cells = <0>;
 				#interrupt-cells = <1>;
+			};
+		};
+
+		e2m_config2: e2m_config@14c1d000 {
+			compatible = "syscon", "simple-mfd";
+			reg = <0 0x14c1d000 0 0x300>;
+			ranges = <0x0 0x0 0 0x14c1d000 0 0x300>;
+			#address-cells = <2>;
+			#size-cells = <2>;
+			aspeed,device = <&pcie_device2>;
+
+			e2m_ic2: interrupt-controller@14 {
+				#interrupt-cells = <1>;
+				compatible = "aspeed,ast2700-e2m-ic";
+				reg = <0 0x14 0 0x8>;
+				interrupts-extended = <&soc1_intc4 20>;
+				interrupt-controller;
 			};
 		};
 	};
