@@ -2060,8 +2060,7 @@ static int ftgmac100_probe(struct platform_device *pdev)
 
 	/* AST2600 tx checksum with NCSI is broken */
 	if (priv->use_ncsi &&
-	    (of_device_is_compatible(np, "aspeed,ast2600-mac") ||
-	     of_device_is_compatible(np, "aspeed,ast2700-mac")))
+	    of_device_is_compatible(np, "aspeed,ast2600-mac"))
 		netdev->hw_features &= ~NETIF_F_HW_CSUM;
 
 	if (np && of_get_property(np, "no-hw-checksum", NULL))
