@@ -60,6 +60,27 @@
 			no-map;
 		};
 
+		pcie0_mmbi0_memory: pcie0_mmbi0_memory {
+			size = <0x0 0x00200000>;
+			alignment = <0x0 0x00200000>;
+			compatible = "shared-dma-pool";
+			no-map;
+		};
+
+		pcie1_mmbi4_memory: pcie1_mmbi4_memory {
+			size = <0x0 0x00200000>;
+			alignment = <0x0 0x00200000>;
+			compatible = "shared-dma-pool";
+			no-map;
+		};
+
+		pcie2_mmbi0_memory: pcie2_mmbi0_memory {
+			size = <0x0 0x00200000>;
+			alignment = <0x0 0x00200000>;
+			compatible = "shared-dma-pool";
+			no-map;
+		};
+
 		mctp0_reserved: mctp0_reserved@431080000 {
 			reg = <0x4 0x31080000 0x0 0x10000>;
 			compatible = "shared-dma-pool";
@@ -859,6 +880,32 @@
 &ecdsa {
 	status = "okay";
 };
+
+#if 1
+&pcie0_mmbi0 {
+	status = "okay";
+	memory-region = <&pcie0_mmbi0_memory>;
+
+	mmbi-bmc-int-value = /bits/ 8 <0x00>;
+	mmbi-bmc-int-offset = <0x100000>;
+};
+
+&pcie1_mmbi4 {
+	status = "okay";
+	memory-region = <&pcie1_mmbi4_memory>;
+
+	mmbi-bmc-int-value = /bits/ 8 <0x44>;
+	mmbi-bmc-int-offset = <0x100400>;
+};
+
+&pcie2_mmbi0 {
+	status = "okay";
+	memory-region = <&pcie2_mmbi0_memory>;
+
+	mmbi-bmc-int-value = /bits/ 8 <0x00>;
+	mmbi-bmc-int-offset = <0x100000>;
+};
+#endif
 
 #if 1
 &bmc_dev0 {
