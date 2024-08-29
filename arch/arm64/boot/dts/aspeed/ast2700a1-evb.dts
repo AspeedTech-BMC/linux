@@ -134,6 +134,20 @@
 			compatible = "shared-dma-pool";
 			reusable;
 		};
+
+		xdma_memory0: xdma0 {
+			size = <0x0 0x01000000>;
+			alignment = <0x0 0x01000000>;
+			compatible = "shared-dma-pool";
+			no-map;
+		};
+
+		xdma_memory1: xdma1 {
+			size = <0x0 0x01000000>;
+			alignment = <0x0 0x01000000>;
+			compatible = "shared-dma-pool";
+			no-map;
+		};
 	};
 
 	fan0: pwm-fan0 {
@@ -913,6 +927,11 @@
 	memory-region = <&bmc_dev0_memory>;
 };
 
+&xdma0 {
+	status = "okay";
+	memory-region = <&xdma_memory0>;
+};
+
 &pcie_vuart0 {
 	port = <0x3f8>;
 	sirq = <4>;
@@ -967,6 +986,11 @@
 &bmc_dev1 {
 	status = "okay";
 	memory-region = <&bmc_dev1_memory>;
+};
+
+&xdma1 {
+	status = "okay";
+	memory-region = <&xdma_memory1>;
 };
 
 &pcie_vuart2 {
