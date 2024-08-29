@@ -16,6 +16,7 @@
 #include <linux/module.h>
 #include <linux/serial_core.h>
 #include <linux/serial_8250.h>
+#include <linux/poll.h>
 
 #define PCI_BMC_HOST2BMC_Q1		0x30000
 #define PCI_BMC_HOST2BMC_Q2		0x30010
@@ -49,9 +50,15 @@
 
 static DEFINE_IDA(bmc_device_ida);
 
-#define MSI_INDX		4
+#define MMBI_MAX_INST		6
 #define VUART_MAX_PARMS		2
-#define ASPEED_QUEUE_NUM 2
+#define ASPEED_QUEUE_NUM	2
+#define MAX_MSI_NUM		8
+
+enum aspeed_platform_id {
+	ASPEED,
+	ASPEED_AST2700_SOC1,
+};
 
 enum queue_index {
 	QUEUE1 = 0,
@@ -63,11 +70,21 @@ enum msi_index {
 	MBX_MSI,
 	VUART0_MSI,
 	VUART1_MSI,
+	MMBI0_MSI,
+	MMBI1_MSI,
+	MMBI2_MSI,
+	MMBI3_MSI,
 };
 
-static int ast2600_msi_idx_table[MSI_INDX] = { 4, 21, 16, 15 };
-static int ast2700_msi_idx_table[MSI_INDX] = { 0, 11, 6, 5 };
+/* Match msi_index */
+static int ast2600_msi_idx_table[MAX_MSI_NUM] = { 4, 21, 16, 15 };
+static int ast2700_soc0_msi_idx_table[MAX_MSI_NUM] = { 0, 11, 6, 5, 28, 29, 30, 31 };
+/* ARRAY = MMIB0_MSI, MMBI1_MSI, MMBI2_MSI, MMBI3_MSI, MMBI4_MSI, MMBI5_MSI */
+static int ast2700_soc1_msi_idx_table[MAX_MSI_NUM] = { 0, 1, 2, 3, 4, 5 };
 
+struct aspeed_platform {
+	int (*setup)(struct pci_dev *pdev);
+};
 struct aspeed_queue_message {
 	/* Queue waiters for idle engine */
 	wait_queue_head_t tx_wait;
@@ -78,9 +95,22 @@ struct aspeed_queue_message {
 	struct aspeed_pci_bmc_dev *pci_bmc_device;
 };
 
+struct aspeed_pci_mmbi {
+	unsigned long base;
+	unsigned long size;
+	void __iomem *mem;
+	struct miscdevice mdev;
+	bool bmc_rwp_update;
+	wait_queue_head_t wq;
+	u32 segment_size;
+	int irq;
+};
+
 struct aspeed_pci_bmc_dev {
 	struct device *dev;
 	struct miscdevice miscdev;
+	struct aspeed_platform *platform;
+	kernel_ulong_t driver_data;
 	int id;
 
 	unsigned long mem_bar_base;
@@ -103,19 +133,61 @@ struct aspeed_pci_bmc_dev {
 	 * The index of array is using to enum msi_index
 	 */
 	int *msi_idx_table;
-	int irq_table[MSI_INDX];
+
+	bool ast2700_soc1;
+
+	/* AST2700 MMBI */
+	struct aspeed_pci_mmbi mmbi[MMBI_MAX_INST];
+	int mmbi_start_msi;
 };
 
-#define HOST_BMC_QUEUE_SIZE			(16 * 4)
-#define PCIE_DEVICE_SIO_ADDR		(0x2E * 4)
-#define BMC_MULTI_MSI	32
+#define PCIE_DEVICE_SIO_ADDR	(0x2E * 4)
+#define BMC_MULTI_MSI		32
 
 #define DRIVER_NAME "aspeed-host-bmc-dev"
 
+static int aspeed_pci_mmbi_mmap(struct file *fp, struct vm_area_struct *vma)
+{
+	struct aspeed_pci_mmbi *mmbi;
+	unsigned long vm_size;
+	pgprot_t prot;
+
+	mmbi = container_of(fp->private_data, struct aspeed_pci_mmbi, mdev);
+
+	vm_size = vma->vm_end - vma->vm_start;
+	prot = vma->vm_page_prot;
+
+	if (((vma->vm_pgoff << PAGE_SHIFT) + vm_size) > mmbi->size)
+		return -EINVAL;
+
+	prot = pgprot_noncached(prot);
+
+	if (remap_pfn_range(vma, vma->vm_start, (mmbi->base >> PAGE_SHIFT) + vma->vm_pgoff, vm_size,
+			    prot))
+		return -EAGAIN;
+
+	return 0;
+}
+
+static __poll_t aspeed_pci_mmbi_poll(struct file *fp, struct poll_table_struct *pt)
+{
+	struct aspeed_pci_mmbi *mmbi;
+
+	mmbi = container_of(fp->private_data, struct aspeed_pci_mmbi, mdev);
+
+	poll_wait(fp, &mmbi->wq, pt);
+
+	if (!mmbi->bmc_rwp_update)
+		return 0;
+
+	mmbi->bmc_rwp_update = false;
+
+	return EPOLLIN;
+}
+
 static struct aspeed_pci_bmc_dev *file_aspeed_bmc_device(struct file *file)
 {
-	return container_of(file->private_data, struct aspeed_pci_bmc_dev,
-			miscdev);
+	return container_of(file->private_data, struct aspeed_pci_bmc_dev, miscdev);
 }
 
 static int aspeed_pci_bmc_dev_mmap(struct file *file, struct vm_area_struct *vma)
@@ -140,6 +212,12 @@ static int aspeed_pci_bmc_dev_mmap(struct file *file, struct vm_area_struct *vma
 static const struct file_operations aspeed_pci_bmc_dev_fops = {
 	.owner		= THIS_MODULE,
 	.mmap		= aspeed_pci_bmc_dev_mmap,
+};
+
+static const struct file_operations aspeed_pci_mmbi_fops = {
+	.owner = THIS_MODULE,
+	.mmap = aspeed_pci_mmbi_mmap,
+	.poll = aspeed_pci_mmbi_poll,
 };
 
 static ssize_t aspeed_queue_rx(struct file *filp, struct kobject *kobj, struct bin_attribute *attr,
@@ -239,26 +317,35 @@ static irqreturn_t aspeed_pci_host_mbox_interrupt(int irq, void *dev_id)
 	return IRQ_HANDLED;
 }
 
+static irqreturn_t aspeed_pci_mmbi_isr(int irq, void *dev_id)
+{
+	struct aspeed_pci_mmbi *mmbi = dev_id;
+
+	mmbi->bmc_rwp_update = true;
+	wake_up_interruptible(&mmbi->wq);
+
+	return IRQ_HANDLED;
+}
+
 static void aspeed_pci_setup_irq_resource(struct pci_dev *pdev)
 {
 	struct aspeed_pci_bmc_dev *pci_bmc_dev = pci_get_drvdata(pdev);
-	int nr_entries, i;
 
 	/* Assign static msi index table by platform */
-	if (pdev->revision == 0x27)
-		pci_bmc_dev->msi_idx_table = ast2700_msi_idx_table;
-	else
+	if (pdev->revision == 0x27) {
+		if (pci_bmc_dev->driver_data == ASPEED) {
+			pci_bmc_dev->msi_idx_table = ast2700_soc0_msi_idx_table;
+		} else {
+			pci_bmc_dev->msi_idx_table = ast2700_soc1_msi_idx_table;
+			pci_bmc_dev->ast2700_soc1 = true;
+		}
+	} else {
 		pci_bmc_dev->msi_idx_table = ast2600_msi_idx_table;
+	}
 
-	nr_entries = pci_alloc_irq_vectors(pdev, 1, BMC_MULTI_MSI, PCI_IRQ_LEGACY | PCI_IRQ_MSI);
-	/* If number is one, use legacy interrupt or ONE MSI */
-	if (nr_entries <= 1)
+	if (pci_alloc_irq_vectors(pdev, 1, BMC_MULTI_MSI, PCI_IRQ_LEGACY | PCI_IRQ_MSI) <= 1)
 		/* Set all msi index to the first vector */
-		memset(pci_bmc_dev->msi_idx_table, 0, sizeof(int) * MSI_INDX);
-
-	/* Get msi irq number from vector */
-	for (i = 0; i < MSI_INDX; i++)
-		pci_bmc_dev->irq_table[i] = pci_irq_vector(pdev, pci_bmc_dev->msi_idx_table[i]);
+		memset(pci_bmc_dev->msi_idx_table, 0, sizeof(int) * MAX_MSI_NUM);
 }
 
 static int aspeed_pci_bmc_device_setup_queue(struct pci_dev *pdev)
@@ -316,7 +403,8 @@ static int aspeed_pci_bmc_device_setup_vuart(struct pci_dev *pdev)
 		vuart_ioport = 0x3F8 - (i * 0x100);
 		pci_bmc_dev->uart[i].port.flags = UPF_SKIP_TEST | UPF_BOOT_AUTOCONF | UPF_SHARE_IRQ;
 		pci_bmc_dev->uart[i].port.uartclk = 115200 * 16;
-		pci_bmc_dev->uart[i].port.irq = pci_bmc_dev->irq_table[VUART0_MSI + i];
+		pci_bmc_dev->uart[i].port.irq =
+			pci_irq_vector(pdev, pci_bmc_dev->msi_idx_table[VUART0_MSI + i]);
 		pci_bmc_dev->uart[i].port.dev = dev;
 		pci_bmc_dev->uart[i].port.iotype = UPIO_MEM32;
 		pci_bmc_dev->uart[i].port.iobase = 0;
@@ -383,16 +471,86 @@ static int aspeed_pci_bmc_device_setup_mbox(struct pci_dev *pdev)
 	writel(0x01, pci_bmc_dev->pcie_sio_decode_addr + 0x04);
 	pci_bmc_dev->sio_mbox_reg = pci_bmc_dev->msg_bar_reg + 0x400;
 
-	ret = request_irq(pci_bmc_dev->irq_table[MBX_MSI], aspeed_pci_host_mbox_interrupt,
-			  IRQF_SHARED,
-			  devm_kasprintf(dev, GFP_KERNEL, "aspeed-sio-mbox%d", pci_bmc_dev->id),
-			  pci_bmc_dev);
+	ret = devm_request_irq(dev,
+			       pci_irq_vector(pdev, pci_bmc_dev->msi_idx_table[MBX_MSI]),
+			       aspeed_pci_host_mbox_interrupt, IRQF_SHARED,
+			       devm_kasprintf(dev, GFP_KERNEL, "aspeed-sio-mbox%d", pci_bmc_dev->id),
+			       pci_bmc_dev);
 	if (ret) {
 		pr_err("host bmc device Unable to get IRQ %d\n", ret);
 		return ret;
 	}
 
 	return 0;
+}
+
+/* AST2700 PCIe MMBI
+ * SoC : |  0          |  1                |
+ * BAR : |  2  3  4  5 |  0  1  2  3  4  5 |
+ * MMBI: |  0  1  2  3 |  0  1  2  3  4  5 |
+ */
+static void aspeed_pci_bmc_device_setup_mmbi(struct pci_dev *pdev)
+{
+	struct aspeed_pci_bmc_dev *pci_bmc_dev = pci_get_drvdata(pdev);
+	struct aspeed_pci_mmbi *mmbi;
+	u32 start_bar = 2, mmbi_max_inst = 4, start_msi = MMBI0_MSI;	/* AST2700 SoC0 */
+	int i, rc = 0;
+
+	if (pdev->revision != 0x27)
+		return;
+
+	if (pci_bmc_dev->ast2700_soc1) {
+		/* AST2700 SoC1 */
+		start_bar = 0;
+		mmbi_max_inst = 6;
+		start_msi = 0;
+	}
+
+	for (i = 0; i < mmbi_max_inst; i++) {
+		mmbi = &pci_bmc_dev->mmbi[i];
+
+		/* Get MMBI BAR resource */
+		mmbi->base = pci_resource_start(pdev, start_bar + i);
+		mmbi->size = pci_resource_len(pdev, start_bar + i);
+
+		if (mmbi->size == 0)
+			continue;
+
+		mmbi->mem = pci_ioremap_bar(pdev, start_bar + i);
+		if (!mmbi->mem) {
+			mmbi->size = 0;
+			continue;
+		}
+
+		mmbi->mdev.parent = &pdev->dev;
+		mmbi->mdev.minor = MISC_DYNAMIC_MINOR;
+		mmbi->mdev.name = devm_kasprintf(&pdev->dev, GFP_KERNEL,
+						 "aspeed-pcie%d-mmbi%d",
+						 pci_bmc_dev->id, i);
+		mmbi->mdev.fops = &aspeed_pci_mmbi_fops;
+		rc = misc_register(&mmbi->mdev);
+		if (rc) {
+			dev_err(&pdev->dev, "Cannot register device %s (err=%d)\n",
+				mmbi->mdev.name, rc);
+			mmbi->size = 0;
+			iounmap(mmbi->mem);
+			continue;
+		}
+
+		mmbi->irq = pci_irq_vector(pdev, pci_bmc_dev->msi_idx_table[start_msi + i]);
+		rc = devm_request_irq(&pdev->dev, mmbi->irq, aspeed_pci_mmbi_isr, IRQF_SHARED,
+				      mmbi->mdev.name, mmbi);
+		if (rc) {
+			pr_err("MMBI device %s unable to get IRQ %d\n", mmbi->mdev.name, rc);
+			misc_deregister(&mmbi->mdev);
+			mmbi->size = 0;
+			iounmap(mmbi->mem);
+			continue;
+		}
+
+		mmbi->bmc_rwp_update = false;
+		init_waitqueue_head(&mmbi->wq);
+	}
 }
 
 static void aspeed_pci_host_bmc_device_release_queue(struct pci_dev *pdev)
@@ -423,59 +581,40 @@ static void aspeed_pci_host_bmc_device_release_memory_mapping(struct pci_dev *pd
 		misc_deregister(&pci_bmc_dev->miscdev);
 }
 
-static int aspeed_pci_host_bmc_device_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
+static void aspeed_pci_release_mmbi(struct pci_dev *pdev)
 {
-	struct aspeed_pci_bmc_dev *pci_bmc_dev;
+	struct aspeed_pci_bmc_dev *pci_bmc_dev = pci_get_drvdata(pdev);
+	struct aspeed_pci_mmbi *mmbi;
+	int i;
+
+	if (pdev->revision != 0x27)
+		return;
+
+	for (i = 0; i < MMBI_MAX_INST; i++) {
+		mmbi = &pci_bmc_dev->mmbi[i];
+
+		if (mmbi->size == 0)
+			continue;
+		misc_deregister(&mmbi->mdev);
+		devm_free_irq(&pdev->dev, mmbi->irq, mmbi);
+	}
+}
+
+static int aspeed_pci_host_setup(struct pci_dev *pdev)
+{
+	struct aspeed_pci_bmc_dev *pci_bmc_dev = pci_get_drvdata(pdev);
 	int rc = 0;
 
-	pr_info("ASPEED BMC PCI ID %04x:%04x, IRQ=%u\n", pdev->vendor, pdev->device, pdev->irq);
-
-	pci_bmc_dev = kzalloc(sizeof(*pci_bmc_dev), GFP_KERNEL);
-	if (!pci_bmc_dev) {
-		rc = -ENOMEM;
-		dev_err(&pdev->dev, "kmalloc() returned NULL memory.\n");
-		goto out_err;
-	}
-
-	pci_bmc_dev->id = ida_simple_get(&bmc_device_ida, 0, 0, GFP_KERNEL);
-	if (pci_bmc_dev->id < 0)
-		goto out_free;
-
-	rc = pci_enable_device(pdev);
-	if (rc != 0) {
-		dev_err(&pdev->dev, "pci_enable_device() returned error %d\n", rc);
-		goto out_free;
-	}
-
-	/* set PCI host mastering  */
-	pci_set_master(pdev);
-
-	pci_set_drvdata(pdev, pci_bmc_dev);
-
-	aspeed_pci_setup_irq_resource(pdev);
-
-	pr_info("ASPEED BMC PCI ID %04x:%04x, IRQ=%u\n", pdev->vendor, pdev->device, pdev->irq);
-
-	//Get MEM bar
+	/* Get share memory BAR */
 	pci_bmc_dev->mem_bar_base = pci_resource_start(pdev, 0);
 	pci_bmc_dev->mem_bar_size = pci_resource_len(pdev, 0);
-
-	pr_info("BAR0 I/O Mapped Base Address is: %08lx End %08lx\n",
-		pci_bmc_dev->mem_bar_base, pci_bmc_dev->mem_bar_size);
-
 	pci_bmc_dev->mem_bar_reg = pci_ioremap_bar(pdev, 0);
-	if (!pci_bmc_dev->mem_bar_reg) {
-		rc = -ENOMEM;
-		goto out_free;
-	}
+	if (!pci_bmc_dev->mem_bar_reg)
+		return -ENOMEM;
 
-	//Get MSG BAR info
+	/* Get Message BAR */
 	pci_bmc_dev->message_bar_base = pci_resource_start(pdev, 1);
 	pci_bmc_dev->message_bar_size = pci_resource_len(pdev, 1);
-
-	pr_info("MSG BAR1 Memory Mapped Base Address is: %08lx End %08lx\n",
-		pci_bmc_dev->message_bar_base, pci_bmc_dev->message_bar_size);
-
 	pci_bmc_dev->msg_bar_reg = pci_ioremap_bar(pdev, 1);
 	if (!pci_bmc_dev->msg_bar_reg) {
 		rc = -ENOMEM;
@@ -488,41 +627,46 @@ static int aspeed_pci_host_bmc_device_probe(struct pci_dev *pdev, const struct p
 
 	rc = aspeed_pci_bmc_device_setup_queue(pdev);
 	if (rc) {
-		pr_err("Cannot setup queue message");
+		pr_err("Cannot setup Queue Message");
 		goto out_free1;
 	}
 
 	rc = aspeed_pci_bmc_device_setup_memory_mapping(pdev);
 	if (rc) {
-		pr_err("Cannot setup memory mapping");
+		pr_err("Cannot setup Memory Mapping");
 		goto out_free_queue;
 	}
 
 	rc = aspeed_pci_bmc_device_setup_mbox(pdev);
 	if (rc) {
-		pr_err("Cannot setup MBOX");
+		pr_err("Cannot setup Mailnbox");
 		goto out_free_mmapping;
 	}
 
 	rc = aspeed_pci_bmc_device_setup_vuart(pdev);
 	if (rc) {
-		pr_err("Cannot setup VUART");
+		pr_err("Cannot setup Virtual UART");
 		goto out_free_mbox;
 	}
 
-	rc = request_irq(pci_bmc_dev->irq_table[BMC_MSI], aspeed_pci_host_bmc_device_interrupt,
-			 IRQF_SHARED, pci_bmc_dev->miscdev.name, pci_bmc_dev);
+	rc = devm_request_irq(&pdev->dev, pci_irq_vector(pdev, pci_bmc_dev->msi_idx_table[BMC_MSI]),
+			      aspeed_pci_host_bmc_device_interrupt, IRQF_SHARED,
+			      pci_bmc_dev->miscdev.name, pci_bmc_dev);
 	if (rc) {
-		pr_err("host bmc device Unable to get IRQ %d\n", rc);
+		pr_err("Get BMC DEVICE IRQ failed. (err=%d)\n", rc);
 		goto out_free_uart;
 	}
+
+	/* Setup AST2700 SoC0 MMBI device */
+	aspeed_pci_bmc_device_setup_mmbi(pdev);
 
 	return 0;
 
 out_free_uart:
 	aspeed_pci_host_bmc_device_release_vuart(pdev);
 out_free_mbox:
-	free_irq(pci_bmc_dev->irq_table[MBX_MSI], pci_bmc_dev);
+	devm_free_irq(&pdev->dev, pci_irq_vector(pdev, pci_bmc_dev->msi_idx_table[MBX_MSI]),
+		      pci_bmc_dev);
 out_free_mmapping:
 	aspeed_pci_host_bmc_device_release_memory_mapping(pdev);
 out_free_queue:
@@ -531,28 +675,87 @@ out_free1:
 	iounmap(pci_bmc_dev->msg_bar_reg);
 out_free0:
 	iounmap(pci_bmc_dev->mem_bar_reg);
-out_free:
-	pci_release_regions(pdev);
-	kfree(pci_bmc_dev);
-out_err:
-	pci_disable_device(pdev);
 
+	pci_release_regions(pdev);
 	return rc;
+}
+
+static int aspeed_pci_host_mmbi_device_setup(struct pci_dev *pdev)
+{
+	aspeed_pci_bmc_device_setup_mmbi(pdev);
+	return 0;
+}
+
+static struct aspeed_platform aspeed_pcie_host[] = {
+	{ .setup = aspeed_pci_host_setup },
+	{ .setup = aspeed_pci_host_mmbi_device_setup },
+	{ 0 }
+};
+
+static int aspeed_pci_host_bmc_device_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
+{
+	struct aspeed_pci_bmc_dev *pci_bmc_dev;
+	int rc = 0;
+
+	pr_info("ASPEED BMC PCI ID %04x:%04x, IRQ=%u\n", pdev->vendor, pdev->device, pdev->irq);
+
+	pci_bmc_dev = devm_kzalloc(&pdev->dev, sizeof(*pci_bmc_dev), GFP_KERNEL);
+	if (!pci_bmc_dev)
+		return -ENOMEM;
+
+	/* Get platform id */
+	pci_bmc_dev->driver_data = ent->driver_data;
+	pci_bmc_dev->platform = &aspeed_pcie_host[ent->driver_data];
+
+	pci_bmc_dev->id = ida_simple_get(&bmc_device_ida, 0, 0, GFP_KERNEL);
+	if (pci_bmc_dev->id < 0)
+		return pci_bmc_dev->id;
+
+	rc = pci_enable_device(pdev);
+	if (rc) {
+		dev_err(&pdev->dev, "pci_enable_device() returned error %d\n", rc);
+		return rc;
+	}
+
+	pci_set_master(pdev);
+	pci_set_drvdata(pdev, pci_bmc_dev);
+
+	/* Prepare IRQ resource */
+	aspeed_pci_setup_irq_resource(pdev);
+
+	/* Setup BMC PCI device */
+	rc = pci_bmc_dev->platform->setup(pdev);
+	if (rc) {
+		dev_err(&pdev->dev, "ASPEED PCIe Host device returned error %d\n", rc);
+		pci_free_irq_vectors(pdev);
+		pci_disable_device(pdev);
+		return rc;
+	}
+
+	return 0;
 }
 
 static void aspeed_pci_host_bmc_device_remove(struct pci_dev *pdev)
 {
 	struct aspeed_pci_bmc_dev *pci_bmc_dev = pci_get_drvdata(pdev);
 
-	aspeed_pci_host_bmc_device_release_queue(pdev);
-	aspeed_pci_host_bmc_device_release_memory_mapping(pdev);
-	aspeed_pci_host_bmc_device_release_vuart(pdev);
+	if (pci_bmc_dev->driver_data == ASPEED) {
+		aspeed_pci_host_bmc_device_release_queue(pdev);
+		aspeed_pci_host_bmc_device_release_memory_mapping(pdev);
+		aspeed_pci_host_bmc_device_release_vuart(pdev);
 
-	free_irq(pci_bmc_dev->irq_table[BMC_MSI], pci_bmc_dev);
-	free_irq(pci_bmc_dev->irq_table[MBX_MSI], pci_bmc_dev);
+		devm_free_irq(&pdev->dev, pci_irq_vector(pdev, pci_bmc_dev->msi_idx_table[BMC_MSI]),
+			      pci_bmc_dev);
+		devm_free_irq(&pdev->dev, pci_irq_vector(pdev, pci_bmc_dev->msi_idx_table[MBX_MSI]),
+			      pci_bmc_dev);
+	}
 
+	aspeed_pci_release_mmbi(pdev);
+
+	ida_simple_remove(&bmc_device_ida, pci_bmc_dev->id);
+
+	pci_free_irq_vectors(pdev);
 	pci_release_regions(pdev);
-	kfree(pci_bmc_dev);
 	pci_disable_device(pdev);
 }
 
@@ -561,8 +764,15 @@ static void aspeed_pci_host_bmc_device_remove(struct pci_dev *pdev)
  *
  */
 static struct pci_device_id aspeed_host_bmc_dev_pci_ids[] = {
-	{ PCI_DEVICE(0x1A03, 0x2402), },
-	{ 0, }
+	/* ASPEED BMC Device */
+	{ PCI_DEVICE(0x1A03, 0x2402), .class = 0xFF0000, .class_mask = 0xFFFF00,
+	  .driver_data = ASPEED },
+	/* AST2700 SoC1 MMBI device */
+	{ PCI_DEVICE(0x1A03, 0x2402), .class = 0x0C0C00, .class_mask = (0xFFFF00),
+	  .driver_data = ASPEED_AST2700_SOC1 },
+	{
+		0,
+	}
 };
 
 MODULE_DEVICE_TABLE(pci, aspeed_host_bmc_dev_pci_ids);
