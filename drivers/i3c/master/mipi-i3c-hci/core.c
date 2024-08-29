@@ -1316,8 +1316,8 @@ static irqreturn_t i3c_aspeed_irq_handler(int irqn, void *dev_id)
 
 static int i3c_hci_init(struct i3c_hci *hci)
 {
+	bool size_in_dwords, mode_selector;
 	u32 regval, offset;
-	bool size_in_dwords;
 	int ret;
 
 	/* Validate HCI hardware version */
@@ -1443,10 +1443,13 @@ static int i3c_hci_init(struct i3c_hci *hci)
 		return -EINVAL;
 	}
 
+	mode_selector = hci->version_major > 1 ||
+				(hci->version_major == 1 && hci->version_minor > 0);
+
 	/* Try activating DMA operations first */
 	if (hci->RHS_regs) {
 		reg_clear(HC_CONTROL, HC_CONTROL_PIO_MODE);
-		if (reg_read(HC_CONTROL) & HC_CONTROL_PIO_MODE) {
+		if (mode_selector && (reg_read(HC_CONTROL) & HC_CONTROL_PIO_MODE)) {
 			dev_err(&hci->master.dev, "PIO mode is stuck\n");
 			ret = -EIO;
 		} else if (!hci->dma_rst) {
@@ -1468,7 +1471,7 @@ static int i3c_hci_init(struct i3c_hci *hci)
 	/* If no DMA, try PIO */
 	if (!hci->io && hci->PIO_regs) {
 		reg_set(HC_CONTROL, HC_CONTROL_PIO_MODE);
-		if (!(reg_read(HC_CONTROL) & HC_CONTROL_PIO_MODE)) {
+		if (mode_selector && !(reg_read(HC_CONTROL) & HC_CONTROL_PIO_MODE)) {
 			dev_err(&hci->master.dev, "DMA mode is stuck\n");
 			ret = -EIO;
 		} else {
