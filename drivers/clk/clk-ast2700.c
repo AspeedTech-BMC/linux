@@ -833,8 +833,8 @@ static int ast2700_soc1_init(struct platform_device *pdev)
 					     CLK_IS_CRITICAL, clk_base + SCU1_CLK_STOP2,
 					     11, 0, &ast2700_clk_lock);
 
-	clks[SCU1_CLK_GATE_USBUARTCLK] =
-		ast2700_clk_hw_register_gate(NULL, "usbuartclk-gate", NULL,
+	clks[SCU1_CLK_GATE_UHCICLK] =
+		ast2700_clk_hw_register_gate(NULL, "usbuhciclk-gate", NULL,
 					     0, clk_base + SCU1_CLK_STOP2,
 					     12, 0, &ast2700_clk_lock);
 
@@ -854,6 +854,16 @@ static int ast2700_soc1_init(struct platform_device *pdev)
 		ast2700_clk_hw_register_gate(NULL, "sliclk-gate", NULL,
 					     CLK_IS_CRITICAL, clk_base + SCU1_CLK_STOP2,
 					     15, 0, &ast2700_clk_lock);
+
+	clks[SCU1_CLK_GATE_PORTCUSB2CLK] =
+		ast2700_clk_hw_register_gate(NULL, "usb2cclk-gate", NULL,
+					     0, clk_base + SCU1_CLK_STOP2,
+					     17, 0, &ast2700_clk_lock);
+
+	clks[SCU1_CLK_GATE_PORTDUSB2CLK] =
+		ast2700_clk_hw_register_gate(NULL, "usb2dclk-gate", NULL,
+					     0, clk_base + SCU1_CLK_STOP2,
+					     18, 0, &ast2700_clk_lock);
 
 	ret = devm_of_clk_add_hw_provider(dev, of_clk_hw_onecell_get, clk_data);
 	if (ret)

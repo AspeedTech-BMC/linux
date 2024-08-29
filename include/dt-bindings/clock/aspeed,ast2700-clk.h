@@ -125,7 +125,7 @@
 #define SCU1_CLK_GATE_LTPIPHYCLK  (32 + 9)
 #define SCU1_CLK_GATE_LTPICLK     (32 + 10)
 #define SCU1_CLK_GATE_VGALCLK     (32 + 11)
-#define SCU1_CLK_GATE_USBUARTCLK  (32 + 12)
+#define SCU1_CLK_GATE_UHCICLK     (32 + 12)
 #define SCU1_CLK_GATE_CANCLK      (32 + 13)
 #define SCU1_CLK_GATE_PCICLK	  (32 + 14)
 #define SCU1_CLK_GATE_SLICLK      (32 + 15)
