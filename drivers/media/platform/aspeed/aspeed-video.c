@@ -1659,7 +1659,9 @@ static void aspeed_video_set_resolution(struct aspeed_video *video)
 				ctrl |= VE_CTRL_INT_DE;
 			aspeed_video_write(video, VE_TGS_1, act->width * (bpp >> 3));
 		} else {
-			aspeed_video_write(video, VE_TGS_1, act->width * 4);
+			// stride should be the same with capture window width
+			val = aspeed_video_read(video, VE_CAP_WINDOW) >> 16;
+			aspeed_video_write(video, VE_TGS_1, val * 4);
 		}
 		aspeed_video_update(video, VE_CTRL,
 				    VE_CTRL_INT_DE | VE_CTRL_DIRECT_FETCH,
