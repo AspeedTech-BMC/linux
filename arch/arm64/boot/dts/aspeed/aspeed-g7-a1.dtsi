@@ -292,7 +292,7 @@
 			status = "disabled";
 		};
 
-		uhci: usb@12040000 {
+		uhci0: usb@12040000 {
 			compatible = "aspeed,ast2700-uhci", "generic-uhci";
 			reg = <0x0 0x12040000 0x0 0x100>;
 			interrupts = <GIC_SPI 10 IRQ_TYPE_LEVEL_HIGH>;
@@ -1289,6 +1289,66 @@
 			clocks = <&syscon1 SCU1_CLK_AHB>;
 			resets = <&syscon1 SCU1_RESET_PWM>;
 			#pwm-cells = <3>;
+			status = "disabled";
+		};
+
+		uhci1: usb@14110000 {
+			compatible = "aspeed,ast2700-uhci", "generic-uhci";
+			reg = <0x0 0x14110000 0x0 0x100>;
+			interrupts-extended = <&soc1_intc4 27>;
+			#ports = <2>;
+			clocks = <&syscon1 SCU1_CLK_GATE_UHCICLK>;
+			resets = <&syscon1 SCU1_RESET_UHCI>;
+			status = "disabled";
+		};
+
+		vhubc: usb-vhub@14120000 {
+			compatible = "aspeed,ast2700-usb-vhubc";
+			reg = <0x0 0x14120000 0x0 0x350>;
+			interrupts-extended = <&soc1_intc4 28>;
+			clocks = <&syscon1 SCU1_CLK_GATE_PORTCUSB2CLK>;
+			resets = <&syscon1 SCU1_RESET_PORTC_VHUB_EHCI>;
+			aspeed,vhub-downstream-ports = <7>;
+			aspeed,vhub-generic-endpoints = <21>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&pinctrl_usb2cd_default>;
+			aspeed,scu = <&syscon0>;
+			status = "disabled";
+		};
+
+		ehci2: usb@14121000 {
+			compatible = "aspeed,ast2700-ehci", "generic-ehci";
+			reg = <0x0 0x14121000 0x0 0x100>;
+			interrupts-extended = <&soc1_intc4 28>;
+			clocks = <&syscon1 SCU1_CLK_GATE_PORTCUSB2CLK>;
+			resets = <&syscon1 SCU1_RESET_PORTC_VHUB_EHCI>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&pinctrl_usb2ch_default>;
+			status = "disabled";
+		};
+
+		vhubd: usb-vhub@14122000 {
+			compatible = "aspeed,ast2700-usb-vhubd";
+			reg = <0x0 0x14122000 0x0 0x350>;
+			interrupts-extended = <&soc1_intc4 29>;
+			clocks = <&syscon1 SCU1_CLK_GATE_PORTDUSB2CLK>;
+			resets = <&syscon1 SCU1_RESET_PORTD_VHUB_EHCI>;
+			aspeed,vhub-downstream-ports = <7>;
+			aspeed,vhub-generic-endpoints = <21>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&pinctrl_usb2dd_default>;
+			aspeed,scu = <&syscon0>;
+			status = "disabled";
+		};
+
+		ehci3: usb@14123000 {
+			compatible = "aspeed,ast2700-ehci", "generic-ehci";
+			reg = <0x0 0x14123000 0x0 0x100>;
+			interrupts-extended = <&soc1_intc4 29>;
+			clocks = <&syscon1 SCU1_CLK_GATE_PORTDUSB2CLK>;
+			resets = <&syscon1 SCU1_RESET_PORTD_VHUB_EHCI>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&pinctrl_usb2dh_default>;
 			status = "disabled";
 		};
 
