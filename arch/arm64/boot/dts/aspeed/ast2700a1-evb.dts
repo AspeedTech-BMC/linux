@@ -1095,7 +1095,7 @@
 	status = "okay";
 };
 
-&uhci {
+&uhci0 {
 	status = "okay";
 };
 
@@ -1159,6 +1159,18 @@
 	status = "okay";
 };
 #endif
+
+&vhubc {
+	status = "okay";
+};
+
+&ehci3 {
+	status = "okay";
+};
+
+&uhci1 {
+	status = "okay";
+};
 
 &wdt0 {
 	status = "okay";
