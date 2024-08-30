@@ -708,19 +708,19 @@ static const struct irq_chip aspeed_gpio_g7_irq_chip = {
 static const struct aspeed_bank_props ast2700_bank_props[] = {
 	/*     input	  output   */
 	{ 1, 0x0fffffff, 0x0fffffff }, /* E/F/G/H, 4-GPIO hole */
-	{ 7, 0x000fffff, 0x000fffff }, /* AC/AD/AE */
+	{ 6, 0x00ffffff, 0x00ffffff }, /* Y/Z/AA */
 	{},
 };
 
 static const struct aspeed_gpio_g7_config ast2700_config =
 	/*
-	 * ast2700 has two controllers one with 240 GPIOs and one with 16 GPIOs.
-	 * 244 for simplicity, actual number is 240 (4-GPIO hole in GPIOH)
+	 * ast2700 has two controllers one with 212 GPIOs and one with 16 GPIOs.
+	 * 216 for simplicity, actual number is 212 (4-GPIO hole in GPIOH)
 	 * We expect ngpio being set in the device tree and this is a fallback
 	 * option.
 	 */
 	{
-		.nr_gpios = 244,
+		.nr_gpios = 216,
 		.props = ast2700_bank_props,
 	};
 
