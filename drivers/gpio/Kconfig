@@ -163,13 +163,6 @@ config GPIO_ASPEED
 	help
 	  Say Y here to support Aspeed AST2400 and AST2500 GPIO controllers.
 
-config GPIO_ASPEED_G7
-	tristate "Aspeed G7 GPIO support"
-	depends on (ARCH_ASPEED || COMPILE_TEST) && OF_GPIO
-	select GPIOLIB_IRQCHIP
-	help
-	  Say Y here to support Aspeed AST2700 GPIO controllers.
-
 config GPIO_ASPEED_SGPIO
 	bool "Aspeed SGPIO support"
 	depends on (ARCH_ASPEED || COMPILE_TEST) && OF_GPIO
