@@ -1253,19 +1253,20 @@ static const struct aspeed_gpio_config ast2600_config =
 static const struct aspeed_bank_props ast2700_bank_props[] = {
 	/*     input	  output   */
 	{ 1, 0x0fffffff, 0x0fffffff }, /* E/F/G/H, 4-GPIO hole */
-	{ 6, 0x00ffffff, 0x00ff0000 }, /* Y/Z/AA */
+	{ 6, 0xffffffff, 0xffff0000 }, /* Y/Z/AA/AB */
+	{ 7, 0x000fffff, 0x000fffff }, /* AC/AD/AE */
 	{},
 };
 
 static const struct aspeed_gpio_config ast2700_config =
 	/*
-	 * ast2700 has two controllers one with 212 GPIOs and one with 16 GPIOs.
-	 * 216 for simplicity, actual number is 212 (4-GPIO hole in GPIOH)
+	 * ast2700 has two controllers one with 240 GPIOs and one with 16 GPIOs.
+	 * 244 for simplicity, actual number is 240 (4-GPIO hole in GPIOH)
 	 * We expect ngpio being set in the device tree and this is a fallback
 	 * option.
 	 */
 	{
-		.nr_gpios = 216,
+		.nr_gpios = 244,
 		.props = ast2700_bank_props,
 		.llops = &aspeed_g7_llops,
 		.debounce_timers_array = g7_debounce_timers,
