@@ -102,15 +102,13 @@
 	status = "okay";
 };
 
-&uart9 {
+&uart3 {
 	/delete-property/ pinctrl-names;
 	/delete-property/ pinctrl-0;
 	status = "okay";
 };
 
-&uart10 {
-	/delete-property/ pinctrl-names;
-	/delete-property/ pinctrl-0;
+&uart13 {
 	status = "okay";
 };
 

@@ -26,14 +26,16 @@
 		serial10 = &uart10;
 		serial11 = &uart11;
 		serial12 = &uart12;
-		serial13 = &vuart0;
-		serial14 = &vuart1;
-		serial15 = &vuart2;
-		serial16 = &vuart3;
-		serial17 = &pcie_vuart0;
-		serial18 = &pcie_vuart1;
-		serial19 = &pcie_vuart2;
-		serial20 = &pcie_vuart3;
+		serial13 = &uart13;
+		serial14 = &uart14;
+		serial15 = &vuart0;
+		serial16 = &vuart1;
+		serial17 = &vuart2;
+		serial18 = &vuart3;
+		serial19 = &pcie_vuart0;
+		serial20 = &pcie_vuart1;
+		serial21 = &pcie_vuart2;
+		serial22 = &pcie_vuart3;
 		i2c0 = &i2c0;
 		i2c1 = &i2c1;
 		i2c2 = &i2c2;
@@ -2138,6 +2140,30 @@
 			interrupts-extended = <&soc1_intc4 18>;
 			no-loopback-test;
 			pinctrl-names = "default";
+		};
+
+		uart13: serial@14c33c00 {
+			compatible = "ns16550a";
+			reg = <0x0 0x14c33c00 0x0 0x100>;
+			reg-shift = <2>;
+			reg-io-width = <4>;
+			interrupts-extended = <&soc1_intc0 23>;
+			clock-frequency = <1846154>;
+			no-loopback-test;
+			pinctrl-names = "default";
+			status = "disabled";
+		};
+
+		uart14: serial@14c33d00 {
+			compatible = "ns16550a";
+			reg = <0x0 0x14c33d00 0x0 0x100>;
+			reg-shift = <2>;
+			reg-io-width = <4>;
+			interrupts-extended = <&soc1_intc1 23>;
+			clock-frequency = <1846154>;
+			no-loopback-test;
+			pinctrl-names = "default";
+			status = "disabled";
 		};
 
 		ltpi0: ltpi@14c34000 {
