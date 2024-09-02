@@ -4,14 +4,13 @@
  * Author: Ryan Chen <ryan_chen@aspeedtech.com>
  */
 
+#include <linux/auxiliary_bus.h>
 #include <linux/clk-provider.h>
 #include <linux/of_address.h>
 #include <linux/of_device.h>
-#include <linux/reset-controller.h>
 #include <linux/slab.h>
 
 #include <dt-bindings/clock/aspeed,ast2700-clk.h>
-#include <dt-bindings/reset/aspeed,ast2700-reset.h>
 
 #define SCU_CLK_24MHZ 24000000
 #define SCU_CLK_25MHZ 25000000
@@ -310,55 +309,6 @@ static struct clk_hw *ast2700_clk_hw_register_gate(struct device *dev, const cha
 	return hw;
 }
 
-struct ast2700_reset {
-	void __iomem *base;
-	struct reset_controller_dev rcdev;
-};
-
-#define to_rc_data(p) container_of(p, struct ast2700_reset, rcdev)
-
-static int ast2700_reset_assert(struct reset_controller_dev *rcdev, unsigned long id)
-{
-	struct ast2700_reset *rc = to_rc_data(rcdev);
-	u32 rst = BIT(id % 32);
-	u32 reg = id >= 32 ? 0x220 : 0x200;
-
-	if (id == SCU1_RESET_PCIE2RST)
-		writel(readl(rc->base + 0x908) & ~BIT(0), rc->base + 0x908);
-	else
-		writel(rst, rc->base + reg);
-	return 0;
-}
-
-static int ast2700_reset_deassert(struct reset_controller_dev *rcdev, unsigned long id)
-{
-	struct ast2700_reset *rc = to_rc_data(rcdev);
-	u32 rst = BIT(id % 32);
-	u32 reg = id >= 32 ? 0x220 : 0x200;
-
-	if (id == SCU1_RESET_PCIE2RST)
-		writel(readl(rc->base + 0x908) | BIT(0), rc->base + 0x908);
-	else
-		/* Use set to clear register */
-		writel(rst, rc->base + reg + 0x04);
-	return 0;
-}
-
-static int ast2700_reset_status(struct reset_controller_dev *rcdev, unsigned long id)
-{
-	struct ast2700_reset *rc = to_rc_data(rcdev);
-	u32 rst = BIT(id % 32);
-	u32 reg = id >= 32 ? 0x220 : 0x200;
-
-	return (readl(rc->base + reg) & rst);
-}
-
-static const struct reset_control_ops ast2700_reset_ops = {
-	.assert = ast2700_reset_assert,
-	.deassert = ast2700_reset_deassert,
-	.status = ast2700_reset_status,
-};
-
 static const char *const sdclk_sel[] = {
 	"soc1-hpll",
 	"soc1-apll",
@@ -428,17 +378,64 @@ static void ast2700_soc1_configure_mac01_clk(struct device_node *np)
 	writel(reg[2], clk_base + SCU1_MAC12_CLK_DLY_10M);
 }
 
-static int ast2700_soc1_clk_init(struct device_node *soc1_node)
+static void aspeed_reset_unregister_adev(void *_adev)
+{
+	struct auxiliary_device *adev = _adev;
+
+	auxiliary_device_delete(adev);
+	auxiliary_device_uninit(adev);
+}
+
+static void aspeed_reset_adev_release(struct device *dev)
+{
+	struct auxiliary_device *adev = to_auxiliary_dev(dev);
+
+	kfree(adev);
+}
+
+static int aspeed_reset_controller_register(struct device *clk_dev,
+					    void __iomem *base, const char *adev_name)
+{
+	struct auxiliary_device *adev;
+	int ret;
+
+	adev = kzalloc(sizeof(*adev), GFP_KERNEL);
+	if (!adev)
+		return -ENOMEM;
+
+	adev->name = adev_name;
+	adev->dev.parent = clk_dev;
+	adev->dev.release = aspeed_reset_adev_release;
+	adev->id = 666u;
+
+	ret = auxiliary_device_init(adev);
+	if (ret) {
+		kfree(adev);
+		return ret;
+	}
+
+	ret = auxiliary_device_add(adev);
+	if (ret) {
+		auxiliary_device_uninit(adev);
+		return ret;
+	}
+
+	adev->dev.platform_data = (__force void *)base;
+
+	return devm_add_action_or_reset(clk_dev, aspeed_reset_unregister_adev, adev);
+}
+
+static int ast2700_soc1_init(struct platform_device *pdev)
 {
 	struct clk_hw_onecell_data *clk_data;
-	struct ast2700_reset *reset;
+	struct device *dev = &pdev->dev;
 	u32 uart_clk_source = 0;
 	void __iomem *clk_base;
 	struct clk_hw **clks;
-	u32 val, id;
+	u32 val;
 	int ret;
 
-	clk_base = of_iomap(soc1_node, 0);
+	clk_base = devm_platform_ioremap_resource(pdev, 0);
 	WARN_ON(!clk_base);
 
 	clk_data = kzalloc(struct_size(clk_data, hws, SCU1_NUM_CLKS), GFP_KERNEL);
@@ -447,31 +444,6 @@ static int ast2700_soc1_clk_init(struct device_node *soc1_node)
 
 	clk_data->num = SCU1_NUM_CLKS;
 	clks = clk_data->hws;
-
-	reset = kzalloc(sizeof(*reset), GFP_KERNEL);
-	if (!reset)
-		return -ENOMEM;
-
-	reset->base = clk_base;
-
-	reset->rcdev.owner = THIS_MODULE;
-	reset->rcdev.nr_resets = SCU1_RESET_NUMS;
-	reset->rcdev.ops = &ast2700_reset_ops;
-	reset->rcdev.of_node = soc1_node;
-
-	ret = reset_controller_register(&reset->rcdev);
-	if (ret) {
-		pr_err("soc1 failed to register reset controller\n");
-		return ret;
-	}
-	/*
-	 * Ast2700 A0 workaround:
-	 * I3C reset should assert all of the I3C controllers simultaneously.
-	 * Otherwise, it may lead to failure in accessing I3C registers.
-	 */
-	if (!FIELD_GET(REVISION_ID, readl(clk_base)))
-		for (id = SCU1_RESET_I3C0; id <= SCU1_RESET_I3C15; id++)
-			ast2700_reset_assert(&reset->rcdev, id);
 
 	clks[SCU1_CLKIN] =
 		clk_hw_register_fixed_rate(NULL, "soc1-clkin", NULL, 0, SCU_CLK_25MHZ);
@@ -554,7 +526,7 @@ static int ast2700_soc1_clk_init(struct device_node *soc1_node)
 					      29, 3, 0, ast2700_clk_div_table, &ast2700_clk_lock);
 
 	/* MAC0/1 RGMII/RMII Clock Delay */
-	ast2700_soc1_configure_mac01_clk(soc1_node);
+	ast2700_soc1_configure_mac01_clk(dev_of_node(dev));
 
 	clks[SCU1_CLK_GATE_LCLK0] =
 		ast2700_clk_hw_register_gate(NULL, "lclk0-gate", NULL,
@@ -621,7 +593,7 @@ static int ast2700_soc1_clk_init(struct device_node *soc1_node)
 					     0, clk_base + SCU1_CLK_STOP,
 					     10, 0, &ast2700_clk_lock);
 
-	of_property_read_u32(soc1_node, "uart-clk-source", &uart_clk_source);
+	of_property_read_u32(dev_of_node(dev), "uart-clk-source", &uart_clk_source);
 	if (uart_clk_source) {
 		val = readl(clk_base + SCU1_CLK_SEL1) & ~GENMASK(12, 0);
 		uart_clk_source &= GENMASK(12, 0);
@@ -883,9 +855,11 @@ static int ast2700_soc1_clk_init(struct device_node *soc1_node)
 					     CLK_IS_CRITICAL, clk_base + SCU1_CLK_STOP2,
 					     15, 0, &ast2700_clk_lock);
 
-	of_clk_add_hw_provider(soc1_node, of_clk_hw_onecell_get, clk_data);
+	ret = devm_of_clk_add_hw_provider(dev, of_clk_hw_onecell_get, clk_data);
+	if (ret)
+		return ret;
+	return aspeed_reset_controller_register(dev, clk_base, "reset1");
 
-	return 0;
 };
 
 static const char *const pspclk_sel[] = {
@@ -903,11 +877,11 @@ static const char *const emmcclk_sel[] = {
 	"soc0-hpll_div4",
 };
 
-static int ast2700_soc0_clk_init(struct device_node *soc0_node)
+static int ast2700_soc0_init(struct platform_device *pdev)
 {
 	struct clk_hw_onecell_data *clk_data;
+	struct device *dev = &pdev->dev;
 	void __iomem *clk_base;
-	struct ast2700_reset *reset;
 	struct clk_hw **clks;
 	int div;
 	u32 val;
@@ -920,28 +894,10 @@ static int ast2700_soc0_clk_init(struct device_node *soc0_node)
 	clk_data->num = SCU0_NUM_CLKS;
 	clks = clk_data->hws;
 
-	clk_base = of_iomap(soc0_node, 0);
+	clk_base = devm_platform_ioremap_resource(pdev, 0);
 	if (WARN_ON(IS_ERR(clk_base)))
 		return PTR_ERR(clk_base);
 
-	reset = kzalloc(sizeof(*reset), GFP_KERNEL);
-	if (!reset)
-		return -ENOMEM;
-
-	reset->base = clk_base;
-
-	reset->rcdev.owner = THIS_MODULE;
-	reset->rcdev.nr_resets = SCU0_RESET_NUMS;
-	reset->rcdev.ops = &ast2700_reset_ops;
-	reset->rcdev.of_node = soc0_node;
-
-	ret = reset_controller_register(&reset->rcdev);
-	if (ret) {
-		pr_err("soc0 failed to register reset controller\n");
-		return ret;
-	}
-
-	//refclk
 	clks[SCU0_CLKIN] =
 		clk_hw_register_fixed_rate(NULL, "soc0-clkin", NULL, 0, SCU_CLK_25MHZ);
 
@@ -1180,10 +1136,36 @@ static int ast2700_soc0_clk_init(struct device_node *soc0_node)
 					     0, clk_base + SCU0_CLK_STOP,
 					     28, 0, &ast2700_clk_lock);
 
-	of_clk_add_hw_provider(soc0_node, of_clk_hw_onecell_get, clk_data);
+	ret = devm_of_clk_add_hw_provider(dev, of_clk_hw_onecell_get, clk_data);
+	if (ret)
+		return ret;
 
-	return 0;
+	return aspeed_reset_controller_register(dev, clk_base, "reset0");
 };
 
-CLK_OF_DECLARE_DRIVER(ast2700_soc0, "aspeed,ast2700-scu0", ast2700_soc0_clk_init);
-CLK_OF_DECLARE_DRIVER(ast2700_soc1, "aspeed,ast2700-scu1", ast2700_soc1_clk_init);
+static int ast2700_soc_clk_probe(struct platform_device *pdev)
+{
+	int id = (int)(uintptr_t)of_device_get_match_data(&pdev->dev);
+
+	if (id)
+		return ast2700_soc1_init(pdev);
+	else
+		return ast2700_soc0_init(pdev);
+}
+
+static const struct of_device_id ast2700_scu_match[] = {
+	{ .compatible = "aspeed,ast2700-scu0", .data = (void *)0 },
+	{ .compatible = "aspeed,ast2700-scu1", .data = (void *)1 },
+	{ /* sentinel */ }
+};
+
+MODULE_DEVICE_TABLE(of, ast2700_scu_match);
+
+static struct platform_driver ast2700_scu_driver = {
+	.driver = {
+		.name = "clk-ast2700",
+		.of_match_table = ast2700_scu_match,
+	},
+};
+
+builtin_platform_driver_probe(ast2700_scu_driver, ast2700_soc_clk_probe);
