@@ -886,13 +886,24 @@ static void aspeed_pcie_reset_work(struct work_struct *work)
 		pci_dev_put(dev);
 	}
 
-	if (pcie->perst_rc_out)
-		gpiod_set_value(pcie->perst_rc_out, 0);
+	/*
+	 * With perst_rc_out GPIO, the phy_rst will only affect our PCIe controller, so it only
+	 * needs to stay low for 1ms.
+	 * Without perst_rc_out GPIO, the phy_rst will affect external devices, so it needs to
+	 * follow the spec and stay low for at least 100ms.
+	 */
 	reset_control_assert(pcie->phy_rst);
-	mdelay(100);
-	if (pcie->perst_rc_out)
-		gpiod_set_value(pcie->perst_rc_out, 1);
+	if (pcie->perst_rc_out) {
+		gpiod_set_value(pcie->perst_rc_out, 0);
+		mdelay(1);
+	} else {
+		mdelay(100);
+	}
 	reset_control_deassert(pcie->phy_rst);
+	if (pcie->perst_rc_out) {
+		mdelay(100);
+		gpiod_set_value(pcie->perst_rc_out, 1);
+	}
 	mdelay(10);
 
 	regmap_read(pcie->pciephy, ASPEED_PCIE_LINK, &link_sts);
@@ -956,7 +967,7 @@ static int aspeed_pcie_probe(struct platform_device *pdev)
 		if (pcie->perst_ep_in) {
 			gpiod_set_debounce(pcie->perst_ep_in, 100);
 			irq_set_irq_type(gpiod_to_irq(pcie->perst_ep_in),
-					 IRQ_TYPE_EDGE_FALLING);
+					 IRQ_TYPE_EDGE_RISING);
 			err = devm_request_irq(pcie->dev,
 					       gpiod_to_irq(pcie->perst_ep_in),
 					       pcie_rst_irq_handler,
