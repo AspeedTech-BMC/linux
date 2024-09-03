@@ -374,7 +374,7 @@
 				clocks = <&syscon ASPEED_CLK_APB>;
 				#interrupt-cells = <2>;
 				interrupt-controller;
-				bus-frequency = <12000000>;
+				bus-frequency = <1000000>;
 				pinctrl-names = "default";
 				pinctrl-0 = <&pinctrl_sgpm_default>;
 				status = "disabled";
