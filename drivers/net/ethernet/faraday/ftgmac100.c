@@ -26,9 +26,9 @@
 #include <linux/crc32.h>
 #include <linux/if_vlan.h>
 #include <linux/of_net.h>
+#include <linux/phy_fixed.h>
 #include <net/ip.h>
 #include <net/ncsi.h>
-#include <linux/phy_fixed.h>
 
 #include "ftgmac100.h"
 
@@ -1754,6 +1754,9 @@ static void ftgmac100_phy_disconnect(struct net_device *netdev)
 	phy_disconnect(netdev->phydev);
 	if (of_phy_is_fixed_link(priv->dev->of_node))
 		of_phy_deregister_fixed_link(priv->dev->of_node);
+
+	if (priv->use_ncsi)
+		fixed_phy_unregister(netdev->phydev);
 }
 
 static void ftgmac100_destroy_mdio(struct net_device *netdev)
@@ -1831,6 +1834,7 @@ static int ftgmac100_probe(struct platform_device *pdev)
 	struct resource *res;
 	int irq;
 	struct net_device *netdev;
+	struct phy_device *phydev;
 	struct ftgmac100 *priv;
 	struct device_node *np;
 	int err = 0;
@@ -1906,8 +1910,6 @@ static int ftgmac100_probe(struct platform_device *pdev)
 	}
 
 	if (np && of_get_property(np, "use-ncsi", NULL)) {
-		struct phy_device *phy;
-
 		if (!IS_ENABLED(CONFIG_NET_NCSI)) {
 			dev_err(&pdev->dev, "NCSI stack not enabled\n");
 			err = -EINVAL;
@@ -1922,15 +1924,13 @@ static int ftgmac100_probe(struct platform_device *pdev)
 			goto err_phy_connect;
 		}
 
-		phy = fixed_phy_register(PHY_POLL, &ncsi_phy_status, NULL);
-		err = phy_connect_direct(netdev, phy, ftgmac100_adjust_link,
+		phydev = fixed_phy_register(PHY_POLL, &ncsi_phy_status, NULL);
+		err = phy_connect_direct(netdev, phydev, ftgmac100_adjust_link,
 					 PHY_INTERFACE_MODE_MII);
 		if (err) {
 			dev_err(&pdev->dev, "Connecting PHY failed\n");
 			goto err_phy_connect;
 		}
-		/* Display what we found */
-		phy_attached_info(phy);
 	} else if (np && of_phy_is_fixed_link(np)) {
 		struct phy_device *phy;
 
@@ -2059,8 +2059,7 @@ static int ftgmac100_probe(struct platform_device *pdev)
 		netdev->hw_features &= ~NETIF_F_HW_CSUM;
 
 	/* AST2600 tx checksum with NCSI is broken */
-	if (priv->use_ncsi &&
-	    of_device_is_compatible(np, "aspeed,ast2600-mac"))
+	if (priv->use_ncsi && of_device_is_compatible(np, "aspeed,ast2600-mac"))
 		netdev->hw_features &= ~NETIF_F_HW_CSUM;
 
 	if (np && of_get_property(np, "no-hw-checksum", NULL))
@@ -2073,8 +2072,6 @@ static int ftgmac100_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "Failed to register netdev\n");
 		goto err_register_netdev;
 	}
-
-	dma_set_mask_and_coherent(&pdev->dev, DMA_BIT_MASK(64));
 
 	netdev_info(netdev, "irq %d, mapped at %p\n", netdev->irq, priv->base);
 
