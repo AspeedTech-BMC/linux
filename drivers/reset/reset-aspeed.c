@@ -159,13 +159,16 @@ static const struct ast2700_reset_signal ast2700_reset1_signals[] = {
 static int aspeed_reset_assert(struct reset_controller_dev *rcdev, unsigned long id)
 {
 	struct aspeed_reset *rc = to_aspeed_reset(rcdev);
+	void __iomem *reg_offset;
 	unsigned long flags;
 
+	reg_offset = rc->base + rc->info->signal[id].offset;
+
 	if (rc->info->signal[id].dedicated_clr) {
-		writel(rc->info->signal[id].bit, rc->base);
+		writel(rc->info->signal[id].bit, reg_offset);
 	} else {
 		spin_lock_irqsave(&rc->lock, flags);
-		writel(readl(rc->base) & ~rc->info->signal[id].bit, rc->base);
+		writel(readl(reg_offset) & ~rc->info->signal[id].bit, reg_offset);
 		spin_unlock_irqrestore(&rc->lock, flags);
 	}
 
@@ -175,13 +178,16 @@ static int aspeed_reset_assert(struct reset_controller_dev *rcdev, unsigned long
 static int aspeed_reset_deassert(struct reset_controller_dev *rcdev, unsigned long id)
 {
 	struct aspeed_reset *rc = to_aspeed_reset(rcdev);
+	void __iomem *reg_offset;
 	unsigned long flags;
 
+	reg_offset = rc->base + rc->info->signal[id].offset;
+
 	if (rc->info->signal[id].dedicated_clr) {
-		writel(rc->info->signal[id].bit, rc->base + 0x04);
+		writel(rc->info->signal[id].bit, reg_offset + 0x04);
 	} else {
 		spin_lock_irqsave(&rc->lock, flags);
-		writel(readl(rc->base) | rc->info->signal[id].bit, rc->base);
+		writel(readl(reg_offset) | rc->info->signal[id].bit, reg_offset);
 		spin_unlock_irqrestore(&rc->lock, flags);
 	}
 
@@ -191,8 +197,11 @@ static int aspeed_reset_deassert(struct reset_controller_dev *rcdev, unsigned lo
 static int aspeed_reset_status(struct reset_controller_dev *rcdev, unsigned long id)
 {
 	struct aspeed_reset *rc = to_aspeed_reset(rcdev);
+	void __iomem *reg_offset;
 
-	if (readl(rc->base) & rc->info->signal[id].bit)
+	reg_offset = rc->base + rc->info->signal[id].offset;
+
+	if (readl(reg_offset) & rc->info->signal[id].bit)
 		return 1;
 	else
 		return 0;
