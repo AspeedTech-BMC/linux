@@ -51,6 +51,7 @@
 #define AST2600_I2CC_THDDAT(x)			(((x) & GENMASK(1, 0)) << 10)
 #define AST2600_I2CC_TOUTBASECLK(x)			(((x) & GENMASK(1, 0)) << 8)
 #define AST2600_I2CC_TBASECLK(x)			((x) & GENMASK(3, 0))
+#define AST2600_I2CC_AC_TIMING_MASK		GENMASK(23, 0)
 
 /* 0x08 : I2CC Master/Slave Transmit/Receive Byte Buffer Register */
 #define AST2600_I2CC_STS_AND_BUFF		0x08
@@ -512,6 +513,14 @@ static void ast2600_i2c_slave_packet_buff_irq(struct ast2600_i2c_bus *i2c_bus, u
 
 	/* Handle i2c slave timeout condition */
 	if (AST2600_I2CS_INACTIVE_TO & sts) {
+		/* Reset time out counter */
+		u32 ac_timing = readl(i2c_bus->reg_base + AST2600_I2CC_AC_TIMING) & AST2600_I2CC_AC_TIMING_MASK;
+
+		writel(ac_timing, i2c_bus->reg_base + AST2600_I2CC_AC_TIMING);
+		ac_timing = readl(i2c_bus->reg_base + AST2600_I2CC_AC_TIMING) & AST2600_I2CC_AC_TIMING_MASK;
+		ac_timing |= AST2600_I2CC_TTIMEOUT(i2c_bus->timeout);
+		writel(ac_timing, i2c_bus->reg_base + AST2600_I2CC_AC_TIMING);
+		/* Clear irq and re-send slave trigger command */
 		writel(SLAVE_TRIGGER_CMD, i2c_bus->reg_base + AST2600_I2CS_CMD_STS);
 		writel(AST2600_I2CS_PKT_DONE, i2c_bus->reg_base + AST2600_I2CS_ISR);
 		i2c_slave_event(i2c_bus->slave, I2C_SLAVE_STOP, &value);
