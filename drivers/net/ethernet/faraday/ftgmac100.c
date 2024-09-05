@@ -2073,6 +2073,8 @@ static int ftgmac100_probe(struct platform_device *pdev)
 		goto err_register_netdev;
 	}
 
+	dma_set_mask_and_coherent(&pdev->dev, DMA_BIT_MASK(64));
+
 	netdev_info(netdev, "irq %d, mapped at %p\n", netdev->irq, priv->base);
 
 	return 0;
