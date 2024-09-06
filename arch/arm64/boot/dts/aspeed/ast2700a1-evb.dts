@@ -74,13 +74,6 @@
 			no-map;
 		};
 
-		pcie2_mmbi0_memory: pcie2_mmbi0_memory {
-			size = <0x0 0x00200000>;
-			alignment = <0x0 0x00200000>;
-			compatible = "shared-dma-pool";
-			no-map;
-		};
-
 		mctp0_reserved: mctp0_reserved@431080000 {
 			reg = <0x4 0x31080000 0x0 0x10000>;
 			compatible = "shared-dma-pool";
@@ -761,17 +754,6 @@
 	};
 };
 
-&mdio2 {
-	status = "okay";
-	#address-cells = <1>;
-	#size-cells = <0>;
-
-	ethphy2: ethernet-phy@0 {
-		compatible = "ethernet-phy-ieee802.3-c22";
-		reg = <0>;
-	};
-};
-
 &mac0 {
 	status = "okay";
 
@@ -792,7 +774,18 @@
 	pinctrl-0 = <&pinctrl_rgmii1_default>;
 };
 
-#if 1
+#if 0
+&mdio2 {
+	status = "okay";
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	ethphy2: ethernet-phy@0 {
+		compatible = "ethernet-phy-ieee802.3-c22";
+		reg = <0>;
+	};
+};
+
 &sgmii {
 	status = "okay";
 };
@@ -910,14 +903,6 @@
 
 	mmbi-bmc-int-value = /bits/ 8 <0x44>;
 	mmbi-bmc-int-offset = <0x100400>;
-};
-
-&pcie2_mmbi0 {
-	status = "okay";
-	memory-region = <&pcie2_mmbi0_memory>;
-
-	mmbi-bmc-int-value = /bits/ 8 <0x00>;
-	mmbi-bmc-int-offset = <0x100000>;
 };
 #endif
 
