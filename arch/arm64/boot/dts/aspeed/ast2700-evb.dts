@@ -83,8 +83,18 @@
 			no-map;
 		};
 
-		espi_mmbi_memory: espi-mmbi-memory@434000000 {
-			reg = <0x4 0x34000000 0x0 0x4000000>;
+		ssp_memory: ssp-memory@432000000 {
+			reg = <0x4 0x32000000 0x0 0x2000000>;
+			no-map;
+		};
+
+		tsp_memory: tsp-memory@434000000 {
+			reg = <0x4 0x34000000 0x0 0x2000000>;
+			no-map;
+		};
+
+		espi_mmbi_memory: espi-mmbi-memory@436000000 {
+			reg = <0x4 0x36000000 0x0 0x4000000>;
 			no-map;
 		};
 
