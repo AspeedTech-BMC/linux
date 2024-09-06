@@ -205,7 +205,7 @@
 
 		phy3a: phy3@12010000 {
 			compatible = "aspeed,ast2700-phy3a";
-			reg = <0x0 0x12010000 0x0 0x820>;
+			reg = <0x0 0x12010000 0x0 0xBC>;
 			clocks = <&syscon0 SCU0_CLK_GATE_PORTAUSB2CLK>;
 			resets = <&syscon0 SCU0_RESET_PORTA_PHY3>;
 			aspeed,scu = <&syscon0>;
@@ -237,7 +237,7 @@
 
 		phy3b: phy3@12020000 {
 			compatible = "aspeed,ast2700-phy3b";
-			reg = <0x0 0x12020000 0x0 0x820>;
+			reg = <0x0 0x12020000 0x0 0xBC>;
 			clocks = <&syscon0 SCU0_CLK_GATE_PORTBUSB2CLK>;
 			resets = <&syscon0 SCU0_RESET_PORTB_PHY3>;
 			aspeed,scu = <&syscon0>;
