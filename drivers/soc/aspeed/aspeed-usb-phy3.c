@@ -14,16 +14,6 @@
 #include <linux/clk.h>
 #include <linux/reset.h>
 
-#define	AST_USB_PHY3S00		0x800	/* PHY SRAM Control/Status #1 */
-#define AST_USB_PHY3S04		0x804	/* PHY SRAM Control/Status #2 */
-#define AST_USB_PHY3C00		0x808	/* PHY PCS Control/Status #1 */
-#define AST_USB_PHY3C04		0x80C	/* PHY PCS Control/Status #2 */
-#define AST_USB_PHY3P00		0x810	/* PHY PCS Protocol Setting #1 */
-#define AST_USB_PHY3P04		0x814	/* PHY PCS Protocol Setting #2 */
-#define AST_USB_PHY3P08		0x818	/* PHY PCS Protocol Setting #3 */
-#define AST_USB_PHY3P0C		0x81C	/* PHY PCS Protocol Setting #4	*/
-#define AST_USB_DWC_CMD		0xB80	/* DWC3 Commands base address offest */
-
 #define PHY3P00_DEFAULT		0xCE70000F	/* PHY PCS Protocol Setting #1 default value */
 #define PHY3P04_DEFAULT		0x49C00014	/* PHY PCS Protocol Setting #2 default value */
 #define PHY3P08_DEFAULT		0x5E406825	/* PHY PCS Protocol Setting #3 default value */
@@ -40,17 +30,64 @@ struct usb_dwc3_ctrl {
 	u32 value;
 };
 
+struct aspeed_usb_phy3_model {
+	/* offsets to the PHY3 registers */
+	unsigned int phy3s00;	/* PHY SRAM Control/Status #1 */
+	unsigned int phy3s04;	/* PHY SRAM Control/Status #2 */
+	unsigned int phy3c00;	/* PHY PCS Control/Status #1 */
+	unsigned int phy3c04;	/* PHY PCS Control/Status #2 */
+	unsigned int phy3p00;	/* PHY PCS Protocol Setting #1 */
+	unsigned int phy3p04;	/* PHY PCS Protocol Setting #2 */
+	unsigned int phy3p08;	/* PHY PCS Protocol Setting #3 */
+	unsigned int phy3p0c;	/* PHY PCS Protocol Setting #4 */
+	unsigned int dwc_cmd;	/* DWC3 Commands base address offest */
+};
+
 static struct usb_dwc3_ctrl ctrl_data[DWC_CRTL_NUM] = {
 	{0xc12c, 0x0c854802},	/* Set DWC3 GUCTL for ref_clk */
 	{0xc630, 0x0c800020},	/* Set DWC3 GLADJ for ref_clk */
 };
 
+static const struct aspeed_usb_phy3_model ast2700a0_model = {
+	.phy3s00 = 0x800,
+	.phy3s04 = 0x804,
+	.phy3c00 = 0x808,
+	.phy3c04 = 0x80C,
+	.phy3p00 = 0x810,
+	.phy3p04 = 0x814,
+	.phy3p08 = 0x818,
+	.phy3p0c = 0x81C,
+	.dwc_cmd = 0xB80,
+};
+
+static const struct aspeed_usb_phy3_model ast2700_model = {
+	.phy3s00 = 0x00,
+	.phy3s04 = 0x04,
+	.phy3c00 = 0x08,
+	.phy3c04 = 0x0C,
+	.phy3p00 = 0x10,
+	.phy3p04 = 0x14,
+	.phy3p08 = 0x18,
+	.phy3p0c = 0x1C,
+	.dwc_cmd = 0x40,
+};
+
 static const struct of_device_id aspeed_usb_phy3_dt_ids[] = {
 	{
+		.compatible = "aspeed,ast2700-a0-phy3a",
+		.data = &ast2700a0_model
+	},
+	{
+		.compatible = "aspeed,ast2700-a0-phy3b",
+		.data = &ast2700a0_model
+	},
+	{
 		.compatible = "aspeed,ast2700-phy3a",
+		.data = &ast2700_model
 	},
 	{
 		.compatible = "aspeed,ast2700-phy3b",
+		.data = &ast2700_model
 	},
 	{ }
 };
@@ -59,6 +96,7 @@ MODULE_DEVICE_TABLE(of, aspeed_usb_phy3_dt_ids);
 static int aspeed_usb_phy3_probe(struct platform_device *pdev)
 {
 	struct device_node *node = pdev->dev.of_node;
+	const struct aspeed_usb_phy3_model *model;
 	void __iomem *reg_base;
 	u32 val;
 	bool phy_ext_load_quirk;
@@ -66,8 +104,13 @@ static int aspeed_usb_phy3_probe(struct platform_device *pdev)
 	struct reset_control	*rst;
 	int timeout = 100;
 	int rc = 0;
-
 	int i, j;
+
+	model = of_device_get_match_data(&pdev->dev);
+	if (IS_ERR(model)) {
+		dev_err(&pdev->dev, "Couldn't get model data\n");
+		return -ENODEV;
+	}
 
 	clk = devm_clk_get(&pdev->dev, NULL);
 	if (IS_ERR(clk))
@@ -90,7 +133,7 @@ static int aspeed_usb_phy3_probe(struct platform_device *pdev)
 
 	reg_base = of_iomap(node, 0);
 
-	while ((readl(reg_base + AST_USB_PHY3S00) & USB_PHY3_INIT_DONE)
+	while ((readl(reg_base + model->phy3s00) & USB_PHY3_INIT_DONE)
 			!= USB_PHY3_INIT_DONE) {
 		usleep_range(100, 110);
 		if (--timeout == 0) {
@@ -103,24 +146,24 @@ static int aspeed_usb_phy3_probe(struct platform_device *pdev)
 	phy_ext_load_quirk =
 		device_property_read_bool(&pdev->dev, "aspeed,phy_ext_load_quirk");
 
-	val = readl(reg_base + AST_USB_PHY3S00);
+	val = readl(reg_base + model->phy3s00);
 
 	if (phy_ext_load_quirk)
 		val |= USB_PHY3_SRAM_EXT_LOAD;
 	else
 		val |= USB_PHY3_SRAM_BYPASS;
-	writel(val, reg_base + AST_USB_PHY3S00);
+	writel(val, reg_base + model->phy3s00);
 
 	/* Set protocol1_ext signals as default PHY3 settings based on SNPS documents.
 	 * Including PCFGI[54]: protocol1_ext_rx_los_lfps_en for better compatibility
 	 */
-	writel(PHY3P00_DEFAULT, reg_base + AST_USB_PHY3P00);
-	writel(PHY3P04_DEFAULT, reg_base + AST_USB_PHY3P04);
-	writel(PHY3P08_DEFAULT, reg_base + AST_USB_PHY3P08);
-	writel(PHY3P0C_DEFAULT, reg_base + AST_USB_PHY3P0C);
+	writel(PHY3P00_DEFAULT, reg_base + model->phy3p00);
+	writel(PHY3P04_DEFAULT, reg_base + model->phy3p04);
+	writel(PHY3P08_DEFAULT, reg_base + model->phy3p08);
+	writel(PHY3P0C_DEFAULT, reg_base + model->phy3p0c);
 
 	/* xHCI DWC specific command initially set when PCIe xHCI enable */
-	for (i = 0, j = AST_USB_DWC_CMD; i < DWC_CRTL_NUM; i++) {
+	for (i = 0, j = model->dwc_cmd; i < DWC_CRTL_NUM; i++) {
 		/* 48-bits Command:
 		 * CMD1: Data -> DWC CMD [31:0], Address -> DWC CMD [47:32]
 		 * CMD2: Data -> DWC CMD [79:48], Address -> DWC CMD [95:80]
