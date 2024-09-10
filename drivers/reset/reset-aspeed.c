@@ -213,15 +213,15 @@ static const struct reset_control_ops aspeed_reset_ops = {
 	.status = aspeed_reset_status,
 };
 
-void ast2700_reset_init(struct aspeed_reset *reset)
+void ast2700_reset1_init(struct aspeed_reset *reset)
 {
 	/*
-	 * Ast2700-scu1 A0 workaround:
+	 * AST2700-scu1 A0 workaround:
 	 * I3C reset should assert all of the I3C controllers simultaneously.
 	 * Otherwise, it may lead to failure in accessing I3C registers.
 	 */
 	if (!FIELD_GET(GENMASK(23, 16), readl(reset->base)))
-		writel(0xffff0000, reset->base);
+		writel(0xffff0000, reset->base + SCU1_RESET_CTRL1);
 }
 
 static int aspeed_reset_probe(struct auxiliary_device *adev,
@@ -262,7 +262,7 @@ static const struct aspeed_reset_info ast2700_reset0_info = {
 static const struct aspeed_reset_info ast2700_reset1_info = {
 	.nr_resets = ARRAY_SIZE(ast2700_reset1_signals),
 	.signal = ast2700_reset1_signals,
-	.reset_init = ast2700_reset_init,
+	.reset_init = ast2700_reset1_init,
 };
 
 static const struct auxiliary_device_id aspeed_reset_ids[] = {
