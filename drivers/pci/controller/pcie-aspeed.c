@@ -1076,7 +1076,7 @@ static int aspeed_ast2600_setup(struct platform_device *pdev)
 		if (pcie->perst_ep_in) {
 			gpiod_set_debounce(pcie->perst_ep_in, 100);
 			irq_set_irq_type(gpiod_to_irq(pcie->perst_ep_in),
-					 IRQ_TYPE_EDGE_RISING);
+					 IRQ_TYPE_EDGE_BOTH);
 			err = devm_request_irq(pcie->dev,
 					       gpiod_to_irq(pcie->perst_ep_in),
 					       pcie_rst_irq_handler,
