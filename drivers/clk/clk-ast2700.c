@@ -425,6 +425,7 @@ static int aspeed_reset_controller_register(struct device *clk_dev,
 	return devm_add_action_or_reset(clk_dev, aspeed_reset_unregister_adev, adev);
 }
 
+#define SCU1_NUM_CLKS	87
 static int ast2700_soc1_init(struct platform_device *pdev)
 {
 	struct clk_hw_onecell_data *clk_data;
@@ -887,6 +888,7 @@ static const char *const emmcclk_sel[] = {
 	"soc0-hpll_div4",
 };
 
+#define SCU0_NUM_CLKS 57
 static int ast2700_soc0_init(struct platform_device *pdev)
 {
 	struct clk_hw_onecell_data *clk_data;
@@ -958,10 +960,10 @@ static int ast2700_soc0_init(struct platform_device *pdev)
 			clk_hw_register_fixed_factor(NULL, "soc0-mpll_div8", "soc0-mpll", 0, 1, 8);
 
 	val = readl(clk_base + SCU0_D1CLK_PARAM);
-	clks[SCU0_CLK_VGA0] = ast2700_soc0_hw_pll("d1clk", "soc0-clkin", val);
+	clks[SCU0_CLK_D0] = ast2700_soc0_hw_pll("d0clk", "soc0-clkin", val);
 
 	val = readl(clk_base + SCU0_D2CLK_PARAM);
-	clks[SCU0_CLK_VGA1] = ast2700_soc0_hw_pll("d2clk", "soc0-clkin", val);
+	clks[SCU0_CLK_D1] = ast2700_soc0_hw_pll("d1clk", "soc0-clkin", val);
 
 	val = readl(clk_base + SCU0_CRT1CLK_PARAM);
 	clks[SCU0_CLK_CRT0] = ast2700_soc0_hw_pll("crt0clk", "soc0-clkin", val);
@@ -1030,7 +1032,7 @@ static int ast2700_soc0_init(struct platform_device *pdev)
 					     4, 0, &ast2700_clk_lock);
 
 	clks[SCU0_CLK_GATE_VGA0CLK] =
-		ast2700_clk_hw_register_gate(NULL, "d1clk-gate", NULL,
+		ast2700_clk_hw_register_gate(NULL, "d0clk-gate", NULL,
 					     CLK_IS_CRITICAL, clk_base + SCU0_CLK_STOP,
 					     5, 0, &ast2700_clk_lock);
 
@@ -1057,7 +1059,7 @@ static int ast2700_soc0_init(struct platform_device *pdev)
 					     9, 0, &ast2700_clk_lock);
 
 	clks[SCU0_CLK_GATE_VGA1CLK] =
-		ast2700_clk_hw_register_gate(NULL, "d2clk-gate", NULL,
+		ast2700_clk_hw_register_gate(NULL, "d1clk-gate", NULL,
 					     CLK_IS_CRITICAL, clk_base + SCU0_CLK_STOP,
 					     10, 0, &ast2700_clk_lock);
 
