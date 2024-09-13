@@ -27,10 +27,10 @@
 #define SCU0_HPLL_PARAM 0x300
 #define SCU0_DPLL_PARAM 0x308
 #define SCU0_MPLL_PARAM 0x310
-#define SCU0_D1CLK_PARAM 0x320
-#define SCU0_D2CLK_PARAM 0x330
-#define SCU0_CRT1CLK_PARAM 0x340
-#define SCU0_CRT2CLK_PARAM 0x350
+#define SCU0_D0CLK_PARAM 0x320
+#define SCU0_D1CLK_PARAM 0x330
+#define SCU0_CRT0CLK_PARAM 0x340
+#define SCU0_CRT1CLK_PARAM 0x350
 #define SCU0_MPHYCLK_PARAM 0x360
 
 /* SOC1 */
@@ -90,8 +90,47 @@ struct mac_delay_config {
 	u32 rx_delay_10;
 };
 
-/* Globally visible clocks */
-static DEFINE_SPINLOCK(ast2700_clk_lock);
+enum {
+	CLK_MUX,
+	CLK_PLL,
+	CLK_GATE,
+	CLK_MISC,
+	CLK_FIXED,
+	CLK_DIVIDER,
+	CLK_UART_PLL,
+	CLK_DIV_TABLE,
+	CLK_FIXED_FACTOR,
+};
+
+struct ast2700_clk_info {
+	const char *name;
+	const char * const *parent_names;
+	const struct clk_div_table *div_table;
+	u32 num_parents;
+	unsigned int mult;
+	unsigned int div;
+	u32 fixed_rate;
+	u8 clk_idx;
+	u32 bit_shift;
+	u32 bit_width;
+	u32 reg;
+	u32 flags;
+	u32 flags2;
+	u32 type;
+};
+
+struct ast2700_clk_data {
+	struct ast2700_clk_info const *clk_info;
+	const char	*reset_name;
+	unsigned int nr_clks;
+};
+
+struct ast2700_clk_ctrl {
+	const struct ast2700_clk_data *clk_data;
+	struct device *dev;
+	void __iomem *base;
+	spinlock_t lock; /* clk lock */
+};
 
 /* Division of RGMII Clock */
 static const struct clk_div_table ast2700_rgmii_div_table[] = {
@@ -132,7 +171,6 @@ static const struct clk_div_table ast2700_clk_div_table[] = {
 	{ 0 }
 };
 
-/* Division of PCLK/EMMC CLK */
 static const struct clk_div_table ast2700_clk_div_table2[] = {
 	{ 0x0, 2 },
 	{ 0x1, 4 },
@@ -145,96 +183,1175 @@ static const struct clk_div_table ast2700_clk_div_table2[] = {
 	{ 0 }
 };
 
-/* HPLL/DPLL: 2000Mhz(default) */
-static struct clk_hw *ast2700_soc0_hw_pll(const char *name, const char *parent_name, u32 val)
+static const struct clk_div_table ast2700_clk_uart_div_table[] = {
+	{ 0x0, 1 },
+	{ 0x1, 13 },
+	{ 0 }
+};
+
+static const struct ast2700_clk_info ast2700_scu0_clk_info[] __initconst = {
+	[SCU0_CLKIN] = {
+		.type = CLK_FIXED,
+		.name = "soc0-clkin",
+		.fixed_rate = SCU_CLK_25MHZ,
+	},
+	[SCU0_CLK_24M] = {
+		.type = CLK_FIXED,
+		.name = "soc0-clk24Mhz",
+		.fixed_rate = SCU_CLK_24MHZ,
+	},
+	[SCU0_CLK_192M] = {
+		.type = CLK_FIXED,
+		.name = "soc0-clk192Mhz",
+		.fixed_rate = SCU_CLK_192MHZ,
+	},
+	[SCU0_CLK_HPLL] = {
+		.type = CLK_PLL,
+		.name = "soc0-hpll",
+		.parent_names = (const char *[]){ "soc0-clkin", },
+		.reg = SCU0_HPLL_PARAM,
+	},
+	[SCU0_CLK_HPLL_DIV2] = {
+		.type = CLK_FIXED_FACTOR,
+		.name = "soc0-hpll_div2",
+		.parent_names = (const char *[]){ "soc0-hpll", },
+		.mult = 1,
+		.div = 2,
+	},
+	[SCU0_CLK_HPLL_DIV4] = {
+		.type = CLK_FIXED_FACTOR,
+		.name = "soc0-hpll_div4",
+		.parent_names = (const char *[]){ "soc0-hpll", },
+		.mult = 1,
+		.div = 4,
+	},
+	[SCU0_CLK_HPLL_DIV_AHB] = {
+		.type = CLK_DIV_TABLE,
+		.name = "soc0-hpll_div_ahb",
+		.parent_names = (const char *[]){ "soc0-hpll", },
+		.reg = SCU0_HWSTRAP1,
+		.bit_shift = 5,
+		.bit_width = 2,
+		.div_table = ast2700_clk_div_table,
+	},
+	[SCU0_CLK_DPLL] = {
+		.type = CLK_PLL,
+		.name = "dpll",
+		.parent_names = (const char *[]){ "soc0-clkin", },
+		.reg = SCU0_DPLL_PARAM,
+	},
+	[SCU0_CLK_MPLL] = {
+		.type = CLK_PLL,
+		.name = "soc0-mpll",
+		.parent_names = (const char *[]){ "soc0-clkin", },
+		.reg = SCU0_MPLL_PARAM,
+	},
+	[SCU0_CLK_MPLL_DIV2] = {
+		.type = CLK_FIXED_FACTOR,
+		.name = "soc0-mpll_div2",
+		.parent_names = (const char *[]){ "soc0-mpll", },
+		.mult = 1,
+		.div = 2,
+	},
+	[SCU0_CLK_MPLL_DIV4] = {
+		.type = CLK_FIXED_FACTOR,
+		.name = "soc0-mpll_div4",
+		.parent_names = (const char *[]){ "soc0-mpll", },
+		.mult = 1,
+		.div = 4,
+	},
+	[SCU0_CLK_MPLL_DIV8] = {
+		.type = CLK_FIXED_FACTOR,
+		.name = "soc0-mpll_div8",
+		.parent_names = (const char *[]){ "soc0-mpll", },
+		.mult = 1,
+		.div = 8,
+	},
+	[SCU0_CLK_MPLL_DIV_AHB] = {
+		.type = CLK_DIV_TABLE,
+		.name = "soc0-mpll_div_ahb",
+		.parent_names = (const char *[]){ "soc0-mpll", },
+		.reg = SCU0_HWSTRAP1,
+		.bit_shift = 5,
+		.bit_width = 2,
+		.div_table = ast2700_clk_div_table,
+	},
+	[SCU0_CLK_D0] = {
+		.type = CLK_PLL,
+		.name = "d0clk",
+		.parent_names = (const char *[]){ "soc0-clkin", },
+		.reg = SCU0_D0CLK_PARAM,
+	},
+	[SCU0_CLK_D1] = {
+		.type = CLK_PLL,
+		.name = "d1clk",
+		.parent_names = (const char *[]){ "soc0-clkin", },
+		.reg = SCU0_D1CLK_PARAM,
+	},
+	[SCU0_CLK_CRT0] = {
+		.type = CLK_PLL,
+		.name = "crt0clk",
+		.parent_names = (const char *[]){ "soc0-clkin", },
+		.reg = SCU0_CRT0CLK_PARAM,
+	},
+	[SCU0_CLK_CRT1] = {
+		.type = CLK_PLL,
+		.name = "crt1clk",
+		.parent_names = (const char *[]){ "soc0-clkin", },
+		.reg = SCU0_CRT1CLK_PARAM,
+	},
+	[SCU0_CLK_MPHY] = {
+		.type = CLK_MISC,
+		.name = "mphyclk",
+		.parent_names = (const char *[]){ "soc0-hpll", },
+		.reg = SCU0_MPHYCLK_PARAM,
+	},
+	[SCU0_CLK_PSP] = {
+		.type = CLK_MUX,
+		.name = "pspclk",
+		.parent_names = (const char *[]){"soc0-mpll", "soc0-hpll", },
+		.num_parents = 2,
+		.reg = SCU0_HWSTRAP1,
+		.bit_shift = 4,
+		.bit_width = 1,
+	},
+	[SCU0_CLK_AXI0] = {
+		.type = CLK_FIXED_FACTOR,
+		.name = "axi0clk",
+		.parent_names = (const char *[]){"pspclk", },
+		.mult = 1,
+		.div = 2,
+	},
+	[SCU0_CLK_AHB] = {
+		.type = CLK_MUX,
+		.name = "soc0-ahb",
+		.parent_names = (const char *[]){"soc0-mpll_div_ahb", "soc0-hspll_div_ahb", },
+		.num_parents = 2,
+		.reg = SCU0_HWSTRAP1,
+		.bit_shift = 7,
+		.bit_width = 1,
+	},
+	[SCU0_CLK_AXI1] = {
+		.type = CLK_FIXED_FACTOR,
+		.name = "axi1clk",
+		.parent_names = (const char *[]){ "soc0-ahb", },
+		.mult = 1,
+		.div = 2,
+	},
+	[SCU0_CLK_APB] = {
+		.type = CLK_DIV_TABLE,
+		.name = "soc0-apb",
+		.parent_names = (const char *[]){ "axi0clk", },
+		.reg = SCU0_CLK_SEL1,
+		.bit_shift = 23,
+		.bit_width = 3,
+		.div_table = ast2700_clk_div_table2,
+	},
+	[SCU0_CLK_GATE_MCLK] = {
+		.type = CLK_GATE,
+		.name = "mclk",
+		.parent_names = (const char *[]){ "soc0-mpll", },
+		.reg = SCU0_CLK_STOP,
+		.clk_idx = 0,
+		.flags = CLK_IS_CRITICAL,
+	},
+	[SCU0_CLK_GATE_ECLK] = {
+		.type = CLK_GATE,
+		.name = "eclk",
+		.parent_names = (const char *[]){  },
+		.reg = SCU0_CLK_STOP,
+		.clk_idx = 1,
+	},
+	[SCU0_CLK_GATE_2DCLK] = {
+		.type = CLK_GATE,
+		.name = "gclk",
+		.parent_names = (const char *[]){  },
+		.reg = SCU0_CLK_STOP,
+		.clk_idx = 2,
+	},
+	[SCU0_CLK_GATE_VCLK] = {
+		.type = CLK_GATE,
+		.name = "vclk",
+		.parent_names = (const char *[]){  },
+		.reg = SCU0_CLK_STOP,
+		.clk_idx = 3,
+	},
+	[SCU0_CLK_GATE_BCLK] = {
+		.type = CLK_GATE,
+		.name = "bclk",
+		.parent_names = (const char *[]){  },
+		.reg = SCU0_CLK_STOP,
+		.clk_idx = 4,
+		.flags = CLK_IS_CRITICAL,
+	},
+	[SCU0_CLK_GATE_VGA0CLK] = {
+		.type = CLK_GATE,
+		.name = "d1clk-gate",
+		.parent_names = (const char *[]){  },
+		.reg = SCU0_CLK_STOP,
+		.clk_idx = 5,
+		.flags = CLK_IS_CRITICAL,
+	},
+	[SCU0_CLK_GATE_REFCLK] = {
+		.type = CLK_GATE,
+		.name = "soc0-refclk-gate",
+		.parent_names = (const char *[]){ "soc0-clkin", },
+		.reg = SCU0_CLK_STOP,
+		.clk_idx = 6,
+		.flags = CLK_IS_CRITICAL,
+	},
+	[SCU0_CLK_U2PHY_REFCLK] = {
+		.type = CLK_MISC,
+		.name = "xhci_ref_clk",
+		.parent_names = (const char *[]){ "soc0-mpll_div8", },
+		.reg = SCU0_CLK_SEL2,
+	},
+	[SCU0_CLK_U2PHY_CLK12M] = {
+		.type = CLK_FIXED,
+		.name = "xhci_suspend_clk",
+		.parent_names = (const char *[]){  },
+		.fixed_rate = SCU_CLK_12MHZ,
+	},
+	[SCU0_CLK_GATE_PORTBUSB2CLK] = {
+		.type = CLK_GATE,
+		.name = "portb-usb2clk",
+		.parent_names = (const char *[]){  },
+		.reg = SCU0_CLK_STOP,
+		.clk_idx = 7,
+	},
+	[SCU0_CLK_GATE_UHCICLK] = {
+		.type = CLK_GATE,
+		.name = "uhciclk",
+		.parent_names = (const char *[]){  },
+		.reg = SCU0_CLK_STOP,
+		.clk_idx = 9,
+	},
+	[SCU0_CLK_GATE_VGA1CLK] = {
+		.type = CLK_GATE,
+		.name = "d2clk-gate",
+		.parent_names = (const char *[]){  },
+		.reg = SCU0_CLK_STOP,
+		.clk_idx = 10,
+		.flags = CLK_IS_CRITICAL,
+	},
+	[SCU0_CLK_GATE_DDRPHYCLK] = {
+		.type = CLK_GATE,
+		.name = "ddrphy-gate",
+		.parent_names = (const char *[]){  },
+		.reg = SCU0_CLK_STOP,
+		.clk_idx = 11,
+		.flags = CLK_IS_CRITICAL,
+	},
+	[SCU0_CLK_GATE_E2M0CLK] = {
+		.type = CLK_GATE,
+		.name = "e2m0clk-gate",
+		.parent_names = (const char *[]){  },
+		.reg = SCU0_CLK_STOP,
+		.clk_idx = 12,
+		.flags = CLK_IS_CRITICAL,
+	},
+	[SCU0_CLK_GATE_HACCLK] = {
+		.type = CLK_GATE,
+		.name = "hac-clk",
+		.parent_names = (const char *[]){  },
+		.reg = SCU0_CLK_STOP,
+		.clk_idx = 13,
+	},
+	[SCU0_CLK_GATE_PORTAUSB2CLK] = {
+		.type = CLK_GATE,
+		.name = "porta-usb2clk",
+		.parent_names = (const char *[]){  },
+		.reg = SCU0_CLK_STOP,
+		.clk_idx = 14,
+	},
+	[SCU0_CLK_UART] = {
+		.type = CLK_MUX,
+		.name = "soc0-uartclk",
+		.parent_names = (const char *[]){"soc0-clk24Mhz", "soc0-clk192Mhz", },
+		.num_parents = 2,
+		.reg = SCU0_CLK_SEL2,
+		.bit_shift = 14,
+		.bit_width = 1,
+	},
+	[SCU0_CLK_UART4] = {
+		.type = CLK_DIV_TABLE,
+		.name = "uart4clk",
+		.parent_names = (const char *[]){ "soc0-uartclk", },
+		.reg = SCU0_CLK_SEL2,
+		.bit_shift = 30,
+		.bit_width = 1,
+		.div_table = ast2700_clk_uart_div_table,
+	},
+	[SCU0_CLK_GATE_UART4CLK] = {
+		.type = CLK_GATE,
+		.name = "uart4clk-gate",
+		.parent_names = (const char *[]){"uart4clk" },
+		.reg = SCU0_CLK_STOP,
+		.clk_idx = 15,
+		.flags = CLK_IS_CRITICAL,
+	},
+	[SCU0_CLK_GATE_SLICLK] = {
+		.type = CLK_GATE,
+		.name = "soc0-sliclk-gate",
+		.parent_names = (const char *[]){	},
+		.reg = SCU0_CLK_STOP,
+		.clk_idx = 16,
+		.flags = CLK_IS_CRITICAL,
+	},
+	[SCU0_CLK_GATE_DACCLK] = {
+		.type = CLK_GATE,
+		.name = "dacclk-gate",
+		.parent_names = (const char *[]){  },
+		.reg = SCU0_CLK_STOP,
+		.clk_idx = 17,
+		.flags = CLK_IS_CRITICAL,
+	},
+	[SCU0_CLK_GATE_DP] = {
+		.type = CLK_GATE,
+		.name = "dpclk-gate",
+		.parent_names = (const char *[]){  },
+		.reg = SCU0_CLK_STOP,
+		.clk_idx = 18,
+		.flags = CLK_IS_CRITICAL,
+	},
+	[SCU0_CLK_GATE_E2M1CLK] = {
+		.type = CLK_GATE,
+		.name = "e2m1clk-gate",
+		.parent_names = (const char *[]){  },
+		.reg = SCU0_CLK_STOP,
+		.clk_idx = 19,
+		.flags = CLK_IS_CRITICAL,
+	},
+	[SCU0_CLK_GATE_CRT0CLK] = {
+		.type = CLK_GATE,
+		.name = "crt0clk-gate",
+		.parent_names = (const char *[]){  },
+		.reg = SCU0_CLK_STOP,
+		.clk_idx = 20,
+	},
+	[SCU0_CLK_GATE_CRT1CLK] = {
+		.type = CLK_GATE,
+		.name = "crt1clk-gate",
+		.parent_names = (const char *[]){  },
+		.reg = SCU0_CLK_STOP,
+		.clk_idx = 21,
+	},
+	[SCU0_CLK_GATE_ECDSACLK] = {
+		.type = CLK_GATE,
+		.name = "eccclk",
+		.parent_names = (const char *[]){  },
+		.reg = SCU0_CLK_STOP,
+		.clk_idx = 23,
+	},
+	[SCU0_CLK_GATE_RSACLK] = {
+		.type = CLK_GATE,
+		.name = "rsaclk",
+		.parent_names = (const char *[]){  },
+		.reg = SCU0_CLK_STOP,
+		.clk_idx = 24,
+	},
+	[SCU0_CLK_GATE_RVAS0CLK] = {
+		.type = CLK_GATE,
+		.name = "rvasclk",
+		.parent_names = (const char *[]){  },
+		.reg = SCU0_CLK_STOP,
+		.clk_idx = 25,
+	},
+	[SCU0_CLK_GATE_UFSCLK] = {
+		.type = CLK_GATE,
+		.name = "ufsclk",
+		.parent_names = (const char *[]){  },
+		.reg = SCU0_CLK_STOP,
+		.clk_idx = 26,
+	},
+	[SCU0_CLK_EMMCMUX] = {
+		.type = CLK_MUX,
+		.name = "emmcsrc-mux",
+		.parent_names = (const char *[]){"soc0-mpll_div4", "soc0-hpll_div4", },
+		.num_parents = 2,
+		.reg = SCU0_CLK_SEL1,
+		.bit_shift = 11,
+		.bit_width = 1,
+	},
+	[SCU0_CLK_EMMC] = {
+		.type = CLK_DIV_TABLE,
+		.name = "emmcclk",
+		.parent_names = (const char *[]){ "emmcsrc-mux", },
+		.reg = SCU0_CLK_SEL1,
+		.bit_shift = 12,
+		.bit_width = 3,
+		.div_table = ast2700_clk_div_table2,
+	},
+	[SCU0_CLK_GATE_EMMCCLK] = {
+		.type = CLK_GATE,
+		.name = "emmcclk-gate",
+		.parent_names = (const char *[]){ "emmcclk", },
+		.reg = SCU0_CLK_STOP,
+		.clk_idx = 27,
+	},
+	[SCU0_CLK_GATE_RVAS1CLK] = {
+		.type = CLK_GATE,
+		.name = "rvas2clk",
+		.parent_names = (const char *[]){ "emmcclk", },
+		.reg = SCU0_CLK_STOP,
+		.clk_idx = 28,
+	},
+};
+
+static const struct ast2700_clk_info ast2700_scu1_clk_info[] __initconst = {
+	[SCU1_CLKIN] = {
+		.type = CLK_FIXED,
+		.name = "soc1-clkin",
+		.fixed_rate = SCU_CLK_25MHZ,
+	},
+	[SCU1_CLK_HPLL] = {
+		.type = CLK_PLL,
+		.name = "soc1-hpll",
+		.parent_names = (const char *[]){ "soc1-clkin", },
+		.reg = SCU1_HPLL_PARAM,
+	},
+	[SCU1_CLK_APLL] = {
+		.type = CLK_PLL,
+		.name = "soc1-apll",
+		.parent_names = (const char *[]){ "soc1-clkin", },
+		.reg = SCU1_APLL_PARAM,
+	},
+	[SCU1_CLK_APLL_DIV2] = {
+		.type = CLK_FIXED_FACTOR,
+		.name = "soc1-apll_div2",
+		.parent_names = (const char *[]){ "soc1-apll", },
+		.mult = 1,
+		.div = 2,
+	},
+	[SCU1_CLK_APLL_DIV4] = {
+		.type = CLK_FIXED_FACTOR,
+		.name = "soc1-apll_div4",
+		.parent_names = (const char *[]){ "soc1-apll", },
+		.mult = 1,
+		.div = 4,
+	},
+	[SCU1_CLK_DPLL] = {
+		.type = CLK_PLL,
+		.name = "soc1-dpll",
+		.parent_names = (const char *[]){ "soc1-clkin", },
+		.reg = SCU1_DPLL_PARAM,
+	},
+	[SCU1_CLK_UXCLK] = {
+		.type = CLK_MUX,
+		.name = "uxclk",
+		.parent_names = (const char *[]){ "soc1-apll_div4", "soc1-apll_div2",
+						 "soc1-apll", "soc1-hpll",},
+		.num_parents = 4,
+		.reg = SCU1_CLK_SEL2,
+		.bit_shift = 0,
+		.bit_width = 2,
+	},
+	[SCU1_CLK_UARTX] = {
+		.type = CLK_UART_PLL,
+		.name = "uartxclk",
+		.parent_names = (const char *[]){ "uxclk", },
+		.reg = SCU1_UXCLK_CTRL,
+	},
+	[SCU1_CLK_HUXCLK] = {
+		.type = CLK_MUX,
+		.name = "huxclk",
+		.parent_names = (const char *[]){"soc1-apll_div4", "soc1-apll_div2",
+						 "soc1-apll", "soc1-hpll",},
+		.num_parents = 4,
+		.reg = SCU1_CLK_SEL2,
+		.bit_shift = 3,
+		.bit_width = 2,
+	},
+	[SCU1_CLK_HUARTX] = {
+		.type = CLK_UART_PLL,
+		.name = "huartxclk",
+		.parent_names = (const char *[]){ "huxclk", },
+		.reg = SCU1_HUXCLK_CTRL,
+	},
+	[SCU1_CLK_AHB] = {
+		.type = CLK_DIV_TABLE,
+		.name = "soc1-ahb",
+		.parent_names = (const char *[]){"soc1-hpll", },
+		.reg = SCU1_CLK_SEL2,
+		.bit_shift = 20,
+		.bit_width = 3,
+		.div_table = ast2700_clk_div_table,
+	},
+	[SCU1_CLK_APB] = {
+		.type = CLK_DIV_TABLE,
+		.name = "soc1-apb",
+		.parent_names = (const char *[]){"soc1-hpll", },
+		.reg = SCU1_CLK_SEL1,
+		.bit_shift = 18,
+		.bit_width = 3,
+		.div_table = ast2700_clk_div_table2,
+	},
+	[SCU1_CLK_RMII] = {
+		.type = CLK_DIV_TABLE,
+		.name = "rmii",
+		.parent_names = (const char *[]){"soc1-hpll", },
+		.reg = SCU1_CLK_SEL1,
+		.bit_shift = 21,
+		.bit_width = 3,
+		.div_table = ast2700_rmii_div_table,
+	},
+	[SCU1_CLK_MAC0RCLK] = {
+		.type = CLK_GATE,
+		.name = "mac0rclk",
+		.parent_names = (const char *[]){ "rmii", },
+		.reg = SCU1_MAC12_CLK_DLY,
+		.clk_idx = 29,
+	},
+	[SCU1_CLK_MAC1RCLK] = {
+		.type = CLK_GATE,
+		.name = "mac1rclk",
+		.parent_names = (const char *[]){ "rmii", },
+		.reg = SCU1_MAC12_CLK_DLY,
+		.clk_idx = 30,
+	},
+	[SCU1_CLK_RGMII] = {
+		.type = CLK_DIV_TABLE,
+		.name = "rgmii",
+		.parent_names = (const char *[]){"soc1-hpll", },
+		.reg = SCU1_CLK_SEL1,
+		.bit_shift = 25,
+		.bit_width = 3,
+		.div_table = ast2700_rgmii_div_table,
+	},
+	[SCU1_CLK_MACHCLK] = {
+		.type = CLK_DIV_TABLE,
+		.name = "machclk",
+		.parent_names = (const char *[]){"soc1-hpll", },
+		.reg = SCU1_CLK_SEL1,
+		.bit_shift = 29,
+		.bit_width = 3,
+		.div_table = ast2700_clk_div_table,
+	},
+	[SCU1_CLK_GATE_LCLK0] = {
+		.type = CLK_GATE,
+		.name = "lclk0-gate",
+		.parent_names = (const char *[]){  },
+		.reg = SCU1_CLK_STOP,
+		.clk_idx = 0,
+		.flags = CLK_IS_CRITICAL,
+	},
+	[SCU1_CLK_GATE_LCLK1] = {
+		.type = CLK_GATE,
+		.name = "lclk1-gate",
+		.parent_names = (const char *[]){  },
+		.reg = SCU1_CLK_STOP,
+		.clk_idx = 1,
+		.flags = CLK_IS_CRITICAL,
+	},
+	[SCU1_CLK_GATE_ESPI0CLK] = {
+		.type = CLK_GATE,
+		.name = "espi0clk-gate",
+		.parent_names = (const char *[]){  },
+		.reg = SCU1_CLK_STOP,
+		.clk_idx = 2,
+		.flags = CLK_IS_CRITICAL,
+	},
+	[SCU1_CLK_GATE_ESPI1CLK] = {
+		.type = CLK_GATE,
+		.name = "espi1clk-gate",
+		.parent_names = (const char *[]){  },
+		.reg = SCU1_CLK_STOP,
+		.clk_idx = 3,
+		.flags = CLK_IS_CRITICAL,
+	},
+	[SCU1_CLK_APLL_DIVN] = {
+		.type = CLK_DIV_TABLE,
+		.name = "soc1-apll_divn",
+		.parent_names = (const char *[]){"soc1-apll", },
+		.reg = SCU1_CLK_SEL2,
+		.bit_shift = 8,
+		.bit_width = 3,
+		.div_table = ast2700_clk_div_table,
+	},
+	[SCU1_CLK_SDMUX] = {
+		.type = CLK_MUX,
+		.name = "sdclk-mux",
+		.parent_names = (const char *[]){ "soc1-hpll", "soc1-apll", },
+		.num_parents = 2,
+		.reg = SCU1_CLK_SEL1,
+		.bit_shift = 13,
+		.bit_width = 1,
+	},
+	[SCU1_CLK_SDCLK] = {
+		.type = CLK_DIV_TABLE,
+		.name = "sdclk",
+		.parent_names = (const char *[]){"sdclk-mux", },
+		.reg = SCU1_CLK_SEL1,
+		.bit_shift = 14,
+		.bit_width = 3,
+		.div_table = ast2700_clk_div_table,
+	},
+	[SCU1_CLK_GATE_SDCLK] = {
+		.type = CLK_GATE,
+		.name = "sdclk-gate",
+		.parent_names = (const char *[]){"sdclk", },
+		.reg = SCU1_CLK_STOP,
+		.clk_idx = 4,
+	},
+	[SCU1_CLK_GATE_IPEREFCLK] = {
+		.type = CLK_GATE,
+		.name = "soc1-iperefclk-gate",
+		.parent_names = (const char *[]){  },
+		.reg = SCU1_CLK_STOP,
+		.clk_idx = 5,
+		.flags = CLK_IS_CRITICAL,
+	},
+	[SCU1_CLK_GATE_REFCLK] = {
+		.type = CLK_GATE,
+		.name = "soc1-refclk-gate",
+		.parent_names = (const char *[]){  },
+		.reg = SCU1_CLK_STOP,
+		.clk_idx = 6,
+		.flags = CLK_IS_CRITICAL,
+	},
+	[SCU1_CLK_GATE_LPCHCLK] = {
+		.type = CLK_GATE,
+		.name = "lpchclk-gate",
+		.parent_names = (const char *[]){  },
+		.reg = SCU1_CLK_STOP,
+		.clk_idx = 7,
+		.flags = CLK_IS_CRITICAL,
+	},
+	[SCU1_CLK_GATE_MAC0CLK] = {
+		.type = CLK_GATE,
+		.name = "mac0clk-gate",
+		.parent_names = (const char *[]){  },
+		.reg = SCU1_CLK_STOP,
+		.clk_idx = 8,
+	},
+	[SCU1_CLK_GATE_MAC1CLK] = {
+		.type = CLK_GATE,
+		.name = "mac1clk-gate",
+		.parent_names = (const char *[]){  },
+		.reg = SCU1_CLK_STOP,
+		.clk_idx = 9,
+	},
+	[SCU1_CLK_GATE_MAC2CLK] = {
+		.type = CLK_GATE,
+		.name = "mac2clk-gate",
+		.parent_names = (const char *[]){  },
+		.reg = SCU1_CLK_STOP,
+		.clk_idx = 10,
+	},
+	[SCU1_CLK_UART0] = {
+		.type = CLK_MUX,
+		.name = "uart0clk",
+		.parent_names = (const char *[]){"uartxclk", "huartxclk", },
+		.num_parents = 2,
+		.reg = SCU1_CLK_SEL1,
+		.bit_shift = 0,
+		.bit_width = 1,
+	},
+	[SCU1_CLK_GATE_UART0CLK] = {
+		.type = CLK_GATE,
+		.name = "uart0clk-gate",
+		.parent_names = (const char *[]){ "uart0clk", },
+		.reg = SCU1_CLK_STOP,
+		.clk_idx = 11,
+	},
+	[SCU1_CLK_UART1] = {
+		.type = CLK_MUX,
+		.name = "uart1clk",
+		.parent_names = (const char *[]){"uartxclk", "huartxclk", },
+		.num_parents = 2,
+		.reg = SCU1_CLK_SEL1,
+		.bit_shift = 1,
+		.bit_width = 1,
+	},
+	[SCU1_CLK_GATE_UART1CLK] = {
+		.type = CLK_GATE,
+		.name = "uart1clk-gate",
+		.parent_names = (const char *[]){ "uart1clk", },
+		.reg = SCU1_CLK_STOP,
+		.clk_idx = 12,
+	},
+	[SCU1_CLK_UART2] = {
+		.type = CLK_MUX,
+		.name = "uart2clk",
+		.parent_names = (const char *[]){"uartxclk", "huartxclk", },
+		.num_parents = 2,
+		.reg = SCU1_CLK_SEL1,
+		.bit_shift = 2,
+		.bit_width = 1,
+	},
+	[SCU1_CLK_GATE_UART2CLK] = {
+		.type = CLK_GATE,
+		.name = "uart2clk-gate",
+		.parent_names = (const char *[]){ "uart2clk", },
+		.reg = SCU1_CLK_STOP,
+		.clk_idx = 13,
+	},
+	[SCU1_CLK_UART3] = {
+		.type = CLK_MUX,
+		.name = "uart3clk",
+		.parent_names = (const char *[]){"uartxclk", "huartxclk", },
+		.num_parents = 2,
+		.reg = SCU1_CLK_SEL1,
+		.bit_shift = 3,
+		.bit_width = 1,
+	},
+	[SCU1_CLK_GATE_UART3CLK] = {
+		.type = CLK_GATE,
+		.name = "uart3clk-gate",
+		.parent_names = (const char *[]){ "uart3clk", },
+		.reg = SCU1_CLK_STOP,
+		.clk_idx = 14,
+	},
+	[SCU1_CLK_GATE_I2CCLK] = {
+		.type = CLK_GATE,
+		.name = "i2cclk-gate",
+		.parent_names = (const char *[]){	},
+		.reg = SCU1_CLK_STOP,
+		.clk_idx = 15,
+	},
+	[SCU1_CLK_GATE_I3C0CLK] = {
+		.type = CLK_GATE,
+		.name = "i3c0clk-gate",
+		.parent_names = (const char *[]){ "soc1-ahb", },
+		.reg = SCU1_CLK_STOP,
+		.clk_idx = 16,
+	},
+	[SCU1_CLK_GATE_I3C1CLK] = {
+		.type = CLK_GATE,
+		.name = "i3c1clk-gate",
+		.parent_names = (const char *[]){ "soc1-ahb", },
+		.reg = SCU1_CLK_STOP,
+		.clk_idx = 17,
+	},
+	[SCU1_CLK_GATE_I3C2CLK] = {
+		.type = CLK_GATE,
+		.name = "i3c2clk-gate",
+		.parent_names = (const char *[]){ "soc1-ahb", },
+		.reg = SCU1_CLK_STOP,
+		.clk_idx = 18,
+	},
+	[SCU1_CLK_GATE_I3C3CLK] = {
+		.type = CLK_GATE,
+		.name = "i3c3clk-gate",
+		.parent_names = (const char *[]){ "soc1-ahb", },
+		.reg = SCU1_CLK_STOP,
+		.clk_idx = 19,
+	},
+	[SCU1_CLK_GATE_I3C4CLK] = {
+		.type = CLK_GATE,
+		.name = "i3c4clk-gate",
+		.parent_names = (const char *[]){ "soc1-ahb", },
+		.reg = SCU1_CLK_STOP,
+		.clk_idx = 20,
+	},
+	[SCU1_CLK_GATE_I3C5CLK] = {
+		.type = CLK_GATE,
+		.name = "i3c5clk-gate",
+		.parent_names = (const char *[]){ "soc1-ahb", },
+		.reg = SCU1_CLK_STOP,
+		.clk_idx = 21,
+	},
+	[SCU1_CLK_GATE_I3C6CLK] = {
+		.type = CLK_GATE,
+		.name = "i3c6clk-gate",
+		.parent_names = (const char *[]){ "soc1-ahb", },
+		.reg = SCU1_CLK_STOP,
+		.clk_idx = 22,
+	},
+	[SCU1_CLK_GATE_I3C7CLK] = {
+		.type = CLK_GATE,
+		.name = "i3c7clk-gate",
+		.parent_names = (const char *[]){ "soc1-ahb", },
+		.reg = SCU1_CLK_STOP,
+		.clk_idx = 23,
+	},
+	[SCU1_CLK_GATE_I3C8CLK] = {
+		.type = CLK_GATE,
+		.name = "i3c8clk-gate",
+		.parent_names = (const char *[]){ "soc1-ahb", },
+		.reg = SCU1_CLK_STOP,
+		.clk_idx = 24,
+	},
+	[SCU1_CLK_GATE_I3C9CLK] = {
+		.type = CLK_GATE,
+		.name = "i3c9clk-gate",
+		.parent_names = (const char *[]){ "soc1-ahb", },
+		.reg = SCU1_CLK_STOP,
+		.clk_idx = 25,
+	},
+	[SCU1_CLK_GATE_I3C10CLK] = {
+		.type = CLK_GATE,
+		.name = "i3c10clk-gate",
+		.parent_names = (const char *[]){ "soc1-ahb", },
+		.reg = SCU1_CLK_STOP,
+		.clk_idx = 26,
+	},
+	[SCU1_CLK_GATE_I3C11CLK] = {
+		.type = CLK_GATE,
+		.name = "i3c11clk-gate",
+		.parent_names = (const char *[]){ "soc1-ahb", },
+		.reg = SCU1_CLK_STOP,
+		.clk_idx = 27,
+	},
+	[SCU1_CLK_GATE_I3C12CLK] = {
+		.type = CLK_GATE,
+		.name = "i3c12clk-gate",
+		.parent_names = (const char *[]){ "soc1-ahb", },
+		.reg = SCU1_CLK_STOP,
+		.clk_idx = 28,
+	},
+	[SCU1_CLK_GATE_I3C13CLK] = {
+		.type = CLK_GATE,
+		.name = "i3c13clk-gate",
+		.parent_names = (const char *[]){ "soc1-ahb", },
+		.reg = SCU1_CLK_STOP,
+		.clk_idx = 29,
+	},
+	[SCU1_CLK_GATE_I3C14CLK] = {
+		.type = CLK_GATE,
+		.name = "i3c14clk-gate",
+		.parent_names = (const char *[]){ "soc1-ahb", },
+		.reg = SCU1_CLK_STOP,
+		.clk_idx = 30,
+	},
+	[SCU1_CLK_GATE_I3C15CLK] = {
+		.type = CLK_GATE,
+		.name = "i3c15clk-gate",
+		.parent_names = (const char *[]){ "soc1-ahb", },
+		.reg = SCU1_CLK_STOP,
+		.clk_idx = 31,
+	},
+	[SCU1_CLK_UART5] = {
+		.type = CLK_MUX,
+		.name = "uart5clk",
+		.parent_names = (const char *[]){"uartxclk", "huartxclk", },
+		.num_parents = 2,
+		.reg = SCU1_CLK_SEL1,
+		.bit_shift = 5,
+		.bit_width = 1,
+	},
+	[SCU1_CLK_GATE_UART5CLK] = {
+		.type = CLK_GATE,
+		.name = "uart5clk-gate",
+		.parent_names = (const char *[]){ "uart5clk", },
+		.reg = SCU1_CLK_STOP2,
+		.clk_idx = 0,
+		.flags = CLK_IS_CRITICAL,
+	},
+	[SCU1_CLK_UART6] = {
+		.type = CLK_MUX,
+		.name = "uart6clk",
+		.parent_names = (const char *[]){"uartxclk", "huartxclk", },
+		.num_parents = 2,
+		.reg = SCU1_CLK_SEL1,
+		.bit_shift = 6,
+		.bit_width = 1,
+	},
+	[SCU1_CLK_GATE_UART6CLK] = {
+		.type = CLK_GATE,
+		.name = "uart6clk-gate",
+		.parent_names = (const char *[]){ "uart6clk", },
+		.reg = SCU1_CLK_STOP2,
+		.clk_idx = 1,
+	},
+	[SCU1_CLK_UART7] = {
+		.type = CLK_MUX,
+		.name = "uart7clk",
+		.parent_names = (const char *[]){"uartxclk", "huartxclk", },
+		.num_parents = 2,
+		.reg = SCU1_CLK_SEL1,
+		.bit_shift = 7,
+		.bit_width = 1,
+	},
+	[SCU1_CLK_GATE_UART7CLK] = {
+		.type = CLK_GATE,
+		.name = "uart7clk-gate",
+		.parent_names = (const char *[]){ "uart7clk", },
+		.reg = SCU1_CLK_STOP2,
+		.clk_idx = 2,
+		.flags = CLK_IS_CRITICAL,
+	},
+	[SCU1_CLK_UART8] = {
+		.type = CLK_MUX,
+		.name = "uart8clk",
+		.parent_names = (const char *[]){"uartxclk", "huartxclk", },
+		.num_parents = 2,
+		.reg = SCU1_CLK_SEL1,
+		.bit_shift = 8,
+		.bit_width = 1,
+	},
+	[SCU1_CLK_GATE_UART8CLK] = {
+		.type = CLK_GATE,
+		.name = "uart8clk-gate",
+		.parent_names = (const char *[]){ "uart8clk", },
+		.reg = SCU1_CLK_STOP2,
+		.clk_idx = 3,
+		.flags = CLK_IS_CRITICAL,
+	},
+	[SCU1_CLK_UART9] = {
+		.type = CLK_MUX,
+		.name = "uart9clk",
+		.parent_names = (const char *[]){"uartxclk", "huartxclk", },
+		.num_parents = 2,
+		.reg = SCU1_CLK_SEL1,
+		.bit_shift = 9,
+		.bit_width = 1,
+	},
+	[SCU1_CLK_GATE_UART9CLK] = {
+		.type = CLK_GATE,
+		.name = "uart9clk-gate",
+		.parent_names = (const char *[]){ "uart9clk", },
+		.reg = SCU1_CLK_STOP2,
+		.clk_idx = 4,
+	},
+	[SCU1_CLK_UART10] = {
+		.type = CLK_MUX,
+		.name = "uart10clk",
+		.parent_names = (const char *[]){"uartxclk", "huartxclk", },
+		.num_parents = 2,
+		.reg = SCU1_CLK_SEL1,
+		.bit_shift = 10,
+		.bit_width = 1,
+	},
+	[SCU1_CLK_GATE_UART10CLK] = {
+		.type = CLK_GATE,
+		.name = "uart10clk-gate",
+		.parent_names = (const char *[]){ "uart10clk", },
+		.reg = SCU1_CLK_STOP2,
+		.clk_idx = 5,
+	},
+	[SCU1_CLK_UART11] = {
+		.type = CLK_MUX,
+		.name = "uart11clk",
+		.parent_names = (const char *[]){"uartxclk", "huartxclk", },
+		.num_parents = 2,
+		.reg = SCU1_CLK_SEL1,
+		.bit_shift = 11,
+		.bit_width = 1,
+	},
+	[SCU1_CLK_GATE_UART11CLK] = {
+		.type = CLK_GATE,
+		.name = "uart11clk-gate",
+		.parent_names = (const char *[]){ "uart11clk", },
+		.reg = SCU1_CLK_STOP2,
+		.clk_idx = 6,
+	},
+	[SCU1_CLK_UART12] = {
+		.type = CLK_MUX,
+		.name = "uart12clk",
+		.parent_names = (const char *[]){"uartxclk", "huartxclk", },
+		.num_parents = 2,
+		.reg = SCU1_CLK_SEL1,
+		.bit_shift = 12,
+		.bit_width = 1,
+	},
+	[SCU1_CLK_GATE_UART12CLK] = {
+		.type = CLK_GATE,
+		.name = "uart12clk-gate",
+		.parent_names = (const char *[]){ "uart12clk", },
+		.reg = SCU1_CLK_STOP2,
+		.clk_idx = 7,
+		.flags = CLK_IS_CRITICAL,
+	},
+	[SCU1_CLK_UART13] = {
+		.type = CLK_FIXED_FACTOR,
+		.name = "uart13clk",
+		.parent_names = (const char *[]){ "huartxclk", },
+		.mult = 1,
+		.div = 1,
+	},
+	[SCU1_CLK_UART14] = {
+		.type = CLK_FIXED_FACTOR,
+		.name = "uart14clk",
+		.parent_names = (const char *[]){ "huartxclk", },
+		.mult = 1,
+		.div = 1,
+	},
+	[SCU1_CLK_GATE_FSICLK] = {
+		.type = CLK_GATE,
+		.name = "fsiclk-gate",
+		.parent_names = (const char *[]){  },
+		.reg = SCU1_CLK_STOP2,
+		.clk_idx = 8,
+	},
+	[SCU1_CLK_GATE_LTPIPHYCLK] = {
+		.type = CLK_GATE,
+		.name = "ltpiphyclk-gate",
+		.parent_names = (const char *[]){  },
+		.reg = SCU1_CLK_STOP2,
+		.clk_idx = 9,
+	},
+	[SCU1_CLK_GATE_LTPICLK] = {
+		.type = CLK_GATE,
+		.name = "ltpiclk-gate",
+		.parent_names = (const char *[]){  },
+		.reg = SCU1_CLK_STOP2,
+		.clk_idx = 10,
+	},
+	[SCU1_CLK_GATE_VGALCLK] = {
+		.type = CLK_GATE,
+		.name = "vgalclk-gate",
+		.parent_names = (const char *[]){  },
+		.reg = SCU1_CLK_STOP2,
+		.clk_idx = 11,
+		.flags = CLK_IS_CRITICAL,
+	},
+	[SCU1_CLK_GATE_UHCICLK] = {
+		.type = CLK_GATE,
+		.name = "usbuartclk-gate",
+		.parent_names = (const char *[]){  },
+		.reg = SCU1_CLK_STOP2,
+		.clk_idx = 12,
+	},
+	[SCU1_CLK_CAN] = {
+		.type = CLK_FIXED_FACTOR,
+		.name = "canclk",
+		.parent_names = (const char *[]){ "soc1-apll", },
+		.mult = 1,
+		.div = 10,
+	},
+	[SCU1_CLK_GATE_CANCLK] = {
+		.type = CLK_GATE,
+		.name = "canclk-gate",
+		.parent_names = (const char *[]){ "canclk", },
+		.reg = SCU1_CLK_STOP2,
+		.clk_idx = 13,
+	},
+	[SCU1_CLK_GATE_PCICLK] = {
+		.type = CLK_GATE,
+		.name = "pciclk-gate",
+		.parent_names = (const char *[]){  },
+		.reg = SCU1_CLK_STOP2,
+		.clk_idx = 14,
+	},
+	[SCU1_CLK_GATE_SLICLK] = {
+		.type = CLK_GATE,
+		.name = "soc1-sliclk-gate",
+		.parent_names = (const char *[]){  },
+		.reg = SCU1_CLK_STOP2,
+		.clk_idx = 15,
+		.flags = CLK_IS_CRITICAL,
+	},
+	[SCU1_CLK_GATE_E2MCLK] = {
+		.type = CLK_GATE,
+		.name = "soc1-e2m-gate",
+		.parent_names = (const char *[]){  },
+		.reg = SCU1_CLK_STOP2,
+		.clk_idx = 16,
+		.flags = CLK_IS_CRITICAL,
+	},
+	[SCU1_CLK_GATE_PORTCUSB2CLK] = {
+		.type = CLK_GATE,
+		.name = "portcusb2-gate",
+		.parent_names = (const char *[]){  },
+		.reg = SCU1_CLK_STOP2,
+		.clk_idx = 17,
+		.flags = CLK_IS_CRITICAL,
+	},
+	[SCU1_CLK_GATE_PORTDUSB2CLK] = {
+		.type = CLK_GATE,
+		.name = "portdusb2-gate",
+		.parent_names = (const char *[]){  },
+		.reg = SCU1_CLK_STOP2,
+		.clk_idx = 18,
+	},
+	[SCU1_CLK_GATE_LTPI1TXCLK] = {
+		.type = CLK_GATE,
+		.name = "ltp1tx-gate",
+		.parent_names = (const char *[]){  },
+		.reg = SCU1_CLK_STOP2,
+		.clk_idx = 19,
+	},
+};
+
+static struct clk_hw *ast2700_clk_hw_register_pll(int clk_idx, void __iomem *reg,
+						  const struct ast2700_clk_info *clk,
+						  struct ast2700_clk_ctrl *clk_ctrl)
 {
 	unsigned int mult, div;
+	u32 val;
+
+	if (clk_idx == SCU0_CLK_HPLL) {
+		val = readl(clk_ctrl->base + SCU0_HWSTRAP1);
+		if ((val & GENMASK(3, 2)) != 0) {
+			switch ((val & GENMASK(3, 2)) >> 2) {
+			case 1:
+				return devm_clk_hw_register_fixed_rate(clk_ctrl->dev, "soc0-hpll",
+								       NULL, 0, 1900000000);
+			case 2:
+				return devm_clk_hw_register_fixed_rate(clk_ctrl->dev, "soc0-hpll",
+								       NULL, 0, 1800000000);
+			case 3:
+				return devm_clk_hw_register_fixed_rate(clk_ctrl->dev, "soc0-hpll",
+								       NULL, 0, 1700000000);
+			default:
+				return ERR_PTR(-EINVAL);
+			}
+		}
+	}
+
+	val = readl(reg);
 
 	if (val & BIT(24)) {
 		/* Pass through mode */
 		mult = 1;
 		div = 1;
 	} else {
-		/* F = CLKIN(25MHz) * [(M+1) / 2(N+1)] / (P+1) */
 		u32 m = val & 0x1fff;
 		u32 n = (val >> 13) & 0x3f;
 		u32 p = (val >> 19) & 0xf;
 
-		mult = (m + 1) / (2 * (n + 1));
-		div = (p + 1);
+		if (clk_idx == SCU0_CLK_MPLL) {
+			mult = m / (n + 1);
+			div = (p + 1);
+		} else if ((clk_idx == SCU1_CLK_HPLL) ||
+			   (clk_idx == SCU1_CLK_APLL) ||
+			   (clk_idx == SCU1_CLK_DPLL)) {
+			mult = (m + 1) / (n + 1);
+			div = (p + 1);
+		} else {
+			mult = (m + 1) / (2 * (n + 1));
+			div = (p + 1);
+		}
 	}
 
-	return clk_hw_register_fixed_factor(NULL, name, parent_name, 0, mult, div);
-};
+	return devm_clk_hw_register_fixed_factor(clk_ctrl->dev, clk->name,
+						 clk->parent_names[0], 0, mult, div);
+}
 
-/* MPLL 1600Mhz(default) */
-static struct clk_hw *ast2700_calc_mpll(const char *name, const char *parent_name, u32 val)
+static struct clk_hw *ast2700_clk_hw_register_uartpll(int clk_idx, void __iomem *reg,
+						      const struct ast2700_clk_info *clk,
+						      struct ast2700_clk_ctrl *clk_ctrl)
 {
 	unsigned int mult, div;
-
-	if (val & BIT(24)) {
-		/* Pass through mode */
-		mult = 1;
-		div = 1;
-	} else {
-		/* F = CLKIN(25MHz) * [CLKF/(CLKR+1)] /(CLKOD+1) */
-		u32 m = val & 0x1fff;
-		u32 n = (val >> 13) & 0x3f;
-		u32 p = (val >> 19) & 0xf;
-
-		mult = m / (n + 1);
-		div = (p + 1);
-	}
-	return clk_hw_register_fixed_factor(NULL, name, parent_name, 0, mult, div);
-};
-
-static struct clk_hw *ast2700_calc_uclk(const char *name, u32 val)
-{
-	unsigned int mult, div;
-
-	/* UARTCLK = UXCLK * R / (N * 2) */
+	u32 val = readl(reg);
 	u32 r = val & 0xff;
 	u32 n = (val >> 8) & 0x3ff;
 
 	mult = r;
 	div = n * 2;
 
-	return clk_hw_register_fixed_factor(NULL, name, "uxclk", 0, mult, div);
-};
+	return devm_clk_hw_register_fixed_factor(clk_ctrl->dev, clk->name,
+						 clk->parent_names[0], 0, mult, div);
+}
 
-static struct clk_hw *ast2700_calc_huclk(const char *name, u32 val)
+static struct clk_hw *ast2700_clk_hw_register_misc(int clk_idx, void __iomem *reg,
+						   const struct ast2700_clk_info *clk,
+						   struct ast2700_clk_ctrl *clk_ctrl)
 {
-	unsigned int mult, div;
+	u32 div = 0;
 
-	/* UARTCLK = UXCLK * R / (N * 2) */
-	u32 r = val & 0xff;
-	u32 n = (val >> 8) & 0x3ff;
+	if (clk_idx == SCU0_CLK_MPHY)
+		div = readl(reg) + 1;
+	else if (clk_idx == SCU0_CLK_U2PHY_REFCLK)
+		div = (GET_USB_REFCLK_DIV(readl(reg)) + 1) << 1;
+	else
+		return ERR_PTR(-EINVAL);
 
-	mult = r;
-	div = n * 2;
-
-	return clk_hw_register_fixed_factor(NULL, name, "huxclk", 0, mult, div);
-};
-
-static struct clk_hw *ast2700_calc_soc1_pll(const char *name, const char *parent_name, u32 val)
-{
-	unsigned int mult, div;
-
-	if (val & BIT(24)) {
-		/* Pass through mode */
-		mult = 1;
-		div = 1;
-	} else {
-		/* F = 25Mhz * [(M + 1) / (n + 1)] / (p + 1) */
-		u32 m = val & 0x1fff;
-		u32 n = (val >> 13) & 0x3f;
-		u32 p = (val >> 19) & 0xf;
-
-		mult = (m + 1) / (n + 1);
-		div = (p + 1);
-	}
-	return clk_hw_register_fixed_factor(NULL, name, parent_name, 0, mult, div);
-};
+	return devm_clk_hw_register_fixed_factor(clk_ctrl->dev, clk->name,
+						   clk->parent_names[0], clk->flags,
+						   1, div);
+}
 
 static int ast2700_clk_is_enabled(struct clk_hw *hw)
 {
@@ -309,32 +1426,12 @@ static struct clk_hw *ast2700_clk_hw_register_gate(struct device *dev, const cha
 	return hw;
 }
 
-static const char *const sdclk_sel[] = {
-	"soc1-hpll",
-	"soc1-apll",
-};
-
-static const char *const uartclk_sel[] = {
-	"uartxclk",
-	"huartxclk",
-};
-
-static const char *const uxclk_sel[] = {
-	"soc1-apll_div4",
-	"soc1-apll_div2",
-	"soc1-apll",
-	"soc1-hpll",
-};
-
-static void ast2700_soc1_configure_mac01_clk(struct device_node *np)
+static void ast2700_soc1_configure_mac01_clk(struct ast2700_clk_ctrl *clk_ctrl)
 {
-	void __iomem *clk_base;
+	struct device_node *np = clk_ctrl->dev->of_node;
 	struct mac_delay_config mac_cfg;
 	u32 reg[3];
 	int ret;
-
-	clk_base = of_iomap(np, 0);
-	WARN_ON(!clk_base);
 
 	reg[0] = AST2700_DEF_MAC12_DELAY_1G;
 	reg[1] = AST2700_DEF_MAC12_DELAY_100M;
@@ -372,10 +1469,10 @@ static void ast2700_soc1_configure_mac01_clk(struct device_node *np)
 			  FIELD_PREP(MAC_CLK_100M_10M_OUTPUT_DELAY_2, mac_cfg.tx_delay_10);
 	}
 
-	reg[0] |= (readl(clk_base + SCU1_MAC12_CLK_DLY) & ~GENMASK(25, 0));
-	writel(reg[0], clk_base + SCU1_MAC12_CLK_DLY);
-	writel(reg[1], clk_base + SCU1_MAC12_CLK_DLY_100M);
-	writel(reg[2], clk_base + SCU1_MAC12_CLK_DLY_10M);
+	reg[0] |= (readl(clk_ctrl->base + SCU1_MAC12_CLK_DLY) & ~GENMASK(25, 0));
+	writel(reg[0], clk_ctrl->base + SCU1_MAC12_CLK_DLY);
+	writel(reg[1], clk_ctrl->base + SCU1_MAC12_CLK_DLY_100M);
+	writel(reg[2], clk_ctrl->base + SCU1_MAC12_CLK_DLY_10M);
 }
 
 static void aspeed_reset_unregister_adev(void *_adev)
@@ -425,749 +1522,119 @@ static int aspeed_reset_controller_register(struct device *clk_dev,
 	return devm_add_action_or_reset(clk_dev, aspeed_reset_unregister_adev, adev);
 }
 
-#define SCU1_NUM_CLKS	87
-static int ast2700_soc1_init(struct platform_device *pdev)
+static int ast2700_soc_clk_probe(struct platform_device *pdev)
 {
-	struct clk_hw_onecell_data *clk_data;
+	struct ast2700_clk_data *clk_data;
+	struct ast2700_clk_ctrl *clk_ctrl;
+	struct clk_hw_onecell_data *clk_hw_data;
 	struct device *dev = &pdev->dev;
 	u32 uart_clk_source = 0;
 	void __iomem *clk_base;
-	struct clk_hw **clks;
-	u32 val;
+	struct clk_hw **hws;
 	int ret;
+	int i;
+
+	clk_ctrl = devm_kzalloc(dev, sizeof(*clk_ctrl), GFP_KERNEL);
+	if (!clk_ctrl)
+		return -ENOMEM;
+	clk_ctrl->dev = dev;
+	dev_set_drvdata(&pdev->dev, clk_ctrl);
+
+	spin_lock_init(&clk_ctrl->lock);
 
 	clk_base = devm_platform_ioremap_resource(pdev, 0);
-	WARN_ON(!clk_base);
+	if (IS_ERR(clk_base))
+		return PTR_ERR(clk_base);
 
-	clk_data = kzalloc(struct_size(clk_data, hws, SCU1_NUM_CLKS), GFP_KERNEL);
+	clk_ctrl->base = clk_base;
+
+	clk_data = (struct ast2700_clk_data *)of_device_get_match_data(dev);
 	if (!clk_data)
+		return devm_of_platform_populate(dev);
+
+	clk_ctrl->clk_data = clk_data;
+	clk_hw_data = devm_kzalloc(dev, struct_size(clk_hw_data, hws, clk_data->nr_clks),
+				   GFP_KERNEL);
+	if (!clk_hw_data)
 		return -ENOMEM;
 
-	clk_data->num = SCU1_NUM_CLKS;
-	clks = clk_data->hws;
+	clk_hw_data->num = clk_data->nr_clks;
+	hws = clk_hw_data->hws;
 
-	clks[SCU1_CLKIN] =
-		clk_hw_register_fixed_rate(NULL, "soc1-clkin", NULL, 0, SCU_CLK_25MHZ);
-
-	/* HPLL 1000Mhz */
-	val = readl(clk_base + SCU1_HPLL_PARAM);
-	clks[SCU1_CLK_HPLL] = ast2700_calc_soc1_pll("soc1-hpll", "soc1-clkin", val);
-
-	/* HPLL 800Mhz */
-	val = readl(clk_base + SCU1_APLL_PARAM);
-	clks[SCU1_CLK_APLL] = ast2700_calc_soc1_pll("soc1-apll", "soc1-clkin", val);
-
-	clks[SCU1_CLK_APLL_DIV2] =
-		clk_hw_register_fixed_factor(NULL, "soc1-apll_div2", "soc1-apll", 0, 1, 2);
-
-	clks[SCU1_CLK_APLL_DIV4] =
-		clk_hw_register_fixed_factor(NULL, "soc1-apll_div4", "soc1-apll", 0, 1, 4);
-
-	val = readl(clk_base + SCU1_DPLL_PARAM);
-	clks[SCU1_CLK_DPLL] = ast2700_calc_soc1_pll("dpll", "soc1-clkin", val);
-
-	/* uxclk mux selection */
-	clks[SCU1_CLK_UXCLK] =
-		clk_hw_register_mux(NULL, "uxclk", uxclk_sel, ARRAY_SIZE(uxclk_sel),
-				    0, clk_base + SCU1_CLK_SEL2,
-				    0, 2, 0, &ast2700_clk_lock);
-
-	val = readl(clk_base + SCU1_UXCLK_CTRL);
-	clks[SCU1_CLK_UARTX] = ast2700_calc_uclk("uartxclk", val);
-
-	/* huxclk mux selection */
-	clks[SCU1_CLK_HUXCLK] =
-		clk_hw_register_mux(NULL, "huxclk", uxclk_sel, ARRAY_SIZE(uxclk_sel),
-				    0, clk_base + SCU1_CLK_SEL2,
-				    3, 2, 0, &ast2700_clk_lock);
-
-	val = readl(clk_base + SCU1_HUXCLK_CTRL);
-	clks[SCU1_CLK_HUARTX] = ast2700_calc_huclk("huartxclk", val);
-
-	/* AHB CLK = 200Mhz */
-	clks[SCU1_CLK_AHB] =
-		clk_hw_register_divider_table(NULL, "soc1-ahb", "soc1-hpll",
-					      0, clk_base + SCU1_CLK_SEL2,
-					      20, 3, 0, ast2700_clk_div_table, &ast2700_clk_lock);
-
-	/* APB CLK = 100Mhz */
-	clks[SCU1_CLK_APB] =
-		clk_hw_register_divider_table(NULL, "soc1-apb", "soc1-hpll",
-					      0, clk_base + SCU1_CLK_SEL1,
-					      18, 3, 0, ast2700_clk_div_table2, &ast2700_clk_lock);
-
-	/* RMII */
-	clks[SCU1_CLK_RMII] =
-		clk_hw_register_divider_table(NULL, "rmii", "soc1-hpll",
-					      0, clk_base + SCU1_CLK_SEL1,
-					      21, 3, 0, ast2700_rmii_div_table, &ast2700_clk_lock);
-
-	/* RMII0 50MHz (RCLK) output enable */
-	clks[SCU1_CLK_MAC0RCLK] =
-		clk_hw_register_gate(NULL, "mac0rclk", "rmii", 0,
-				     clk_base + SCU1_MAC12_CLK_DLY, 29,
-				     0, &ast2700_clk_lock);
-
-	/* RMII1 50MHz (RCLK) output enable */
-	clks[SCU1_CLK_MAC1RCLK] =
-		clk_hw_register_gate(NULL, "mac1rclk", "rmii", 0,
-				     clk_base + SCU1_MAC12_CLK_DLY, 30,
-				     0, &ast2700_clk_lock);
-
-	/* RGMII */
-	clks[SCU1_CLK_RGMII] =
-		clk_hw_register_divider_table(NULL, "rgmii", "soc1-hpll",
-					      0, clk_base + SCU1_CLK_SEL1,
-					      25, 3, 0, ast2700_rgmii_div_table, &ast2700_clk_lock);
-
-	/* MAC HCLK */
-	clks[SCU1_CLK_MACHCLK] =
-		clk_hw_register_divider_table(NULL, "machclk", "soc1-hpll",
-					      0, clk_base + SCU1_CLK_SEL1,
-					      29, 3, 0, ast2700_clk_div_table, &ast2700_clk_lock);
-
-	/* MAC0/1 RGMII/RMII Clock Delay */
-	ast2700_soc1_configure_mac01_clk(dev_of_node(dev));
-
-	clks[SCU1_CLK_GATE_LCLK0] =
-		ast2700_clk_hw_register_gate(NULL, "lclk0-gate", NULL,
-					     CLK_IS_CRITICAL, clk_base + SCU1_CLK_STOP,
-					     0, 0, &ast2700_clk_lock);
-
-	clks[SCU1_CLK_GATE_LCLK0] =
-		ast2700_clk_hw_register_gate(NULL, "lclk1-gate", NULL,
-					     CLK_IS_CRITICAL, clk_base + SCU1_CLK_STOP,
-					     1, 0, &ast2700_clk_lock);
-
-	clks[SCU1_CLK_GATE_ESPI0CLK] =
-		ast2700_clk_hw_register_gate(NULL, "espi0clk-gate", NULL,
-					     CLK_IS_CRITICAL, clk_base + SCU1_CLK_STOP,
-					     2, 0, &ast2700_clk_lock);
-
-	clks[SCU1_CLK_GATE_ESPI1CLK] =
-		ast2700_clk_hw_register_gate(NULL, "espi1clk-gate", NULL,
-					     CLK_IS_CRITICAL, clk_base + SCU1_CLK_STOP,
-					     3, 0, &ast2700_clk_lock);
-
-	clks[SCU1_CLK_APLL_DIVN] =
-		clk_hw_register_divider_table(NULL, "soc1-apll_divn", "soc1-apll",
-					      0, clk_base + SCU1_CLK_SEL2,
-					      8, 3, 0, ast2700_clk_div_table, &ast2700_clk_lock);
-
-	clks[SCU1_CLK_SDMUX] =
-		clk_hw_register_mux(NULL, "sdclk-mux", sdclk_sel, ARRAY_SIZE(sdclk_sel),
-				    0, clk_base + SCU1_CLK_SEL1,
-				    13, 1, 0, &ast2700_clk_lock);
-
-	clks[SCU1_CLK_SDCLK] =
-		clk_hw_register_divider_table(NULL, "sdclk", "sdclk-mux",
-					      0, clk_base + SCU1_CLK_SEL1,
-					      14, 3, 0, ast2700_clk_div_table, &ast2700_clk_lock);
-
-	clks[SCU1_CLK_GATE_SDCLK] =
-		ast2700_clk_hw_register_gate(NULL, "sdclk-gate", "sdclk",
-					     0, clk_base + SCU1_CLK_STOP,
-					     4, 0, &ast2700_clk_lock);
-
-	clks[SCU1_CLK_GATE_IPEREFCLK] =
-		ast2700_clk_hw_register_gate(NULL, "soc1-refclk-gate", NULL,
-					     CLK_IS_CRITICAL, clk_base + SCU1_CLK_STOP,
-					     6, 0, &ast2700_clk_lock);
-
-	clks[SCU1_CLK_GATE_LPCHCLK] =
-		ast2700_clk_hw_register_gate(NULL, "lpchclk-gate", NULL,
-					     CLK_IS_CRITICAL, clk_base + SCU1_CLK_STOP,
-					     7, 0, &ast2700_clk_lock);
-
-	clks[SCU1_CLK_GATE_MAC0CLK] =
-		ast2700_clk_hw_register_gate(NULL, "mac0clk-gate", NULL,
-					     0, clk_base + SCU1_CLK_STOP,
-					     8, 0, &ast2700_clk_lock);
-
-	clks[SCU1_CLK_GATE_MAC1CLK] =
-		ast2700_clk_hw_register_gate(NULL, "mac1clk-gate", NULL,
-					     0, clk_base + SCU1_CLK_STOP,
-					     9, 0, &ast2700_clk_lock);
-
-	clks[SCU1_CLK_GATE_MAC2CLK] =
-		ast2700_clk_hw_register_gate(NULL, "mac2clk-gate", NULL,
-					     0, clk_base + SCU1_CLK_STOP,
-					     10, 0, &ast2700_clk_lock);
-
-	of_property_read_u32(dev_of_node(dev), "uart-clk-source", &uart_clk_source);
+	of_property_read_u32(dev->of_node, "uart-clk-source", &uart_clk_source);
 	if (uart_clk_source) {
-		val = readl(clk_base + SCU1_CLK_SEL1) & ~GENMASK(12, 0);
+		u32 val = readl(clk_base + SCU1_CLK_SEL1) & ~GENMASK(12, 0);
+
 		uart_clk_source &= GENMASK(12, 0);
 		writel(val | uart_clk_source, clk_base + SCU1_CLK_SEL1);
 	}
 
-	//UART0
-	clks[SCU1_CLK_UART0] =
-		clk_hw_register_mux(NULL, "uart0clk", uartclk_sel, ARRAY_SIZE(uartclk_sel),
-				    0, clk_base + SCU1_CLK_SEL1,
-				    0, 1, 0, &ast2700_clk_lock);
+	if(!strcmp(clk_ctrl->clk_data->reset_name, "reset1"))
+		ast2700_soc1_configure_mac01_clk(clk_ctrl);
 
-	clks[SCU1_CLK_GATE_UART0CLK] =
-		ast2700_clk_hw_register_gate(NULL, "uart0clk-gate", "uart0clk",
-					     CLK_IS_CRITICAL, clk_base + SCU1_CLK_STOP,
-					     11, 0, &ast2700_clk_lock);
+	for (i = 0; i < clk_data->nr_clks; i++) {
+		const struct ast2700_clk_info *clk = &clk_data->clk_info[i];
+		void __iomem *reg = clk_ctrl->base + clk->reg;
 
-	//UART1
-	clks[SCU1_CLK_UART1] =
-		clk_hw_register_mux(NULL, "uart1clk", uartclk_sel, ARRAY_SIZE(uartclk_sel),
-				    0, clk_base + SCU1_CLK_SEL1,
-				    1, 1, 0, &ast2700_clk_lock);
-
-	clks[SCU1_CLK_GATE_UART1CLK] =
-		ast2700_clk_hw_register_gate(NULL, "uart1clk-gate", "uart1clk",
-					     CLK_IS_CRITICAL, clk_base + SCU1_CLK_STOP,
-					     12, 0, &ast2700_clk_lock);
-
-	//UART2
-	clks[SCU1_CLK_UART2] =
-		clk_hw_register_mux(NULL, "uart2clk", uartclk_sel, ARRAY_SIZE(uartclk_sel),
-				    0, clk_base + SCU1_CLK_SEL1,
-				    2, 1, 0, &ast2700_clk_lock);
-
-	clks[SCU1_CLK_GATE_UART2CLK] =
-		ast2700_clk_hw_register_gate(NULL, "uart2clk-gate", "uart2clk",
-					     CLK_IS_CRITICAL, clk_base + SCU1_CLK_STOP,
-					     13, 0, &ast2700_clk_lock);
-
-	//UART3
-	clks[SCU1_CLK_UART3] =
-		clk_hw_register_mux(NULL, "uart3clk", uartclk_sel, ARRAY_SIZE(uartclk_sel),
-				    0, clk_base + SCU1_CLK_SEL1,
-				    3, 1, 0, &ast2700_clk_lock);
-
-	clks[SCU1_CLK_GATE_UART3CLK] =
-		ast2700_clk_hw_register_gate(NULL, "uart3clk-gate", "uart3clk",
-					     CLK_IS_CRITICAL, clk_base + SCU1_CLK_STOP,
-					     14, 0, &ast2700_clk_lock);
-
-	clks[SCU1_CLK_GATE_I3C0CLK] =
-		ast2700_clk_hw_register_gate(NULL, "i3c0clk-gate", "soc1-ahb",
-					     0, clk_base + SCU1_CLK_STOP,
-					     16, 0, &ast2700_clk_lock);
-
-	clks[SCU1_CLK_GATE_I3C1CLK] =
-		ast2700_clk_hw_register_gate(NULL, "i3c1clk-gate", "soc1-ahb",
-					     0, clk_base + SCU1_CLK_STOP,
-					     17, 0, &ast2700_clk_lock);
-
-	clks[SCU1_CLK_GATE_I3C2CLK] =
-		ast2700_clk_hw_register_gate(NULL, "i3c2clk-gate", "soc1-ahb",
-					     0, clk_base + SCU1_CLK_STOP,
-					     18, 0, &ast2700_clk_lock);
-
-	clks[SCU1_CLK_GATE_I3C3CLK] =
-		ast2700_clk_hw_register_gate(NULL, "i3c3clk-gate", "soc1-ahb",
-					     0, clk_base + SCU1_CLK_STOP,
-					     19, 0, &ast2700_clk_lock);
-
-	clks[SCU1_CLK_GATE_I3C4CLK] =
-		ast2700_clk_hw_register_gate(NULL, "i3c4clk-gate", "soc1-ahb",
-					     0, clk_base + SCU1_CLK_STOP,
-					     20, 0, &ast2700_clk_lock);
-
-	clks[SCU1_CLK_GATE_I3C5CLK] =
-		ast2700_clk_hw_register_gate(NULL, "i3c5clk-gate", "soc1-ahb",
-					     0, clk_base + SCU1_CLK_STOP,
-					     21, 0, &ast2700_clk_lock);
-
-	clks[SCU1_CLK_GATE_I3C6CLK] =
-		ast2700_clk_hw_register_gate(NULL, "i3c6clk-gate", "soc1-ahb",
-					     0, clk_base + SCU1_CLK_STOP,
-					     22, 0, &ast2700_clk_lock);
-
-	clks[SCU1_CLK_GATE_I3C7CLK] =
-		ast2700_clk_hw_register_gate(NULL, "i3c7clk-gate", "soc1-ahb",
-					     0, clk_base + SCU1_CLK_STOP,
-					     23, 0, &ast2700_clk_lock);
-
-	clks[SCU1_CLK_GATE_I3C8CLK] =
-		ast2700_clk_hw_register_gate(NULL, "i3c8clk-gate", "soc1-ahb",
-					     0, clk_base + SCU1_CLK_STOP,
-					     24, 0, &ast2700_clk_lock);
-
-	clks[SCU1_CLK_GATE_I3C9CLK] =
-		ast2700_clk_hw_register_gate(NULL, "i3c9clk-gate", "soc1-ahb",
-					     0, clk_base + SCU1_CLK_STOP,
-					     25, 0, &ast2700_clk_lock);
-
-	clks[SCU1_CLK_GATE_I3C10CLK] =
-		ast2700_clk_hw_register_gate(NULL, "i3c10clk-gate", "soc1-ahb",
-					     0, clk_base + SCU1_CLK_STOP,
-					     26, 0, &ast2700_clk_lock);
-
-	clks[SCU1_CLK_GATE_I3C11CLK] =
-		ast2700_clk_hw_register_gate(NULL, "i3c11clk-gate", "soc1-ahb",
-					     0, clk_base + SCU1_CLK_STOP,
-					     27, 0, &ast2700_clk_lock);
-
-	clks[SCU1_CLK_GATE_I3C12CLK] =
-		ast2700_clk_hw_register_gate(NULL, "i3c12clk-gate", "soc1-ahb",
-					     0, clk_base + SCU1_CLK_STOP,
-					     28, 0, &ast2700_clk_lock);
-
-	clks[SCU1_CLK_GATE_I3C13CLK] =
-		ast2700_clk_hw_register_gate(NULL, "i3c13clk-gate", "soc1-ahb",
-					     0, clk_base + SCU1_CLK_STOP,
-					     29, 0, &ast2700_clk_lock);
-
-	clks[SCU1_CLK_GATE_I3C14CLK] =
-		ast2700_clk_hw_register_gate(NULL, "i3c14clk-gate", "soc1-ahb",
-					     0, clk_base + SCU1_CLK_STOP,
-					     30, 0, &ast2700_clk_lock);
-
-	clks[SCU1_CLK_GATE_I3C15CLK] =
-		ast2700_clk_hw_register_gate(NULL, "i3c15clk-gate", "soc1-ahb",
-					     0, clk_base + SCU1_CLK_STOP,
-					     31, 0, &ast2700_clk_lock);
-
-	/*clk stop 2 */
-	//UART5
-	clks[SCU1_CLK_UART5] =
-		clk_hw_register_mux(NULL, "uart5clk", uartclk_sel, ARRAY_SIZE(uartclk_sel),
-				    0, clk_base + SCU1_CLK_SEL1,
-				    5, 1, 0, &ast2700_clk_lock);
-
-	clks[SCU1_CLK_GATE_UART5CLK] =
-		ast2700_clk_hw_register_gate(NULL, "uart5clk-gate", "uart5clk",
-					     CLK_IS_CRITICAL, clk_base + SCU1_CLK_STOP2,
-					     0, 0, &ast2700_clk_lock);
-
-	//UART6
-	clks[SCU1_CLK_UART6] =
-		clk_hw_register_mux(NULL, "uart6clk", uartclk_sel, ARRAY_SIZE(uartclk_sel),
-				    0, clk_base + SCU1_CLK_SEL1,
-				    6, 1, 0, &ast2700_clk_lock);
-
-	clks[SCU1_CLK_GATE_UART6CLK] =
-		ast2700_clk_hw_register_gate(NULL, "uart6clk-gate", "uart6clk",
-					     CLK_IS_CRITICAL, clk_base + SCU1_CLK_STOP2,
-					     1, 0, &ast2700_clk_lock);
-
-	//UART7
-	clks[SCU1_CLK_UART7] =
-		clk_hw_register_mux(NULL, "uart7clk", uartclk_sel, ARRAY_SIZE(uartclk_sel),
-				    0, clk_base + SCU1_CLK_SEL1,
-				    7, 1, 0, &ast2700_clk_lock);
-
-	clks[SCU1_CLK_GATE_UART7CLK] =
-		ast2700_clk_hw_register_gate(NULL, "uart7clk-gate", "uart7clk",
-					     CLK_IS_CRITICAL, clk_base + SCU1_CLK_STOP2,
-					     2, 0, &ast2700_clk_lock);
-
-	//UART8
-	clks[SCU1_CLK_UART8] =
-		clk_hw_register_mux(NULL, "uart8clk", uartclk_sel, ARRAY_SIZE(uartclk_sel),
-				    0, clk_base + SCU1_CLK_SEL1,
-				    8, 1, 0, &ast2700_clk_lock);
-
-	clks[SCU1_CLK_GATE_UART8CLK] =
-		ast2700_clk_hw_register_gate(NULL, "uart8clk-gate", "uart8clk",
-					     CLK_IS_CRITICAL, clk_base + SCU1_CLK_STOP2,
-					     3, 0, &ast2700_clk_lock);
-
-	//UART9
-	clks[SCU1_CLK_UART9] =
-		clk_hw_register_mux(NULL, "uart9clk", uartclk_sel, ARRAY_SIZE(uartclk_sel),
-				    0, clk_base + SCU1_CLK_SEL1,
-				    9, 1, 0, &ast2700_clk_lock);
-
-	clks[SCU1_CLK_GATE_UART9CLK] =
-		ast2700_clk_hw_register_gate(NULL, "uart9clk-gate", "uart9clk",
-					     0, clk_base + SCU1_CLK_STOP2,
-					     4, 0, &ast2700_clk_lock);
-
-	//UART10
-	clks[SCU1_CLK_UART10] =
-		clk_hw_register_mux(NULL, "uart10clk", uartclk_sel, ARRAY_SIZE(uartclk_sel),
-				    0, clk_base + SCU1_CLK_SEL1,
-				    10, 1, 0, &ast2700_clk_lock);
-
-	clks[SCU1_CLK_GATE_UART10CLK] =
-		ast2700_clk_hw_register_gate(NULL, "uart10clk-gate", "uart10clk",
-					     0, clk_base + SCU1_CLK_STOP2,
-					     5, 0, &ast2700_clk_lock);
-
-	//UART11
-	clks[SCU1_CLK_UART11] =
-		clk_hw_register_mux(NULL, "uart11clk", uartclk_sel, ARRAY_SIZE(uartclk_sel),
-				    0, clk_base + SCU1_CLK_SEL1,
-				    11, 1, 0, &ast2700_clk_lock);
-
-	clks[SCU1_CLK_GATE_UART11CLK] =
-		ast2700_clk_hw_register_gate(NULL, "uart11clk-gate", "uart11clk",
-					     CLK_IS_CRITICAL, clk_base + SCU1_CLK_STOP2,
-					     6, 0, &ast2700_clk_lock);
-
-	//uart12: call bmc uart
-	clks[SCU1_CLK_UART12] =
-		clk_hw_register_mux(NULL, "uart12clk", uartclk_sel, ARRAY_SIZE(uartclk_sel),
-				    0, clk_base + SCU1_CLK_SEL1,
-				    12, 1, 0, &ast2700_clk_lock);
-
-	clks[SCU1_CLK_GATE_UART12CLK] =
-		ast2700_clk_hw_register_gate(NULL, "uart12clk-gate", "uart12clk",
-					     CLK_IS_CRITICAL, clk_base + SCU1_CLK_STOP2,
-					     7, 0, &ast2700_clk_lock);
-
-	clks[SCU1_CLK_GATE_FSICLK] =
-		ast2700_clk_hw_register_gate(NULL, "fsiclk-gate", NULL,
-					     0, clk_base + SCU1_CLK_STOP2,
-					     8, 0, &ast2700_clk_lock);
-
-	clks[SCU1_CLK_GATE_LTPIPHYCLK] =
-		ast2700_clk_hw_register_gate(NULL, "ltpiphyclk-gate", NULL,
-					     0, clk_base + SCU1_CLK_STOP2,
-					     9, 0, &ast2700_clk_lock);
-
-	clks[SCU1_CLK_GATE_LTPICLK] =
-		ast2700_clk_hw_register_gate(NULL, "ltpiclk-gate", NULL,
-					     0, clk_base + SCU1_CLK_STOP2,
-					     10, 0, &ast2700_clk_lock);
-
-	clks[SCU1_CLK_GATE_VGALCLK] =
-		ast2700_clk_hw_register_gate(NULL, "vgalclk-gate", NULL,
-					     CLK_IS_CRITICAL, clk_base + SCU1_CLK_STOP2,
-					     11, 0, &ast2700_clk_lock);
-
-	clks[SCU1_CLK_GATE_UHCICLK] =
-		ast2700_clk_hw_register_gate(NULL, "usbuhciclk-gate", NULL,
-					     0, clk_base + SCU1_CLK_STOP2,
-					     12, 0, &ast2700_clk_lock);
-
-	clk_hw_register_fixed_factor(NULL, "canclk", "soc1-apll", 0, 1, 10);
-
-	clks[SCU1_CLK_GATE_CANCLK] =
-		ast2700_clk_hw_register_gate(NULL, "canclk-gate", "canclk",
-					     0, clk_base + SCU1_CLK_STOP2,
-					     13, 0, &ast2700_clk_lock);
-
-	clks[SCU1_CLK_GATE_PCICLK] =
-		ast2700_clk_hw_register_gate(NULL, "pciclk-gate", NULL,
-					     0, clk_base + SCU1_CLK_STOP2,
-					     14, 0, &ast2700_clk_lock);
-
-	clks[SCU1_CLK_GATE_SLICLK] =
-		ast2700_clk_hw_register_gate(NULL, "sliclk-gate", NULL,
-					     CLK_IS_CRITICAL, clk_base + SCU1_CLK_STOP2,
-					     15, 0, &ast2700_clk_lock);
-
-	clks[SCU1_CLK_GATE_PORTCUSB2CLK] =
-		ast2700_clk_hw_register_gate(NULL, "usb2cclk-gate", NULL,
-					     0, clk_base + SCU1_CLK_STOP2,
-					     17, 0, &ast2700_clk_lock);
-
-	clks[SCU1_CLK_GATE_PORTDUSB2CLK] =
-		ast2700_clk_hw_register_gate(NULL, "usb2dclk-gate", NULL,
-					     0, clk_base + SCU1_CLK_STOP2,
-					     18, 0, &ast2700_clk_lock);
-
-	ret = devm_of_clk_add_hw_provider(dev, of_clk_hw_onecell_get, clk_data);
-	if (ret)
-		return ret;
-	return aspeed_reset_controller_register(dev, clk_base, "reset1");
-
-};
-
-static const char *const pspclk_sel[] = {
-	"soc0-mpll",
-	"soc0-hpll",
-};
-
-static const char *const soc0_uartclk_sel[] = {
-	"soc0-clk24Mhz",
-	"soc0-clk192Mhz",
-};
-
-static const char *const emmcclk_sel[] = {
-	"soc0-mpll_div4",
-	"soc0-hpll_div4",
-};
-
-#define SCU0_NUM_CLKS 57
-static int ast2700_soc0_init(struct platform_device *pdev)
-{
-	struct clk_hw_onecell_data *clk_data;
-	struct device *dev = &pdev->dev;
-	void __iomem *clk_base;
-	struct clk_hw **clks;
-	int div;
-	u32 val;
-	int ret;
-
-	clk_data = kzalloc(struct_size(clk_data, hws, SCU0_NUM_CLKS), GFP_KERNEL);
-	if (!clk_data)
-		return -ENOMEM;
-
-	clk_data->num = SCU0_NUM_CLKS;
-	clks = clk_data->hws;
-
-	clk_base = devm_platform_ioremap_resource(pdev, 0);
-	if (WARN_ON(IS_ERR(clk_base)))
-		return PTR_ERR(clk_base);
-
-	clks[SCU0_CLKIN] =
-		clk_hw_register_fixed_rate(NULL, "soc0-clkin", NULL, 0, SCU_CLK_25MHZ);
-
-	clks[SCU0_CLK_24M] =
-		clk_hw_register_fixed_rate(NULL, "soc0-clk24Mhz", NULL, 0, SCU_CLK_24MHZ);
-
-	clks[SCU0_CLK_192M] =
-		clk_hw_register_fixed_rate(NULL, "soc0-clk192Mhz", NULL, 0, SCU_CLK_192MHZ);
-
-	//hpll
-	val = readl(clk_base + SCU0_HWSTRAP1);
-	if ((val & GENMASK(3, 2)) != 0) {
-		switch ((val & GENMASK(3, 2)) >> 2) {
-		case 1:
-			clks[SCU0_CLK_HPLL] =
-				clk_hw_register_fixed_rate(NULL, "soc0-hpll", NULL, 0, 1900000000);
-			break;
-		case 2:
-			clks[SCU0_CLK_HPLL] =
-				clk_hw_register_fixed_rate(NULL, "soc0-hpll", NULL, 0, 1800000000);
-			break;
-		case 3:
-			clks[SCU0_CLK_HPLL] =
-				clk_hw_register_fixed_rate(NULL, "soc0-hpll", NULL, 0, 1700000000);
-			break;
+		if (clk->type == CLK_FIXED) {
+			hws[i] = devm_clk_hw_register_fixed_rate(dev, clk->name, NULL,
+								 clk->flags, clk->fixed_rate);
+		} else if (clk->type == CLK_FIXED_FACTOR) {
+			hws[i] = devm_clk_hw_register_fixed_factor(dev, clk->name,
+								   clk->parent_names[0], clk->flags,
+								   clk->mult, clk->div);
+		} else if (clk->type == CLK_PLL) {
+			hws[i] = ast2700_clk_hw_register_pll(i, reg, clk, clk_ctrl);
+		} else if (clk->type == CLK_UART_PLL) {
+			hws[i] = ast2700_clk_hw_register_uartpll(i, reg, clk, clk_ctrl);
+		} else if (clk->type == CLK_MUX) {
+			hws[i] = devm_clk_hw_register_mux(dev, clk->name, clk->parent_names,
+							  clk->num_parents, clk->flags, reg,
+							  clk->bit_shift, clk->bit_width,
+							  clk->flags2, &clk_ctrl->lock);
+		} else if (clk->type == CLK_MISC) {
+			hws[i] = ast2700_clk_hw_register_misc(i, reg, clk, clk_ctrl);
+		} else if (clk->type == CLK_DIVIDER) {
+			hws[i] = devm_clk_hw_register_divider(dev, clk->name, clk->parent_names[0],
+							      clk->flags, reg, clk->bit_shift,
+							      clk->bit_width, clk->flags2,
+							      &clk_ctrl->lock);
+		} else if (clk->type == CLK_DIV_TABLE) {
+			hws[i] = clk_hw_register_divider_table(dev, clk->name, clk->parent_names[0],
+							       clk->flags, reg, clk->bit_shift,
+							       clk->bit_width, clk->flags2,
+							       clk->div_table, &clk_ctrl->lock);
+		} else {
+			hws[i] = ast2700_clk_hw_register_gate(dev, clk->name, clk->parent_names[0],
+							      clk->flags, reg, clk->clk_idx,
+							      clk->flags, &clk_ctrl->lock);
 		}
-	} else {
-		val = readl(clk_base + SCU0_HPLL_PARAM);
-		clks[SCU0_CLK_HPLL] = ast2700_soc0_hw_pll("soc0-hpll", "soc0-clkin", val);
-	}
-	clks[SCU0_CLK_HPLL_DIV2] =
-			clk_hw_register_fixed_factor(NULL, "soc0-hpll_div2", "soc0-hpll", 0, 1, 2);
-	clks[SCU0_CLK_HPLL_DIV4] =
-			clk_hw_register_fixed_factor(NULL, "soc0-hpll_div4", "soc0-hpll", 0, 1, 4);
 
-	//dpll
-	val = readl(clk_base + SCU0_DPLL_PARAM);
-	clks[SCU0_CLK_DPLL] = ast2700_soc0_hw_pll("dpll", "soc0-clkin", val);
-
-	//mpll
-	val = readl(clk_base + SCU0_MPLL_PARAM);
-	clks[SCU0_CLK_MPLL] = ast2700_calc_mpll("soc0-mpll", "soc0-clkin", val);
-	clks[SCU0_CLK_MPLL_DIV2] =
-			clk_hw_register_fixed_factor(NULL, "soc0-mpll_div2", "soc0-mpll", 0, 1, 2);
-	clks[SCU0_CLK_MPLL_DIV4] =
-			clk_hw_register_fixed_factor(NULL, "soc0-mpll_div4", "soc0-mpll", 0, 1, 4);
-	clks[SCU0_CLK_MPLL_DIV8] =
-			clk_hw_register_fixed_factor(NULL, "soc0-mpll_div8", "soc0-mpll", 0, 1, 8);
-
-	val = readl(clk_base + SCU0_D1CLK_PARAM);
-	clks[SCU0_CLK_D0] = ast2700_soc0_hw_pll("d0clk", "soc0-clkin", val);
-
-	val = readl(clk_base + SCU0_D2CLK_PARAM);
-	clks[SCU0_CLK_D1] = ast2700_soc0_hw_pll("d1clk", "soc0-clkin", val);
-
-	val = readl(clk_base + SCU0_CRT1CLK_PARAM);
-	clks[SCU0_CLK_CRT0] = ast2700_soc0_hw_pll("crt0clk", "soc0-clkin", val);
-
-	val = readl(clk_base + SCU0_CRT2CLK_PARAM);
-	clks[SCU0_CLK_CRT1] = ast2700_soc0_hw_pll("crt1clk", "soc0-clkin", val);
-
-	val = readl(clk_base + SCU0_MPHYCLK_PARAM);
-	clks[SCU0_CLK_MPHY] =
-		clk_hw_register_fixed_factor(NULL, "mphyclk", "soc0-hpll", 0, 1, val + 1);
-
-	clks[SCU0_CLK_PSP] =
-		clk_hw_register_mux(NULL, "pspclk", pspclk_sel, ARRAY_SIZE(pspclk_sel),
-				    0, clk_base + SCU0_HWSTRAP1,
-				    4, 1, 0, &ast2700_clk_lock);
-
-	clks[SCU0_CLK_AXI0] =
-		clk_hw_register_fixed_factor(NULL, "axi0clk", "pspclk", 0, 1, 2);
-
-	val = readl(clk_base + SCU0_HWSTRAP1);
-	if (val & BIT(7)) {
-		clks[SCU0_CLK_AHB] =
-			clk_hw_register_divider_table(NULL, "soc0-ahb", "soc0-hpll",
-						      0, clk_base + SCU0_HWSTRAP1,
-						      5, 2, 0, ast2700_clk_div_table,
-						      &ast2700_clk_lock);
-	} else {
-		clks[SCU0_CLK_AHB] =
-			clk_hw_register_divider_table(NULL, "soc0-ahb", "soc0-mpll",
-						      0, clk_base + SCU0_HWSTRAP1,
-						      5, 2, 0, ast2700_clk_div_table,
-						      &ast2700_clk_lock);
+		if (IS_ERR(hws[i]))
+			return PTR_ERR(hws[i]);
 	}
 
-	clks[SCU0_CLK_AXI1] =
-		clk_hw_register_fixed_factor(NULL, "axi1clk", "soc0-ahb", 0, 1, 2);
-
-	clks[SCU0_CLK_APB] =
-		clk_hw_register_divider_table(NULL, "soc0-apb", "axi0clk",
-					      0, clk_base + SCU0_CLK_SEL1,
-					      23, 3, 0, ast2700_clk_div_table2, &ast2700_clk_lock);
-
-	clks[SCU0_CLK_GATE_MCLK] =
-		ast2700_clk_hw_register_gate(NULL, "mclk", "soc0-mpll",
-					     CLK_IS_CRITICAL, clk_base + SCU0_CLK_STOP,
-					     0, 0, &ast2700_clk_lock);
-
-	clks[SCU0_CLK_GATE_ECLK] =
-		ast2700_clk_hw_register_gate(NULL, "eclk", NULL,
-					     0, clk_base + SCU0_CLK_STOP,
-					     1, 0, &ast2700_clk_lock);
-
-	clks[SCU0_CLK_GATE_2DCLK] =
-		ast2700_clk_hw_register_gate(NULL, "gclk", NULL,
-					     CLK_IS_CRITICAL, clk_base + SCU0_CLK_STOP,
-					     2, 0, &ast2700_clk_lock);
-
-	clks[SCU0_CLK_GATE_VCLK] =
-		ast2700_clk_hw_register_gate(NULL, "vclk", NULL,
-					     0, clk_base + SCU0_CLK_STOP,
-					     3, 0, &ast2700_clk_lock);
-
-	clks[SCU0_CLK_GATE_BCLK] =
-		ast2700_clk_hw_register_gate(NULL, "bclk", NULL,
-					     CLK_IS_CRITICAL, clk_base + SCU0_CLK_STOP,
-					     4, 0, &ast2700_clk_lock);
-
-	clks[SCU0_CLK_GATE_VGA0CLK] =
-		ast2700_clk_hw_register_gate(NULL, "d0clk-gate", NULL,
-					     CLK_IS_CRITICAL, clk_base + SCU0_CLK_STOP,
-					     5, 0, &ast2700_clk_lock);
-
-	clks[SCU0_CLK_GATE_REFCLK] =
-		ast2700_clk_hw_register_gate(NULL, "soc0-refclk-gate", "soc0-clkin",
-					     CLK_IS_CRITICAL, clk_base + SCU0_CLK_STOP,
-					     6, 0, &ast2700_clk_lock);
-
-	div = (GET_USB_REFCLK_DIV(readl(clk_base + SCU0_CLK_SEL2)) + 1) * 2;
-	clks[SCU0_CLK_U2PHY_REFCLK] =
-		clk_hw_register_fixed_factor(NULL, "xhci_ref_clk", "soc0-mpll_div8", 0, 1, div);
-
-	clks[SCU0_CLK_U2PHY_CLK12M] =
-		clk_hw_register_fixed_rate(NULL, "xhci_suspend_clk", NULL, 0, SCU_CLK_12MHZ);
-
-	clks[SCU0_CLK_GATE_PORTBUSB2CLK] =
-		ast2700_clk_hw_register_gate(NULL, "portb-usb2clk", NULL,
-					     0, clk_base + SCU0_CLK_STOP,
-					     7, 0, &ast2700_clk_lock);
-
-	clks[SCU0_CLK_GATE_UHCICLK] =
-		ast2700_clk_hw_register_gate(NULL, "uhciclk", NULL,
-					     0, clk_base + SCU0_CLK_STOP,
-					     9, 0, &ast2700_clk_lock);
-
-	clks[SCU0_CLK_GATE_VGA1CLK] =
-		ast2700_clk_hw_register_gate(NULL, "d1clk-gate", NULL,
-					     CLK_IS_CRITICAL, clk_base + SCU0_CLK_STOP,
-					     10, 0, &ast2700_clk_lock);
-
-	clks[SCU0_CLK_GATE_HACCLK] =
-		ast2700_clk_hw_register_gate(NULL, "hac-clk", NULL,
-					     0, clk_base + SCU0_CLK_STOP,
-					     13, 0, &ast2700_clk_lock);
-
-	clks[SCU0_CLK_GATE_PORTAUSB2CLK] =
-		ast2700_clk_hw_register_gate(NULL, "porta-usb2clk", NULL,
-					     0, clk_base + SCU0_CLK_STOP,
-					     14, 0, &ast2700_clk_lock);
-
-	clks[SCU0_CLK_UART] =
-		clk_hw_register_mux(NULL, "soc0-uartclk", soc0_uartclk_sel,
-				    ARRAY_SIZE(soc0_uartclk_sel),
-				    0, clk_base + SCU0_CLK_SEL2,
-				    14, 1, 0, &ast2700_clk_lock);
-
-	if (readl(clk_base + SCU0_CLK_SEL2) & UART_DIV13_EN)
-		div = 13;
-	else
-		div = 1;
-
-	clks[SCU0_CLK_UART4] =
-		clk_hw_register_fixed_factor(NULL, "uart4clk", "soc0-uartclk", 0, 1, div);
-
-	clks[SCU0_CLK_GATE_UART4CLK] =
-		ast2700_clk_hw_register_gate(NULL, "uart4clk-gate", "uart4clk",
-					     CLK_IS_CRITICAL, clk_base + SCU0_CLK_STOP,
-					     15, 0, &ast2700_clk_lock);
-
-	clks[SCU0_CLK_GATE_DACCLK] =
-		ast2700_clk_hw_register_gate(NULL, "dacclk", NULL,
-					     CLK_IS_CRITICAL, clk_base + SCU0_CLK_STOP,
-					     17, 0, &ast2700_clk_lock);
-
-	clks[SCU0_CLK_GATE_CRT0CLK] =
-		ast2700_clk_hw_register_gate(NULL, "crt0clk-gate", NULL,
-					     0, clk_base + SCU0_CLK_STOP,
-					     20, 0, &ast2700_clk_lock);
-
-	clks[SCU0_CLK_GATE_CRT1CLK] =
-		ast2700_clk_hw_register_gate(NULL, "crt1clk-gate", NULL,
-					     0, clk_base + SCU0_CLK_STOP,
-					     21, 0, &ast2700_clk_lock);
-
-	clks[SCU0_CLK_GATE_ECDSACLK] =
-		ast2700_clk_hw_register_gate(NULL, "eccclk", NULL,
-					     0, clk_base + SCU0_CLK_STOP,
-					     23, 0, &ast2700_clk_lock);
-
-	clks[SCU0_CLK_GATE_RSACLK] =
-		ast2700_clk_hw_register_gate(NULL, "rsaclk", NULL,
-					     0, clk_base + SCU0_CLK_STOP,
-					     24, 0, &ast2700_clk_lock);
-
-	clks[SCU0_CLK_GATE_RVAS0CLK] =
-		ast2700_clk_hw_register_gate(NULL, "rvasclk", NULL,
-					     0, clk_base + SCU0_CLK_STOP,
-					     25, 0, &ast2700_clk_lock);
-
-	clks[SCU0_CLK_GATE_UFSCLK] =
-		ast2700_clk_hw_register_gate(NULL, "ufsclk", NULL,
-					     0, clk_base + SCU0_CLK_STOP,
-					     26, 0, &ast2700_clk_lock);
-
-	clks[SCU0_CLK_EMMCMUX] =
-		clk_hw_register_mux(NULL, "emmcsrc-mux", emmcclk_sel, ARRAY_SIZE(emmcclk_sel),
-				    0, clk_base + SCU0_CLK_SEL1,
-				    11, 1, 0, &ast2700_clk_lock);
-
-	clks[SCU0_CLK_EMMC] =
-		clk_hw_register_divider_table(NULL, "emmcclk", "emmcsrc-mux",
-					      0, clk_base + SCU0_CLK_SEL1,
-					      12, 3, 0, ast2700_clk_div_table2,
-					      &ast2700_clk_lock);
-
-	clks[SCU0_CLK_GATE_EMMCCLK] =
-		ast2700_clk_hw_register_gate(NULL, "emmcclk-gate", "emmcclk",
-					     0, clk_base + SCU0_CLK_STOP,
-					     27, 0, &ast2700_clk_lock);
-
-	clks[SCU0_CLK_GATE_RVAS1CLK] =
-		ast2700_clk_hw_register_gate(NULL, "rvas2clk", NULL,
-					     0, clk_base + SCU0_CLK_STOP,
-					     28, 0, &ast2700_clk_lock);
-
-	ret = devm_of_clk_add_hw_provider(dev, of_clk_hw_onecell_get, clk_data);
+	ret = devm_of_clk_add_hw_provider(dev, of_clk_hw_onecell_get, clk_hw_data);
 	if (ret)
 		return ret;
-
-	return aspeed_reset_controller_register(dev, clk_base, "reset0");
-};
-
-static int ast2700_soc_clk_probe(struct platform_device *pdev)
-{
-	int id = (int)(uintptr_t)of_device_get_match_data(&pdev->dev);
-
-	if (id)
-		return ast2700_soc1_init(pdev);
-	else
-		return ast2700_soc0_init(pdev);
+	return aspeed_reset_controller_register(dev, clk_base, clk_data->reset_name);
 }
 
+static const struct ast2700_clk_data ast2700_clk0_data = {
+	.reset_name = "reset0",
+	.nr_clks = ARRAY_SIZE(ast2700_scu0_clk_info),
+	.clk_info = ast2700_scu0_clk_info,
+};
+
+static const struct ast2700_clk_data ast2700_clk1_data = {
+	.reset_name = "reset1",
+	.nr_clks = ARRAY_SIZE(ast2700_scu1_clk_info),
+	.clk_info = ast2700_scu1_clk_info,
+};
+
 static const struct of_device_id ast2700_scu_match[] = {
-	{ .compatible = "aspeed,ast2700-scu0", .data = (void *)0 },
-	{ .compatible = "aspeed,ast2700-scu1", .data = (void *)1 },
+	{ .compatible = "aspeed,ast2700-scu0", .data = &ast2700_clk0_data },
+	{ .compatible = "aspeed,ast2700-scu1", .data = &ast2700_clk1_data },
 	{ /* sentinel */ }
 };
 
