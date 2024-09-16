@@ -106,17 +106,16 @@ struct ast2700_clk_info {
 	const char *name;
 	const char * const *parent_names;
 	const struct clk_div_table *div_table;
-	u32 num_parents;
+	unsigned long fixed_rate;
 	unsigned int mult;
 	unsigned int div;
-	u32 fixed_rate;
-	u8 clk_idx;
-	u32 bit_shift;
-	u32 bit_width;
 	u32 reg;
 	u32 flags;
-	u32 flags2;
 	u32 type;
+	u8 clk_idx;
+	u8 bit_shift;
+	u8 bit_width;
+	u8 num_parents;
 };
 
 struct ast2700_clk_data {
@@ -1569,7 +1568,7 @@ static int ast2700_soc_clk_probe(struct platform_device *pdev)
 		writel(val | uart_clk_source, clk_base + SCU1_CLK_SEL1);
 	}
 
-	if(!strcmp(clk_ctrl->clk_data->reset_name, "reset1"))
+	if (!strcmp(clk_ctrl->clk_data->reset_name, "reset1"))
 		ast2700_soc1_configure_mac01_clk(clk_ctrl);
 
 	for (i = 0; i < clk_data->nr_clks; i++) {
@@ -1591,18 +1590,18 @@ static int ast2700_soc_clk_probe(struct platform_device *pdev)
 			hws[i] = devm_clk_hw_register_mux(dev, clk->name, clk->parent_names,
 							  clk->num_parents, clk->flags, reg,
 							  clk->bit_shift, clk->bit_width,
-							  clk->flags2, &clk_ctrl->lock);
+							  0, &clk_ctrl->lock);
 		} else if (clk->type == CLK_MISC) {
 			hws[i] = ast2700_clk_hw_register_misc(i, reg, clk, clk_ctrl);
 		} else if (clk->type == CLK_DIVIDER) {
 			hws[i] = devm_clk_hw_register_divider(dev, clk->name, clk->parent_names[0],
 							      clk->flags, reg, clk->bit_shift,
-							      clk->bit_width, clk->flags2,
+							      clk->bit_width, 0,
 							      &clk_ctrl->lock);
 		} else if (clk->type == CLK_DIV_TABLE) {
 			hws[i] = clk_hw_register_divider_table(dev, clk->name, clk->parent_names[0],
 							       clk->flags, reg, clk->bit_shift,
-							       clk->bit_width, clk->flags2,
+							       clk->bit_width, 0,
 							       clk->div_table, &clk_ctrl->lock);
 		} else {
 			hws[i] = ast2700_clk_hw_register_gate(dev, clk->name, clk->parent_names[0],
