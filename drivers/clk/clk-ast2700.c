@@ -12,11 +12,10 @@
 
 #include <dt-bindings/clock/aspeed,ast2700-clk.h>
 
+#define SCU_CLK_12MHZ 12000000
 #define SCU_CLK_24MHZ 24000000
 #define SCU_CLK_25MHZ 25000000
 #define SCU_CLK_192MHZ 192000000
-/* SOC0 USB2 PHY CLK*/
-#define SCU_CLK_12MHZ 12000000
 /* SOC0 */
 #define SCU0_HWSTRAP1 0x010
 #define SCU0_CLK_STOP 0x240
@@ -120,8 +119,8 @@ struct ast2700_clk_info {
 
 struct ast2700_clk_data {
 	struct ast2700_clk_info const *clk_info;
-	const char	*reset_name;
 	unsigned int nr_clks;
+	const int scu;
 };
 
 struct ast2700_clk_ctrl {
@@ -1267,10 +1266,11 @@ static struct clk_hw *ast2700_clk_hw_register_pll(int clk_idx, void __iomem *reg
 						  const struct ast2700_clk_info *clk,
 						  struct ast2700_clk_ctrl *clk_ctrl)
 {
+	int scu = clk_ctrl->clk_data->scu;
 	unsigned int mult, div;
 	u32 val;
 
-	if (clk_idx == SCU0_CLK_HPLL) {
+	if (!scu && clk_idx == SCU0_CLK_HPLL) {
 		val = readl(clk_ctrl->base + SCU0_HWSTRAP1);
 		if ((val & GENMASK(3, 2)) != 0) {
 			switch ((val & GENMASK(3, 2)) >> 2) {
@@ -1300,17 +1300,17 @@ static struct clk_hw *ast2700_clk_hw_register_pll(int clk_idx, void __iomem *reg
 		u32 n = (val >> 13) & 0x3f;
 		u32 p = (val >> 19) & 0xf;
 
-		if (clk_idx == SCU0_CLK_MPLL) {
-			mult = m / (n + 1);
-			div = (p + 1);
-		} else if ((clk_idx == SCU1_CLK_HPLL) ||
-			   (clk_idx == SCU1_CLK_APLL) ||
-			   (clk_idx == SCU1_CLK_DPLL)) {
+		if (scu) {
 			mult = (m + 1) / (n + 1);
 			div = (p + 1);
 		} else {
-			mult = (m + 1) / (2 * (n + 1));
-			div = (p + 1);
+			if (clk_idx == SCU0_CLK_MPLL) {
+				mult = m / (n + 1);
+				div = (p + 1);
+			} else {
+				mult = (m + 1) / (2 * (n + 1));
+				div = (p + 1);
+			}
 		}
 	}
 
@@ -1530,6 +1530,7 @@ static int ast2700_soc_clk_probe(struct platform_device *pdev)
 	u32 uart_clk_source = 0;
 	void __iomem *clk_base;
 	struct clk_hw **hws;
+	char *reset_name;
 	int ret;
 	int i;
 
@@ -1552,6 +1553,8 @@ static int ast2700_soc_clk_probe(struct platform_device *pdev)
 		return devm_of_platform_populate(dev);
 
 	clk_ctrl->clk_data = clk_data;
+	reset_name = devm_kasprintf(dev, GFP_KERNEL, "reset%d", clk_data->scu);
+
 	clk_hw_data = devm_kzalloc(dev, struct_size(clk_hw_data, hws, clk_data->nr_clks),
 				   GFP_KERNEL);
 	if (!clk_hw_data)
@@ -1560,16 +1563,17 @@ static int ast2700_soc_clk_probe(struct platform_device *pdev)
 	clk_hw_data->num = clk_data->nr_clks;
 	hws = clk_hw_data->hws;
 
-	of_property_read_u32(dev->of_node, "uart-clk-source", &uart_clk_source);
-	if (uart_clk_source) {
-		u32 val = readl(clk_base + SCU1_CLK_SEL1) & ~GENMASK(12, 0);
+	if (clk_data->scu) {
+		of_property_read_u32(dev->of_node, "uart-clk-source", &uart_clk_source);
+		if (uart_clk_source) {
+			u32 val = readl(clk_base + SCU1_CLK_SEL1) & ~GENMASK(12, 0);
 
-		uart_clk_source &= GENMASK(12, 0);
-		writel(val | uart_clk_source, clk_base + SCU1_CLK_SEL1);
-	}
+			uart_clk_source &= GENMASK(12, 0);
+			writel(val | uart_clk_source, clk_base + SCU1_CLK_SEL1);
+		}
 
-	if (!strcmp(clk_ctrl->clk_data->reset_name, "reset1"))
 		ast2700_soc1_configure_mac01_clk(clk_ctrl);
+	}
 
 	for (i = 0; i < clk_data->nr_clks; i++) {
 		const struct ast2700_clk_info *clk = &clk_data->clk_info[i];
@@ -1616,17 +1620,18 @@ static int ast2700_soc_clk_probe(struct platform_device *pdev)
 	ret = devm_of_clk_add_hw_provider(dev, of_clk_hw_onecell_get, clk_hw_data);
 	if (ret)
 		return ret;
-	return aspeed_reset_controller_register(dev, clk_base, clk_data->reset_name);
+
+	return aspeed_reset_controller_register(dev, clk_base, reset_name);
 }
 
 static const struct ast2700_clk_data ast2700_clk0_data = {
-	.reset_name = "reset0",
+	.scu = 0,
 	.nr_clks = ARRAY_SIZE(ast2700_scu0_clk_info),
 	.clk_info = ast2700_scu0_clk_info,
 };
 
 static const struct ast2700_clk_data ast2700_clk1_data = {
-	.reset_name = "reset1",
+	.scu = 1,
 	.nr_clks = ARRAY_SIZE(ast2700_scu1_clk_info),
 	.clk_info = ast2700_scu1_clk_info,
 };
