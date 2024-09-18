@@ -475,9 +475,15 @@ int aspeed_g7_gpio_request_enable(struct pinctrl_dev *pctldev,
 	const struct aspeed_g7_pincfg *pin_cfg = pinctrl->pinmux.configs_g7;
 	const struct aspeed_g7_funcfg *funcfg = pin_cfg[offset].funcfg;
 
-	for (i = 0; i < pin_cfg[offset].nfuncfg; i++)
+	for (i = 0; i < pin_cfg[offset].nfuncfg; i++) {
+		if (!strncmp(funcfg[i].name, "GPI", 3)) {
+			regmap_update_bits(pinctrl->scu, funcfg[i].reg,
+					   funcfg[i].mask, funcfg[i].val);
+			break;
+		}
 		regmap_update_bits(pinctrl->scu, funcfg[i].reg, funcfg[i].mask,
 				   0);
+	}
 	return 0;
 }
 
