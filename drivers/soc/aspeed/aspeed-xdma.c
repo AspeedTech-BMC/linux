@@ -36,7 +36,8 @@
 #define  SCU_AST2700_MISC_CTRL_XDMA_CLIENT	 BIT(4)
 
 #define SCU_AST2600_DEBUG_CTRL			0x0c8
-#define  DEBUG_CTRL_XDMA_DISABLE	 	 BIT(2)
+#define  DEBUG_CTRL_AST2600_XDMA_DISABLE	 BIT(2)
+#define  DEBUG_CTRL_AST2700_XDMA_DISABLE	 BIT(8)
 
 #define SCU_AST2500_PCIE_CONF			0x180
 #define SCU_AST2600_PCIE_CONF			0xc20
@@ -974,12 +975,15 @@ static int aspeed_xdma_init_scu(struct aspeed_xdma *ctx, struct device *dev)
 			u32 mask = (ctx->chip->regs.bmc_cmdq_addr_ext)
 				 ? SCU_AST2700_MISC_CTRL_XDMA_CLIENT
 				 : SCU_AST2600_MISC_CTRL_XDMA_BMC;
+			u32 disable = (ctx->chip->regs.bmc_cmdq_addr_ext)
+				 ? DEBUG_CTRL_AST2700_XDMA_DISABLE
+				 : DEBUG_CTRL_AST2600_XDMA_DISABLE;
 
 			regmap_update_bits(scu, ctx->chip->scu_misc_ctrl,
 					   mask, mask);
 
 			regmap_update_bits(scu, SCU_AST2600_DEBUG_CTRL,
-					   DEBUG_CTRL_XDMA_DISABLE, 0);
+					   disable, 0);
 		}
 
 		if (ctx->chip->scu_pcie_ctrl) {
