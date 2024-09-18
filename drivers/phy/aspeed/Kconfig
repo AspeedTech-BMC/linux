@@ -13,3 +13,11 @@ config PHY_ASPEED_SGMII
 	default n
 	help
 	  Enable driver support for Aspeed AST2700 PHY SGMII.
+
+config PHY_ASPEED_USB3
+	tristate "ASPEED USB3 PHY driver"
+	select GENERIC_PHY
+	depends on ARCH_ASPEED
+	default n
+	help
+	  Enable driver support for Aspeed AST2700 PHY USB3.
