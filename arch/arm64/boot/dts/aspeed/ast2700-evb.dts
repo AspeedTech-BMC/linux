@@ -1041,11 +1041,11 @@
 #endif
 
 #if 1
-&phy3a {
+&uphy3a {
 	status = "okay";
 };
 
-&phy3b {
+&uphy3b {
 	status = "okay";
 };
 #endif
@@ -1090,11 +1090,11 @@
 	status = "okay";
 };
 
-&phy2a {
+&uphy2a {
 	status = "okay";
 };
 
-&phy2b {
+&uphy2b {
 	status = "okay";
 };
 #endif

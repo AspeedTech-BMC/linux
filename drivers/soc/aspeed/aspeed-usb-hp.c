@@ -13,6 +13,7 @@
 #include <linux/clk.h>
 #include <linux/reset.h>
 #include <linux/mfd/syscon.h>
+#include <linux/phy/phy.h>
 
 static const struct of_device_id aspeed_usb_hp_dt_ids[] = {
 	{
@@ -38,6 +39,7 @@ static int aspeed_usb_hp_probe(struct platform_device *pdev)
 	struct clk		*clk;
 	struct reset_control	*rst;
 	struct regmap		*device;
+	struct phy		*usb3_phy;
 	bool is_pcie_xhci;
 	int rc = 0;
 
@@ -84,6 +86,17 @@ static int aspeed_usb_hp_probe(struct platform_device *pdev)
 	}
 
 	if (is_pcie_xhci) {
+		usb3_phy = devm_phy_get(&pdev->dev, "usb3-phy");
+		if (IS_ERR(usb3_phy)) {
+			rc = dev_err_probe(&pdev->dev, PTR_ERR(usb3_phy),
+					   "failed to get usb3 phy\n");
+			goto err;
+		}
+		rc = phy_init(usb3_phy);
+		if (rc < 0) {
+			dev_err(&pdev->dev, "failed to init usb3 phy\n");
+			goto err;
+		}
 		//EnPCIaMSI_EnPCIaIntA_EnPCIaMst_EnPCIaDev
 		/* Turn on PCIe xHCI without MSI */
 		regmap_update_bits(device, 0x70,

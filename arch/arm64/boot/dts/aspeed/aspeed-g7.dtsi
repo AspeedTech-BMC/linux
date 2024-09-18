@@ -185,12 +185,13 @@
 			};
 		};
 
-		phy3a: phy3@12010000 {
-			compatible = "aspeed,ast2700-a0-phy3a";
+		uphy3a: usb-phy3@12010000 {
+			compatible = "aspeed,ast2700-a0-uhy3a";
 			reg = <0x0 0x12010000 0x0 0xBE0>;
 			clocks = <&syscon0 SCU0_CLK_GATE_PORTAUSB2CLK>;
 			resets = <&syscon0 SCU0_RESET_PORTA_PHY3>;
 			aspeed,scu = <&syscon0>;
+			#phy-cells = <0>;
 			status = "disabled";
 		};
 
@@ -209,20 +210,21 @@
 			status = "disabled";
 		};
 
-		phy2a: phy2@12011800 {
-			compatible = "aspeed,ast2700-phy2a";
+		uphy2a: usb-phy2@12011800 {
+			compatible = "aspeed,ast2700-uphy2a";
 			reg = <0x0 0x12011800 0x0 0x10>;
 			ctrl = <0x4 0xbc001e00>;	/* xHCI to vHub1 clock rate: 60MHz */
 			aspeed,scu = <&syscon0>;
 			status = "disabled";
 		};
 
-		phy3b: phy3@12020000 {
-			compatible = "aspeed,ast2700-a0-phy3b";
+		uphy3b: usb-phy3@12020000 {
+			compatible = "aspeed,ast2700-a0-uhy3b";
 			reg = <0x0 0x12020000 0x0 0xBE0>;
 			clocks = <&syscon0 SCU0_CLK_GATE_PORTBUSB2CLK>;
 			resets = <&syscon0 SCU0_RESET_PORTB_PHY3>;
 			aspeed,scu = <&syscon0>;
+			#phy-cells = <0>;
 			status = "disabled";
 		};
 
@@ -241,8 +243,8 @@
 			status = "disabled";
 		};
 
-		phy2b: phy2@12021800 {
-			compatible = "aspeed,ast2700-phy2b";
+		uphy2b: usb-phy2@12021800 {
+			compatible = "aspeed,ast2700-uphy2b";
 			reg = <0x0 0x12021800 0x0 0x10>;
 			ctrl = <0x4 0xbc001e00>;	/* xHCI to vHub1 clock rate: 60MHz */
 			aspeed,scu = <&syscon0>;
@@ -260,6 +262,8 @@
 			resets = <&syscon0 SCU0_RESET_PORTA_XHCI>;
 			pinctrl-names = "default";
 			pinctrl-0 = <&pinctrl_usb3axh_default &pinctrl_usb2axh_default>;
+			phys = <&uphy3a>;
+			phy-names = "usb3-phy";
 			dr_mode = "host";
 			status = "disabled";
 		};
@@ -271,6 +275,8 @@
 			pinctrl-names = "default";
 			pinctrl-0 = <&pinctrl_usb3axhp_default>;
 			aspeed,device = <&pcie_device0>;
+			phys = <&uphy3a>;
+			phy-names = "usb3-phy";
 			status = "disabled";
 		};
 
@@ -296,6 +302,8 @@
 			pinctrl-names = "default";
 			pinctrl-0 = <&pinctrl_usb3bxh_default &pinctrl_usb2bxh_default>;
 			dr_mode = "host";
+			phys = <&uphy3b>;
+			phy-names = "usb3-phy";
 			status = "disabled";
 		};
 
@@ -306,6 +314,8 @@
 			pinctrl-names = "default";
 			pinctrl-0 = <&pinctrl_usb3bxhp_default>;
 			aspeed,device = <&pcie_device1>;
+			phys = <&uphy3b>;
+			phy-names = "usb3-phy";
 			status = "disabled";
 		};
 

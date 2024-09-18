@@ -13,6 +13,7 @@
 #include <asm/io.h>
 #include <linux/clk.h>
 #include <linux/reset.h>
+#include <linux/phy/phy.h>
 
 #define PHY3P00_DEFAULT		0xCE70000F	/* PHY PCS Protocol Setting #1 default value */
 #define PHY3P04_DEFAULT		0x49C00014	/* PHY PCS Protocol Setting #2 default value */
@@ -24,6 +25,13 @@
 #define USB_PHY3_INIT_DONE	BIT(15)	/* BIT15: USB3.1 Phy internal SRAM iniitalization done */
 #define USB_PHY3_SRAM_BYPASS	BIT(7)	/* USB3.1 Phy SRAM bypass */
 #define USB_PHY3_SRAM_EXT_LOAD	BIT(6)	/* USB3.1 Phy SRAM external load done */
+
+struct aspeed_usb_phy3 {
+	struct device *dev;
+	void __iomem *regs;
+	const struct aspeed_usb_phy3_model *model;
+	bool phy_ext_load_quirk;
+};
 
 struct usb_dwc3_ctrl {
 	u32 offset;
@@ -74,93 +82,57 @@ static const struct aspeed_usb_phy3_model ast2700_model = {
 
 static const struct of_device_id aspeed_usb_phy3_dt_ids[] = {
 	{
-		.compatible = "aspeed,ast2700-a0-phy3a",
+		.compatible = "aspeed,ast2700-a0-uhy3a",
 		.data = &ast2700a0_model
 	},
 	{
-		.compatible = "aspeed,ast2700-a0-phy3b",
+		.compatible = "aspeed,ast2700-a0-uhy3b",
 		.data = &ast2700a0_model
 	},
 	{
-		.compatible = "aspeed,ast2700-phy3a",
+		.compatible = "aspeed,ast2700-uphy3a",
 		.data = &ast2700_model
 	},
 	{
-		.compatible = "aspeed,ast2700-phy3b",
+		.compatible = "aspeed,ast2700-uphy3b",
 		.data = &ast2700_model
 	},
 	{ }
 };
 MODULE_DEVICE_TABLE(of, aspeed_usb_phy3_dt_ids);
 
-static int aspeed_usb_phy3_probe(struct platform_device *pdev)
+static int aspeed_usb_phy3_init(struct phy *phy)
 {
-	struct device_node *node = pdev->dev.of_node;
-	const struct aspeed_usb_phy3_model *model;
-	void __iomem *reg_base;
+	struct aspeed_usb_phy3 *phy3 = phy_get_drvdata(phy);
+	const struct aspeed_usb_phy3_model *model = phy3->model;
 	u32 val;
-	bool phy_ext_load_quirk;
-	struct clk				*clk;
-	struct reset_control	*rst;
 	int timeout = 100;
-	int rc = 0;
 	int i, j;
 
-	model = of_device_get_match_data(&pdev->dev);
-	if (IS_ERR(model)) {
-		dev_err(&pdev->dev, "Couldn't get model data\n");
-		return -ENODEV;
-	}
-
-	clk = devm_clk_get(&pdev->dev, NULL);
-	if (IS_ERR(clk))
-		return PTR_ERR(clk);
-
-	rc = clk_prepare_enable(clk);
-	if (rc) {
-		dev_err(&pdev->dev, "Unable to enable clock (%d)\n", rc);
-		return rc;
-	}
-
-	rst = devm_reset_control_get_shared(&pdev->dev, NULL);
-	if (IS_ERR(rst)) {
-		rc = PTR_ERR(rst);
-		goto err;
-	}
-	rc = reset_control_deassert(rst);
-	if (rc)
-		goto err;
-
-	reg_base = of_iomap(node, 0);
-
-	while ((readl(reg_base + model->phy3s00) & USB_PHY3_INIT_DONE)
+	while ((readl(phy3->regs + model->phy3s00) & USB_PHY3_INIT_DONE)
 			!= USB_PHY3_INIT_DONE) {
 		usleep_range(100, 110);
 		if (--timeout == 0) {
-			dev_err(&pdev->dev, "Wait phy3 init timed out\n");
-			rc = -ETIMEDOUT;
-			goto err;
+			dev_err(phy3->dev, "Wait phy3 init timed out\n");
+			return -ETIMEDOUT;
 		}
 	}
 
-	phy_ext_load_quirk =
-		device_property_read_bool(&pdev->dev, "aspeed,phy_ext_load_quirk");
+	val = readl(phy3->regs + model->phy3s00);
 
-	val = readl(reg_base + model->phy3s00);
-
-	if (phy_ext_load_quirk)
+	if (phy3->phy_ext_load_quirk)
 		val |= USB_PHY3_SRAM_EXT_LOAD;
 	else
 		val |= USB_PHY3_SRAM_BYPASS;
-	writel(val, reg_base + model->phy3s00);
+	writel(val, phy3->regs + model->phy3s00);
 
 	/* Set protocol1_ext signals as default PHY3 settings based on SNPS documents.
 	 * Including PCFGI[54]: protocol1_ext_rx_los_lfps_en for better compatibility
 	 */
-	writel(PHY3P00_DEFAULT, reg_base + model->phy3p00);
-	writel(PHY3P04_DEFAULT, reg_base + model->phy3p04);
-	writel(PHY3P08_DEFAULT, reg_base + model->phy3p08);
-	writel(PHY3P0C_DEFAULT, reg_base + model->phy3p0c);
+	writel(PHY3P00_DEFAULT, phy3->regs + model->phy3p00);
+	writel(PHY3P04_DEFAULT, phy3->regs + model->phy3p04);
+	writel(PHY3P08_DEFAULT, phy3->regs + model->phy3p08);
+	writel(PHY3P0C_DEFAULT, phy3->regs + model->phy3p0c);
 
 	/* xHCI DWC specific command initially set when PCIe xHCI enable */
 	for (i = 0, j = model->dwc_cmd; i < DWC_CRTL_NUM; i++) {
@@ -170,23 +142,93 @@ static int aspeed_usb_phy3_probe(struct platform_device *pdev)
 		 * ... and etc.
 		 */
 		if (i % 2 == 0) {
-			writel(ctrl_data[i].value, reg_base + j);
+			writel(ctrl_data[i].value, phy3->regs + j);
 			j += 4;
 
-			writel(ctrl_data[i].offset & 0xFFFF, reg_base + j);
+			writel(ctrl_data[i].offset & 0xFFFF, phy3->regs + j);
 		} else {
-			val = readl(reg_base + j) & 0xFFFF;
+			val = readl(phy3->regs + j) & 0xFFFF;
 			val |= ((ctrl_data[i].value & 0xFFFF) << 16);
-			writel(val, reg_base + j);
+			writel(val, phy3->regs + j);
 			j += 4;
 
 			val = (ctrl_data[i].offset << 16) | (ctrl_data[i].value >> 16);
-			writel(val, reg_base + j);
+			writel(val, phy3->regs + j);
 			j += 4;
 		}
 	}
 
-	dev_info(&pdev->dev, "Initialized USB PHY3\n");
+	dev_info(phy3->dev, "Initialized USB PHY3\n");
+	return 0;
+}
+
+static const struct phy_ops aspeed_usb_phy3_phyops = {
+	.init		= aspeed_usb_phy3_init,
+	.owner		= THIS_MODULE,
+};
+
+static int aspeed_usb_phy3_probe(struct platform_device *pdev)
+{
+	struct aspeed_usb_phy3 *phy3;
+	struct device *dev;
+	struct phy_provider *provider;
+	struct phy *phy;
+	struct device_node *node = pdev->dev.of_node;
+	struct clk		*clk;
+	struct reset_control	*rst;
+	int rc = 0;
+
+	dev = &pdev->dev;
+
+	phy3 = devm_kzalloc(dev, sizeof(*phy3), GFP_KERNEL);
+	if (!phy3)
+		return -ENOMEM;
+
+	phy3->dev = dev;
+
+	phy3->model = of_device_get_match_data(dev);
+	if (IS_ERR(phy3->model)) {
+		dev_err(dev, "Couldn't get model data\n");
+		return -ENODEV;
+	}
+
+	clk = devm_clk_get(dev, NULL);
+	if (IS_ERR(clk))
+		return PTR_ERR(clk);
+
+	rc = clk_prepare_enable(clk);
+	if (rc) {
+		dev_err(dev, "Unable to enable clock (%d)\n", rc);
+		return rc;
+	}
+
+	rst = devm_reset_control_get_shared(dev, NULL);
+	if (IS_ERR(rst)) {
+		rc = PTR_ERR(rst);
+		goto err;
+	}
+	rc = reset_control_deassert(rst);
+	if (rc)
+		goto err;
+
+	phy3->regs = of_iomap(node, 0);
+
+	phy3->phy_ext_load_quirk =
+		device_property_read_bool(dev, "aspeed,phy_ext_load_quirk");
+
+	phy = devm_phy_create(dev, NULL, &aspeed_usb_phy3_phyops);
+	if (IS_ERR(phy)) {
+		dev_err(dev, "failed to create PHY\n");
+		return PTR_ERR(phy);
+	}
+
+	provider = devm_of_phy_provider_register(dev, of_phy_simple_xlate);
+	if (IS_ERR(provider))
+		return PTR_ERR(provider);
+
+	phy_set_drvdata(phy, phy3);
+
+	dev_info(phy3->dev, "Probed USB PHY3\n");
 
 	return 0;
 
