@@ -182,7 +182,9 @@
 		ltpi1_ltpi: ltpi@50c34000 {
 			compatible = "aspeed-ltpi";
 			reg = <0x0 0x50c34000 0x0 0x100>;
-			clocks = <&ltpi1_syscon AST1700_CLK_GATE_LTPICLK>;
+			clocks = <&ltpi1_syscon AST1700_CLK_GATE_LTPICLK>,
+				 <&ltpi1_syscon AST1700_CLK_GATE_LTPIPHYCLK>;
+			clock-names = "ahb", "phy";
 			resets = <&ltpi1_syscon AST1700_RESET_LTPI>;
 			remote-controller;
 			aspeed,scu = <&ltpi1_syscon>;

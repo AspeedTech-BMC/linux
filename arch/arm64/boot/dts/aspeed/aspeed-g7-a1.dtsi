@@ -2239,7 +2239,9 @@
 		ltpi0: ltpi@14c34000 {
 			compatible = "aspeed-ltpi";
 			reg = <0x0 0x14c34000 0x0 0x100>;
-			clocks = <&syscon1 SCU1_CLK_GATE_LTPICLK>;
+			clocks = <&syscon1 SCU1_CLK_GATE_LTPICLK>,
+				 <&syscon1 SCU1_CLK_GATE_LTPIPHYCLK>;
+			clock-names = "ahb", "phy";
 			resets = <&syscon1 SCU1_RESET_LTPI0>;
 			interrupts-extended = <&soc1_intc5 12>;
 			status = "disabled";
@@ -2259,7 +2261,9 @@
 		ltpi1: ltpi@14c35000 {
 			compatible = "aspeed-ltpi";
 			reg = <0x0 0x14c35000 0x0 0x100>;
-			clocks = <&syscon1 SCU1_CLK_GATE_LTPICLK>;
+			clocks = <&syscon1 SCU1_CLK_GATE_LTPICLK>,
+				 <&syscon1 SCU1_CLK_GATE_LTPI1TXCLK>;
+			clock-names = "ahb", "phy";
 			resets = <&syscon1 SCU1_RESET_LTPI1>;
 			interrupts-extended = <&soc1_intc5 13>;
 			status = "disabled";
