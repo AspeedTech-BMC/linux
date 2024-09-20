@@ -490,7 +490,7 @@
 			soc0_intc11: interrupt-controller@1b00 {
 				#interrupt-cells = <1>;
 				interrupt-controller;
-				compatible = "aspeed,ast2700-intc-icv2";
+				compatible = "aspeed,ast2700-intc-ic";
 				reg = <0x0 0x1b00 0x0 0x10>;
 				interrupts = <GIC_SPI 192 IRQ_TYPE_LEVEL_HIGH>,
 						<GIC_SPI 193 IRQ_TYPE_LEVEL_HIGH>,
