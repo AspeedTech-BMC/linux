@@ -40,6 +40,7 @@ struct aspeed_ltpi_priv {
 	struct device *dev;
 	void __iomem *regs;
 	struct clk *ltpi_clk;
+	struct clk *ltpi_phyclk;
 	struct reset_control *ltpi_rst;
 	struct regmap *scu;
 };
@@ -113,11 +114,17 @@ static int aspeed_ltpi_probe(struct platform_device *pdev)
 	if (IS_ERR(priv->regs))
 		return PTR_ERR(priv->regs);
 
-	priv->ltpi_clk = devm_clk_get(&pdev->dev, NULL);
+	priv->ltpi_clk = devm_clk_get(&pdev->dev, "ahb");
 	if (IS_ERR(priv->ltpi_clk))
 		return PTR_ERR(priv->ltpi_clk);
 
 	clk_prepare_enable(priv->ltpi_clk);
+
+	priv->ltpi_phyclk = devm_clk_get(&pdev->dev, "phy");
+	if (IS_ERR(priv->ltpi_phyclk))
+		return PTR_ERR(priv->ltpi_phyclk);
+
+	clk_prepare_enable(priv->ltpi_phyclk);
 
 	priv->ltpi_rst = devm_reset_control_get_optional_shared(&pdev->dev, NULL);
 	if (IS_ERR(priv->ltpi_rst))
@@ -146,6 +153,7 @@ static int aspeed_ltpi_probe(struct platform_device *pdev)
 		if (ret) {
 			dev_err(priv->dev, "failed to request irq\n");
 			reset_control_assert(priv->ltpi_rst);
+			clk_disable_unprepare(priv->ltpi_phyclk);
 			clk_disable_unprepare(priv->ltpi_clk);
 			return ret;
 		}
@@ -168,6 +176,7 @@ static int aspeed_ltpi_remove(struct platform_device *pdev)
 
 	priv = platform_get_drvdata(pdev);
 	reset_control_assert(priv->ltpi_rst);
+	clk_disable_unprepare(priv->ltpi_phyclk);
 	clk_disable_unprepare(priv->ltpi_clk);
 
 	return 0;
