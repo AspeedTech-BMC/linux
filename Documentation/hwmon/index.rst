@@ -128,6 +128,7 @@ Hardware Monitoring Kernel Drivers
    ltc4245
    ltc4260
    ltc4261
+   ltc4286
    max127
    max15301
    max16064
@@ -182,6 +183,7 @@ Hardware Monitoring Kernel Drivers
    peci-dimmtemp
    pmbus
    powr1220
+   pt5161l
    pxe1610
    pwm-fan
    q54sj108a2
