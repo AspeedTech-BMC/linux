@@ -147,7 +147,25 @@ config ASPEED_UDMA
 
 config ASPEED_OTP
 	tristate "Aspeed OTP Driver"
-	depends on MACH_ASPEED_G6
+	select AST2600_OTP if MACH_ASPEED_G6
+	select AST2700_OTP if MACH_ASPEED_G7
+	help
+	  Enable driver support for Aspeed OTP driver. Each bit in One
+	  Time Prgrammable (OTP) memory is capable to be programmed once.
+	  The OTP driver performs basic read/program operations of
+	  OTP memory.
+
+config AST2600_OTP
+	tristate
+	depends on ASPEED_OTP
+	help
+	  Enable driver support for Aspeed AST2600 OTP driver.
+
+config AST2700_OTP
+	tristate
+	depends on ASPEED_OTP
+	help
+	  Enable driver support for Aspeed AST2700 OTP driver.
 
 config ASPEED_DISP_INTF
 	bool "ASPEED Display Interface driver"
