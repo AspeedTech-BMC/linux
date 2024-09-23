@@ -59,7 +59,7 @@ struct aspeed_gpio_config {
 	const struct aspeed_gpio_llops *llops;
 	const int *debounce_timers_array;
 	int debounce_timers_num;
-	bool dcache_require;
+	bool require_dcache;
 };
 
 /*
@@ -205,7 +205,9 @@ struct aspeed_gpio_llops {
 	void (*copro_release)(struct aspeed_gpio *gpio, unsigned int offset);
 	void (*reg_bit_set)(struct aspeed_gpio *gpio, unsigned int offset,
 			    const enum aspeed_gpio_reg reg, bool val);
-	u32 (*reg_bits_get)(struct aspeed_gpio *gpio, unsigned int offset,
+	bool (*reg_bit_get)(struct aspeed_gpio *gpio, unsigned int offset,
+			    const enum aspeed_gpio_reg reg);
+	int (*reg_bank_get)(struct aspeed_gpio *gpio, unsigned int offset,
 			    const enum aspeed_gpio_reg reg);
 	void (*privilege_ctrl)(struct aspeed_gpio *gpio, unsigned int offset, int owner);
 	void (*privilege_init)(struct aspeed_gpio *gpio);
@@ -391,7 +393,7 @@ static int aspeed_gpio_get(struct gpio_chip *gc, unsigned int offset)
 {
 	struct aspeed_gpio *gpio = gpiochip_get_data(gc);
 
-	return gpio->config->llops->reg_bits_get(gpio, offset, reg_val);
+	return gpio->config->llops->reg_bit_get(gpio, offset, reg_val);
 }
 
 static void __aspeed_gpio_set(struct gpio_chip *gc, unsigned int offset,
@@ -401,7 +403,7 @@ static void __aspeed_gpio_set(struct gpio_chip *gc, unsigned int offset,
 
 	gpio->config->llops->reg_bit_set(gpio, offset, reg_val, val);
 	// flush write
-	gpio->config->llops->reg_bits_get(gpio, offset, reg_val);
+	gpio->config->llops->reg_bit_get(gpio, offset, reg_val);
 }
 
 static void aspeed_gpio_set(struct gpio_chip *gc, unsigned int offset,
@@ -479,7 +481,7 @@ static int aspeed_gpio_get_direction(struct gpio_chip *gc, unsigned int offset)
 
 	raw_spin_lock_irqsave(&gpio->lock, flags);
 
-	val = gpio->config->llops->reg_bits_get(gpio, offset, reg_dir);
+	val = gpio->config->llops->reg_bit_get(gpio, offset, reg_dir);
 
 	raw_spin_unlock_irqrestore(&gpio->lock, flags);
 
@@ -629,7 +631,7 @@ static void aspeed_gpio_irq_handler(struct irq_desc *desc)
 
 	banks = DIV_ROUND_UP(gpio->chip.ngpio, 32);
 	for (i = 0; i < banks; i++) {
-		reg = gpio->config->llops->reg_bits_get(gpio, i * 32, reg_irq_status);
+		reg = gpio->config->llops->reg_bank_get(gpio, i * 32, reg_irq_status);
 
 		for_each_set_bit(p, &reg, 32)
 			generic_handle_domain_irq(gc->irq.domain, i * 32 + p);
@@ -1050,7 +1052,7 @@ static void aspeed_g4_reg_bit_set(struct aspeed_gpio *gpio, unsigned int offset,
 	void __iomem *addr = bank_reg(gpio, bank, reg);
 	u32 temp;
 
-	if (reg == reg_val && gpio->config->dcache_require)
+	if (reg == reg_val)
 		temp = gpio->dcache[GPIO_BANK(offset)];
 	else
 		temp = ioread32(addr);
@@ -1060,12 +1062,21 @@ static void aspeed_g4_reg_bit_set(struct aspeed_gpio *gpio, unsigned int offset,
 	else
 		temp &= ~GPIO_BIT(offset);
 
-	if (reg == reg_val && gpio->config->dcache_require)
+	if (reg == reg_val)
 		gpio->dcache[GPIO_BANK(offset)] = temp;
 	iowrite32(temp, addr);
 }
 
-static u32 aspeed_g4_reg_bits_get(struct aspeed_gpio *gpio, unsigned int offset,
+static bool aspeed_g4_reg_bit_get(struct aspeed_gpio *gpio, unsigned int offset,
+				  const enum aspeed_gpio_reg reg)
+{
+	const struct aspeed_gpio_bank *bank = to_bank(offset);
+	void __iomem *addr = bank_reg(gpio, bank, reg);
+
+	return !!(ioread32(addr) & GPIO_BIT(offset));
+}
+
+static int aspeed_g4_reg_bank_get(struct aspeed_gpio *gpio, unsigned int offset,
 				  const enum aspeed_gpio_reg reg)
 {
 	const struct aspeed_gpio_bank *bank = to_bank(offset);
@@ -1073,7 +1084,33 @@ static u32 aspeed_g4_reg_bits_get(struct aspeed_gpio *gpio, unsigned int offset,
 
 	if (reg == reg_rdata || reg == reg_irq_status)
 		return ioread32(addr);
-	return !!(ioread32(addr) & GPIO_BIT(offset));
+	else
+		return -EOPNOTSUPP;
+}
+
+static void aspeed_g4_privilege_ctrl(struct aspeed_gpio *gpio, unsigned int offset, int cmdsrc)
+{
+	/*
+	 * The command source register is only valid in bits 0, 8, 16, and 24, so we use
+	 * (offset & ~(0x7)) to ensure that reg_bits_set always targets a valid bit.
+	 */
+	/* Source 1 first to avoid illegal 11 combination */
+	aspeed_g4_reg_bit_set(gpio, offset & ~(0x7), reg_cmdsrc1, !!(cmdsrc & BIT(1)));
+	/* Then Source 0 */
+	aspeed_g4_reg_bit_set(gpio, offset & ~(0x7), reg_cmdsrc0, !!(cmdsrc & BIT(0)));
+}
+
+static void aspeed_g4_privilege_init(struct aspeed_gpio *gpio)
+{
+	u32 i;
+
+	/* Switch all command sources to the ARM by default */
+	for (i = 0; i < DIV_ROUND_UP(gpio->chip.ngpio, 32); i++) {
+		aspeed_g4_privilege_ctrl(gpio, (i << 5) + 0, GPIO_CMDSRC_ARM);
+		aspeed_g4_privilege_ctrl(gpio, (i << 5) + 8, GPIO_CMDSRC_ARM);
+		aspeed_g4_privilege_ctrl(gpio, (i << 5) + 16, GPIO_CMDSRC_ARM);
+		aspeed_g4_privilege_ctrl(gpio, (i << 5) + 24, GPIO_CMDSRC_ARM);
+	}
 }
 
 static bool aspeed_g4_copro_request(struct aspeed_gpio *gpio, unsigned int offset)
@@ -1089,12 +1126,10 @@ static bool aspeed_g4_copro_request(struct aspeed_gpio *gpio, unsigned int offse
 	copro_ops->request_access(copro_data);
 
 	/* Change command source back to ARM */
-	aspeed_gpio_change_cmd_source(gpio, offset, GPIO_CMDSRC_ARM);
+	aspeed_g4_privilege_ctrl(gpio, offset, GPIO_CMDSRC_ARM);
 
-	if (gpio->config->dcache_require)
-		/* Update cache */
-		gpio->dcache[GPIO_BANK(offset)] =
-			gpio->config->llops->reg_bits_get(gpio, offset, reg_rdata);
+	/* Update cache */
+	gpio->dcache[GPIO_BANK(offset)] = aspeed_g4_reg_bank_get(gpio, offset, reg_rdata);
 
 	return true;
 }
@@ -1109,42 +1144,18 @@ static void aspeed_g4_copro_release(struct aspeed_gpio *gpio, unsigned int offse
 		return;
 
 	/* Change command source back to ColdFire */
-	aspeed_gpio_change_cmd_source(gpio, offset, GPIO_CMDSRC_COLDFIRE);
+	aspeed_g4_privilege_ctrl(gpio, offset, GPIO_CMDSRC_COLDFIRE);
 
 	/* Restart the coprocessor */
 	copro_ops->release_access(copro_data);
-}
-
-static void aspeed_g4_privilege_ctrl(struct aspeed_gpio *gpio, unsigned int offset, int cmdsrc)
-{
-	/*
-	 * The command source register is only valid in bits 0, 8, 16, and 24, so we use
-	 * (offset & ~(0x7)) to ensure that reg_bits_set always targets a valid bit.
-	 */
-	/* Source 1 first to avoid illegal 11 combination */
-	gpio->config->llops->reg_bit_set(gpio, offset & ~(0x7), reg_cmdsrc1, !!(cmdsrc & BIT(1)));
-	/* Then Source 0 */
-	gpio->config->llops->reg_bit_set(gpio, offset & ~(0x7), reg_cmdsrc0, !!(cmdsrc & BIT(0)));
-}
-
-static void aspeed_g4_privilege_init(struct aspeed_gpio *gpio)
-{
-	u32 i;
-
-	/* Switch all command sources to the ARM by default */
-	for (i = 0; i < DIV_ROUND_UP(gpio->chip.ngpio, 32); i++) {
-		aspeed_gpio_change_cmd_source(gpio, (i << 5) + 0, GPIO_CMDSRC_ARM);
-		aspeed_gpio_change_cmd_source(gpio, (i << 5) + 8, GPIO_CMDSRC_ARM);
-		aspeed_gpio_change_cmd_source(gpio, (i << 5) + 16, GPIO_CMDSRC_ARM);
-		aspeed_gpio_change_cmd_source(gpio, (i << 5) + 24, GPIO_CMDSRC_ARM);
-	}
 }
 
 static const struct aspeed_gpio_llops aspeed_g4_llops = {
 	.copro_request = aspeed_g4_copro_request,
 	.copro_release = aspeed_g4_copro_release,
 	.reg_bit_set = aspeed_g4_reg_bit_set,
-	.reg_bits_get = aspeed_g4_reg_bits_get,
+	.reg_bit_get = aspeed_g4_reg_bit_get,
+	.reg_bank_get = aspeed_g4_reg_bank_get,
 	.privilege_ctrl = aspeed_g4_privilege_ctrl,
 	.privilege_init = aspeed_g4_privilege_init,
 };
@@ -1159,16 +1170,12 @@ static void aspeed_g7_reg_bit_set(struct aspeed_gpio *gpio, unsigned int offset,
 	iowrite32(write_val, addr);
 }
 
-static u32 aspeed_g7_reg_bits_get(struct aspeed_gpio *gpio, unsigned int offset,
+static bool aspeed_g7_reg_bit_get(struct aspeed_gpio *gpio, unsigned int offset,
 				  const enum aspeed_gpio_reg reg)
 {
 	u32 mask = reg_mask(reg);
 	void __iomem *addr;
 
-	if (reg == reg_irq_status) {
-		addr = gpio->base + GPIO_G7_IRQ_STS_OFFSET(offset >> 5);
-		return ioread32(addr);
-	}
 	addr = gpio->base + GPIO_G7_CTRL_REG_OFFSET(offset);
 	if (reg == reg_val)
 		mask = GPIO_G7_CTRL_IN_DATA;
@@ -1176,11 +1183,24 @@ static u32 aspeed_g7_reg_bits_get(struct aspeed_gpio *gpio, unsigned int offset,
 	return (((ioread32(addr)) & (mask)) >> (ffs(mask) - 1));
 }
 
+static int aspeed_g7_reg_bank_get(struct aspeed_gpio *gpio, unsigned int offset,
+				  const enum aspeed_gpio_reg reg)
+{
+	void __iomem *addr;
+
+	if (reg == reg_irq_status) {
+		addr = gpio->base + GPIO_G7_IRQ_STS_OFFSET(offset >> 5);
+		return ioread32(addr);
+	} else {
+		return -EOPNOTSUPP;
+	}
+}
 static const struct aspeed_gpio_llops aspeed_g7_llops = {
 	.copro_request = NULL,
 	.copro_release = NULL,
 	.reg_bit_set = aspeed_g7_reg_bit_set,
-	.reg_bits_get = aspeed_g7_reg_bits_get,
+	.reg_bit_get = aspeed_g7_reg_bit_get,
+	.reg_bank_get = aspeed_g7_reg_bank_get,
 	.privilege_ctrl = NULL,
 	.privilege_init = NULL,
 };
@@ -1207,7 +1227,7 @@ static const struct aspeed_gpio_config ast2400_config =
 		.llops = &aspeed_g4_llops,
 		.debounce_timers_array = debounce_timers,
 		.debounce_timers_num = ARRAY_SIZE(debounce_timers),
-		.dcache_require = true,
+		.require_dcache = true,
 	};
 
 static const struct aspeed_bank_props ast2500_bank_props[] = {
@@ -1226,7 +1246,7 @@ static const struct aspeed_gpio_config ast2500_config =
 		.llops = &aspeed_g4_llops,
 		.debounce_timers_array = debounce_timers,
 		.debounce_timers_num = ARRAY_SIZE(debounce_timers),
-		.dcache_require = true,
+		.require_dcache = true,
 	};
 
 static const struct aspeed_bank_props ast2600_bank_props[] = {
@@ -1249,7 +1269,7 @@ static const struct aspeed_gpio_config ast2600_config =
 		.llops = &aspeed_g4_llops,
 		.debounce_timers_array = debounce_timers,
 		.debounce_timers_num = ARRAY_SIZE(debounce_timers),
-		.dcache_require = true,
+		.require_dcache = true,
 	};
 
 static const struct aspeed_bank_props ast2700_bank_props[] = {
@@ -1273,7 +1293,7 @@ static const struct aspeed_gpio_config ast2700_config =
 		.llops = &aspeed_g7_llops,
 		.debounce_timers_array = g7_debounce_timers,
 		.debounce_timers_num = ARRAY_SIZE(g7_debounce_timers),
-		.dcache_require = false,
+		.require_dcache = false,
 	};
 
 static const struct of_device_id aspeed_gpio_of_table[] = {
@@ -1309,7 +1329,7 @@ static int aspeed_gpio_probe(struct platform_device *pdev)
 	if (!gpio_id)
 		return -EINVAL;
 
-	gpio->clk = of_clk_get(pdev->dev.of_node, 0);
+	gpio->clk = devm_clk_get_enabled(&pdev->dev, 0);
 	if (IS_ERR(gpio->clk)) {
 		dev_warn(&pdev->dev,
 				"Failed to get clock from devicetree, debouncing disabled\n");
@@ -1318,7 +1338,8 @@ static int aspeed_gpio_probe(struct platform_device *pdev)
 
 	gpio->config = gpio_id->data;
 
-	if (!gpio->config->llops->reg_bit_set || !gpio->config->llops->reg_bits_get)
+	if (!gpio->config->llops->reg_bit_set || !gpio->config->llops->reg_bit_get ||
+	    !gpio->config->llops->reg_bank_get)
 		return -EINVAL;
 
 	gpio->chip.parent = &pdev->dev;
@@ -1337,7 +1358,7 @@ static int aspeed_gpio_probe(struct platform_device *pdev)
 	gpio->chip.label = dev_name(&pdev->dev);
 	gpio->chip.base = -1;
 
-	if (gpio->config->dcache_require) {
+	if (gpio->config->require_dcache) {
 		/* Allocate a cache of the output registers */
 		banks = DIV_ROUND_UP(gpio->chip.ngpio, 32);
 		gpio->dcache = devm_kcalloc(&pdev->dev, banks, sizeof(u32), GFP_KERNEL);
@@ -1348,7 +1369,7 @@ static int aspeed_gpio_probe(struct platform_device *pdev)
 		 */
 		for (i = 0; i < banks; i++)
 			gpio->dcache[i] =
-				gpio->config->llops->reg_bits_get(gpio, (i << 5), reg_rdata);
+				gpio->config->llops->reg_bank_get(gpio, (i << 5), reg_rdata);
 	}
 
 	if (gpio->config->llops->privilege_init)
