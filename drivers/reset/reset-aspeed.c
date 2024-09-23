@@ -11,7 +11,7 @@
 #include <linux/of_address.h>
 #include <linux/reset-controller.h>
 
-#include <dt-bindings/reset/aspeed,ast2700-reset.h>
+#include <dt-bindings/reset/aspeed,ast2700-scu.h>
 
 #define SCU0_RESET_CTRL1 0x200
 #define SCU0_RESET_CTRL2 0x220

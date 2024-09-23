@@ -10,7 +10,7 @@
 #include <linux/of_device.h>
 #include <linux/slab.h>
 
-#include <dt-bindings/clock/aspeed,ast2700-clk.h>
+#include <dt-bindings/clock/aspeed,ast2700-scu.h>
 
 #define SCU_CLK_12MHZ 12000000
 #define SCU_CLK_24MHZ 24000000
