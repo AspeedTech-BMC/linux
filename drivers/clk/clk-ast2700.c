@@ -16,6 +16,7 @@
 #define SCU_CLK_24MHZ 24000000
 #define SCU_CLK_25MHZ 25000000
 #define SCU_CLK_192MHZ 192000000
+
 /* SOC0 */
 #define SCU0_HWSTRAP1 0x010
 #define SCU0_CLK_STOP 0x240
@@ -130,7 +131,6 @@ struct ast2700_clk_ctrl {
 	spinlock_t lock; /* clk lock */
 };
 
-/* Division of RGMII Clock */
 static const struct clk_div_table ast2700_rgmii_div_table[] = {
 	{ 0x0, 4 },
 	{ 0x1, 4 },
@@ -143,7 +143,6 @@ static const struct clk_div_table ast2700_rgmii_div_table[] = {
 	{ 0 }
 };
 
-/* Division of RMII Clock */
 static const struct clk_div_table ast2700_rmii_div_table[] = {
 	{ 0x0, 8 },
 	{ 0x1, 8 },
@@ -156,7 +155,6 @@ static const struct clk_div_table ast2700_rmii_div_table[] = {
 	{ 0 }
 };
 
-/* Division of HCLK/SDIO/MAC/apll_divn CLK */
 static const struct clk_div_table ast2700_clk_div_table[] = {
 	{ 0x0, 2 },
 	{ 0x1, 2 },
