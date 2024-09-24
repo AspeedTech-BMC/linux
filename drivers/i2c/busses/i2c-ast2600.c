@@ -326,10 +326,11 @@ static u8 ast2600_i2c_recover_bus(struct ast2600_i2c_bus *i2c_bus)
 	/* Disable master/slave mode */
 	writel(ctrl & ~(AST2600_I2CC_MASTER_EN | AST2600_I2CC_SLAVE_EN),
 	       i2c_bus->reg_base + AST2600_I2CC_FUN_CTRL);
+	readl(i2c_bus->reg_base + AST2600_I2CC_FUN_CTRL);
 
-	/* Enable master mode only */
-	writel(readl(i2c_bus->reg_base + AST2600_I2CC_FUN_CTRL) | AST2600_I2CC_MASTER_EN,
-	       i2c_bus->reg_base + AST2600_I2CC_FUN_CTRL);
+	/* Enable controller into original mode */
+	writel(ctrl, i2c_bus->reg_base + AST2600_I2CC_FUN_CTRL);
+	readl(i2c_bus->reg_base + AST2600_I2CC_FUN_CTRL);
 
 	reinit_completion(&i2c_bus->cmd_complete);
 	i2c_bus->cmd_err = 0;
