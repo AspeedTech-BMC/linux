@@ -400,6 +400,7 @@ static long aspeed_otp_ioctl(struct file *file, unsigned int cmd, unsigned long 
 			return -EFAULT;
 		break;
 	default:
+		dev_warn(ctx->dev, "cmd 0x%x is not supported\n", cmd);
 		break;
 	}
 
