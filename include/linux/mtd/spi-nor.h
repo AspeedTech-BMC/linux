@@ -81,6 +81,9 @@
 /* Used for SST flashes only. */
 #define SPINOR_OP_BP		0x02	/* Byte program */
 #define SPINOR_OP_AAI_WP	0xad	/* Auto address increment word program */
+#define SPINOR_OP_SST_RDNVCR	0xB5	/* Read nonvolatile configuration register */
+#define SPINOR_OP_SST_WRNVCR	0xB1	/* Write nonvolatile configuration register */
+#define SPINOR_SST_RST_HOLD_CTRL	BIT(4) /* Nonvolatile configuration register bit 4*/
 
 /* Used for Macronix and Winbond flashes. */
 #define SPINOR_OP_EN4B		0xb7	/* Enter 4-byte mode */
