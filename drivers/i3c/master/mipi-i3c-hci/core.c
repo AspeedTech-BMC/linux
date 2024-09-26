@@ -188,7 +188,7 @@ static void aspeed_i3c_of_populate_bus_timing(struct i3c_hci *hci, struct device
 {
 	u16 hcnt, lcnt;
 	unsigned long core_rate, core_period;
-	u32 val, pp_high = 0, pp_low = 0, od_high = 0, od_low = 0, thd_dat = 0;
+	u32 val, pp_high = 0, pp_low = 0, od_high = 0, od_low = 0, thd_dat = 0, internal_pu = 0;
 	u32 ctrl0, ctrl1, ctrl2;
 	u32 sdr_ctrl0_reg = aspeed_i3c_get_sdr_phy_reg(hci);
 
@@ -213,6 +213,9 @@ static void aspeed_i3c_of_populate_bus_timing(struct i3c_hci *hci, struct device
 
 	if (!of_property_read_u32(np, "sda-tx-hold-ns", &val))
 		thd_dat = val;
+
+	if (!of_property_read_u32(np, "internal-pullup", &val))
+		internal_pu = val;
 
 	if (pp_high && pp_low) {
 		hcnt = DIV_ROUND_CLOSEST(pp_high, core_period) - 1;
@@ -268,6 +271,11 @@ static void aspeed_i3c_of_populate_bus_timing(struct i3c_hci *hci, struct device
 	lcnt = DIV_ROUND_CLOSEST(PHY_I3C_OD_DEFAULT_CBP_NS, core_period) - 1;
 	ast_phy_write(PHY_I3C_OD_CTRL0, FIELD_PREP(PHY_I3C_OD_CTRL0_CAS, hcnt) |
 						FIELD_PREP(PHY_I3C_OD_CTRL0_CBP, lcnt));
+	if (internal_pu)
+		ast_phy_write(PHY_SW_FORCE_CTRL,
+			      PHY_SW_FORCE_CTRL_SCL_PU_EN | PHY_SW_FORCE_CTRL_SDA_PU_EN |
+				      FIELD_PREP(PHY_SW_FORCE_CTRL_SCL_PU_VAL, internal_pu) |
+				      FIELD_PREP(PHY_SW_FORCE_CTRL_SDA_PU_VAL, internal_pu));
 }
 #endif
 
