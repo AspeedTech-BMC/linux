@@ -102,7 +102,6 @@ struct ftgmac100 {
 	int cur_speed;
 	int cur_duplex;
 	bool use_ncsi;
-	bool use_fixed_phy;
 
 	/* Multicast filter settings */
 	u32 maht0;
@@ -1708,9 +1707,6 @@ static int ftgmac100_open(struct net_device *netdev)
 	if (priv->use_ncsi) {
 		priv->cur_duplex = DUPLEX_FULL;
 		priv->cur_speed = SPEED_100;
-	} else if (priv->use_fixed_phy) {
-	    	priv->cur_duplex = netdev->phydev->duplex;
-		priv->cur_speed = netdev->phydev->speed;
 	} else {
 		priv->cur_duplex = 0;
 		priv->cur_speed = 0;
@@ -1964,6 +1960,18 @@ err_register_mdiobus:
 	return err;
 }
 
+static void ftgmac100_phy_disconnect(struct net_device *netdev)
+{
+	struct ftgmac100 *priv = netdev_priv(netdev);
+
+	if (!netdev->phydev)
+		return;
+
+	phy_disconnect(netdev->phydev);
+	if (of_phy_is_fixed_link(priv->dev->of_node))
+		of_phy_deregister_fixed_link(priv->dev->of_node);
+}
+
 static void ftgmac100_destroy_mdio(struct net_device *netdev)
 {
 	struct ftgmac100 *priv = netdev_priv(netdev);
@@ -2106,26 +2114,41 @@ static int ftgmac100_probe(struct platform_device *pdev)
 			err = -EINVAL;
 			goto err_ncsi_dev;
 		}
+	} else if (np && of_phy_is_fixed_link(np)) {
+		struct phy_device *phy;
+
+		err = of_phy_register_fixed_link(np);
+		if (err) {
+			dev_err(&pdev->dev, "Failed to register fixed PHY\n");
+			goto err_phy_connect;
+		}
+
+		phy = of_phy_get_and_connect(priv->netdev, np,
+					     &ftgmac100_adjust_link);
+		if (!phy) {
+			dev_err(&pdev->dev, "Failed to connect to fixed PHY\n");
+			of_phy_deregister_fixed_link(np);
+			err = -EINVAL;
+			goto err_phy_connect;
+		}
+
+		/* Display what we found */
+		phy_attached_info(phy);
 	} else if (np && of_get_property(np, "phy-handle", NULL)) {
 		struct phy_device *phy;
-		priv->use_fixed_phy = of_phy_is_fixed_link(pdev->dev.of_node);
 
 		phy = of_phy_get_and_connect(priv->netdev, np,
 					     &ftgmac100_adjust_link);
 		if (!phy) {
 			dev_err(&pdev->dev, "Failed to connect to phy\n");
 			err = -EINVAL;
-			if (priv->use_fixed_phy)
-				of_phy_deregister_fixed_link(pdev->dev.of_node);
-
-			goto err_setup_mdio;
+			goto err_phy_connect;
 		}
 
 		/* Indicate that we support PAUSE frames (see comment in
 		 * Documentation/networking/phy.txt)
 		 */
-		if (!priv->use_fixed_phy)
-			phy_support_asym_pause(phy);
+		phy_support_asym_pause(phy);
 
 		/* Display what we found */
 		phy_attached_info(phy);
@@ -2197,6 +2220,8 @@ err_register_netdev:
 	if (priv->rclk)
 		clk_disable_unprepare(priv->rclk);
 	clk_disable_unprepare(priv->clk);
+err_phy_connect:
+	ftgmac100_phy_disconnect(netdev);
 err_ncsi_dev:
 	if (priv->ndev)
 		ncsi_unregister_dev(priv->ndev);
@@ -2232,13 +2257,11 @@ static int ftgmac100_remove(struct platform_device *pdev)
 	 */
 	cancel_work_sync(&priv->reset_task);
 
+	ftgmac100_phy_disconnect(netdev);
 	ftgmac100_destroy_mdio(netdev);
 
 	iounmap(priv->base);
 	release_resource(priv->res);
-
-	if (priv->use_fixed_phy)
-		of_phy_deregister_fixed_link(pdev->dev.of_node);
 
 	free_netdev(netdev);
 	return 0;
