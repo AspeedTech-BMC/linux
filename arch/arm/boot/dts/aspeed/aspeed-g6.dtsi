@@ -740,6 +740,8 @@
 				interrupts = <GIC_SPI 43 IRQ_TYPE_LEVEL_HIGH>;
 				sdhci,auto-cmd12;
 				clocks = <&syscon ASPEED_CLK_SDIO>;
+				pinctrl-names = "default";
+				pinctrl-0 = <&pinctrl_sd1_default>;
 				status = "disabled";
 			};
 
@@ -749,6 +751,8 @@
 				interrupts = <GIC_SPI 43 IRQ_TYPE_LEVEL_HIGH>;
 				sdhci,auto-cmd12;
 				clocks = <&syscon ASPEED_CLK_SDIO>;
+				pinctrl-names = "default";
+				pinctrl-0 = <&pinctrl_sd2_default>;
 				status = "disabled";
 			};
 		};
@@ -760,10 +764,11 @@
 			#size-cells = <1>;
 			ranges = <0 0x1e750000 0x10000>;
 			clocks = <&syscon ASPEED_CLK_GATE_EMMCCLK>;
+			resets = <&syscon ASPEED_RESET_EMMC>;
 			status = "disabled";
 
 			emmc: sdhci@1e750100 {
-				compatible = "aspeed,ast2600-sdhci";
+				compatible = "aspeed,ast2600-emmc";
 				reg = <0x100 0x100>;
 				sdhci,auto-cmd12;
 				interrupts = <GIC_SPI 15 IRQ_TYPE_LEVEL_HIGH>;
@@ -1109,7 +1114,6 @@
 				ranges = <0 0x1e78a000 0x1000>;
 			};
 
-			
 			peci0: peci-controller@1e78b000 {
 				compatible = "aspeed,ast2600-peci";
 				reg = <0x1e78b000 0x100>;
