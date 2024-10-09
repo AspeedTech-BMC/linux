@@ -30,6 +30,10 @@
 #include <linux/gpio/consumer.h>
 #include "gpiolib.h"
 
+/* Non-constant mask variant of FIELD_GET() and FIELD_PREP() */
+#define field_get(_mask, _reg)	(((_reg) & (_mask)) >> (ffs(_mask) - 1))
+#define field_prep(_mask, _val)	(((_val) << (ffs(_mask) - 1)) & (_mask))
+
 #define GPIO_G7_IRQ_STS_BASE 0x100
 #define GPIO_G7_IRQ_STS_OFFSET(x) (GPIO_G7_IRQ_STS_BASE + (x) * 0x4)
 #define GPIO_G7_CTRL_REG_BASE 0x180
@@ -41,8 +45,8 @@
 #define GPIO_G7_CTRL_IRQ_TYPE1 BIT(4)
 #define GPIO_G7_CTRL_IRQ_TYPE2 BIT(5)
 #define GPIO_G7_CTRL_RST_TOLERANCE BIT(6)
-#define GPIO_G7_CTRL_DEBOUNCE_SEL2 BIT(7)
-#define GPIO_G7_CTRL_DEBOUNCE_SEL1 BIT(8)
+#define GPIO_G7_CTRL_DEBOUNCE_SEL1 BIT(7)
+#define GPIO_G7_CTRL_DEBOUNCE_SEL2 BIT(8)
 #define GPIO_G7_CTRL_INPUT_MASK BIT(9)
 #define GPIO_G7_CTRL_IRQ_STS BIT(12)
 #define GPIO_G7_CTRL_IN_DATA BIT(13)
@@ -112,7 +116,22 @@ struct aspeed_gpio_bank {
  */
 
 static const int debounce_timers[4] = { 0x00, 0x50, 0x54, 0x58 };
-static const int g7_debounce_timers[4] = { 0x00, 0x04, 0x00, 0x08 };
+static const int g7_debounce_timers[4] = { 0x00, 0x00, 0x04, 0x08 };
+
+/*
+ * The debounce timers array is used to configure the debounce timer settings.Here’s how it works:
+ * Array Value: Indicates the offset for configuring the debounce timer.
+ * Array Index: Corresponds to the debounce setting register.
+ * The debounce timers array follows this pattern for configuring the debounce setting registers:
+ * Array Index 0: No debounce timer is set;
+ *		  Array Value is irrelevant (don’t care).
+ * Array Index 1: Debounce setting #2 is set to 1, and debounce setting #1 is set to 0.
+ *		  Array Value: offset for configuring debounce timer 0 (g4: 0x50, g7: 0x00)
+ * Array Index 2: Debounce setting #2 is set to 0, and debounce setting #1 is set to 1.
+ *		  Array Value: offset for configuring debounce timer 1 (g4: 0x54, g7: 0x04)
+ * Array Index 3: Debounce setting #2 is set to 1, and debounce setting #1 is set to 1.
+ *		  Array Value: offset for configuring debounce timer 2 (g4: 0x58, g7: 0x8)
+ */
 
 static const struct aspeed_gpio_copro_ops *copro_ops;
 static void *copro_data;
@@ -201,8 +220,6 @@ enum aspeed_gpio_reg {
 };
 
 struct aspeed_gpio_llops {
-	bool (*copro_request)(struct aspeed_gpio *gpio, unsigned int offset);
-	void (*copro_release)(struct aspeed_gpio *gpio, unsigned int offset);
 	void (*reg_bit_set)(struct aspeed_gpio *gpio, unsigned int offset,
 			    const enum aspeed_gpio_reg reg, bool val);
 	bool (*reg_bit_get)(struct aspeed_gpio *gpio, unsigned int offset,
@@ -211,6 +228,8 @@ struct aspeed_gpio_llops {
 			    const enum aspeed_gpio_reg reg);
 	void (*privilege_ctrl)(struct aspeed_gpio *gpio, unsigned int offset, int owner);
 	void (*privilege_init)(struct aspeed_gpio *gpio);
+	bool (*copro_request)(struct aspeed_gpio *gpio, unsigned int offset);
+	void (*copro_release)(struct aspeed_gpio *gpio, unsigned int offset);
 };
 
 #define GPIO_VAL_VALUE	0x00
@@ -233,9 +252,9 @@ struct aspeed_gpio_llops {
 #define  GPIO_CMDSRC_RESERVED		3
 
 /* This will be resolved at compile time */
-static inline void __iomem *bank_reg(struct aspeed_gpio *gpio,
-				     const struct aspeed_gpio_bank *bank,
-				     const enum aspeed_gpio_reg reg)
+static void __iomem *aspeed_gpio_g4_bank_reg(struct aspeed_gpio *gpio,
+					     const struct aspeed_gpio_bank *bank,
+					     const enum aspeed_gpio_reg reg)
 {
 	switch (reg) {
 	case reg_val:
@@ -268,7 +287,7 @@ static inline void __iomem *bank_reg(struct aspeed_gpio *gpio,
 	BUG();
 }
 
-static inline u32 reg_mask(const enum aspeed_gpio_reg reg)
+static u32 aspeed_gpio_g7_reg_mask(const enum aspeed_gpio_reg reg)
 {
 	switch (reg) {
 	case reg_val:
@@ -359,9 +378,7 @@ static inline bool have_output(struct aspeed_gpio *gpio, unsigned int offset)
 	return !props || (props->output & GPIO_BIT(offset));
 }
 
-static void aspeed_gpio_change_cmd_source(struct aspeed_gpio *gpio,
-					  unsigned int offset,
-					  int cmdsrc)
+static void aspeed_gpio_change_cmd_source(struct aspeed_gpio *gpio, unsigned int offset, int cmdsrc)
 {
 	if (gpio->config->llops->privilege_ctrl)
 		gpio->config->llops->privilege_ctrl(gpio, offset, cmdsrc);
@@ -402,7 +419,7 @@ static void __aspeed_gpio_set(struct gpio_chip *gc, unsigned int offset,
 	struct aspeed_gpio *gpio = gpiochip_get_data(gc);
 
 	gpio->config->llops->reg_bit_set(gpio, offset, reg_val, val);
-	// flush write
+	/* Flush write */
 	gpio->config->llops->reg_bit_get(gpio, offset, reg_val);
 }
 
@@ -1049,7 +1066,7 @@ static void aspeed_g4_reg_bit_set(struct aspeed_gpio *gpio, unsigned int offset,
 				  const enum aspeed_gpio_reg reg, bool val)
 {
 	const struct aspeed_gpio_bank *bank = to_bank(offset);
-	void __iomem *addr = bank_reg(gpio, bank, reg);
+	void __iomem *addr = aspeed_gpio_g4_bank_reg(gpio, bank, reg);
 	u32 temp;
 
 	if (reg == reg_val)
@@ -1071,7 +1088,7 @@ static bool aspeed_g4_reg_bit_get(struct aspeed_gpio *gpio, unsigned int offset,
 				  const enum aspeed_gpio_reg reg)
 {
 	const struct aspeed_gpio_bank *bank = to_bank(offset);
-	void __iomem *addr = bank_reg(gpio, bank, reg);
+	void __iomem *addr = aspeed_gpio_g4_bank_reg(gpio, bank, reg);
 
 	return !!(ioread32(addr) & GPIO_BIT(offset));
 }
@@ -1080,7 +1097,7 @@ static int aspeed_g4_reg_bank_get(struct aspeed_gpio *gpio, unsigned int offset,
 				  const enum aspeed_gpio_reg reg)
 {
 	const struct aspeed_gpio_bank *bank = to_bank(offset);
-	void __iomem *addr = bank_reg(gpio, bank, reg);
+	void __iomem *addr = aspeed_gpio_g4_bank_reg(gpio, bank, reg);
 
 	if (reg == reg_rdata || reg == reg_irq_status)
 		return ioread32(addr);
@@ -1151,36 +1168,42 @@ static void aspeed_g4_copro_release(struct aspeed_gpio *gpio, unsigned int offse
 }
 
 static const struct aspeed_gpio_llops aspeed_g4_llops = {
-	.copro_request = aspeed_g4_copro_request,
-	.copro_release = aspeed_g4_copro_release,
 	.reg_bit_set = aspeed_g4_reg_bit_set,
 	.reg_bit_get = aspeed_g4_reg_bit_get,
 	.reg_bank_get = aspeed_g4_reg_bank_get,
 	.privilege_ctrl = aspeed_g4_privilege_ctrl,
 	.privilege_init = aspeed_g4_privilege_init,
+	.copro_request = aspeed_g4_copro_request,
+	.copro_release = aspeed_g4_copro_release,
 };
 
 static void aspeed_g7_reg_bit_set(struct aspeed_gpio *gpio, unsigned int offset,
 				  const enum aspeed_gpio_reg reg, bool val)
 {
-	u32 mask = reg_mask(reg);
+	u32 mask = aspeed_gpio_g7_reg_mask(reg);
 	void __iomem *addr = gpio->base + GPIO_G7_CTRL_REG_OFFSET(offset);
-	u32 write_val = (ioread32(addr) & ~(mask)) | (((val) << (ffs(mask) - 1)) & (mask));
+	u32 write_val;
 
-	iowrite32(write_val, addr);
+	if (mask) {
+		write_val = (ioread32(addr) & ~(mask)) | field_prep(mask, val);
+		iowrite32(write_val, addr);
+	}
 }
 
 static bool aspeed_g7_reg_bit_get(struct aspeed_gpio *gpio, unsigned int offset,
 				  const enum aspeed_gpio_reg reg)
 {
-	u32 mask = reg_mask(reg);
+	u32 mask = aspeed_gpio_g7_reg_mask(reg);
 	void __iomem *addr;
 
 	addr = gpio->base + GPIO_G7_CTRL_REG_OFFSET(offset);
 	if (reg == reg_val)
 		mask = GPIO_G7_CTRL_IN_DATA;
 
-	return (((ioread32(addr)) & (mask)) >> (ffs(mask) - 1));
+	if (mask)
+		return field_get(mask, ioread32(addr));
+	else
+		return 0;
 }
 
 static int aspeed_g7_reg_bank_get(struct aspeed_gpio *gpio, unsigned int offset,
@@ -1195,14 +1218,15 @@ static int aspeed_g7_reg_bank_get(struct aspeed_gpio *gpio, unsigned int offset,
 		return -EOPNOTSUPP;
 	}
 }
+
 static const struct aspeed_gpio_llops aspeed_g7_llops = {
-	.copro_request = NULL,
-	.copro_release = NULL,
 	.reg_bit_set = aspeed_g7_reg_bit_set,
 	.reg_bit_get = aspeed_g7_reg_bit_get,
 	.reg_bank_get = aspeed_g7_reg_bank_get,
 	.privilege_ctrl = NULL,
 	.privilege_init = NULL,
+	.copro_request = NULL,
+	.copro_release = NULL,
 };
 
 /*
@@ -1329,7 +1353,7 @@ static int aspeed_gpio_probe(struct platform_device *pdev)
 	if (!gpio_id)
 		return -EINVAL;
 
-	gpio->clk = devm_clk_get_enabled(&pdev->dev, 0);
+	gpio->clk = devm_clk_get_enabled(&pdev->dev, NULL);
 	if (IS_ERR(gpio->clk)) {
 		dev_warn(&pdev->dev,
 				"Failed to get clock from devicetree, debouncing disabled\n");
