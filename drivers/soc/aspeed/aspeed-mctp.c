@@ -324,6 +324,9 @@ struct aspeed_mctp {
 	u32 rx_ring_count;
 	/* Tx pointer ring size */
 	u32 tx_ring_count;
+	/* Delayed work for periodic detection of Rx packets */
+	struct delayed_work rx_det_dwork;
+	u32 rx_det_period_us;
 };
 
 struct mctp_client {
@@ -1934,21 +1937,6 @@ static void aspeed_mctp_send_pcie_uevent(struct kobject *kobj, bool ready)
 			   ready ? pcie_ready_event : pcie_not_ready_event);
 }
 
-static int aspeed_mctp_pcie_setup(struct aspeed_mctp *priv)
-{
-	int ret;
-
-	ret = _get_bdf(priv);
-
-	if (ret >= 0) {
-		cancel_delayed_work(&priv->pcie.rst_dwork);
-	} else {
-		schedule_delayed_work(&priv->pcie.rst_dwork,
-				      msecs_to_jiffies(1000));
-	}
-	return ret;
-}
-
 static void aspeed_mctp_irq_enable(struct aspeed_mctp *priv)
 {
 	u32 enable = TX_CMD_SENT_INT | TX_CMD_WRONG_INT |
@@ -1962,21 +1950,16 @@ static void aspeed_mctp_irq_disable(struct aspeed_mctp *priv)
 	regmap_write(priv->map, ASPEED_MCTP_INT_EN, 0);
 }
 
-static void aspeed_mctp_reset_work(struct work_struct *work)
+static void aspeed_mctp_pcie_setup(struct aspeed_mctp *priv)
 {
-	struct aspeed_mctp *priv = container_of(work, typeof(*priv),
-						pcie.rst_dwork.work);
-	struct kobject *kobj = &priv->mctp_miscdev.this_device->kobj;
 	int ret;
 	u8 tx_max_payload_size;
+	struct kobject *kobj = &priv->mctp_miscdev.this_device->kobj;
 
-	if (priv->pcie.need_uevent) {
-		aspeed_mctp_send_pcie_uevent(kobj, false);
-		priv->pcie.need_uevent = false;
-	}
+	ret = _get_bdf(priv);
 
-	ret = aspeed_mctp_pcie_setup(priv);
 	if (ret >= 0) {
+		cancel_delayed_work(&priv->pcie.rst_dwork);
 		if (priv->match_data->need_address_mapping)
 			regmap_update_bits(priv->map, ASPEED_MCTP_EID,
 					   MEMORY_SPACE_MAPPING, BIT(31));
@@ -1999,11 +1982,43 @@ static void aspeed_mctp_reset_work(struct work_struct *work)
 				   TX_MAX_PAYLOAD_SIZE_MASK,
 				   tx_max_payload_size);
 		aspeed_mctp_flush_all_tx_queues(priv);
-		if (!priv->miss_mctp_int)
+		if (!priv->miss_mctp_int) {
 			aspeed_mctp_irq_enable(priv);
+		} else {
+			if (priv->rx_det_period_us)
+				schedule_delayed_work(&priv->rx_det_dwork,
+						      usecs_to_jiffies(priv->rx_det_period_us));
+		}
 		aspeed_mctp_rx_trigger(&priv->rx);
 		aspeed_mctp_send_pcie_uevent(kobj, true);
+	} else {
+		schedule_delayed_work(&priv->pcie.rst_dwork,
+				      msecs_to_jiffies(1000));
 	}
+}
+
+static void aspeed_mctp_reset_work(struct work_struct *work)
+{
+	struct aspeed_mctp *priv = container_of(work, typeof(*priv),
+						pcie.rst_dwork.work);
+	struct kobject *kobj = &priv->mctp_miscdev.this_device->kobj;
+
+	if (priv->pcie.need_uevent) {
+		aspeed_mctp_send_pcie_uevent(kobj, false);
+		priv->pcie.need_uevent = false;
+	}
+
+	aspeed_mctp_pcie_setup(priv);
+}
+
+static void aspeed_mctp_rx_detect_work(struct work_struct *work)
+{
+	struct aspeed_mctp *priv =
+		container_of(work, typeof(*priv), rx_det_dwork.work);
+
+	tasklet_hi_schedule(&priv->rx.tasklet);
+	schedule_delayed_work(&priv->rx_det_dwork,
+			      usecs_to_jiffies(priv->rx_det_period_us));
 }
 
 static void aspeed_mctp_channels_init(struct aspeed_mctp *priv)
@@ -2095,6 +2110,8 @@ static void aspeed_mctp_drv_fini(struct aspeed_mctp *priv)
 	tasklet_kill(&priv->rx.tasklet);
 
 	cancel_delayed_work_sync(&priv->pcie.rst_dwork);
+	if (priv->miss_mctp_int)
+		cancel_delayed_work_sync(&priv->rx_det_dwork);
 }
 
 static int aspeed_mctp_resources_init(struct aspeed_mctp *priv)
@@ -2257,6 +2274,7 @@ static int aspeed_mctp_irq_init(struct aspeed_mctp *priv)
 	if (irq < 0) {
 		/* mctp irq is option */
 		priv->miss_mctp_int = 1;
+		INIT_DELAYED_WORK(&priv->rx_det_dwork, aspeed_mctp_rx_detect_work);
 	} else {
 		ret = devm_request_irq(priv->dev, irq, aspeed_mctp_irq_handler,
 				       IRQF_SHARED, dev_name(&pdev->dev), priv);
@@ -2339,6 +2357,11 @@ static int aspeed_mctp_probe(struct platform_device *pdev)
 	if (ret)
 		priv->tx_ring_count = TX_RING_COUNT;
 
+	ret = device_property_read_u32(priv->dev, "aspeed,rx-det-period-us",
+				       &priv->rx_det_period_us);
+	if (ret)
+		priv->rx_det_period_us = 1000;
+
 	aspeed_mctp_drv_init(priv);
 
 	ret = aspeed_mctp_resources_init(priv);
@@ -2378,23 +2401,7 @@ static int aspeed_mctp_probe(struct platform_device *pdev)
 		dev_err(priv->dev, "Failed to init IRQ!\n");
 		goto out_dma;
 	}
-	ret = aspeed_mctp_pcie_setup(priv);
-	if (ret >= 0) {
-		if (priv->match_data->need_address_mapping)
-			regmap_update_bits(priv->map, ASPEED_MCTP_EID,
-					   MEMORY_SPACE_MAPPING, BIT(31));
-		/*
-		 * In some condition, tx som and eom will not match expected result.
-		 * e.g. When Maximum Transmit Unit (MTU) set to 64 byte, and then transfer
-		 * size set between 61 ~ 124 (MTU-3 ~ 2*MTU-4), the engine will set all
-		 * packet vdm header eom to 1, no matter what it setted. To fix that
-		 * issue, the driver set MTU to next level(e.g. 64 to 128).
-		 */
-		regmap_update_bits(priv->map, ASPEED_MCTP_ENGINE_CTRL,
-				   TX_MAX_PAYLOAD_SIZE_MASK,
-				   FIELD_GET(TX_MAX_PAYLOAD_SIZE_MASK, fls(ASPEED_MCTP_MTU >> 6)));
-		aspeed_mctp_rx_trigger(&priv->rx);
-	}
+	aspeed_mctp_pcie_setup(priv);
 
 	name = kasprintf(GFP_KERNEL, "peci-mctp%d", id);
 	priv->peci_mctp =
