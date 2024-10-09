@@ -154,20 +154,21 @@ static const struct ast2700_reset_signal ast2700_reset1_signals[] = {
 	[SCU1_RESET_PCIE2RST] = { false, SCU1_PCIE3_CTRL, BIT(0) },
 };
 
-#define to_aspeed_reset(p) container_of(p, struct aspeed_reset, rcdev)
+static inline struct aspeed_reset *to_aspeed_reset(struct reset_controller_dev *rcdev)
+{
+	return container_of(rcdev, struct aspeed_reset, rcdev);
+}
 
 static int aspeed_reset_assert(struct reset_controller_dev *rcdev, unsigned long id)
 {
 	struct aspeed_reset *rc = to_aspeed_reset(rcdev);
 	void __iomem *reg_offset = rc->base + rc->info->signal[id].offset;
-	unsigned long flags;
 
 	if (rc->info->signal[id].dedicated_clr) {
 		writel(rc->info->signal[id].bit, reg_offset);
 	} else {
-		spin_lock_irqsave(&rc->lock, flags);
+		guard(spinlock_irqsave)(&rc->lock);
 		writel(readl(reg_offset) & ~rc->info->signal[id].bit, reg_offset);
-		spin_unlock_irqrestore(&rc->lock, flags);
 	}
 
 	return 0;
@@ -177,14 +178,12 @@ static int aspeed_reset_deassert(struct reset_controller_dev *rcdev, unsigned lo
 {
 	struct aspeed_reset *rc = to_aspeed_reset(rcdev);
 	void __iomem *reg_offset = rc->base + rc->info->signal[id].offset;
-	unsigned long flags;
 
 	if (rc->info->signal[id].dedicated_clr) {
 		writel(rc->info->signal[id].bit, reg_offset + 0x04);
 	} else {
-		spin_lock_irqsave(&rc->lock, flags);
+		guard(spinlock_irqsave)(&rc->lock);
 		writel(readl(reg_offset) | rc->info->signal[id].bit, reg_offset);
-		spin_unlock_irqrestore(&rc->lock, flags);
 	}
 
 	return 0;
@@ -227,7 +226,7 @@ static int aspeed_reset_probe(struct auxiliary_device *adev,
 
 	spin_lock_init(&reset->lock);
 
-	reset->info = (struct aspeed_reset_info *)(id->driver_data);
+	reset->info = (struct aspeed_reset_info *)id->driver_data;
 	reset->rcdev.owner = THIS_MODULE;
 	reset->rcdev.nr_resets = reset->info->nr_resets;
 	reset->rcdev.ops = &aspeed_reset_ops;

@@ -9,13 +9,14 @@
 #include <linux/of_address.h>
 #include <linux/of_device.h>
 #include <linux/slab.h>
+#include <linux/units.h>
 
 #include <dt-bindings/clock/aspeed,ast2700-scu.h>
 
-#define SCU_CLK_12MHZ 12000000
-#define SCU_CLK_24MHZ 24000000
-#define SCU_CLK_25MHZ 25000000
-#define SCU_CLK_192MHZ 192000000
+#define SCU_CLK_12MHZ (12 * HZ_PER_MHZ)
+#define SCU_CLK_24MHZ (24 * HZ_PER_MHZ)
+#define SCU_CLK_25MHZ (25 * HZ_PER_MHZ)
+#define SCU_CLK_192MHZ (192 * HZ_PER_MHZ)
 
 /* SOC0 */
 #define SCU0_HWSTRAP1 0x010
