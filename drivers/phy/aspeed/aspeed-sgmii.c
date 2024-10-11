@@ -65,6 +65,16 @@ static int aspeed_sgmii_phy_init(struct phy *phy)
 	return 0;
 }
 
+static int aspeed_sgmii_phy_exit(struct phy *phy)
+{
+	struct aspeed_sgmii *sgmii = phy_get_drvdata(phy);
+
+	/* Disable SGMII controller */
+	writel(0, sgmii->regs + SGMII_MODE);
+
+	return 0;
+}
+
 static int aspeed_sgmii_phy_set_speed(struct phy *phy, int speed)
 {
 	struct aspeed_sgmii *sgmii = phy_get_drvdata(phy);
@@ -97,6 +107,7 @@ static int aspeed_sgmii_phy_set_speed(struct phy *phy, int speed)
 
 static const struct phy_ops aspeed_sgmii_phyops = {
 	.init		= aspeed_sgmii_phy_init,
+	.exit		= aspeed_sgmii_phy_exit,
 	.set_speed	= aspeed_sgmii_phy_set_speed,
 	.owner		= THIS_MODULE,
 };
