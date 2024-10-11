@@ -615,6 +615,38 @@ static inline u32 _make_addr(dma_addr_t addr)
 #endif
 }
 
+static void aspeed_video_support_vga_ctrl(struct aspeed_video *v, bool yes)
+{
+	u32 val = yes ? BIT(0) : 0;
+	u32 reg;
+
+	if (!v)
+		return;
+
+	if (v->version == 7)
+		reg = (v->id == 1) ? 0x914 : 0x904;
+	else
+		reg = 0x104;
+
+	regmap_update_bits(v->scu, reg, BIT(0), val);
+}
+
+static void aspeed_video_set_vga_on(struct aspeed_video *v, bool on)
+{
+	u32 val = on ? BIT(1) : 0;
+	u32 reg;
+
+	if (!v)
+		return;
+
+	if (v->version == 7)
+		reg = (v->id == 1) ? 0x914 : 0x904;
+	else
+		reg = 0x104;
+
+	regmap_update_bits(v->scu, reg, BIT(1), val);
+}
+
 static void aspeed_video_init_jpeg_table(u32 *table, bool yuv420)
 {
 	int i;
@@ -1855,6 +1887,8 @@ static void aspeed_video_init_regs(struct aspeed_video *video)
 
 static void aspeed_video_start(struct aspeed_video *video)
 {
+	aspeed_video_set_vga_on(video, true);
+
 	aspeed_video_on(video);
 
 	aspeed_video_init_regs(video);
@@ -1868,6 +1902,8 @@ static void aspeed_video_start(struct aspeed_video *video)
 
 static void aspeed_video_stop(struct aspeed_video *video)
 {
+	aspeed_video_set_vga_on(video, false);
+
 	set_bit(VIDEO_STOPPED, &video->flags);
 	cancel_delayed_work_sync(&video->res_work);
 
@@ -2914,6 +2950,7 @@ static int aspeed_video_probe(struct platform_device *pdev)
 	const struct aspeed_video_config *config;
 	struct aspeed_video *video;
 	int rc;
+	bool vga_ctrl;
 
 	video = devm_kzalloc(&pdev->dev, sizeof(*video), GFP_KERNEL);
 	if (!video)
@@ -2962,6 +2999,11 @@ static int aspeed_video_probe(struct platform_device *pdev)
 	rc = aspeed_video_init(video);
 	if (rc)
 		return rc;
+
+	/* vga_ctrl is a property to say if VGA will be on/off with KVM */
+	vga_ctrl = of_find_property(pdev->dev.of_node, "vga_ctrl", NULL) ? 1 : 0;
+	aspeed_video_support_vga_ctrl(video, vga_ctrl);
+	aspeed_video_set_vga_on(video, false);
 
 	rc = aspeed_video_setup_video(video);
 	if (rc) {
