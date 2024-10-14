@@ -374,17 +374,6 @@ static u8 ast2600_i2c_recover_bus(struct ast2600_i2c_bus *i2c_bus)
 
 	dev_dbg(i2c_bus->dev, "%d-bus recovery bus [%x]\n", i2c_bus->adap.nr, state);
 
-	ctrl = readl(i2c_bus->reg_base + AST2600_I2CC_FUN_CTRL);
-
-	/* Disable master/slave mode */
-	writel(ctrl & ~(AST2600_I2CC_MASTER_EN | AST2600_I2CC_SLAVE_EN),
-	       i2c_bus->reg_base + AST2600_I2CC_FUN_CTRL);
-	readl(i2c_bus->reg_base + AST2600_I2CC_FUN_CTRL);
-
-	/* Enable controller into original mode */
-	writel(ctrl, i2c_bus->reg_base + AST2600_I2CC_FUN_CTRL);
-	readl(i2c_bus->reg_base + AST2600_I2CC_FUN_CTRL);
-
 	reinit_completion(&i2c_bus->cmd_complete);
 	i2c_bus->cmd_err = 0;
 
@@ -410,8 +399,6 @@ static u8 ast2600_i2c_recover_bus(struct ast2600_i2c_bus *i2c_bus)
 		ret = -EPROTO;
 	}
 
-	/* restore original master/slave setting */
-	writel(ctrl, i2c_bus->reg_base + AST2600_I2CC_FUN_CTRL);
 	return ret;
 }
 
@@ -1453,6 +1440,10 @@ static int ast2600_i2c_master_xfer(struct i2c_adapter *adap, struct i2c_msg *msg
 			readl(i2c_bus->reg_base + AST2600_I2CC_STS_AND_BUFF));
 		writel(0, i2c_bus->reg_base + AST2600_I2CC_FUN_CTRL);
 		writel(ctrl, i2c_bus->reg_base + AST2600_I2CC_FUN_CTRL);
+		if (i2c_bus->multi_master &&
+		    (readl(i2c_bus->reg_base + AST2600_I2CC_STS_AND_BUFF) &
+		    AST2600_I2CC_BUS_BUSY_STS))
+			ast2600_i2c_recover_bus(i2c_bus);
 #if IS_ENABLED(CONFIG_I2C_SLAVE)
 		if (ctrl & AST2600_I2CC_SLAVE_EN) {
 			u32 cmd = SLAVE_TRIGGER_CMD;
@@ -1481,11 +1472,6 @@ static int ast2600_i2c_master_xfer(struct i2c_adapter *adap, struct i2c_msg *msg
 			writel(cmd, i2c_bus->reg_base + AST2600_I2CS_CMD_STS);
 		}
 #endif
-		if (i2c_bus->multi_master &&
-		    (readl(i2c_bus->reg_base + AST2600_I2CC_STS_AND_BUFF) &
-		    AST2600_I2CC_BUS_BUSY_STS))
-			ast2600_i2c_recover_bus(i2c_bus);
-
 		ret = -ETIMEDOUT;
 	} else {
 		ret = i2c_bus->cmd_err;
