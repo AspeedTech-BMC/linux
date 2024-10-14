@@ -2461,7 +2461,7 @@
 		#size-cells = <0>;
 		#interrupt-cells = <1>;
 		reg = <0x100 0x80>, <0x1A0 0x20>;
-		compatible = "aspeed,ast2600-i2cv2";
+		compatible = "aspeed,ast2700-i2c";
 		aspeed,global-regs = <&i2c_global>;
 		aspeed,enable-dma;
 		clocks = <&syscon1 SCU1_CLK_APB>;
@@ -2478,7 +2478,7 @@
 		#size-cells = <0>;
 		#interrupt-cells = <1>;
 		reg = <0x200 0x80>, <0x2A0 0x20>;
-		compatible = "aspeed,ast2600-i2cv2";
+		compatible = "aspeed,ast2700-i2c";
 		aspeed,global-regs = <&i2c_global>;
 		aspeed,enable-dma;
 		clocks = <&syscon1 SCU1_CLK_APB>;
@@ -2495,7 +2495,7 @@
 		#size-cells = <0>;
 		#interrupt-cells = <1>;
 		reg = <0x300 0x80>, <0x3A0 0x20>;
-		compatible = "aspeed,ast2600-i2cv2";
+		compatible = "aspeed,ast2700-i2c";
 		aspeed,global-regs = <&i2c_global>;
 		aspeed,enable-dma;
 		clocks = <&syscon1 SCU1_CLK_APB>;
@@ -2512,7 +2512,7 @@
 		#size-cells = <0>;
 		#interrupt-cells = <1>;
 		reg = <0x400 0x80>, <0x4A0 0x20>;
-		compatible = "aspeed,ast2600-i2cv2";
+		compatible = "aspeed,ast2700-i2c";
 		aspeed,global-regs = <&i2c_global>;
 		clocks = <&syscon1 SCU1_CLK_APB>;
 		resets = <&syscon1 SCU1_RESET_I2C>;
@@ -2528,7 +2528,7 @@
 		#size-cells = <0>;
 		#interrupt-cells = <1>;
 		reg = <0x500 0x80>, <0x5A0 0x20>;
-		compatible = "aspeed,ast2600-i2cv2";
+		compatible = "aspeed,ast2700-i2c";
 		aspeed,global-regs = <&i2c_global>;
 		aspeed,enable-dma;
 		clocks = <&syscon1 SCU1_CLK_APB>;
@@ -2545,7 +2545,7 @@
 		#size-cells = <0>;
 		#interrupt-cells = <1>;
 		reg = <0x600 0x80>, <0x6A0 0x20>;
-		compatible = "aspeed,ast2600-i2cv2";
+		compatible = "aspeed,ast2700-i2c";
 		aspeed,global-regs = <&i2c_global>;
 		aspeed,enable-dma;
 		clocks = <&syscon1 SCU1_CLK_APB>;
@@ -2562,7 +2562,7 @@
 		#size-cells = <0>;
 		#interrupt-cells = <1>;
 		reg = <0x700 0x80>, <0x7A0 0x20>;
-		compatible = "aspeed,ast2600-i2cv2";
+		compatible = "aspeed,ast2700-i2c";
 		aspeed,global-regs = <&i2c_global>;
 		aspeed,enable-dma;
 		clocks = <&syscon1 SCU1_CLK_APB>;
@@ -2579,7 +2579,7 @@
 		#size-cells = <0>;
 		#interrupt-cells = <1>;
 		reg = <0x800 0x80>, <0x8A0 0x20>;
-		compatible = "aspeed,ast2600-i2cv2";
+		compatible = "aspeed,ast2700-i2c";
 		aspeed,global-regs = <&i2c_global>;
 		aspeed,enable-dma;
 		clocks = <&syscon1 SCU1_CLK_APB>;
@@ -2596,7 +2596,7 @@
 		#size-cells = <0>;
 		#interrupt-cells = <1>;
 		reg = <0x900 0x80>, <0x9A0 0x20>;
-		compatible = "aspeed,ast2600-i2cv2";
+		compatible = "aspeed,ast2700-i2c";
 		aspeed,global-regs = <&i2c_global>;
 		aspeed,enable-dma;
 		clocks = <&syscon1 SCU1_CLK_APB>;
@@ -2613,7 +2613,7 @@
 		#size-cells = <0>;
 		#interrupt-cells = <1>;
 		reg = <0xA00 0x80>, <0xAA0 0x20>;
-		compatible = "aspeed,ast2600-i2cv2";
+		compatible = "aspeed,ast2700-i2c";
 		aspeed,global-regs = <&i2c_global>;
 		aspeed,enable-dma;
 		clocks = <&syscon1 SCU1_CLK_APB>;
@@ -2630,7 +2630,7 @@
 		#size-cells = <0>;
 		#interrupt-cells = <1>;
 		reg = <0xB00 0x80>, <0xBA0 0x20>;
-		compatible = "aspeed,ast2600-i2cv2";
+		compatible = "aspeed,ast2700-i2c";
 		aspeed,global-regs = <&i2c_global>;
 		aspeed,enable-dma;
 		clocks = <&syscon1 SCU1_CLK_APB>;
@@ -2647,7 +2647,7 @@
 		#size-cells = <0>;
 		#interrupt-cells = <1>;
 		reg = <0xC00 0x80>, <0xCA0 0x20>;
-		compatible = "aspeed,ast2600-i2cv2";
+		compatible = "aspeed,ast2700-i2c";
 		aspeed,global-regs = <&i2c_global>;
 		aspeed,enable-dma;
 		clocks = <&syscon1 SCU1_CLK_APB>;
@@ -2664,7 +2664,7 @@
 		#size-cells = <0>;
 		#interrupt-cells = <1>;
 		reg = <0xD00 0x80>, <0xDA0 0x20>;
-		compatible = "aspeed,ast2600-i2cv2";
+		compatible = "aspeed,ast2700-i2c";
 		aspeed,global-regs = <&i2c_global>;
 		aspeed,enable-dma;
 		clocks = <&syscon1 SCU1_CLK_APB>;
@@ -2681,7 +2681,7 @@
 		#size-cells = <0>;
 		#interrupt-cells = <1>;
 		reg = <0xE00 0x80>, <0xEA0 0x20>;
-		compatible = "aspeed,ast2600-i2cv2";
+		compatible = "aspeed,ast2700-i2c";
 		aspeed,global-regs = <&i2c_global>;
 		aspeed,enable-dma;
 		clocks = <&syscon1 SCU1_CLK_APB>;
@@ -2698,7 +2698,7 @@
 		#size-cells = <0>;
 		#interrupt-cells = <1>;
 		reg = <0xF00 0x80>, <0xFA0 0x20>;
-		compatible = "aspeed,ast2600-i2cv2";
+		compatible = "aspeed,ast2700-i2c";
 		aspeed,global-regs = <&i2c_global>;
 		aspeed,enable-dma;
 		clocks = <&syscon1 SCU1_CLK_APB>;
@@ -2715,7 +2715,7 @@
 		#size-cells = <0>;
 		#interrupt-cells = <1>;
 		reg = <0x1000 0x80>, <0x10A0 0x20>;
-		compatible = "aspeed,ast2600-i2cv2";
+		compatible = "aspeed,ast2700-i2c";
 		aspeed,global-regs = <&i2c_global>;
 		aspeed,enable-dma;
 		clocks = <&syscon1 SCU1_CLK_APB>;
