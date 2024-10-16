@@ -620,7 +620,7 @@ static void aspeed_video_support_vga_ctrl(struct aspeed_video *v, bool yes)
 	u32 val = yes ? BIT(0) : 0;
 	u32 reg;
 
-	if (!v)
+	if (!v || v->version < 6)
 		return;
 
 	if (v->version == 7)
@@ -636,7 +636,7 @@ static void aspeed_video_set_vga_on(struct aspeed_video *v, bool on)
 	u32 val = on ? BIT(1) : 0;
 	u32 reg;
 
-	if (!v)
+	if (!v || v->version < 6)
 		return;
 
 	if (v->version == 7)
