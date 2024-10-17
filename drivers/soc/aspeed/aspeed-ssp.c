@@ -168,8 +168,7 @@ static int ast_ssp_probe(struct platform_device *pdev)
 			ret = -ENOMEM;
 			goto finish;
 		} else {
-			dev_info(priv->dev, "Reserved memory created.\n");
-			dev_info(priv->dev, "Virtual addr = 0x%08x, PHY addr = 0x%08x\n",
+			dev_info(priv->dev, "\nSSP memory: virt(0x%08x), phys(0x%08x)\n",
 				 (uint32_t)priv->ssp_mem_vir_addr, priv->ssp_mem_phy_addr);
 		}
 	}
@@ -179,13 +178,12 @@ static int ast_ssp_probe(struct platform_device *pdev)
 		ret = -ENOMEM;
 		goto finish;
 	}
+
 	priv->ssp_shared_mem_vir_addr = priv->ssp_mem_vir_addr + SSP_TOTAL_MEM_SZ
 				    - priv->ssp_shared_mem_size;
 	priv->ssp_shared_mem_phy_addr = priv->ssp_mem_phy_addr + SSP_TOTAL_MEM_SZ
 					- priv->ssp_shared_mem_size;
-
-	dev_info(priv->dev, "Shared memory from reserved memory.\n");
-	dev_info(priv->dev, "Virtual addr = 0x%08x, PHY addr = 0x%08x, size = 0x%08x\n",
+	dev_info(priv->dev, "\nSSP shared memory: virt(0x%08x), phys(0x%08x), size(0x%08x)\n",
 		 (uint32_t)priv->ssp_shared_mem_vir_addr, priv->ssp_shared_mem_phy_addr,
 		 priv->ssp_shared_mem_size);
 
