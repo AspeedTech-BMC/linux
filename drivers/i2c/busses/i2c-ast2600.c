@@ -23,6 +23,8 @@
 #include <linux/slab.h>
 #include <linux/string_helpers.h>
 
+#include <asm/unaligned.h>
+
 #define AST2600_I2CG_ISR			0x00
 #define AST2600_I2CG_SLAVE_ISR		0x04
 #define AST2600_I2CG_OWNER		0x08
@@ -273,10 +275,6 @@ enum i2c_version {
 	AST2600,
 	AST2700,
 	AST2700A0,
-};
-
-struct aspeed_i2c_data {
-	enum i2c_version	version;
 };
 
 struct ast2600_i2c_bus {
@@ -1059,8 +1057,8 @@ static int ast2600_i2c_do_start(struct ast2600_i2c_bus *i2c_bus)
 	}
 	if (i2c_bus->version == AST2700A0)
 		writel(0, i2c_bus->reg_base + AST2600_I2CM_DMA_LEN_STS);
-	else
-		writel(cmd, i2c_bus->reg_base + AST2600_I2CM_CMD_STS);
+
+	writel(cmd, i2c_bus->reg_base + AST2600_I2CM_CMD_STS);
 	return 0;
 }
 
@@ -1119,9 +1117,8 @@ static void ast2600_i2c_master_package_irq(struct ast2600_i2c_bus *i2c_bus, u32 
 		if (i2c_bus->mode == DMA_MODE) {
 			xfer_len = AST2600_I2C_GET_TX_DMA_LEN(readl(i2c_bus->reg_base +
 							      AST2600_I2CM_DMA_LEN_STS));
-#ifdef CONFIG_MACH_ASPEED_G7	/*ast2700*/
-			writel(0, i2c_bus->reg_base + AST2600_I2CM_DMA_LEN_STS);
-#endif
+			if (i2c_bus->version == AST2700A0)
+				writel(0, i2c_bus->reg_base + AST2600_I2CM_DMA_LEN_STS);
 		} else if (i2c_bus->mode == BUFF_MODE) {
 			xfer_len = AST2600_I2CC_GET_TX_BUF_LEN(readl(i2c_bus->reg_base +
 							       AST2600_I2CC_BUFF_CTRL));
@@ -1224,9 +1221,8 @@ static void ast2600_i2c_master_package_irq(struct ast2600_i2c_bus *i2c_bus, u32 
 		if (i2c_bus->mode == DMA_MODE) {
 			xfer_len = AST2600_I2C_GET_RX_DMA_LEN(readl(i2c_bus->reg_base +
 							  AST2600_I2CM_DMA_LEN_STS));
-#ifdef CONFIG_MACH_ASPEED_G7	/*ast2700*/
-			writel(0, i2c_bus->reg_base + AST2600_I2CM_DMA_LEN_STS);
-#endif
+			if (i2c_bus->version == AST2700A0)
+				writel(0, i2c_bus->reg_base + AST2600_I2CM_DMA_LEN_STS);
 		} else if (i2c_bus->mode == BUFF_MODE) {
 			xfer_len = AST2600_I2CC_GET_RX_BUF_LEN(readl(i2c_bus->reg_base +
 							       AST2600_I2CC_BUFF_CTRL));
@@ -1705,7 +1701,9 @@ static int ast2600_i2c_probe(struct platform_device *pdev)
 	i2c_bus->adap.algo_data = i2c_bus;
 	strscpy(i2c_bus->adap.name, pdev->name, sizeof(i2c_bus->adap.name));
 	i2c_set_adapdata(&i2c_bus->adap, i2c_bus);
+#ifdef CONFIG_64BIT
 	dma_set_mask_and_coherent(&pdev->dev, DMA_BIT_MASK(64));
+#endif
 	ast2600_i2c_init(i2c_bus);
 
 	ret = devm_request_irq(dev, i2c_bus->irq, ast2600_i2c_bus_irq, 0,
@@ -1732,9 +1730,9 @@ static int ast2600_i2c_probe(struct platform_device *pdev)
 	if (ret)
 		return ret;
 
-	dev_info(dev, "%s [%d]: adapter [%d khz] mode [%d]\n",
+	dev_info(dev, "%s [%d]: adapter [%d khz] mode [%d] version [%d]\n",
 		 dev->of_node->name, i2c_bus->adap.nr, i2c_bus->timing_info.bus_freq_hz / 1000,
-		 i2c_bus->mode);
+		 i2c_bus->mode, i2c_bus->version);
 
 	return 0;
 }
@@ -1750,22 +1748,10 @@ static int ast2600_i2c_remove(struct platform_device *pdev)
 	return 0;
 }
 
-static const struct aspeed_i2c_data ast2600_i2c_data = {
-	.version = AST2600,
-};
-
-static const struct aspeed_i2c_data ast2700a0_i2c_data = {
-	.version = AST2700A0,
-};
-
-static const struct aspeed_i2c_data ast2700_i2c_data = {
-	.version = AST2700,
-};
-
 static const struct of_device_id aspeed_i2c_bus_of_table[] = {
-	{ .compatible = "aspeed,ast2600-i2cv2",  .data = &ast2600_i2c_data, },
-	{ .compatible = "aspeed,ast2700a0-i2c",  .data = &ast2700a0_i2c_data, },
-	{ .compatible = "aspeed,ast2700-i2c",  .data = &ast2700_i2c_data, },
+	{ .compatible = "aspeed,ast2600-i2cv2",  .data = (const void *)AST2600, },
+	{ .compatible = "aspeed,ast2700a0-i2c",  .data = (const void *)AST2700A0, },
+	{ .compatible = "aspeed,ast2700-i2c",  .data = (const void *)AST2700, },
 	{}
 };
 MODULE_DEVICE_TABLE(of, aspeed_i2c_bus_of_table);
