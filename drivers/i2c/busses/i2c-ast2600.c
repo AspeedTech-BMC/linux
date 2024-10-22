@@ -1033,20 +1033,19 @@ static int ast2600_i2c_setup_byte_tx(u32 cmd, struct ast2600_i2c_bus *i2c_bus)
 static int ast2600_i2c_setup_dma_rx(u32 cmd, struct ast2600_i2c_bus *i2c_bus)
 {
 	struct i2c_msg *msg = &i2c_bus->msgs[i2c_bus->msgs_index];
-	int xfer_len;
+	int xfer_len = msg->len - i2c_bus->master_xfer_cnt;
 	int ret;
 
 	cmd |= AST2600_I2CM_PKT_EN | AST2600_I2CM_RX_DMA_EN | AST2600_I2CM_RX_CMD;
 
-	if (msg->flags & I2C_M_RECV_LEN)
+	if (msg->flags & I2C_M_RECV_LEN) {
+		dev_dbg(i2c_bus->dev, "smbus read\n");
 		xfer_len = 1;
-	else
-		xfer_len = msg->len - i2c_bus->master_xfer_cnt;
-
-	if (xfer_len > AST2600_I2C_DMA_SIZE)
+	} else if (xfer_len > AST2600_I2C_DMA_SIZE) {
 		xfer_len = AST2600_I2C_DMA_SIZE;
-	else if (i2c_bus->msgs_index + 1 == i2c_bus->msgs_count)
+	} else if (i2c_bus->msgs_index + 1 == i2c_bus->msgs_count) {
 		cmd |= MASTER_TRIGGER_LAST_STOP;
+	}
 
 	if (i2c_bus->version == AST2700A0)
 		writel(AST2700A0_I2CM_SET_RX_DMA_LEN(xfer_len - 1),
@@ -1094,22 +1093,21 @@ static int ast2600_i2c_setup_dma_rx(u32 cmd, struct ast2600_i2c_bus *i2c_bus)
 static int ast2600_i2c_setup_buff_rx(u32 cmd, struct ast2600_i2c_bus *i2c_bus)
 {
 	struct i2c_msg *msg = &i2c_bus->msgs[i2c_bus->msgs_index];
-	int xfer_len;
+	int xfer_len = msg->len - i2c_bus->master_xfer_cnt;
 
 	cmd |= AST2600_I2CM_PKT_EN | AST2600_I2CM_RX_BUFF_EN | AST2600_I2CM_RX_CMD;
 
 	if (cmd & AST2600_I2CM_START_CMD)
 		cmd |= AST2600_I2CM_PKT_ADDR(msg->addr);
 
-	if (msg->flags & I2C_M_RECV_LEN)
+	if (msg->flags & I2C_M_RECV_LEN) {
+		dev_dbg(i2c_bus->dev, "smbus read\n");
 		xfer_len = 1;
-	else
-		xfer_len = msg->len - i2c_bus->master_xfer_cnt;
-
-	if (xfer_len > i2c_bus->buf_size)
+	} else if (xfer_len > i2c_bus->buf_size) {
 		xfer_len = i2c_bus->buf_size;
-	else if (i2c_bus->msgs_index + 1 == i2c_bus->msgs_count)
+	} else if (i2c_bus->msgs_index + 1 == i2c_bus->msgs_count) {
 		cmd |= MASTER_TRIGGER_LAST_STOP;
+	}
 
 	writel(AST2600_I2CC_SET_RX_BUF_LEN(xfer_len), i2c_bus->reg_base + AST2600_I2CC_BUFF_CTRL);
 
