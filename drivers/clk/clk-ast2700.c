@@ -12,6 +12,7 @@
 #include <linux/units.h>
 
 #include <dt-bindings/clock/aspeed,ast2700-scu.h>
+#include <soc/aspeed/reset-aspeed.h>
 
 #define SCU_CLK_12MHZ (12 * HZ_PER_MHZ)
 #define SCU_CLK_24MHZ (24 * HZ_PER_MHZ)
@@ -1472,53 +1473,6 @@ static void ast2700_soc1_configure_mac01_clk(struct ast2700_clk_ctrl *clk_ctrl)
 	writel(reg[0], clk_ctrl->base + SCU1_MAC12_CLK_DLY);
 	writel(reg[1], clk_ctrl->base + SCU1_MAC12_CLK_DLY_100M);
 	writel(reg[2], clk_ctrl->base + SCU1_MAC12_CLK_DLY_10M);
-}
-
-static void aspeed_reset_unregister_adev(void *_adev)
-{
-	struct auxiliary_device *adev = _adev;
-
-	auxiliary_device_delete(adev);
-	auxiliary_device_uninit(adev);
-}
-
-static void aspeed_reset_adev_release(struct device *dev)
-{
-	struct auxiliary_device *adev = to_auxiliary_dev(dev);
-
-	kfree(adev);
-}
-
-static int aspeed_reset_controller_register(struct device *clk_dev,
-					    void __iomem *base, const char *adev_name)
-{
-	struct auxiliary_device *adev;
-	int ret;
-
-	adev = kzalloc(sizeof(*adev), GFP_KERNEL);
-	if (!adev)
-		return -ENOMEM;
-
-	adev->name = adev_name;
-	adev->dev.parent = clk_dev;
-	adev->dev.release = aspeed_reset_adev_release;
-	adev->id = 666u;
-
-	ret = auxiliary_device_init(adev);
-	if (ret) {
-		kfree(adev);
-		return ret;
-	}
-
-	ret = auxiliary_device_add(adev);
-	if (ret) {
-		auxiliary_device_uninit(adev);
-		return ret;
-	}
-
-	adev->dev.platform_data = (__force void *)base;
-
-	return devm_add_action_or_reset(clk_dev, aspeed_reset_unregister_adev, adev);
 }
 
 static int ast2700_soc_clk_probe(struct platform_device *pdev)
