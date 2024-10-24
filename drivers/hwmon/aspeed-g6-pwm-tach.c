@@ -56,6 +56,7 @@
 #include <linux/of_platform.h>
 #include <linux/platform_device.h>
 #include <linux/pwm.h>
+#include <dt-bindings/pwm/pwm.h>
 #include <linux/reset.h>
 #include <linux/sysfs.h>
 
@@ -453,6 +454,58 @@ static void aspeed_pwm_tach_reset_assert(void *data)
 	reset_control_assert(rst);
 }
 
+static void aspeed_pwm_set_wdt_reload(struct pwm_chip *chip,
+				      struct pwm_device *pwm,
+				      u64 reload_duty_cycle)
+{
+	struct aspeed_pwm_tach_data *priv = aspeed_pwm_chip_to_data(chip);
+	u32 hwpwm = pwm->hwpwm, val;
+
+	val = readl(priv->base + PWM_ASPEED_DUTY_CYCLE(hwpwm));
+	val &= ~PWM_ASPEED_DUTY_CYCLE_POINT_AS_WDT;
+	val |= FIELD_PREP(PWM_ASPEED_DUTY_CYCLE_POINT_AS_WDT,
+			  reload_duty_cycle);
+	writel(val, priv->base + PWM_ASPEED_DUTY_CYCLE(hwpwm));
+
+	val = readl(priv->base + PWM_ASPEED_CTRL(hwpwm));
+	val |= PWM_ASPEED_CTRL_DUTY_LOAD_AS_WDT_ENABLE;
+	writel(val, priv->base + PWM_ASPEED_CTRL(hwpwm));
+}
+
+static struct pwm_device *
+aspeed_pwm_xlate(struct pwm_chip *chip, const struct of_phandle_args *args)
+{
+	struct pwm_device *pwm;
+
+	if (chip->of_pwm_n_cells < 3)
+		return ERR_PTR(-EINVAL);
+
+	/* flags in the fourth cell are optional */
+	if (args->args_count < 3)
+		return ERR_PTR(-EINVAL);
+
+	if (args->args[0] >= chip->npwm)
+		return ERR_PTR(-EINVAL);
+
+	pwm = pwm_request_from_chip(chip, args->args[0], NULL);
+	if (IS_ERR(pwm))
+		return pwm;
+
+	pwm->args.period = args->args[1];
+	pwm->args.polarity = PWM_POLARITY_NORMAL;
+
+	if (chip->of_pwm_n_cells >= 3) {
+		if (args->args_count > 2 && args->args[2] & PWM_POLARITY_INVERTED)
+			pwm->args.polarity = PWM_POLARITY_INVERSED;
+	}
+
+	if (chip->of_pwm_n_cells >= 4) {
+		if (args->args_count > 3 && args->args[3] < U8_MAX)
+			aspeed_pwm_set_wdt_reload(chip, pwm, args->args[3]);
+	}
+	return pwm;
+}
+
 static int aspeed_pwm_tach_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev, *hwmon;
@@ -490,6 +543,8 @@ static int aspeed_pwm_tach_probe(struct platform_device *pdev)
 	priv->chip.dev = dev;
 	priv->chip.ops = &aspeed_pwm_ops;
 	priv->chip.npwm = PWM_ASPEED_NR_PWMS;
+	priv->chip.of_xlate = aspeed_pwm_xlate;
+	priv->chip.of_pwm_n_cells = 4;
 
 	ret = devm_pwmchip_add(dev, &priv->chip);
 	if (ret)
