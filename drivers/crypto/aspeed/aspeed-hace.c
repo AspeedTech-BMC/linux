@@ -27,6 +27,21 @@
 	dev_dbg((d)->dev, "%s() " fmt, __func__, ##__VA_ARGS__)
 #endif
 
+static unsigned char *dummy_key1;
+static unsigned char *dummy_key2;
+
+int find_dummy_key(const char *key, int keylen)
+{
+	int ret = 0;
+
+	if (dummy_key1 && memcmp(key, dummy_key1, keylen) == 0)
+		ret = 1;
+	else if (dummy_key2 && memcmp(key, dummy_key2, keylen) == 0)
+		ret = 2;
+
+	return ret;
+}
+
 /* HACE interrupt service routine */
 static irqreturn_t aspeed_hace_irq(int irq, void *dev)
 {
@@ -90,7 +105,10 @@ static int aspeed_hace_probe(struct platform_device *pdev)
 {
 	const struct of_device_id *hace_dev_id;
 	struct aspeed_hace_dev *hace_dev;
+	struct device_node *sec_node;
+	struct device *dev = &pdev->dev;
 	int rc;
+	int err;
 
 	hace_dev = devm_kzalloc(&pdev->dev, sizeof(struct aspeed_hace_dev),
 				GFP_KERNEL);
@@ -167,6 +185,37 @@ static int aspeed_hace_probe(struct platform_device *pdev)
 	if (rc) {
 		dev_err(&pdev->dev, "Crypto init failed\n");
 		return rc;
+	}
+
+	if (of_find_property(dev->of_node, "dummy-key1", NULL)) {
+		dummy_key1 = kzalloc(DUMMY_KEY_SIZE, GFP_KERNEL);
+		if (dummy_key1) {
+			err = of_property_read_u8_array(dev->of_node, "dummy-key1", dummy_key1, DUMMY_KEY_SIZE);
+			if (err)
+				dev_err(dev, "error of reading dummy_key 1\n");
+		} else {
+			dev_err(dev, "error dummy_key1 allocation\n");
+		}
+	}
+
+	if (of_find_property(dev->of_node, "dummy-key2", NULL)) {
+		dummy_key2 = kzalloc(DUMMY_KEY_SIZE, GFP_KERNEL);
+		if (dummy_key2) {
+			err = of_property_read_u8_array(dev->of_node, "dummy-key2", dummy_key2, DUMMY_KEY_SIZE);
+			if (err)
+				dev_err(dev, "error of reading dummy_key 2\n");
+		} else {
+			dev_err(dev, "error dummy_key2 allocation\n");
+		}
+	}
+
+	sec_node = of_find_compatible_node(NULL, NULL, "aspeed,ast2600-sbc");
+	if (!sec_node) {
+		dev_err(dev, "cannot find sbc node\n");
+	} else {
+		hace_dev->sec_regs = of_iomap(sec_node, 0);
+		if (!hace_dev->sec_regs)
+			dev_err(dev, "failed to map SBC registers\n");
 	}
 #endif
 	aspeed_hace_register(hace_dev);

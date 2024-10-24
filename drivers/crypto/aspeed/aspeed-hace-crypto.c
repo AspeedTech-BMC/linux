@@ -24,6 +24,11 @@
 	dev_dbg((h)->dev, "%s() " fmt, __func__, ##__VA_ARGS__)
 #endif
 
+#define ASPEED_SEC_PROTECTION		0x0
+#define SEC_UNLOCK_PASSWORD		0x349fe38a
+#define ASPEED_VAULT_KEY_CTRL		0x80C
+#define SEC_VK_CTRL_VK_SELECTION	BIT(0)
+
 static int aspeed_crypto_do_fallback(struct skcipher_request *areq)
 {
 	struct aspeed_cipher_reqctx *rctx = skcipher_request_ctx(areq);
@@ -229,20 +234,64 @@ static int aspeed_sk_start_sg(struct aspeed_hace_dev *hace_dev)
 	struct aspeed_sg_list *src_list, *dst_list;
 	dma_addr_t src_dma_addr, dst_dma_addr;
 	struct aspeed_cipher_reqctx *rctx;
+	struct crypto_skcipher *cipher;
+	struct aspeed_cipher_ctx *ctx;
 	struct skcipher_request *req;
 	struct scatterlist *s;
+	int use_vault_key = 0;
 	int src_sg_len;
 	int dst_sg_len;
 	int total, i;
 	int rc;
+	u32 val;
 
 	CIPHER_DBG(hace_dev, "\n");
 
 	req = crypto_engine->req;
+	cipher = crypto_skcipher_reqtfm(req);
+	ctx = crypto_skcipher_ctx(cipher);
 	rctx = skcipher_request_ctx(req);
 
 	rctx->enc_cmd |= HACE_CMD_DES_SG_CTRL | HACE_CMD_SRC_SG_CTRL |
 			 HACE_CMD_AES_KEY_HW_EXP | HACE_CMD_MBUS_REQ_SYNC_EN;
+
+	if (crypto_engine->load_vault_key) {
+		writel(SEC_UNLOCK_PASSWORD, hace_dev->sec_regs + ASPEED_SEC_PROTECTION);
+		CIPHER_DBG(hace_dev, "unlock SB, SEC000=0x%x\n", readl(hace_dev->sec_regs + ASPEED_SEC_PROTECTION));
+		val = readl(hace_dev->sec_regs + ASPEED_VAULT_KEY_CTRL);
+		if (val & BIT(2)) {
+			if (ctx->dummy_key == 1 && !(val & BIT(0))) {
+				use_vault_key = 1;
+				CIPHER_DBG(hace_dev, "Use Vault key 1\n");
+			} else if (ctx->dummy_key == 2 && (val & BIT(0))) {
+				use_vault_key = 1;
+				CIPHER_DBG(hace_dev, "Use Vault key 2\n");
+			} else {
+				use_vault_key = 0;
+			}
+		} else {
+			if (ctx->dummy_key == 1) {
+				use_vault_key = 1;
+				val &= ~SEC_VK_CTRL_VK_SELECTION;
+				writel(val, hace_dev->sec_regs + ASPEED_VAULT_KEY_CTRL);
+				CIPHER_DBG(hace_dev, "Set Vault key 1\n");
+			} else if (ctx->dummy_key == 2) {
+				use_vault_key = 1;
+				val |= SEC_VK_CTRL_VK_SELECTION;
+				writel(val, hace_dev->sec_regs + ASPEED_VAULT_KEY_CTRL);
+				CIPHER_DBG(hace_dev, "Set Vault key 2\n");
+			} else {
+				use_vault_key = 0;
+			}
+		}
+		writel(0x0, hace_dev->sec_regs + ASPEED_SEC_PROTECTION);
+		CIPHER_DBG(hace_dev, "lock SB, SEC000=0x%x\n", readl(hace_dev->sec_regs + ASPEED_SEC_PROTECTION));
+
+		if (use_vault_key)
+			rctx->enc_cmd |= HACE_CMD_AES_KEY_FROM_OTP;
+		else
+			rctx->enc_cmd &= ~HACE_CMD_AES_KEY_FROM_OTP;
+	}
 
 	/* BIDIRECTIONAL */
 	if (req->dst == req->src) {
@@ -645,6 +694,8 @@ static int aspeed_aes_setkey(struct crypto_skcipher *cipher, const u8 *key,
 	struct crypto_aes_ctx gen_aes_key;
 
 	CIPHER_DBG(hace_dev, "keylen: %d bits\n", (keylen * 8));
+
+	ctx->dummy_key = find_dummy_key(key, keylen);
 
 	if (keylen != AES_KEYSIZE_128 && keylen != AES_KEYSIZE_192 &&
 	    keylen != AES_KEYSIZE_256)
@@ -1174,11 +1225,41 @@ void aspeed_unregister_hace_crypto_algs(struct aspeed_hace_dev *hace_dev)
 		crypto_engine_unregister_skcipher(&aspeed_crypto_algs_g6[i].alg.skcipher);
 }
 
+#ifdef CONFIG_ASPEED_OTP
+void find_vault_key(struct aspeed_hace_dev *hace_dev)
+{
+	struct aspeed_engine_crypto *crypto_engine = &hace_dev->crypto_engine;
+	u32 otp_data[16];
+	int i;
+
+	crypto_engine->load_vault_key = 0;
+
+	otp_read_data_buf(0, otp_data, 16);
+	for (i = 0; i < 16; i++) {
+		CIPHER_DBG(hace_dev, "OTPDATA%d=%x\n", i, otp_data[i]);
+		if (((otp_data[i] >> 14) & 0xf) == 1) {
+			CIPHER_DBG(hace_dev, "Found vault key in OTP\n");
+			crypto_engine->load_vault_key = 1;
+			return;
+		}
+		if (otp_data[i] & BIT(13))
+			break;
+	}
+	CIPHER_DBG(hace_dev, "Not found vault key in OTP\n");
+}
+#endif
+
 void aspeed_register_hace_crypto_algs(struct aspeed_hace_dev *hace_dev)
 {
 	int rc, i;
 
 	CIPHER_DBG(hace_dev, "\n");
+
+#ifdef CONFIG_ASPEED_OTP
+	find_vault_key(hace_dev);
+#else
+	hace_dev->crypto_engine.load_vault_key = 0;
+#endif
 
 	for (i = 0; i < ARRAY_SIZE(aspeed_crypto_algs); i++) {
 		aspeed_crypto_algs[i].hace_dev = hace_dev;

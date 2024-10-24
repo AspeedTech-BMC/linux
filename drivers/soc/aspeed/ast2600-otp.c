@@ -16,6 +16,7 @@
 #include <linux/module.h>
 #include <asm/io.h>
 #include <uapi/linux/aspeed-otp.h>
+#include <linux/soc/aspeed/aspeed-otp.h>
 
 #define ASPEED_REVISION_ID0	0x04
 #define ASPEED_REVISION_ID1	0x14

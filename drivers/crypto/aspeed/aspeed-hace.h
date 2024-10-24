@@ -10,6 +10,7 @@
 #include <linux/compiler_attributes.h>
 #include <linux/interrupt.h>
 #include <linux/types.h>
+#include <linux/soc/aspeed/aspeed-otp.h>
 
 /*****************************
  *                           *
@@ -141,6 +142,8 @@
 #define HACE_CMD_IV_REQUIRE		(HACE_CMD_CBC | HACE_CMD_CFB | \
 					 HACE_CMD_OFB | HACE_CMD_CTR)
 
+#define DUMMY_KEY_SIZE			32
+
 struct aspeed_hace_dev;
 struct scatterlist;
 
@@ -230,12 +233,14 @@ struct aspeed_engine_crypto {
 
 	/* callback func */
 	aspeed_hace_fn_t		resume;
+	int				load_vault_key;
 };
 
 struct aspeed_cipher_ctx {
 	struct aspeed_hace_dev		*hace_dev;
 	int				key_len;
 	u8				key[AES_MAX_KEYLENGTH];
+	int				dummy_key;
 
 	/* callback func */
 	aspeed_hace_fn_t		start;
@@ -253,6 +258,7 @@ struct aspeed_cipher_reqctx {
 
 struct aspeed_hace_dev {
 	void __iomem			*regs;
+	void __iomem			*sec_regs;
 	struct device			*dev;
 	int				irq;
 	struct clk			*clk;
@@ -294,5 +300,6 @@ void aspeed_register_hace_crypto_algs(struct aspeed_hace_dev *hace_dev);
 void aspeed_unregister_hace_crypto_algs(struct aspeed_hace_dev *hace_dev);
 int aspeed_hace_hash_init(struct aspeed_hace_dev *hace_dev);
 int aspeed_hace_crypto_init(struct aspeed_hace_dev *hace_dev);
+int find_dummy_key(const char *key, int keylen);
 
 #endif
