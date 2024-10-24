@@ -31,7 +31,11 @@ properties:
     maxItems: 1
 
   "#pwm-cells":
-    const: 3
+    enum: [3, 4]
+    description: |
+      The value should be 4 to enable the WDT reload feature, which will change the duty cycle to
+      a preprogrammed value after WDT/EXTRST#.
+      The range for the fourth cell value supported by this binding is 0 to 255.
 
 patternProperties:
   "^fan-[0-9]+$":
@@ -67,5 +71,24 @@ examples:
       fan-1 {
         tach-ch = /bits/ 8 <0x1 0x2>;
         pwms = <&pwm_tach 1 40000 0>;
+      };
+    };
+  - |
+    #include <dt-bindings/clock/aspeed-clock.h>
+    pwm_tach: pwm-tach-controller@1e610000 {
+      compatible = "aspeed,ast2600-pwm-tach";
+      reg = <0x1e610000 0x100>;
+      clocks = <&syscon ASPEED_CLK_AHB>;
+      resets = <&syscon ASPEED_RESET_PWM>;
+      #pwm-cells = <4>;
+
+      fan-0 {
+        tach-ch = /bits/ 8 <0x0>;
+        pwms = <&pwm_tach 0 40000 0 128>;
+      };
+
+      fan-1 {
+        tach-ch = /bits/ 8 <0x1 0x2>;
+        pwms = <&pwm_tach 1 40000 0 160>;
       };
     };
