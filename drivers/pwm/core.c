@@ -426,9 +426,8 @@ err_get_device:
  * chip. A negative error code is returned if the index is not valid for the
  * specified PWM chip or if the PWM device cannot be requested.
  */
-static struct pwm_device *pwm_request_from_chip(struct pwm_chip *chip,
-						unsigned int index,
-						const char *label)
+struct pwm_device *pwm_request_from_chip(struct pwm_chip *chip,
+					 unsigned int index, const char *label)
 {
 	struct pwm_device *pwm;
 	int err;
@@ -446,6 +445,7 @@ static struct pwm_device *pwm_request_from_chip(struct pwm_chip *chip,
 
 	return pwm;
 }
+EXPORT_SYMBOL_GPL(pwm_request_from_chip);
 
 struct pwm_device *
 of_pwm_xlate_with_flags(struct pwm_chip *chip, const struct of_phandle_args *args)
