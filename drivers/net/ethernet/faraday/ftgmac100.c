@@ -1747,19 +1747,20 @@ err_register_mdiobus:
 static void ftgmac100_phy_disconnect(struct net_device *netdev)
 {
 	struct ftgmac100 *priv = netdev_priv(netdev);
+	struct phy_device *phydev = netdev->phydev;
 
 	if (priv->sgmii) {
 		phy_exit(priv->sgmii);
 		devm_phy_put(priv->dev, priv->sgmii);
 	}
 
-	if (netdev->phydev) {
-		phy_disconnect(netdev->phydev);
+	if (phydev) {
+		phy_disconnect(phydev);
 		if (of_phy_is_fixed_link(priv->dev->of_node))
 			of_phy_deregister_fixed_link(priv->dev->of_node);
 
 		if (priv->use_ncsi)
-			fixed_phy_unregister(netdev->phydev);
+			fixed_phy_unregister(phydev);
 	}
 }
 
