@@ -388,9 +388,8 @@ struct ast_vhub {
 	spinlock_t			lock;
 	struct work_struct		wake_work;
 	struct clk			*clk;
-#ifdef CONFIG_MACH_ASPEED_G7
-	struct reset_control *rst;
-#endif
+	struct reset_control		*rst;
+
 
 	/* EP0 DMA buffers allocated in one chunk */
 	void				*ep0_bufs;
