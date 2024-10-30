@@ -133,19 +133,16 @@ static int uhci_hcd_platform_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "Error couldn't enable clock (%d)\n", ret);
 		goto err_rmr;
 	}
-#ifdef CONFIG_MACH_ASPEED_G7
+
 	uhci->rsts = devm_reset_control_array_get_optional_shared(&pdev->dev);
 	if (IS_ERR(uhci->rsts)) {
 		ret = PTR_ERR(uhci->rsts);
 		goto err_clk;
 	}
-
-	mdelay(10);
-
 	ret = reset_control_deassert(uhci->rsts);
 	if (ret)
 		goto err_clk;
-#endif
+
 	ret = platform_get_irq(pdev, 0);
 	if (ret < 0)
 		goto err_clk;

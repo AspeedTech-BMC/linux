@@ -354,7 +354,7 @@ struct uhci_td {
  * To prevent "bouncing" in the presence of electrical noise,
  * when there are no devices attached we delay for 1 second in the
  * RUNNING_NODEVS state before switching to the AUTO_STOPPED state.
- * 
+ *
  * (Note that the AUTO_STOPPED state won't be necessary once the hub
  * driver learns to autosuspend.)
  */
@@ -445,9 +445,8 @@ struct uhci_hcd {
 	short load[MAX_PHASE];			/* Periodic allocations */
 
 	struct clk *clk;			/* (optional) clock source */
-#ifdef CONFIG_MACH_ASPEED_G7
 	struct reset_control *rsts;		/* (optional) clock reset */
-#endif
+
 	/* Reset host controller */
 	void	(*reset_hc) (struct uhci_hcd *uhci);
 	int	(*check_and_reset_hc) (struct uhci_hcd *uhci);
