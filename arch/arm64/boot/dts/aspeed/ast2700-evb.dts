@@ -1149,3 +1149,7 @@
 	status = "okay";
 };
 #endif
+
+&otp {
+	status = "okay";
+};

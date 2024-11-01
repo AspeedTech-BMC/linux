@@ -1356,6 +1356,14 @@
 			status = "disabled";
 		};
 
+		otp: otp@14c07000 {
+			compatible = "aspeed,ast2700-otp";
+			reg = <0 0x14c07000 0 0x1000>;
+			aspeed,scu0 = <&syscon0>;
+			aspeed,scu1 = <&syscon1>;
+			status = "disabled";
+		};
+
 		jtag1: jtag@14c09000 {
 			compatible = "aspeed,ast2700-jtag";
 			reg= <0x0 0x14c09000 0x0 0x40>;
