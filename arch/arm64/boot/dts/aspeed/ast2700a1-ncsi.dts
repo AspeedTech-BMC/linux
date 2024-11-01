@@ -1,0 +1,23 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
+
+/dts-v1/;
+
+#include "ast2700a1-evb.dts"
+
+/ {
+	model = "AST2700A1-NCSI";
+};
+
+&sgpios {
+	status = "disabled";
+};
+
+&mac1 {
+	status = "okay";
+
+	phy-mode = "rmii";
+	use-ncsi;
+
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_rmii1_default>;
+};

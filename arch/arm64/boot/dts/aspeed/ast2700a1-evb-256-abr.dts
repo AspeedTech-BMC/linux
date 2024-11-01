@@ -2,7 +2,7 @@
 
 /dts-v1/;
 
-#include "ast2700-evb.dts"
+#include "ast2700a1-evb.dts"
 
 &fmc {
 	status = "okay";
