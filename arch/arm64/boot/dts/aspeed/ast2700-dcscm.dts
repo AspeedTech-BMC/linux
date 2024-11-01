@@ -288,11 +288,11 @@
 				reg = <0x220000 0x900000>; // 9MB
 				label = "kernel";
 			};
-			rofs@960000 {
+			rofs@b20000 {
 				reg = <0xb20000 0x24a0000>; // 36.625MB
 				label = "rofs";
 			};
-			rwfs@2e00000 {
+			rwfs@2fc0000 {
 				reg = <0x2fc0000 0x1040000>; // 16.25MB
 				label = "rwfs";
 			};

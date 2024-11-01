@@ -6,22 +6,22 @@ partitions {
 	#size-cells = <1>;
 
 	u-boot@0 {
-		reg = <0x0 0x200000>; // 2MB
+		reg = <0x0 0x400000>; // 4MB
 		label = "u-boot-a";
 	};
 
-	u-boot-env@200000 {
-		reg = <0x200000 0x20000>; // 128KB
+	u-boot-env@400000 {
+		reg = <0x400000 0x20000>; // 128KB
 		label = "u-boot-env-a";
 	};
 
-	kernel@220000 {
-		reg = <0x220000 0x900000>; // 9MB
+	kernel@420000 {
+		reg = <0x420000 0x900000>; // 9MB
 		label = "kernel-a";
 	};
 
-	rofs@b20000 {
-		reg = <0xb20000 0x54E0000>; // 84.875MB
+	rofs@d20000 {
+		reg = <0xd20000 0x52E0000>; // 82.875MB
 		label = "rofs-a";
 	};
 
@@ -31,22 +31,22 @@ partitions {
 	};
 
 	u-boot@8000000 {
-		reg = <0x8000000 0x200000>; // 2MB
+		reg = <0x8000000 0x400000>; // 4MB
 		label = "u-boot-b";
 	};
 
 	u-boot-env@8200000 {
-		reg = <0x8200000 0x20000>; // 128KB
+		reg = <0x8400000 0x20000>; // 128KB
 		label = "u-boot-env-b";
 	};
 
-	kernel@8220000 {
-		reg = <0x8220000 0x900000>; // 9MB
+	kernel@8420000 {
+		reg = <0x8420000 0x900000>; // 9MB
 		label = "kernel-b";
 	};
 
-	rofs@8b20000 {
-		reg = <0x8b20000 0x54E0000>; // 84.875MB
+	rofs@8d20000 {
+		reg = <0x8d20000 0x52E0000>; // 82.875MB
 		label = "rofs-b";
 	};
 

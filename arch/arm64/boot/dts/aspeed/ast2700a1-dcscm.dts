@@ -277,23 +277,23 @@
 			#address-cells = <1>;
 			#size-cells = <1>;
 			u-boot@0 {
-				reg = <0x0 0x200000>; // 2MB
+				reg = <0x0 0x400000>; // 4MB
 				label = "u-boot";
 			};
-			u-boot-env@200000 {
-				reg = <0x200000 0x20000>; // 128KB
+			u-boot-env@400000 {
+				reg = <0x400000 0x20000>; // 128KB
 				label = "u-boot-env";
 			};
-			kernel@220000 {
-				reg = <0x220000 0x900000>; // 9MB
+			kernel@420000 {
+				reg = <0x420000 0x900000>; // 9MB
 				label = "kernel";
 			};
-			rofs@960000 {
-				reg = <0xb20000 0x24a0000>; // 36.625MB
+			rofs@d20000 {
+				reg = <0xd20000 0x24a0000>; // 36.625MB
 				label = "rofs";
 			};
-			rwfs@2e00000 {
-				reg = <0x2fc0000 0x1040000>; // 16.25MB
+			rwfs@31c0000 {
+				reg = <0x31c0000 0xE40000>; // 14.25MB
 				label = "rwfs";
 			};
 			pfm@4000000 {
