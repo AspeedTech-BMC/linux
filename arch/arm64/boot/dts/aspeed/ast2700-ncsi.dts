@@ -2,10 +2,10 @@
 
 /dts-v1/;
 
-#include "ast2700a1-evb.dts"
+#include "ast2700-evb.dts"
 
 / {
-	model = "AST2700A1-NCSI";
+	model = "AST2700-NCSI";
 };
 
 &sgpios {

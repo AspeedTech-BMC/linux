@@ -2,11 +2,11 @@
 
 /dts-v1/;
 
-#include "ast2700a1-dcscm.dts"
-#include "aspeed-ltpi0-a1.dtsi"
+#include "ast2700-dcscm.dts"
+#include "aspeed-ltpi0.dtsi"
 
 / {
-	model = "AST2700A1-DCSCM_AST1700A1-DEMO";
+	model = "AST2700-DCSCM_AST1700-DEMO";
 };
 
 #define JESD300_SPD_I3C_MODE(bus, index, addr) \

@@ -2,12 +2,12 @@
 
 /dts-v1/;
 
-#include "aspeed-g7-a1.dtsi"
+#include "aspeed-g7.dtsi"
 #include <dt-bindings/gpio/aspeed-gpio.h>
 
 / {
-	model = "AST2700A1-EVB";
-	compatible = "aspeed,ast2700a1-evb", "aspeed,ast2700";
+	model = "AST2700-EVB";
+	compatible = "aspeed,ast2700-evb", "aspeed,ast2700";
 
 	chosen {
 		bootargs = "console=ttyS12,115200n8";
@@ -588,7 +588,7 @@
 		spi-max-frequency = <50000000>;
 		spi-tx-bus-width = <4>;
 		spi-rx-bus-width = <4>;
-#include "aspeed-flash-layout-128-a1.dtsi"
+#include "aspeed-flash-layout-128.dtsi"
 	};
 
 	flash@1 {

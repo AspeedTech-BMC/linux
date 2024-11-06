@@ -327,7 +327,7 @@
 	};
 };
 
-#include "aspeed-ltpi0-pinctrl-a1.dtsi"
+#include "aspeed-ltpi0-pinctrl.dtsi"
 
 &ltpi0_i2c {
 	ltpi0_i2c_global: i2c-global-regs@0 {

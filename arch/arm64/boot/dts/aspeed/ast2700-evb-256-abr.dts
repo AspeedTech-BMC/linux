@@ -2,7 +2,7 @@
 
 /dts-v1/;
 
-#include "ast2700a1-evb.dts"
+#include "ast2700-evb.dts"
 
 &fmc {
 	status = "okay";
@@ -16,7 +16,7 @@
 		spi-max-frequency = <50000000>;
 		spi-tx-bus-width = <4>;
 		spi-rx-bus-width = <4>;
-#include "aspeed-flash-layout-256-abr-a1.dtsi"
+#include "aspeed-flash-layout-256-abr.dtsi"
 	};
 
 	flash@1 {
