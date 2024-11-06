@@ -2,12 +2,12 @@
 
 /dts-v1/;
 
-#include "ast2700-evb.dts"
-#include "aspeed-ltpi0.dtsi"
-#include "aspeed-ltpi1.dtsi"
+#include "ast2700a0-evb.dts"
+#include "aspeed-ltpi0-a0.dtsi"
+#include "aspeed-ltpi1-a0.dtsi"
 
 / {
-	model = "AST2700-EVB_AST1700-CDR-EVB";
+	model = "AST2700A0-EVB_AST1700A0-CDR-EVB";
 
 	/delete-node/ fan0;
 	/delete-node/ fan1;

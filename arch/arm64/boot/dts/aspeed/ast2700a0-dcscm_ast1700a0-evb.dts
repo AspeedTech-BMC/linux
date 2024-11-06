@@ -2,11 +2,11 @@
 
 /dts-v1/;
 
-#include "ast2700-dcscm.dts"
-#include "aspeed-ltpi0.dtsi"
+#include "ast2700a0-dcscm.dts"
+#include "aspeed-ltpi0-a0.dtsi"
 
 / {
-	model = "AST2700-DCSCM_AST1700-EVB";
+	model = "AST2700A0-DCSCM_AST1700A0-EVB";
 };
 
 &ltpi0_i3c4 {

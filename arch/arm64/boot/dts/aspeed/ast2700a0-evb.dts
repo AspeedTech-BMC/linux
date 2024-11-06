@@ -2,12 +2,12 @@
 
 /dts-v1/;
 
-#include "aspeed-g7.dtsi"
+#include "aspeed-g7-a0.dtsi"
 #include <dt-bindings/gpio/aspeed-gpio.h>
 #include <dt-bindings/i2c/i2c.h>
 
 / {
-	model = "AST2700-EVB";
+	model = "AST2700A0-EVB";
 	compatible = "aspeed,ast2700-evb", "aspeed,ast2700";
 
 	chosen {
@@ -576,7 +576,7 @@
 		spi-max-frequency = <50000000>;
 		spi-tx-bus-width = <4>;
 		spi-rx-bus-width = <4>;
-#include "aspeed-flash-layout-128.dtsi"
+#include "aspeed-flash-layout-128-a0.dtsi"
 	};
 
 	flash@1 {
