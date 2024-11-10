@@ -324,7 +324,7 @@ static const struct ast2700_clk_info ast2700_scu0_clk_info[] __initconst = {
 	[SCU0_CLK_AHB] = {
 		.type = CLK_MUX,
 		.name = "soc0-ahb",
-		.parent_names = (const char *[]){"soc0-mpll_div_ahb", "soc0-hspll_div_ahb", },
+		.parent_names = (const char *[]){"soc0-mpll_div_ahb", "soc0-hpll_div_ahb", },
 		.num_parents = 2,
 		.reg = SCU0_HWSTRAP1,
 		.bit_shift = 7,
@@ -551,7 +551,7 @@ static const struct ast2700_clk_info ast2700_scu0_clk_info[] __initconst = {
 	},
 	[SCU0_CLK_GATE_RVAS0CLK] = {
 		.type = CLK_GATE_ASPEED,
-		.name = "rvasclk-gate",
+		.name = "rvas0clk-gate",
 		.parent_names = (const char *[]){  },
 		.reg = SCU0_CLK_STOP,
 		.clk_idx = 25,
@@ -590,7 +590,7 @@ static const struct ast2700_clk_info ast2700_scu0_clk_info[] __initconst = {
 	},
 	[SCU0_CLK_GATE_RVAS1CLK] = {
 		.type = CLK_GATE_ASPEED,
-		.name = "rvas2clk-gate",
+		.name = "rvas1clk-gate",
 		.parent_names = (const char *[]){ "emmcclk", },
 		.reg = SCU0_CLK_STOP,
 		.clk_idx = 28,
