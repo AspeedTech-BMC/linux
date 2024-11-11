@@ -4,82 +4,82 @@
  * Author: Ryan Chen <ryan_chen@aspeedtech.com>
  */
 
-#include <linux/auxiliary_bus.h>
 #include <linux/clk-provider.h>
-#include <linux/of_address.h>
-#include <linux/of_device.h>
+#include <linux/io.h>
+#include <linux/mod_devicetable.h>
+#include <linux/platform_device.h>
 #include <linux/slab.h>
 #include <linux/units.h>
-
-#include <dt-bindings/clock/aspeed,ast2700-scu.h>
 #include <soc/aspeed/reset-aspeed.h>
 
-#define SCU_CLK_12MHZ (12 * HZ_PER_MHZ)
-#define SCU_CLK_24MHZ (24 * HZ_PER_MHZ)
-#define SCU_CLK_25MHZ (25 * HZ_PER_MHZ)
-#define SCU_CLK_192MHZ (192 * HZ_PER_MHZ)
+#include <dt-bindings/clock/aspeed,ast2700-scu.h>
+
+#define SCU_CLK_12MHZ	(12 * HZ_PER_MHZ)
+#define SCU_CLK_24MHZ	(24 * HZ_PER_MHZ)
+#define SCU_CLK_25MHZ	(25 * HZ_PER_MHZ)
+#define SCU_CLK_192MHZ	(192 * HZ_PER_MHZ)
 
 /* SOC0 */
-#define SCU0_HWSTRAP1 0x010
-#define SCU0_CLK_STOP 0x240
-#define SCU0_CLK_SEL1 0x280
-#define SCU0_CLK_SEL2 0x284
-#define GET_USB_REFCLK_DIV(x) ((GENMASK(23, 20) & (x)) >> 20)
-#define UART_DIV13_EN BIT(30)
-#define SCU0_HPLL_PARAM 0x300
-#define SCU0_DPLL_PARAM 0x308
-#define SCU0_MPLL_PARAM 0x310
-#define SCU0_D0CLK_PARAM 0x320
-#define SCU0_D1CLK_PARAM 0x330
-#define SCU0_CRT0CLK_PARAM 0x340
-#define SCU0_CRT1CLK_PARAM 0x350
-#define SCU0_MPHYCLK_PARAM 0x360
+#define SCU0_HWSTRAP1		0x010
+#define SCU0_CLK_STOP		0x240
+#define SCU0_CLK_SEL1		0x280
+#define SCU0_CLK_SEL2		0x284
+#define GET_USB_REFCLK_DIV(x)	((GENMASK(23, 20) & (x)) >> 20)
+#define UART_DIV13_EN		BIT(30)
+#define SCU0_HPLL_PARAM		0x300
+#define SCU0_DPLL_PARAM		0x308
+#define SCU0_MPLL_PARAM		0x310
+#define SCU0_D0CLK_PARAM	0x320
+#define SCU0_D1CLK_PARAM	0x330
+#define SCU0_CRT0CLK_PARAM	0x340
+#define SCU0_CRT1CLK_PARAM	0x350
+#define SCU0_MPHYCLK_PARAM	0x360
 
 /* SOC1 */
-#define SCU1_REVISION_ID 0x0
-#define REVISION_ID GENMASK(23, 16)
-#define SCU1_CLK_STOP 0x240
-#define SCU1_CLK_STOP2 0x260
-#define SCU1_CLK_SEL1 0x280
-#define SCU1_CLK_SEL2 0x284
-#define UXCLK_MASK GENMASK(1, 0)
-#define HUXCLK_MASK GENMASK(4, 3)
-#define SCU1_HPLL_PARAM 0x300
-#define SCU1_APLL_PARAM 0x310
-#define SCU1_DPLL_PARAM 0x320
-#define SCU1_UXCLK_CTRL 0x330
-#define SCU1_HUXCLK_CTRL 0x334
-#define SCU1_MAC12_CLK_DLY 0x390
-#define SCU1_MAC12_CLK_DLY_100M 0x394
-#define SCU1_MAC12_CLK_DLY_10M 0x398
+#define SCU1_REVISION_ID	0x0
+#define REVISION_ID		GENMASK(23, 16)
+#define SCU1_CLK_STOP		0x240
+#define SCU1_CLK_STOP2		0x260
+#define SCU1_CLK_SEL1		0x280
+#define SCU1_CLK_SEL2		0x284
+#define UXCLK_MASK		GENMASK(1, 0)
+#define HUXCLK_MASK		GENMASK(4, 3)
+#define SCU1_HPLL_PARAM		0x300
+#define SCU1_APLL_PARAM		0x310
+#define SCU1_DPLL_PARAM		0x320
+#define SCU1_UXCLK_CTRL		0x330
+#define SCU1_HUXCLK_CTRL	0x334
+#define SCU1_MAC12_CLK_DLY	0x390
+#define SCU1_MAC12_CLK_DLY_100M	0x394
+#define SCU1_MAC12_CLK_DLY_10M	0x398
 
 /*
  * MAC Clock Delay settings
  */
-#define MAC_CLK_RMII1_50M_RCLK_O_CTRL		BIT(30)
-#define   MAC_CLK_RMII1_50M_RCLK_O_DIS		0
-#define   MAC_CLK_RMII1_50M_RCLK_O_EN		1
-#define MAC_CLK_RMII0_50M_RCLK_O_CTRL		BIT(29)
-#define   MAC_CLK_RMII0_5M_RCLK_O_DIS		0
-#define   MAC_CLK_RMII0_5M_RCLK_O_EN		1
-#define MAC_CLK_RMII_TXD_FALLING_2		BIT(27)
-#define MAC_CLK_RMII_TXD_FALLING_1		BIT(26)
-#define MAC_CLK_RXCLK_INV_2			BIT(25)
-#define MAC_CLK_RXCLK_INV_1			BIT(24)
-#define MAC_CLK_1G_INPUT_DELAY_2		GENMASK(23, 18)
-#define MAC_CLK_1G_INPUT_DELAY_1		GENMASK(17, 12)
-#define MAC_CLK_1G_OUTPUT_DELAY_2		GENMASK(11, 6)
-#define MAC_CLK_1G_OUTPUT_DELAY_1		GENMASK(5, 0)
+#define MAC_CLK_RMII1_50M_RCLK_O_CTRL	BIT(30)
+#define   MAC_CLK_RMII1_50M_RCLK_O_DIS	0
+#define   MAC_CLK_RMII1_50M_RCLK_O_EN	1
+#define MAC_CLK_RMII0_50M_RCLK_O_CTRL	BIT(29)
+#define   MAC_CLK_RMII0_5M_RCLK_O_DIS	0
+#define   MAC_CLK_RMII0_5M_RCLK_O_EN	1
+#define MAC_CLK_RMII_TXD_FALLING_2	BIT(27)
+#define MAC_CLK_RMII_TXD_FALLING_1	BIT(26)
+#define MAC_CLK_RXCLK_INV_2		BIT(25)
+#define MAC_CLK_RXCLK_INV_1		BIT(24)
+#define MAC_CLK_1G_INPUT_DELAY_2	GENMASK(23, 18)
+#define MAC_CLK_1G_INPUT_DELAY_1	GENMASK(17, 12)
+#define MAC_CLK_1G_OUTPUT_DELAY_2	GENMASK(11, 6)
+#define MAC_CLK_1G_OUTPUT_DELAY_1	GENMASK(5, 0)
 
-#define MAC_CLK_100M_10M_RESERVED		GENMASK(31, 26)
-#define MAC_CLK_100M_10M_RXCLK_INV_2		BIT(25)
-#define MAC_CLK_100M_10M_RXCLK_INV_1		BIT(24)
-#define MAC_CLK_100M_10M_INPUT_DELAY_2		GENMASK(23, 18)
-#define MAC_CLK_100M_10M_INPUT_DELAY_1		GENMASK(17, 12)
-#define MAC_CLK_100M_10M_OUTPUT_DELAY_2		GENMASK(11, 6)
-#define MAC_CLK_100M_10M_OUTPUT_DELAY_1		GENMASK(5, 0)
+#define MAC_CLK_100M_10M_RESERVED	GENMASK(31, 26)
+#define MAC_CLK_100M_10M_RXCLK_INV_2	BIT(25)
+#define MAC_CLK_100M_10M_RXCLK_INV_1	BIT(24)
+#define MAC_CLK_100M_10M_INPUT_DELAY_2	GENMASK(23, 18)
+#define MAC_CLK_100M_10M_INPUT_DELAY_1	GENMASK(17, 12)
+#define MAC_CLK_100M_10M_OUTPUT_DELAY_2	GENMASK(11, 6)
+#define MAC_CLK_100M_10M_OUTPUT_DELAY_1	GENMASK(5, 0)
 
-#define AST2700_DEF_MAC12_DELAY_1G	0x00CF4D75
+#define AST2700_DEF_MAC12_DELAY_1G	0x00cf4d75
 #define AST2700_DEF_MAC12_DELAY_100M	0x00410410
 #define AST2700_DEF_MAC12_DELAY_10M	0x00410410
 
@@ -95,6 +95,7 @@ struct mac_delay_config {
 enum {
 	CLK_MUX,
 	CLK_PLL,
+	CLK_HPLL,
 	CLK_GATE,
 	CLK_MISC,
 	CLK_FIXED,
@@ -170,6 +171,7 @@ static const struct clk_div_table ast2700_clk_div_table[] = {
 	{ 0 }
 };
 
+//todo check is there have default table?
 static const struct clk_div_table ast2700_clk_div_table2[] = {
 	{ 0x0, 2 },
 	{ 0x1, 4 },
@@ -205,7 +207,7 @@ static const struct ast2700_clk_info ast2700_scu0_clk_info[] __initconst = {
 		.fixed_rate = SCU_CLK_192MHZ,
 	},
 	[SCU0_CLK_HPLL] = {
-		.type = CLK_PLL,
+		.type = CLK_HPLL,
 		.name = "soc0-hpll",
 		.parent_names = (const char *[]){ "soc0-clkin", },
 		.reg = SCU0_HPLL_PARAM,
@@ -1263,6 +1265,52 @@ static const struct ast2700_clk_info ast2700_scu1_clk_info[] __initconst = {
 	},
 };
 
+static struct clk_hw *ast2700_clk_hw_register_hpll(int clk_idx, void __iomem *reg,
+						   const struct ast2700_clk_info *clk,
+						   struct ast2700_clk_ctrl *clk_ctrl)
+{
+	unsigned int mult, div;
+	u32 val;
+
+	val = readl(clk_ctrl->base + SCU0_HWSTRAP1);
+	if ((val & GENMASK(3, 2)) != 0) {
+		switch ((val & GENMASK(3, 2)) >> 2) {
+		case 0:
+			return devm_clk_hw_register_fixed_rate(clk_ctrl->dev, "soc0-hpll",
+							       NULL, 0, 2000000000);
+		case 1:
+			return devm_clk_hw_register_fixed_rate(clk_ctrl->dev, "soc0-hpll",
+							       NULL, 0, 1900000000);
+		case 2:
+			return devm_clk_hw_register_fixed_rate(clk_ctrl->dev, "soc0-hpll",
+							       NULL, 0, 1800000000);
+		case 3:
+			return devm_clk_hw_register_fixed_rate(clk_ctrl->dev, "soc0-hpll",
+							       NULL, 0, 1700000000);
+		default:
+			return ERR_PTR(-EINVAL);
+		}
+	}
+
+	val = readl(reg);
+
+	if (val & BIT(24)) {
+		/* Pass through mode */
+		mult = 1;
+		div = 1;
+	} else {
+		u32 m = val & 0x1fff;
+		u32 n = (val >> 13) & 0x3f;
+		u32 p = (val >> 19) & 0xf;
+
+		mult = (m + 1) / (2 * (n + 1));
+		div = (p + 1);
+	}
+
+	return devm_clk_hw_register_fixed_factor(clk_ctrl->dev, clk->name,
+						 clk->parent_names[0], 0, mult, div);
+}
+
 static struct clk_hw *ast2700_clk_hw_register_pll(int clk_idx, void __iomem *reg,
 						  const struct ast2700_clk_info *clk,
 						  struct ast2700_clk_ctrl *clk_ctrl)
@@ -1270,25 +1318,6 @@ static struct clk_hw *ast2700_clk_hw_register_pll(int clk_idx, void __iomem *reg
 	int scu = clk_ctrl->clk_data->scu;
 	unsigned int mult, div;
 	u32 val;
-
-	if (!scu && clk_idx == SCU0_CLK_HPLL) {
-		val = readl(clk_ctrl->base + SCU0_HWSTRAP1);
-		if ((val & GENMASK(3, 2)) != 0) {
-			switch ((val & GENMASK(3, 2)) >> 2) {
-			case 1:
-				return devm_clk_hw_register_fixed_rate(clk_ctrl->dev, "soc0-hpll",
-								       NULL, 0, 1900000000);
-			case 2:
-				return devm_clk_hw_register_fixed_rate(clk_ctrl->dev, "soc0-hpll",
-								       NULL, 0, 1800000000);
-			case 3:
-				return devm_clk_hw_register_fixed_rate(clk_ctrl->dev, "soc0-hpll",
-								       NULL, 0, 1700000000);
-			default:
-				return ERR_PTR(-EINVAL);
-			}
-		}
-	}
 
 	val = readl(reg);
 
@@ -1502,9 +1531,9 @@ static int ast2700_soc_clk_probe(struct platform_device *pdev)
 
 	clk_ctrl->base = clk_base;
 
-	clk_data = (struct ast2700_clk_data *)of_device_get_match_data(dev);
+	clk_data = (struct ast2700_clk_data *)device_get_match_data(dev);
 	if (!clk_data)
-		return devm_of_platform_populate(dev);
+		return -ENODEV;
 
 	clk_ctrl->clk_data = clk_data;
 	reset_name = devm_kasprintf(dev, GFP_KERNEL, "reset%d", clk_data->scu);
@@ -1540,6 +1569,8 @@ static int ast2700_soc_clk_probe(struct platform_device *pdev)
 			hws[i] = devm_clk_hw_register_fixed_factor(dev, clk->name,
 								   clk->parent_names[0], clk->flags,
 								   clk->mult, clk->div);
+		} else if (clk->type == CLK_HPLL) {
+			hws[i] = ast2700_clk_hw_register_hpll(i, reg, clk, clk_ctrl);
 		} else if (clk->type == CLK_PLL) {
 			hws[i] = ast2700_clk_hw_register_pll(i, reg, clk, clk_ctrl);
 		} else if (clk->type == CLK_UART_PLL) {
@@ -1609,4 +1640,4 @@ static struct platform_driver ast2700_scu_driver = {
 	},
 };
 
-builtin_platform_driver_probe(ast2700_scu_driver, ast2700_soc_clk_probe);
+module_platform_driver_probe(ast2700_scu_driver, ast2700_soc_clk_probe);
