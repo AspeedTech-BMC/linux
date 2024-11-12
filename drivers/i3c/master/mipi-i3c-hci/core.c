@@ -715,7 +715,8 @@ static int i3c_hci_attach_i3c_dev(struct i3c_dev_desc *dev)
 		return -ENOMEM;
 	if (hci->cmd == &mipi_i3c_hci_cmd_v1) {
 #ifdef CONFIG_ARCH_ASPEED
-		ret = mipi_i3c_hci_dat_v1.alloc_entry(hci, dev->info.dyn_addr);
+		ret = mipi_i3c_hci_dat_v1.alloc_entry(hci,
+						      dev->info.dyn_addr ?: dev->info.static_addr);
 #else
 		ret = mipi_i3c_hci_dat_v1.alloc_entry(hci);
 #endif
