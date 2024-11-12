@@ -743,6 +743,9 @@ static int i3c_hci_reattach_i3c_dev(struct i3c_dev_desc *dev, u8 old_dyn_addr)
 	if (hci->cmd == &mipi_i3c_hci_cmd_v1)
 		mipi_i3c_hci_dat_v1.set_dynamic_addr(hci, dev_data->dat_idx,
 					     dev->info.dyn_addr);
+#ifdef CONFIG_ARCH_ASPEED
+	dev_data->dat_idx = dev->info.dyn_addr;
+#endif
 	return 0;
 }
 
