@@ -140,6 +140,16 @@ static void hci_dat_v1_free_entry(struct i3c_hci *hci, unsigned int dat_idx)
 static void hci_dat_v1_set_dynamic_addr(struct i3c_hci *hci,
 					unsigned int dat_idx, u8 address)
 {
+#ifdef CONFIG_ARCH_ASPEED
+	if (dat_idx != address) {
+		int ret;
+
+		ret = hci_dat_v1_alloc_entry(hci, address);
+		if (ret < 0)
+			dev_err(&hci->master.dev, "Allocate entry: %d", ret);
+		hci_dat_v1_free_entry(hci, dat_idx);
+	}
+#else
 	u32 dat_w0;
 
 	dat_w0 = dat_w0_read(dat_idx);
@@ -147,6 +157,7 @@ static void hci_dat_v1_set_dynamic_addr(struct i3c_hci *hci,
 	dat_w0 |= FIELD_PREP(DAT_0_DYNAMIC_ADDRESS, address) |
 		  (dynaddr_parity(address) ? DAT_0_DYNADDR_PARITY : 0);
 	dat_w0_write(dat_idx, dat_w0);
+#endif
 }
 
 static void hci_dat_v1_set_static_addr(struct i3c_hci *hci,
