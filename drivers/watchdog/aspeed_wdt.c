@@ -300,8 +300,10 @@ static irqreturn_t aspeed_wdt_irq(int irq, void *arg)
 	struct aspeed_wdt *wdt = to_aspeed_wdt(wdd);
 	u32 status = readl(wdt->base + WDT_TIMEOUT_STATUS);
 
-	if (status & WDT_TIMEOUT_STATUS_IRQ)
+	if (status & WDT_TIMEOUT_STATUS_IRQ) {
 		watchdog_notify_pretimeout(wdd);
+		writel(0x1, wdt->base + WDT_CLEAR_TIMEOUT_STATUS);
+	}
 
 	return IRQ_HANDLED;
 }
