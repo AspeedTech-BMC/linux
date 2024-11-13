@@ -700,7 +700,6 @@
 
 &emmc_controller {
 	status = "okay";
-	aspeed-max-tap-delay = <736>;
 	mmc-hs200-1_8v;
 };
 
@@ -715,7 +714,6 @@
 #endif
 	non-removable;
 	max-frequency = <200000000>;
-	clk-phase-mmc-hs200 = <0 53>, <1 190>;
 };
 
 &ufs_controller {
@@ -1004,13 +1002,13 @@
 #if 0
 &sdio_controller {
 	status = "okay";
-	aspeed-max-tap-delay = <9000>;
+	mmc-hs200-1_8v;
 };
 
 &sdhci {
 	status = "okay";
 	bus-width = <4>;
-	max-frequency = <200000000>;
+	max-frequency = <100000000>;
 	/* DDR50 bits in CAPA2 are not supported */
 	sdhci-caps-mask = <0x6 0x0>;
 	sdhci-drive-type = /bits/ 8 <3>;
@@ -1019,8 +1017,7 @@
 	pinctrl-0 = <&pinctrl_sd_default>;
 	vmmc-supply = <&vcc_sdhci0>;
 	vqmmc-supply = <&vccq_sdhci0>;
-	sd-uhs-sdr104;
-	clk-phase-uhs-sdr104 = <0 200>, <1 190>;
+	sd-uhs-sdr104; /* enable sdr104 to execute tuning */
 };
 
 #endif
