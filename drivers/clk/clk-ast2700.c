@@ -858,59 +858,52 @@ static struct clk_hw *ast2700_clk_hw_register_hpll(int clk_idx, void __iomem *re
 	u32 val;
 
 	val = readl(clk_ctrl->base + SCU0_HWSTRAP1);
-	if (readl(clk_ctrl->base) & REVISION_ID) {
-		if (val & BIT(3)) {
-			switch ((val & GENMASK(4, 2)) >> 2) {
-			case 2:
-				return devm_clk_hw_register_fixed_rate(clk_ctrl->dev, name, NULL,
-								       0, 1800 * HZ_PER_MHZ);
-			case 3:
-				return devm_clk_hw_register_fixed_rate(clk_ctrl->dev, name, NULL,
-								       0, 1700 * HZ_PER_MHZ);
-			case 6:
-				return devm_clk_hw_register_fixed_rate(clk_ctrl->dev, name, NULL,
-								       0, 1200 * HZ_PER_MHZ);
-			case 7:
-				return devm_clk_hw_register_fixed_rate(clk_ctrl->dev, name, NULL,
-								       0, 800 * HZ_PER_MHZ);
-			default:
-				return ERR_PTR(-EINVAL);
-			}
+	if ((readl(clk_ctrl->base) & REVISION_ID) && (val & BIT(3))) {
+		switch ((val & GENMASK(4, 2)) >> 2) {
+		case 2:
+			return devm_clk_hw_register_fixed_rate(clk_ctrl->dev, name, NULL,
+							       0, 1800 * HZ_PER_MHZ);
+		case 3:
+			return devm_clk_hw_register_fixed_rate(clk_ctrl->dev, name, NULL,
+							       0, 1700 * HZ_PER_MHZ);
+		case 6:
+			return devm_clk_hw_register_fixed_rate(clk_ctrl->dev, name, NULL,
+							       0, 1200 * HZ_PER_MHZ);
+		case 7:
+			return devm_clk_hw_register_fixed_rate(clk_ctrl->dev, name, NULL,
+							       0, 800 * HZ_PER_MHZ);
+		default:
+			return ERR_PTR(-EINVAL);
+		}
+	} else if ((val & GENMASK(3, 2)) != 0) {
+		switch ((val & GENMASK(3, 2)) >> 2) {
+		case 1:
+			return devm_clk_hw_register_fixed_rate(clk_ctrl->dev, name, NULL,
+							       0, 1900 * HZ_PER_MHZ);
+		case 2:
+			return devm_clk_hw_register_fixed_rate(clk_ctrl->dev, name, NULL,
+							       0, 1800 * HZ_PER_MHZ);
+		case 3:
+			return devm_clk_hw_register_fixed_rate(clk_ctrl->dev, name, NULL,
+							       0, 1700 * HZ_PER_MHZ);
+		default:
+			return ERR_PTR(-EINVAL);
 		}
 	} else {
-		if ((val & GENMASK(3, 2)) != 0) {
-			switch ((val & GENMASK(3, 2)) >> 2) {
-			case 0:
-				return devm_clk_hw_register_fixed_rate(clk_ctrl->dev, name, NULL,
-								       0, 2000 * HZ_PER_MHZ);
-			case 1:
-				return devm_clk_hw_register_fixed_rate(clk_ctrl->dev, name, NULL,
-								       0, 1900 * HZ_PER_MHZ);
-			case 2:
-				return devm_clk_hw_register_fixed_rate(clk_ctrl->dev, name, NULL,
-								       0, 1800 * HZ_PER_MHZ);
-			case 3:
-				return devm_clk_hw_register_fixed_rate(clk_ctrl->dev, name, NULL,
-								       0, 1700 * HZ_PER_MHZ);
-			default:
-				return ERR_PTR(-EINVAL);
-			}
+		val = readl(reg);
+
+		if (val & BIT(24)) {
+			/* Pass through mode */
+			mult = 1;
+			div = 1;
+		} else {
+			u32 m = val & 0x1fff;
+			u32 n = (val >> 13) & 0x3f;
+			u32 p = (val >> 19) & 0xf;
+
+			mult = (m + 1) / (2 * (n + 1));
+			div = (p + 1);
 		}
-	}
-
-	val = readl(reg);
-
-	if (val & BIT(24)) {
-		/* Pass through mode */
-		mult = 1;
-		div = 1;
-	} else {
-		u32 m = val & 0x1fff;
-		u32 n = (val >> 13) & 0x3f;
-		u32 p = (val >> 19) & 0xf;
-
-		mult = (m + 1) / (2 * (n + 1));
-		div = (p + 1);
 	}
 
 	return devm_clk_hw_register_fixed_factor(clk_ctrl->dev, name, parent_name, 0, mult, div);
