@@ -65,9 +65,9 @@ static int aspeed_usb_phy_probe(struct platform_device *pdev)
 
 	if (of_device_is_compatible(pdev->dev.of_node,
 				    "aspeed,ast2700-uphy2b")) {
-		/* Check SCU220[2] USB vHubB1 controller reset is deassert */
+		/* Check SCU220[3] USB vHubB1 controller reset is deassert */
 		regmap_read(scu, 0x220, &val);
-		if ((val & BIT(2)))
+		if ((val & BIT(3)))
 			return -EPROBE_DEFER;
 	}
 
