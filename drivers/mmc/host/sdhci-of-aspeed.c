@@ -25,6 +25,7 @@
 #define   ASPEED_SDC_S1_PHASE_IN	GENMASK(25, 21)
 #define   ASPEED_SDC_S0_PHASE_IN	GENMASK(20, 16)
 #define	  ASPEED_SDC_S0_PHASE_IN_SHIFT	16
+#define   ASPEED_SDC_S0_PHASE_OUT_SHIFT 3
 #define   ASPEED_SDC_S1_PHASE_OUT	GENMASK(15, 11)
 #define   ASPEED_SDC_S1_PHASE_IN_EN	BIT(10)
 #define   ASPEED_SDC_S1_PHASE_OUT_EN	GENMASK(9, 8)
@@ -34,11 +35,19 @@
 #define   ASPEED_SDC_PHASE_MAX		31
 
 #define TIMING_PHASE_OFFSET 0xF4
+#define ASPEED_SDHCI_TAP_PARAM_INVERT_CLK	BIT(4)
+#define ASPEED_SDHCI_NR_TAPS		15
+
+/* SDIO{10,20} */
+#define ASPEED_SDC_CAP1_1_8V	       (0 * 32 + 26)
+/* SDIO{14,24} */
+#define ASPEED_SDC_CAP2_SDR104	       (1 * 32 + 1)
+#define ASPEED_SDC_CAP2_SDR50	       (1 * 32 + 0)
 
 #define PROBE_AFTER_ASSET_DEASSERT 0x1
 
-#define ASPEED_SDHCI_TAP_PARAM_INVERT_CLK       BIT(4)
-#define ASPEED_SDHCI_NR_TAPS            15
+#define ASPEED_SDHCI_TAP_PARAM_INVERT_CLK	BIT(4)
+#define ASPEED_SDHCI_NR_TAPS		15
 
 struct aspeed_sdc_info {
 	uint32_t flag;
@@ -56,8 +65,8 @@ struct aspeed_sdc {
 struct aspeed_sdhci {
 	struct aspeed_sdc *parent;
 	u32 width_mask;
-	int	pwr_pin;
-	int	pwr_sw_pin;
+	int pwr_pin;
+	int pwr_sw_pin;
 };
 
 struct aspeed_sdc_info ast2600_sdc_info = {
@@ -80,39 +89,6 @@ static void aspeed_sdc_configure_8bit_mode(struct aspeed_sdc *sdc,
 		info &= ~sdhci->width_mask;
 	writel(info, sdc->regs + ASPEED_SDC_INFO);
 	spin_unlock(&sdc->lock);
-}
-
-static void aspeed_sdhci_set_clock(struct sdhci_host *host, unsigned int clock)
-{
-#ifdef CONFIG_MACH_ASPEED_G6
-	sdhci_set_clock(host, clock);
-#else
-	struct sdhci_pltfm_host *pltfm_host;
-	unsigned long parent;
-	int div;
-	u16 clk;
-
-	pltfm_host = sdhci_priv(host);
-	parent = clk_get_rate(pltfm_host->clk);
-	sdhci_writew(host, 0, SDHCI_CLOCK_CONTROL);
-
-	if (clock == 0)
-		return;
-
-	if (WARN_ON(clock > host->max_clk))
-		clock = host->max_clk;
-
-	for (div = 1; div < 256; div *= 2) {
-		if ((parent / div) <= clock)
-			break;
-	}
-	div >>= 1;
-
-	//Issue : For ast2300, ast2400 couldn't set div = 0 means /1 , so set source is ~50Mhz up
-	clk = div << SDHCI_DIVIDER_SHIFT;
-
-	sdhci_enable_clk(host, clk);
-#endif
 }
 
 static void aspeed_sdhci_set_bus_width(struct sdhci_host *host, int width)
@@ -151,36 +127,36 @@ static void sdhci_aspeed_set_power(struct sdhci_host *host, unsigned char mode,
 		return sdhci_set_power(host, mode, vdd);
 
 	if (mode != MMC_POWER_OFF) {
-			switch (1 << vdd) {
-			case MMC_VDD_165_195:
-			/*
-			 * Without a regulator, SDHCI does not support 2.0v
-			 * so we only get here if the driver deliberately
-			 * added the 2.0v range to ocr_avail. Map it to 1.8v
-			 * for the purpose of turning on the power.
-			 */
-			case MMC_VDD_20_21:
-					pwr = SDHCI_POWER_180;
-					break;
-			case MMC_VDD_29_30:
-			case MMC_VDD_30_31:
-					pwr = SDHCI_POWER_300;
-					break;
-			case MMC_VDD_32_33:
-			case MMC_VDD_33_34:
-					pwr = SDHCI_POWER_330;
-					break;
-			default:
-					WARN(1, "%s: Invalid vdd %#x\n",
-						 mmc_hostname(host->mmc), vdd);
-					break;
-			}
+		switch (1 << vdd) {
+		case MMC_VDD_165_195:
+		/*
+		 * Without a regulator, SDHCI does not support 2.0v
+		 * so we only get here if the driver deliberately
+		 * added the 2.0v range to ocr_avail. Map it to 1.8v
+		 * for the purpose of turning on the power.
+		 */
+		case MMC_VDD_20_21:
+			pwr = SDHCI_POWER_180;
+			break;
+		case MMC_VDD_29_30:
+		case MMC_VDD_30_31:
+			pwr = SDHCI_POWER_300;
+			break;
+		case MMC_VDD_32_33:
+		case MMC_VDD_33_34:
+			pwr = SDHCI_POWER_330;
+			break;
+		default:
+			WARN(1, "%s: Invalid vdd %#x\n",
+			     mmc_hostname(host->mmc), vdd);
+			break;
+		}
 	}
 
 	if (host->pwr == pwr)
 		return;
 
-    host->pwr = pwr;
+	    host->pwr = pwr;
 
 	if (pwr == 0) {
 		if (gpio_is_valid(dev->pwr_pin))
@@ -265,7 +241,7 @@ static void aspeed_sdhci_reset(struct sdhci_host *host, u8 mask)
 		writel(mmc8_mode, aspeed_sdc->regs);
 		writel(clk_phase, aspeed_sdc->regs + ASPEED_SDC_PHASE);
 
-		aspeed_sdhci_set_clock(host, host->clock);
+		sdhci_set_clock(host, host->clock);
 	}
 
 	sdhci_reset(host, mask);
@@ -322,6 +298,8 @@ static int aspeed_sdhci_execute_tuning(struct sdhci_host *host, u32 opcode)
 
 		window = right - left;
 
+		pr_debug("tuning window[%d][%d~%d] = %d\n", edge, left, right, window);
+
 		if (window > oldwindow) {
 			oldwindow = window;
 			center = (((right - 1) + left) / 2) | inverted;
@@ -330,6 +308,51 @@ static int aspeed_sdhci_execute_tuning(struct sdhci_host *host, u32 opcode)
 
 	val = (out_phase | enable_mask | (center << ASPEED_SDC_S0_PHASE_IN_SHIFT));
 	writel(val, sdc->regs + ASPEED_SDC_PHASE);
+
+	pr_debug("input tuning result=%x\n", val);
+
+	inverted = 0;
+	out_phase = val & ~ASPEED_SDC_S0_PHASE_OUT;
+	in_phase = out_phase;
+	oldwindow = 0;
+
+	for (edge = 0; edge < 2; edge++) {
+		if (edge == 1)
+			inverted = ASPEED_SDHCI_TAP_PARAM_INVERT_CLK;
+
+		val = (in_phase | enable_mask | (inverted << ASPEED_SDC_S0_PHASE_OUT_SHIFT));
+
+		/* find the left boundary */
+		for (left = 0; left < ASPEED_SDHCI_NR_TAPS + 1; left++) {
+			out_phase = val | (left << ASPEED_SDC_S0_PHASE_OUT_SHIFT);
+			writel(out_phase, sdc->regs + ASPEED_SDC_PHASE);
+
+			if (!mmc_send_tuning(host->mmc, opcode, NULL))
+				break;
+		}
+
+		/* find the right boundary */
+		for (right = left + 1; right < ASPEED_SDHCI_NR_TAPS + 1; right++) {
+			out_phase = val | (right << ASPEED_SDC_S0_PHASE_OUT_SHIFT);
+			writel(out_phase, sdc->regs + ASPEED_SDC_PHASE);
+
+			if (mmc_send_tuning(host->mmc, opcode, NULL))
+				break;
+		}
+
+		window = right - left;
+		pr_debug("tuning window[%d][%d~%d] = %d\n", edge, left, right, window);
+
+		if (window > oldwindow) {
+			oldwindow = window;
+			center = (((right - 1) + left) / 2) | inverted;
+		}
+	}
+
+	val = (in_phase | enable_mask | (center << ASPEED_SDC_S0_PHASE_OUT_SHIFT));
+	writel(val, sdc->regs + ASPEED_SDC_PHASE);
+
+	pr_debug("output tuning result=%x\n", val);
 
 	return mmc_send_tuning(host->mmc, opcode, NULL);
 }
@@ -341,7 +364,7 @@ static int aspeed_sdhci_execute_tuning(struct sdhci_host *host, u32 opcode)
 static struct sdhci_ops aspeed_sdhci_ops = {
 	.set_power = sdhci_aspeed_set_power,
 	.voltage_switch = aspeed_sdhci_voltage_switch,
-	.set_clock = aspeed_sdhci_set_clock,
+	.set_clock = sdhci_set_clock,
 	.get_max_clock = sdhci_pltfm_clk_get_max_clock,
 	.set_bus_width = aspeed_sdhci_set_bus_width,
 	.get_timeout_clock = sdhci_pltfm_clk_get_max_clock,
@@ -531,7 +554,6 @@ static int aspeed_sdc_probe(struct platform_device *pdev)
 	const struct of_device_id *match = NULL;
 	const struct aspeed_sdc_info *info = NULL;
 	int ret;
-	u32 timing_phase;
 
 	sdc = devm_kzalloc(&pdev->dev, sizeof(*sdc), GFP_KERNEL);
 	if (!sdc)
@@ -572,10 +594,6 @@ static int aspeed_sdc_probe(struct platform_device *pdev)
 		ret = PTR_ERR(sdc->regs);
 		goto err_clk;
 	}
-
-	if (!of_property_read_u32(pdev->dev.of_node, \
-		"timing-phase", &timing_phase))
-		writel(timing_phase, sdc->regs + TIMING_PHASE_OFFSET);
 
 	dev_set_drvdata(&pdev->dev, sdc);
 
