@@ -47,20 +47,6 @@
 			no-map;
 		};
 
-		bmc_dev0_memory: bmc_dev0_memory {
-			size = <0x0 0x00100000>;
-			alignment = <0x0 0x00100000>;
-			compatible = "shared-dma-pool";
-			no-map;
-		};
-
-		bmc_dev1_memory: bmc_dev1_memory {
-			size = <0x0 0x00100000>;
-			alignment = <0x0 0x00100000>;
-			compatible = "shared-dma-pool";
-			no-map;
-		};
-
 		mctp0_reserved: mctp0_reserved@431080000 {
 			reg = <0x4 0x31080000 0x0 0x10000>;
 			compatible = "shared-dma-pool";
@@ -95,6 +81,20 @@
 
 		espi_mmbi_memory: espi-mmbi-memory@436000000 {
 			reg = <0x4 0x36000000 0x0 0x4000000>;
+			no-map;
+		};
+
+		bmc_dev0_memory: bmc_dev0_memory {
+			size = <0x0 0x00100000>;
+			alignment = <0x0 0x00100000>;
+			compatible = "shared-dma-pool";
+			no-map;
+		};
+
+		bmc_dev1_memory: bmc_dev1_memory {
+			size = <0x0 0x00100000>;
+			alignment = <0x0 0x00100000>;
+			compatible = "shared-dma-pool";
 			no-map;
 		};
 
