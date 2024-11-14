@@ -296,6 +296,10 @@ static const struct clk_parent_data soc0_uartclk[] = {
 	{ .fw_name = "soc0-uartclk", .name = "soc0-uartclk" },
 };
 
+static const struct clk_parent_data emmcclk[] = {
+	{ .fw_name = "emmcclk", .name = "emmcclk" },
+};
+
 static const struct clk_parent_data emmcsrc_mux[] = {
 	{ .fw_name = "emmcsrc-mux", .name = "emmcsrc-mux" },
 };
@@ -624,7 +628,7 @@ static const struct ast2700_clk_info ast2700_scu0_clk_info[] __initconst = {
 		 SCU0_CLK_STOP, 25, 0),
 	GATE_CLK(SCU0_CLK_GATE_UFSCLK, CLK_GATE_ASPEED, "ufsclk-gate", NULL,
 		 SCU0_CLK_STOP, 26, 0),
-	GATE_CLK(SCU0_CLK_GATE_EMMCCLK, CLK_GATE_ASPEED, "emmcclk-gate", emmcsrc_mux,
+	GATE_CLK(SCU0_CLK_GATE_EMMCCLK, CLK_GATE_ASPEED, "emmcclk-gate", emmcclk,
 		 SCU0_CLK_STOP, 27, 0),
 	GATE_CLK(SCU0_CLK_GATE_RVAS1CLK, CLK_GATE_ASPEED, "rvas1clk-gate", NULL,
 		 SCU0_CLK_STOP, 28, 0),
@@ -712,7 +716,7 @@ static const struct ast2700_clk_info ast2700a0_scu0_clk_info[] __initconst = {
 		 SCU0_CLK_STOP, 25, 0),
 	GATE_CLK(SCU0_CLK_GATE_UFSCLK, CLK_GATE_ASPEED, "ufsclk-gate", NULL,
 		 SCU0_CLK_STOP, 26, 0),
-	GATE_CLK(SCU0_CLK_GATE_EMMCCLK, CLK_GATE_ASPEED, "emmcclk-gate", emmcsrc_mux,
+	GATE_CLK(SCU0_CLK_GATE_EMMCCLK, CLK_GATE_ASPEED, "emmcclk-gate", emmcclk,
 		 SCU0_CLK_STOP, 27, 0),
 	GATE_CLK(SCU0_CLK_GATE_RVAS1CLK, CLK_GATE_ASPEED, "rvas1clk-gate", NULL,
 		 SCU0_CLK_STOP, 28, 0),
