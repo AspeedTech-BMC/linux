@@ -187,9 +187,9 @@
 		#size-cells = <2>;
 		ranges;
 
-		soc0_sram: sram@10000000 {
+		sram0: sram@10000000 {
 			compatible = "mmio-sram";
-			reg = <0x0 0x10000000 0x0 0x20000>;	/* 128KiB SRAM on soc0 */
+			reg = <0x0 0x10000000 0x0 0x20000>;
 			ranges = <0x0 0x0 0x0 0x10000000 0x0 0x20000>;
 			#address-cells = <2>;
 			#size-cells = <2>;
@@ -1255,9 +1255,9 @@
 			status = "disabled";
 		};
 
-		soc1_sram: sram@14bc0000 {
+		sram1: sram@14bc0000 {
 			compatible = "mmio-sram";
-			reg = <0x0 0x14bc0000 0x0 0x18000>;	/* 96KiB SRAM on soc1 */
+			reg = <0x0 0x14bc0000 0x0 0x18000>;
 			ranges = <0x0 0x0 0x0 0x14bc0000 0x0 0x18000>;
 			#address-cells = <2>;
 			#size-cells = <2>;
@@ -1305,9 +1305,9 @@
 			status = "disabled";
 		};
 
-		soc1_backed_sram0: sram@14c04100 {
+		backed_sram0: sram@14c04100 {
 			compatible = "mmio-sram";
-			reg = <0x0 0x14c04100 0x0 0x80>;	/* 128b Battery Backed SRAM on soc1 */
+			reg = <0x0 0x14c04100 0x0 0x80>;
 			ranges = <0x0 0x0 0x0 0x14c04100 0x0 0x80>;
 			#address-cells = <2>;
 			#size-cells = <2>;
@@ -1319,9 +1319,9 @@
 			};
 		};
 
-		soc1_backed_sram1: sram@14c04300 {
+		backed_sram1: sram@14c04300 {
 			compatible = "mmio-sram";
-			reg = <0x0 0x14c04300 0x0 0x80>;	/* 128b Battery Backed SRAM on soc1 */
+			reg = <0x0 0x14c04300 0x0 0x80>;
 			ranges = <0x0 0x0 0x0 0x14c04300 0x0 0x80>;
 			#address-cells = <2>;
 			#size-cells = <2>;
@@ -1333,9 +1333,9 @@
 			};
 		};
 
-		soc1_backed_sram2: sram@14c04500 {
+		backed_sram2: sram@14c04500 {
 			compatible = "mmio-sram";
-			reg = <0x0 0x14c04500 0x0 0x40>;	/* 64b Battery Backed SRAM on soc1 */
+			reg = <0x0 0x14c04500 0x0 0x40>;
 			ranges = <0x0 0x0 0x0 0x14c04500 0x0 0x40>;
 			#address-cells = <2>;
 			#size-cells = <2>;
