@@ -1152,6 +1152,7 @@ static struct clk_hw *ast2700_clk_hw_register_dclk(int clk_idx, void __iomem *re
 	else
 		xdclk = 1000 * HZ_PER_MHZ;
 
+	val = readl(reg);
 	r = val & GENMASK(15, 0);
 	n = (val >> 16) & GENMASK(15, 0);
 	mult = r;
