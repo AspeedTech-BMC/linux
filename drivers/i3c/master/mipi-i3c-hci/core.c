@@ -186,7 +186,7 @@ static void aspeed_i3c_phy_init(struct i3c_hci *hci)
 
 static void aspeed_i3c_of_populate_bus_timing(struct i3c_hci *hci, struct device_node *np)
 {
-	u16 hcnt, lcnt;
+	u16 hcnt, lcnt, total_cnt;
 	unsigned long core_rate, core_period;
 	u32 val, pp_high = 0, pp_low = 0, od_high = 0, od_low = 0, thd_dat = 0, internal_pu = 0;
 	u32 ctrl0, ctrl1, ctrl2;
@@ -221,11 +221,13 @@ static void aspeed_i3c_of_populate_bus_timing(struct i3c_hci *hci, struct device
 		hcnt = DIV_ROUND_CLOSEST(pp_high, core_period) - 1;
 		lcnt = DIV_ROUND_CLOSEST(pp_low, core_period) - 1;
 	} else if (hci->master.bus.mode == I3C_BUS_MODE_PURE) {
-		hcnt = (DIV_ROUND_UP(core_rate, hci->master.bus.scl_rate.i3c) >> 1) - 1;
-		lcnt = DIV_ROUND_UP(core_rate, hci->master.bus.scl_rate.i3c) - hcnt;
+		total_cnt = DIV_ROUND_UP(core_rate, hci->master.bus.scl_rate.i3c) - 2;
+		hcnt = (total_cnt >> 1);
+		lcnt = (total_cnt - hcnt);
 	} else {
+		total_cnt = DIV_ROUND_UP(core_rate, hci->master.bus.scl_rate.i3c) - 2;
 		hcnt = DIV_ROUND_UP(I3C_BUS_THIGH_MAX_NS, core_period) - 1;
-		lcnt = DIV_ROUND_UP(core_rate, hci->master.bus.scl_rate.i3c) - hcnt;
+		lcnt = (total_cnt - hcnt);
 	}
 	ctrl0 = FIELD_PREP(PHY_I3C_SDR0_CTRL0_SCL_H, hcnt) |
 		FIELD_PREP(PHY_I3C_SDR0_CTRL0_SCL_L, lcnt);
