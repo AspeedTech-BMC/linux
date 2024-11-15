@@ -22,7 +22,9 @@ void ioctl_delete_context(struct RvasIoctl *pri, struct AstRVAS *pAstRVAS);
 void ioctl_alloc(struct file *file, struct RvasIoctl *pri, struct AstRVAS *pAstRVAS);
 void ioctl_free(struct RvasIoctl *pri, struct AstRVAS *pAstRVAS);
 void ioctl_update_lms(u8 lms_on, struct AstRVAS *ast_rvas);
+void ioctl_update_lms_2700(u8 lms_on, struct AstRVAS *ast_rvas);
 u32 ioctl_get_lm_status(struct AstRVAS *ast_rvas);
+u32 ioctl_get_lm_status_2700(struct AstRVAS *ast_rvas);
 
 //void* get_from_rsvd_mem(u32 size, u32 *phys_add, struct AstRVAS *pAstRVAS);
 void *get_virt_add_rsvd_mem(u32 index, struct AstRVAS *pAstRVAS);

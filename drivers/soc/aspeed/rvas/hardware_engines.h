@@ -37,27 +37,27 @@
 
 #define MAX_TEXT_DATA_SIZE			(8192)
 
-#ifdef CONFIG_MACH_ASPEED_G7
 
-#define SCU200_System_Reset_Control_Register (0x200)
+// For 2700
+//#define SCU200_System_Reset_Control_Register (0x200)
 #define SCU204_System_Reset_Control_Clear_Register (0x204)
 #define SCU240_Clock_Stop_Control_Register (0x240)
 #define SCU244_Clock_Stop_Control_Clear_Register (0x244)
-#define SCU500_Hardware_Strap1_Register (0x500)
+//#define SCU500_Hardware_Strap1_Register (0x500)
 //TO DO local monitor on off
 //single node - vga and dp
 //dual node- node 0- vga only, node 1- dp only
 #define SCU000_Silicon_Revision_ID (0x0)
 #define SCU448_Pin_Ctrl (0x448)
-#define SCU0C0_Misc1_Ctrl (0x0C0)
-#define SCU0D0_Misc3_Ctrl (0x0D0)
- //SCU448
+//#define SCU0C0_Misc1_Ctrl (0x0C0)
+//#define SCU0D0_Misc3_Ctrl (0x0D0)
+ //SCU448 IO
 #define VGAVS_ENBL			(0x70000000)
 #define VGAHS_ENBL			(0x7000000)
 //SCU0C0
 #define VGA0_CRT_DISBL			BIT(1)
 #define VGA1_CRT_DISBL			BIT(2)
-//SCU0D0
+//SCU0D0 IO
 #define VGA0_PWR_OFF_VDAC			BIT(2)
 #define VGA1_PWR_OFF_VDAC			BIT(3)
 
@@ -65,7 +65,8 @@
 #define SCU_RVAS0_ENGINE_BIT		BIT(9)
 #define SCU_RVAS1_STOP_CLOCK_BIT		BIT(28)
 #define SCU_RVAS0_STOP_CLOCK_BIT		BIT(25)
-#else
+
+// For 2600
 //SCU
 #define SCU000_Protection_Key_Register	(0x000)
 #define SCU040_Module_Reset_Control_Register_Set_1 (0x040)
@@ -87,7 +88,7 @@
 #define SCU_UNLOCK_PWD			(0x1688A8A8)
 #define SCU_RVAS_ENGINE_BIT		BIT(9)
 #define SCU_RVAS_STOP_CLOCK_BIT		BIT(25)
-#endif
+//
 //MCR -edac
 #define MCR_CONF	0x04 /* configuration register */
 
@@ -419,8 +420,14 @@ struct VideoEngineMem {
 	struct VideoMem jpegTable;
 };
 
+struct aspeed_rvas_config {
+	u8 version;
+	const u32 *dram_table;
+};
+
 struct AstRVAS {
 	struct miscdevice rvas_dev;
+	struct aspeed_rvas_config *config;
 	void *pdev;
 	int irq_fge;	//FrameGrabber IRQ number
 	int irq_vga; // VGA IRQ number
@@ -429,6 +436,7 @@ struct AstRVAS {
 	void __iomem *grce_reg_base;
 	void __iomem *video_reg_base;
 	struct regmap *scu;
+	struct regmap *scu_io;
 	struct reset_control *rvas_reset;
 	struct reset_control *video_engine_reset;
 	struct VGAMemInfo FBInfo;

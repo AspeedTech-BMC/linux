@@ -166,8 +166,7 @@ void ioctl_set_video_engine_config(struct VideoConfig  *pVideoConfig, struct Ast
 }
 
 //
-#ifdef CONFIG_MACH_ASPEED_G7
-void ioctl_get_video_engine_data(struct MultiJpegConfig *pArrayMJConfig, struct AstRVAS *pAstRVAS, dma_addr_t dwPhyStreamAddress)
+void ioctl_get_video_engine_data_2700(struct MultiJpegConfig *pArrayMJConfig, struct AstRVAS *pAstRVAS, dma_addr_t dwPhyStreamAddress)
 {
 	u32 yuv_shift;
 	u32 scan_lines;
@@ -287,7 +286,7 @@ void ioctl_get_video_engine_data(struct MultiJpegConfig *pArrayMJConfig, struct 
 	//TODO: kernel dump here...
 	//dump_buffer(dwPhyStreamAddress,100);
 }
-#else
+
 void ioctl_get_video_engine_data(struct MultiJpegConfig *pArrayMJConfig, struct AstRVAS *pAstRVAS, phys_addr_t dwPhyStreamAddress)
 {
 	u32 yuv_shift;
@@ -416,7 +415,7 @@ void ioctl_get_video_engine_data(struct MultiJpegConfig *pArrayMJConfig, struct 
 	//VIDEO_ENG_DBG("after Stream buffer:\n");
 	//dump_buffer(dwPhyStreamAddress,100);
 }
-#endif
+
 irqreturn_t ast_video_isr(int this_irq, void *dev_id)
 {
 	u32 status;
@@ -502,12 +501,12 @@ void video_set_Window(struct AstRVAS *pAstRVAS)
 	VIDEO_ENG_DBG("\n");
 
 	//set direct mode
-#ifdef CONFIG_MACH_ASPEED_G7
-	video_write(pAstRVAS, video_read(pAstRVAS, AST_VIDEO_PASS_CTRL) & ~(VIDEO_AUTO_FETCH | VIDEO_DIRECT_FETCH), AST_VIDEO_PASS_CTRL);
-	video_write(pAstRVAS, video_read(pAstRVAS, AST_VIDEO_PASS_CTRL) | VIDEO_AUTO_FETCH | VIDEO_DIRECT_FETCH, AST_VIDEO_PASS_CTRL);
-	video_write(pAstRVAS, _make_addr(get_vga_mem_base(pAstRVAS)), AST_VIDEO_DIRECT_BASE);
-	video_write(pAstRVAS, VIDEO_FETCH_TIMING(0) | VIDEO_FETCH_LINE_OFFSET(pAstRVAS->current_vg.wStride * 4), AST_VIDEO_DIRECT_CTRL);
-#endif
+	if (pAstRVAS->config->version == 7) {
+		video_write(pAstRVAS, video_read(pAstRVAS, AST_VIDEO_PASS_CTRL) & ~(VIDEO_AUTO_FETCH | VIDEO_DIRECT_FETCH), AST_VIDEO_PASS_CTRL);
+		video_write(pAstRVAS, video_read(pAstRVAS, AST_VIDEO_PASS_CTRL) | VIDEO_AUTO_FETCH | VIDEO_DIRECT_FETCH, AST_VIDEO_PASS_CTRL);
+		video_write(pAstRVAS, _make_addr(get_vga_mem_base(pAstRVAS)), AST_VIDEO_DIRECT_BASE);
+		video_write(pAstRVAS, VIDEO_FETCH_TIMING(0) | VIDEO_FETCH_LINE_OFFSET(pAstRVAS->current_vg.wStride * 4), AST_VIDEO_DIRECT_CTRL);
+	}
 	//compression x,y
 	video_write(pAstRVAS, VIDEO_COMPRESS_H(pAstRVAS->current_vg.wStride) | VIDEO_COMPRESS_V(screenHeightAligned), AST_VIDEO_COMPRESS_WIN);
 	VIDEO_ENG_DBG("reg offset[%#x]: %#x\n", AST_VIDEO_COMPRESS_WIN, video_read(pAstRVAS, AST_VIDEO_COMPRESS_WIN));
@@ -653,12 +652,12 @@ void video_ctrl_init(struct AstRVAS *pAstRVAS)
 	u8 inputdelay = 0x4;
 
 	VIDEO_ENG_DBG("\n");
-#ifdef CONFIG_MACH_ASPEED_G7
-	VIDEO_ENG_DBG("reg address: 0x%llx\n", pAstRVAS->video_reg_base);
-	/* Unlock VE registers */
-	video_write(pAstRVAS, VIDEO_PROTECT_UNLOCK, AST_VIDEO_PROTECT);
-	inputdelay = 0x1;
-#endif
+	if (pAstRVAS->config->version == 7) {
+		VIDEO_ENG_DBG("reg address: 0x%llx\n", pAstRVAS->video_reg_base);
+		/* Unlock VE registers */
+		video_write(pAstRVAS, VIDEO_PROTECT_UNLOCK, AST_VIDEO_PROTECT);
+		inputdelay = 0x1;
+	}
 
 	/* disable interrupts */
 	video_write(pAstRVAS, 0, AST_VIDEO_INT_EN);
