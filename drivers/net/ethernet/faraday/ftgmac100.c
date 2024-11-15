@@ -2027,24 +2027,31 @@ static int ftgmac100_probe(struct platform_device *pdev)
 			iowrite32(FTGMAC100_TM_DEFAULT,
 				  priv->base + FTGMAC100_OFFSET_TM);
 
-		if (of_device_is_compatible(np, "aspeed,ast2700-mac") &&
-		    netdev->phydev->interface == PHY_INTERFACE_MODE_SGMII) {
-			priv->sgmii = devm_phy_optional_get(&pdev->dev, "sgmii");
-			if (IS_ERR(priv->sgmii)) {
-				dev_err(priv->dev, "Failed to get sgmii phy (%ld)\n",
-					PTR_ERR(priv->sgmii));
-				err = PTR_ERR(priv->sgmii);
-				goto err_register_netdev;
-			}
-			/* The default is Nway on SGMII. */
-			err = phy_init(priv->sgmii);
+		if (of_device_is_compatible(np, "aspeed,ast2700-mac")) {
+			err = dma_set_mask_and_coherent(&pdev->dev, DMA_BIT_MASK(64));
 			if (err) {
-				dev_err(priv->dev, "Failed to init sgmii phy\n");
+				dev_err(&pdev->dev, "64-bit DMA enable failed\n");
 				goto err_register_netdev;
 			}
-			/* If using fixed link in dts, sgmii need to be forced */
-			if (of_phy_is_fixed_link(np))
-				phy_set_speed(priv->sgmii, netdev->phydev->speed);
+
+			if (netdev->phydev->interface == PHY_INTERFACE_MODE_SGMII) {
+				priv->sgmii = devm_phy_optional_get(&pdev->dev, "sgmii");
+				if (IS_ERR(priv->sgmii)) {
+					dev_err(priv->dev, "Failed to get sgmii phy (%ld)\n",
+						PTR_ERR(priv->sgmii));
+					err = PTR_ERR(priv->sgmii);
+					goto err_register_netdev;
+				}
+				/* The default is Nway on SGMII. */
+				err = phy_init(priv->sgmii);
+				if (err) {
+					dev_err(priv->dev, "Failed to init sgmii phy\n");
+					goto err_register_netdev;
+				}
+				/* If using fixed link in dts, sgmii need to be forced */
+				if (of_phy_is_fixed_link(np))
+					phy_set_speed(priv->sgmii, netdev->phydev->speed);
+			}
 		}
 	}
 
