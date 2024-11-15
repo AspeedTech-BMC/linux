@@ -463,7 +463,7 @@
 			&pinctrl_emmcg8_default>;
 #endif
 	non-removable;
-	max-frequency = <100000000>;
+	max-frequency = <200000000>;
 };
 
 &rtc {
