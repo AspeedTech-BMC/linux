@@ -329,6 +329,7 @@ static void ftgmac100_init_hw(struct ftgmac100 *priv)
 static void ftgmac100_start_hw(struct ftgmac100 *priv)
 {
 	u32 maccr = ioread32(priv->base + FTGMAC100_OFFSET_MACCR);
+	struct phy_device *phydev = priv->netdev->phydev;
 
 	/* Keep the original GMAC and FAST bits */
 	maccr &= (FTGMAC100_MACCR_FAST_MODE | FTGMAC100_MACCR_GIGA_MODE);
@@ -358,7 +359,7 @@ static void ftgmac100_start_hw(struct ftgmac100 *priv)
 		maccr |= FTGMAC100_MACCR_RM_VLAN;
 
 	if (of_device_is_compatible(priv->dev->of_node, "aspeed,ast2700-mac") &&
-	    priv->netdev->phydev->interface == PHY_INTERFACE_MODE_RMII)
+	    phydev && phydev->interface == PHY_INTERFACE_MODE_RMII)
 		maccr |= FTGMAC100_MACCR_RMII_ENABLE;
 
 	/* Hit the HW */
