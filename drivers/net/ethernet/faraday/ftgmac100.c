@@ -2009,12 +2009,6 @@ static int ftgmac100_probe(struct platform_device *pdev)
 				  priv->base + FTGMAC100_OFFSET_TM);
 
 		if (of_device_is_compatible(np, "aspeed,ast2700-mac")) {
-			err = dma_set_mask_and_coherent(&pdev->dev, DMA_BIT_MASK(64));
-			if (err) {
-				dev_err(&pdev->dev, "64-bit DMA enable failed\n");
-				goto err_register_netdev;
-			}
-
 			if (netdev->phydev->interface == PHY_INTERFACE_MODE_SGMII) {
 				priv->sgmii = devm_phy_optional_get(&pdev->dev, "sgmii");
 				if (IS_ERR(priv->sgmii)) {
@@ -2077,6 +2071,12 @@ static int ftgmac100_probe(struct platform_device *pdev)
 	if (np && of_get_property(np, "no-hw-checksum", NULL))
 		netdev->hw_features &= ~(NETIF_F_HW_CSUM | NETIF_F_RXCSUM);
 	netdev->features |= netdev->hw_features;
+
+	err = dma_set_mask_and_coherent(&pdev->dev, DMA_BIT_MASK(64));
+	if (err) {
+		dev_err(&pdev->dev, "64-bit DMA enable failed\n");
+		goto err_register_netdev;
+	}
 
 	/* register network device */
 	err = register_netdev(netdev);
