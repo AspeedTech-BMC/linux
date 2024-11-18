@@ -1998,28 +1998,9 @@ static int ftgmac100_probe(struct platform_device *pdev)
 	}
 
 	if (priv->is_aspeed) {
-		struct reset_control *rst;
-
 		err = ftgmac100_setup_clk(priv);
 		if (err)
 			goto err_phy_connect;
-
-		rst = devm_reset_control_get_optional(priv->dev, NULL);
-		if (IS_ERR(rst))
-			goto err_register_netdev;
-		priv->rst = rst;
-
-		err = reset_control_assert(priv->rst);
-		if (err) {
-			dev_err(priv->dev, "Failed to reset mac (%d)\n", err);
-			goto err_register_netdev;
-		}
-		usleep_range(10000, 20000);
-		err = reset_control_deassert(priv->rst);
-		if (err) {
-			dev_err(priv->dev, "Failed to deassert mac reset (%d)\n", err);
-			goto err_register_netdev;
-		}
 
 		/* Disable ast2600 problematic HW arbitration */
 		if (of_device_is_compatible(np, "aspeed,ast2600-mac") ||
@@ -2053,6 +2034,24 @@ static int ftgmac100_probe(struct platform_device *pdev)
 					phy_set_speed(priv->sgmii, netdev->phydev->speed);
 			}
 		}
+	}
+
+	priv->rst = devm_reset_control_get_optional_exclusive(priv->dev, NULL);
+	if (IS_ERR(priv->rst))
+		goto err_register_netdev;
+	if (!priv->rst)
+		dev_info(&pdev->dev, "no reset control found\n");
+
+	err = reset_control_assert(priv->rst);
+	if (err) {
+		dev_err(priv->dev, "Failed to reset mac (%d)\n", err);
+		goto err_register_netdev;
+	}
+	usleep_range(10000, 20000);
+	err = reset_control_deassert(priv->rst);
+	if (err) {
+		dev_err(priv->dev, "Failed to deassert mac reset (%d)\n", err);
+		goto err_register_netdev;
 	}
 
 	/* Default ring sizes */
