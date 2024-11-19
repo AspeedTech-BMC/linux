@@ -515,7 +515,7 @@ static struct aspeed_uart_routing_selector ast2700n0_uart9_sel = {
 		    UART_ROUTING_UART1,
 		    UART_ROUTING_UART2,
 		    UART_ROUTING_UART3,
-			UART_ROUTING_UART12,
+		    UART_ROUTING_UART12,
 		    NULL,
 		    },
 };
@@ -720,7 +720,7 @@ static struct aspeed_uart_routing_selector ast2700n1_uart10_sel = {
 		    UART_ROUTING_UART6,
 		    UART_ROUTING_UART7,
 		    UART_ROUTING_UART8,
-			UART_ROUTING_UART12,
+		    UART_ROUTING_UART12,
 		    NULL,
 		    },
 };
@@ -801,7 +801,7 @@ static struct aspeed_uart_routing_selector ast2700n1_uart6_sel = {
 };
 
 static struct aspeed_uart_routing_selector ast2700n1_uart5_sel = {
-	.dev_attr = ROUTING_ATTR(UART_ROUTING_UART0),
+	.dev_attr = ROUTING_ATTR(UART_ROUTING_UART5),
 	.reg = HICRA,
 	.shift = 16,
 	.mask = 0x7,
@@ -873,7 +873,7 @@ static struct aspeed_uart_routing_selector ast2700n1_io6_sel = {
 };
 
 static struct aspeed_uart_routing_selector ast2700n1_io5_sel = {
-	.dev_attr = ROUTING_ATTR(UART_ROUTING_IO0),
+	.dev_attr = ROUTING_ATTR(UART_ROUTING_IO5),
 	.reg = HICRA,
 	.shift = 0,
 	.mask = 0x7,
