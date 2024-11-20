@@ -23,18 +23,11 @@
 #define  AST2600_SCU_DP_SRC_SEL		BIT(18)
 #define  AST2600_SCU_DAC_SRC_SEL	BIT(16)
 
-#ifdef CONFIG_MACH_ASPEED_G7
-#define  SCU_DAC_SRC_SEL		AST2700_SCU_DAC_SRC_SEL
-#define  SCU_DP_SRC_SEL			AST2700_SCU_DP_SRC_SEL
-#else
-#define  SCU_DAC_SRC_SEL		AST2600_SCU_DAC_SRC_SEL
-#define  SCU_DP_SRC_SEL			AST2600_SCU_DP_SRC_SEL
-#endif
-
 #define VGA_LINK_SRC			0x50
 #define  VGA_LINK_SRC_SEL		GENMASK(1, 0)
 
 struct aspeed_disp_intf_config {
+	u8 version;
 	u32 dac_src_sel;
 	u32 dac_src_max;
 	u32 dac_src_min;
@@ -54,6 +47,7 @@ struct aspeed_disp_intf {
 static int dac_src, dp_src;
 
 static const struct aspeed_disp_intf_config ast2600_config = {
+	.version = 6,
 	.dac_src_sel = AST2600_SCU_PIN_SEL,
 	.dac_src_max = 1,
 	.dac_src_min = 0,
@@ -63,6 +57,7 @@ static const struct aspeed_disp_intf_config ast2600_config = {
 };
 
 static const struct aspeed_disp_intf_config ast2700_config = {
+	.version = 7,
 	.dac_src_sel = AST2700_SCU_PIN_SEL,
 	.dac_src_max = 2,
 	.dac_src_min = 0,
@@ -79,7 +74,9 @@ static ssize_t dac_src_show(struct device *dev,
 	u32 val;
 
 	regmap_read(intf->scu, config->dac_src_sel, &val);
-	dac_src = FIELD_GET(SCU_DAC_SRC_SEL, val);
+	dac_src = (config->version == 6)
+		? FIELD_GET(AST2600_SCU_DAC_SRC_SEL, val)
+		: FIELD_GET(AST2700_SCU_DAC_SRC_SEL, val);
 	return sysfs_emit(buf, "%d\n", dac_src);
 }
 
@@ -101,8 +98,12 @@ static ssize_t dac_src_store(struct device *dev,
 	}
 
 	dac_src = src;
-	regmap_update_bits(intf->scu, config->dac_src_sel, SCU_DAC_SRC_SEL,
-			   FIELD_PREP(SCU_DAC_SRC_SEL, src));
+	if (config->version == 6)
+		regmap_update_bits(intf->scu, config->dac_src_sel, AST2600_SCU_DAC_SRC_SEL,
+				   FIELD_PREP(AST2600_SCU_DAC_SRC_SEL, src));
+	else
+		regmap_update_bits(intf->scu, config->dac_src_sel, AST2700_SCU_DAC_SRC_SEL,
+				   FIELD_PREP(AST2700_SCU_DAC_SRC_SEL, src));
 	if (intf->reg_base) {
 		u32 tmp = readl(intf->reg_base + VGA_LINK_SRC);
 
@@ -124,7 +125,9 @@ static ssize_t dp_src_show(struct device *dev, struct device_attribute *attr,
 	u32 val;
 
 	regmap_read(intf->scu, config->dp_src_sel, &val);
-	dp_src = FIELD_GET(SCU_DP_SRC_SEL, val);
+	dp_src = (config->version == 6)
+		? FIELD_GET(AST2600_SCU_DP_SRC_SEL, val)
+		: FIELD_GET(AST2700_SCU_DP_SRC_SEL, val);
 	return sysfs_emit(buf, "%d\n", dp_src);
 }
 
@@ -146,12 +149,15 @@ static ssize_t dp_src_store(struct device *dev, struct device_attribute *attr,
 	}
 
 	dp_src = src;
-	regmap_update_bits(intf->scu, config->dp_src_sel, SCU_DP_SRC_SEL,
-			   FIELD_PREP(SCU_DP_SRC_SEL, src));
-#ifdef CONFIG_MACH_ASPEED_G7
-	regmap_update_bits(intf->scu, config->dp_src_sel, AST2700_SCU_D1PLL_SEL,
-			   FIELD_PREP(AST2700_SCU_D1PLL_SEL, src));
-#endif
+	if (config->version == 6) {
+		regmap_update_bits(intf->scu, config->dp_src_sel, AST2600_SCU_DP_SRC_SEL,
+				   FIELD_PREP(AST2600_SCU_DP_SRC_SEL, src));
+	} else {
+		regmap_update_bits(intf->scu, config->dp_src_sel, AST2700_SCU_DP_SRC_SEL,
+				   FIELD_PREP(AST2700_SCU_DP_SRC_SEL, src));
+		regmap_update_bits(intf->scu, config->dp_src_sel, AST2700_SCU_D1PLL_SEL,
+				   FIELD_PREP(AST2700_SCU_D1PLL_SEL, src));
+	}
 
 	return count;
 }
