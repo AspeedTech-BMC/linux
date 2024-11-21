@@ -147,9 +147,7 @@ config ASPEED_UDMA
 	  buffer and the UART/VUART devices.
 
 config ASPEED_OTP
-	tristate "Aspeed OTP Driver"
-	select AST2600_OTP if MACH_ASPEED_G6
-	select AST2700_OTP if MACH_ASPEED_G7
+	tristate
 	help
 	  Enable driver support for Aspeed OTP driver. Each bit in One
 	  Time Prgrammable (OTP) memory is capable to be programmed once.
@@ -157,14 +155,16 @@ config ASPEED_OTP
 	  OTP memory.
 
 config AST2600_OTP
-	tristate
-	depends on ASPEED_OTP
+	tristate "AST2600 OTP Driver"
+	select ASPEED_OTP
+	depends on ARCH_ASPEED
 	help
 	  Enable driver support for Aspeed AST2600 OTP driver.
 
 config AST2700_OTP
-	tristate
-	depends on ASPEED_OTP
+	tristate "AST2700 OTP Driver"
+	select ASPEED_OTP
+	depends on ARCH_ASPEED
 	help
 	  Enable driver support for Aspeed AST2700 OTP driver.
 
