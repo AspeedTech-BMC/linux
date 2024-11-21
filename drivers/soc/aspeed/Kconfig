@@ -103,7 +103,6 @@ config ASPEED_ESPI
 	tristate "ASPEED eSPI slave driver"
 	select AST2500_ESPI if MACH_ASPEED_G5
 	select AST2600_ESPI if MACH_ASPEED_G6
-	select AST2700_ESPI if MACH_ASPEED_G7
 	default n
 	help
 	  Enable driver support for the Aspeed eSPI engine. The eSPI engine
@@ -123,11 +122,13 @@ config AST2600_ESPI
 	help
 	  Enable driver support for Aspeed AST2600 eSPI engine.
 
-config AST2700_ESPI
-	tristate
-	depends on ASPEED_ESPI
+config ASPEED_AST2700_ESPI
+	tristate "ASPEED AST2700 eSPI slave driver"
 	help
-	  Enable driver support for Aspeed AST2600 eSPI engine.
+	  Enable driver support for Aspeed AST2700 eSPI engine. The eSPI engine
+	  plays as a slave device in BMC to communicate with the Host over
+	  the eSPI interface. The four eSPI channels, namely peripheral,
+	  virtual wire, out-of-band, and flash are supported.
 
 config ASPEED_LPC_PCC
 	tristate "Aspeed Post Code Capture support"
