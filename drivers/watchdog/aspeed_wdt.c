@@ -23,6 +23,13 @@ static bool nowayout = WATCHDOG_NOWAYOUT;
 module_param(nowayout, bool, 0);
 MODULE_PARM_DESC(nowayout, "Watchdog cannot be stopped once started (default="
 				__MODULE_STRING(WATCHDOG_NOWAYOUT) ")");
+struct aspeed_wdt {
+	struct watchdog_device	wdd;
+	void __iomem		*base;
+	u32			ctrl;
+	const struct aspeed_wdt_config *cfg;
+};
+
 struct aspeed_wdt_scu {
 	const char *compatible;
 	u32 reset_status_reg;
@@ -36,14 +43,11 @@ struct aspeed_wdt_config {
 	u32 irq_shift;
 	u32 irq_mask;
 	struct aspeed_wdt_scu scu;
+	int (*restart)(struct aspeed_wdt *wdt);
 };
 
-struct aspeed_wdt {
-	struct watchdog_device	wdd;
-	void __iomem		*base;
-	u32			ctrl;
-	const struct aspeed_wdt_config *cfg;
-};
+static int aspeed_ast2400_wdt_restart(struct aspeed_wdt *wdt);
+static int aspeed_ast2600_wdt_restart(struct aspeed_wdt *wdt);
 
 static const struct aspeed_wdt_config ast2400_config = {
 	.ext_pulse_width_mask = 0xff,
@@ -56,6 +60,7 @@ static const struct aspeed_wdt_config ast2400_config = {
 		.wdt_sw_reset_mask = 0,
 		.wdt_reset_mask_shift = 1,
 	},
+	.restart = aspeed_ast2400_wdt_restart,
 };
 
 static const struct aspeed_wdt_config ast2500_config = {
@@ -69,6 +74,7 @@ static const struct aspeed_wdt_config ast2500_config = {
 		.wdt_sw_reset_mask = 0,
 		.wdt_reset_mask_shift = 2,
 	},
+	.restart = aspeed_ast2400_wdt_restart,
 };
 
 static const struct aspeed_wdt_config ast2600_config = {
@@ -82,6 +88,7 @@ static const struct aspeed_wdt_config ast2600_config = {
 		.wdt_sw_reset_mask = 0x8,
 		.wdt_reset_mask_shift = 16,
 	},
+	.restart = aspeed_ast2600_wdt_restart,
 };
 
 static const struct of_device_id aspeed_wdt_of_table[] = {
@@ -114,6 +121,11 @@ MODULE_DEVICE_TABLE(of, aspeed_wdt_of_table);
 #define   WDT_CLEAR_TIMEOUT_AND_BOOT_CODE_SELECTION	BIT(0)
 #define WDT_RESET_MASK1		0x1c
 #define WDT_RESET_MASK2		0x20
+#define WDT_SW_RESET_CTRL	0x24
+#define   WDT_SW_RESET_COUNT_CLEAR	0xDEADDEAD
+#define   WDT_SW_RESET_ENABLE	0xAEEDF123
+#define WDT_SW_RESET_MASK1	0x28
+#define WDT_SW_RESET_MASK2	0x2c
 
 /*
  * WDT_RESET_WIDTH controls the characteristics of the external pulse (if
@@ -233,17 +245,43 @@ static int aspeed_wdt_set_pretimeout(struct watchdog_device *wdd,
 	return 0;
 }
 
-static int aspeed_wdt_restart(struct watchdog_device *wdd,
-			      unsigned long action, void *data)
+static int aspeed_ast2400_wdt_restart(struct aspeed_wdt *wdt)
 {
-	struct aspeed_wdt *wdt = to_aspeed_wdt(wdd);
-
 	wdt->ctrl &= ~WDT_CTRL_BOOT_SECONDARY;
 	aspeed_wdt_enable(wdt, 128 * WDT_RATE_1MHZ / 1000);
 
 	mdelay(1000);
 
 	return 0;
+}
+
+static int aspeed_ast2600_wdt_restart(struct aspeed_wdt *wdt)
+{
+	u32 reg;
+	u32 ctrl = WDT_CTRL_RESET_MODE_SOC |
+		   WDT_CTRL_RESET_SYSTEM;
+
+	reg = readl(wdt->base + WDT_RESET_MASK1);
+	writel(reg, wdt->base + WDT_SW_RESET_MASK1);
+	reg = readl(wdt->base + WDT_RESET_MASK2);
+	writel(reg, wdt->base + WDT_SW_RESET_MASK2);
+
+	writel(ctrl, wdt->base + WDT_CTRL);
+	writel(WDT_SW_RESET_COUNT_CLEAR, wdt->base + WDT_SW_RESET_CTRL);
+	writel(WDT_SW_RESET_ENABLE, wdt->base + WDT_SW_RESET_CTRL);
+
+	/* system must be reset immediately */
+	mdelay(1000);
+
+	return 0;
+}
+
+static int aspeed_wdt_restart(struct watchdog_device *wdd,
+			      unsigned long action, void *data)
+{
+	struct aspeed_wdt *wdt = to_aspeed_wdt(wdd);
+
+	return wdt->cfg->restart(wdt);
 }
 
 static void aspeed_wdt_update_bootstatus(struct platform_device *pdev,
