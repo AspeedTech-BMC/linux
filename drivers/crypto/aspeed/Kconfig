@@ -65,7 +65,7 @@ config CRYPTO_DEV_ASPEED_ACRY
 
 config CRYPTO_DEV_ASPEED_RSSS
 	tristate "Enable Aspeed RSSS Engine"
-	depends on MACH_ASPEED_G7
+	depends on ARCH_ASPEED
 	select CRYPTO_RSA
 	select CRYPTO_SHA3
 	select CRYPTO_SM3
@@ -81,7 +81,7 @@ config CRYPTO_DEV_ASPEED_RSSS
 
 config CRYPTO_DEV_ASPEED_ECDSA
 	tristate "Enable Aspeed ECDSA Engine"
-	depends on MACH_ASPEED_G7
+	depends on ARCH_ASPEED
 	select CRYPTO_ECC
 	select CRYPTO_ECDSA
 	select CRYPTO_AKCIPHER
