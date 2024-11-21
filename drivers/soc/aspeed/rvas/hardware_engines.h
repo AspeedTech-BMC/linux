@@ -52,8 +52,8 @@
 //#define SCU0C0_Misc1_Ctrl (0x0C0)
 //#define SCU0D0_Misc3_Ctrl (0x0D0)
  //SCU448 IO
-#define VGAVS_ENBL			(0x70000000)
-#define VGAHS_ENBL			(0x7000000)
+#define VGAVS_ENBL_27			(0x70000000)
+#define VGAHS_ENBL_27			(0x7000000)
 //SCU0C0
 #define VGA0_CRT_DISBL			BIT(1)
 #define VGA1_CRT_DISBL			BIT(2)
@@ -275,21 +275,11 @@
 
 #define NUM_SNOOP_ROWS				(64)
 
-#ifdef CONFIG_MACH_ASPEED_G7
 //vga memory information
-#define SCU010						(0x10)
 #define DDR_SIZE_CONFIG_BITS				(0x3)
 #define VGA_MEM_SIZE_CONFIG_BITS			(0x3)
-#define VGA_MEM_SIZE_CONFIG_BIT_POS			(10)
-#define DDR_BASE					(0x400000000)
-#else
-//vga memory information
-#define SCU500						(0x500)
-#define DDR_SIZE_CONFIG_BITS				(0x3)
-#define VGA_MEM_SIZE_CONFIG_BITS			(0x3)
-#define VGA_MEM_SIZE_CONFIG_BIT_POS			(13)
+#define DDR_BASE_27					(0x400000000)
 #define DDR_BASE					(0x80000000)
-#endif
 
 //grce
 #define VGACR0_REG					(0x60)

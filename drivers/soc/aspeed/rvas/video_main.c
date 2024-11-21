@@ -257,7 +257,10 @@ phys_addr_t get_phy_fb_start_address(struct AstRVAS *pAstRVAS)
 {
 	u32 dw_offset = get_screen_offset(pAstRVAS);
 
-	pAstRVAS->FBInfo.qwFBPhysStart = DDR_BASE + pAstRVAS->FBInfo.dwDRAMSize - pAstRVAS->FBInfo.dwVGASize + dw_offset;
+	pAstRVAS->FBInfo.qwFBPhysStart = (pAstRVAS->config->version == 7)
+				       ? DDR_BASE_27
+				       : DDR_BASE;
+	pAstRVAS->FBInfo.qwFBPhysStart += pAstRVAS->FBInfo.dwDRAMSize - pAstRVAS->FBInfo.dwVGASize + dw_offset;
 	if (pAstRVAS->rvas_index == 1)
 		pAstRVAS->FBInfo.qwFBPhysStart -= pAstRVAS->FBInfo.dwVGASize;
 
@@ -608,8 +611,8 @@ void ioctl_update_lms_2700(u8 lms_on, struct AstRVAS *pAstRVAS)
 	}
 
 	if (lms_on) {
-		if ((reg_scu448 & VGAVS_ENBL) == 0 && (reg_scu448 & VGAHS_ENBL) == 0) {
-			reg_scu448 |= (VGAVS_ENBL | VGAHS_ENBL);
+		if ((reg_scu448 & VGAVS_ENBL_27) == 0 && (reg_scu448 & VGAHS_ENBL_27) == 0) {
+			reg_scu448 |= (VGAVS_ENBL_27 | VGAHS_ENBL_27);
 			regmap_write(pAstRVAS->scu_io, SCU448_Pin_Ctrl, reg_scu448);
 		}
 		if (reg_scu0C0 & vga_crt_disbl) {
@@ -626,8 +629,8 @@ void ioctl_update_lms_2700(u8 lms_on, struct AstRVAS *pAstRVAS)
 			writel(reg_dptx100, pAstRVAS->dp_base + DPTX_Configuration_Register);
 		}
 	} else { //turn off
-		if ((reg_scu448 & VGAVS_ENBL) == 1 || (reg_scu448 & VGAHS_ENBL) == 1) {
-			reg_scu448 &= ~(VGAVS_ENBL | VGAHS_ENBL);
+		if ((reg_scu448 & VGAVS_ENBL_27) == 1 || (reg_scu448 & VGAHS_ENBL_27) == 1) {
+			reg_scu448 &= ~(VGAVS_ENBL_27 | VGAHS_ENBL_27);
 			regmap_write(pAstRVAS->scu_io, SCU448_Pin_Ctrl, reg_scu448);
 		}
 		if (!(reg_scu0C0 & vga_crt_disbl)) {
@@ -655,7 +658,7 @@ u32 ioctl_get_lm_status_2700(struct AstRVAS *pAstRVAS)
 	u32 reg_val = 0;
 
 	regmap_read(pAstRVAS->scu_io, SCU448_Pin_Ctrl, &reg_val);
-	if ((reg_val & VGAVS_ENBL) == 1 || (reg_val & VGAHS_ENBL) == 1) {
+	if ((reg_val & VGAVS_ENBL_27) == 1 || (reg_val & VGAHS_ENBL_27) == 1) {
 		regmap_read(pAstRVAS->scu, SCU0C0_Misc1_Ctrl, &reg_val);
 		if (pAstRVAS->rvas_index == 0x0) {
 			if (!(reg_val & VGA0_CRT_DISBL)) {
