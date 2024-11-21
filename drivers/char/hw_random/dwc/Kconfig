@@ -6,7 +6,7 @@
 config HW_RANDOM_DWC
 	tristate "DesignWare Cores HW Random Number Generator support"
 	depends on HW_RANDOM
-	depends on MACH_ASPEED_G7 || COMPILE_TEST
+	depends on ARCH_ASPEED || COMPILE_TEST
 	help
 	  This driver provides kernel-side support for the DWC
 	  Random Number Generator hardware found on Aspeed SoCs.
