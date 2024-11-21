@@ -34,7 +34,7 @@ config PINCTRL_ASPEED_G6
 
 config PINCTRL_ASPEED_G7
 	bool "Aspeed G7 SoC pin control"
-	depends on (MACH_ASPEED_G7 || COMPILE_TEST) && OF
+	depends on (ARCH_ASPEED || COMPILE_TEST) && OF
 	select PINCTRL_ASPEED
 	help
 	  Say Y here to enable pin controller support for Aspeed's 7th
