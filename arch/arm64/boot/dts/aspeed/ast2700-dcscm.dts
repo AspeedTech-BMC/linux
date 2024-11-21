@@ -231,15 +231,32 @@
 
 /* Enable UART2 and UART3 for obmc-console. */
 &uart2 {
+	/delete-property/ pinctrl-names;
+	/delete-property/ pinctrl-0;
 	status = "okay";
 };
 
 &uart3 {
+	/delete-property/ pinctrl-names;
+	/delete-property/ pinctrl-0;
 	status = "okay";
 };
 
 &uart5 {
 	/* CPU1 SYSUART */
+	status = "okay";
+};
+
+/* Enable UART7 and UART8 for obmc-console. */
+&uart7 {
+	/delete-property/ pinctrl-names;
+	/delete-property/ pinctrl-0;
+	status = "okay";
+};
+
+&uart8 {
+	/delete-property/ pinctrl-names;
+	/delete-property/ pinctrl-0;
 	status = "okay";
 };
 
