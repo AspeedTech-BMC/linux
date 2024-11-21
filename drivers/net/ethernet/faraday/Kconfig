@@ -30,7 +30,7 @@ config FTGMAC100
 	tristate "Faraday FTGMAC100 Gigabit Ethernet support"
 	depends on ARM || ARM64 || COMPILE_TEST
 	select PHYLIB
-	select MDIO_ASPEED if MACH_ASPEED_G6 || MACH_ASPEED_G7
+	select MDIO_ASPEED if ARCH_ASPEED
 	select CRC32
 	help
 	  This driver supports the FTGMAC100 Gigabit Ethernet controller
