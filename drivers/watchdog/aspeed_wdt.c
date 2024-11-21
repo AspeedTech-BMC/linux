@@ -43,6 +43,9 @@ struct aspeed_wdt_config {
 	u32 irq_shift;
 	u32 irq_mask;
 	struct aspeed_wdt_scu scu;
+	u32 reset_mask_num;
+	u32 sw_reset_ctrl;
+	u32 sw_reset_mask_offset;
 	int (*restart)(struct aspeed_wdt *wdt);
 };
 
@@ -60,6 +63,9 @@ static const struct aspeed_wdt_config ast2400_config = {
 		.wdt_sw_reset_mask = 0,
 		.wdt_reset_mask_shift = 1,
 	},
+	.reset_mask_num = 1,
+	.sw_reset_ctrl = 0x0,
+	.sw_reset_mask_offset = 0x0,
 	.restart = aspeed_ast2400_wdt_restart,
 };
 
@@ -74,6 +80,9 @@ static const struct aspeed_wdt_config ast2500_config = {
 		.wdt_sw_reset_mask = 0,
 		.wdt_reset_mask_shift = 2,
 	},
+	.reset_mask_num = 1,
+	.sw_reset_ctrl = 0x0,
+	.sw_reset_mask_offset = 0x0,
 	.restart = aspeed_ast2400_wdt_restart,
 };
 
@@ -88,6 +97,9 @@ static const struct aspeed_wdt_config ast2600_config = {
 		.wdt_sw_reset_mask = 0x8,
 		.wdt_reset_mask_shift = 16,
 	},
+	.reset_mask_num = 2,
+	.sw_reset_ctrl = 0x24,
+	.sw_reset_mask_offset = 0x28,
 	.restart = aspeed_ast2600_wdt_restart,
 };
 
@@ -121,11 +133,6 @@ MODULE_DEVICE_TABLE(of, aspeed_wdt_of_table);
 #define   WDT_CLEAR_TIMEOUT_AND_BOOT_CODE_SELECTION	BIT(0)
 #define WDT_RESET_MASK1		0x1c
 #define WDT_RESET_MASK2		0x20
-#define WDT_SW_RESET_CTRL	0x24
-#define   WDT_SW_RESET_COUNT_CLEAR	0xDEADDEAD
-#define   WDT_SW_RESET_ENABLE	0xAEEDF123
-#define WDT_SW_RESET_MASK1	0x28
-#define WDT_SW_RESET_MASK2	0x2c
 
 /*
  * WDT_RESET_WIDTH controls the characteristics of the external pulse (if
@@ -160,6 +167,8 @@ MODULE_DEVICE_TABLE(of, aspeed_wdt_of_table);
 #define     WDT_OPEN_DRAIN_MAGIC	(0x8A << 24)
 
 #define WDT_RESTART_MAGIC	0x4755
+#define WDT_SW_RESET_COUNT_CLEAR	0xDEADDEAD
+#define WDT_SW_RESET_ENABLE	0xAEEDF123
 
 /* 32 bits at 1MHz, in milliseconds */
 #define WDT_MAX_TIMEOUT_MS	4294967
@@ -260,15 +269,17 @@ static int aspeed_ast2600_wdt_restart(struct aspeed_wdt *wdt)
 	u32 reg;
 	u32 ctrl = WDT_CTRL_RESET_MODE_SOC |
 		   WDT_CTRL_RESET_SYSTEM;
+	int i;
 
-	reg = readl(wdt->base + WDT_RESET_MASK1);
-	writel(reg, wdt->base + WDT_SW_RESET_MASK1);
-	reg = readl(wdt->base + WDT_RESET_MASK2);
-	writel(reg, wdt->base + WDT_SW_RESET_MASK2);
+	for (i = 0; i < wdt->cfg->reset_mask_num; i++) {
+		reg = readl(wdt->base + WDT_RESET_MASK1 + i * 4);
+		writel(reg,
+		       wdt->base + wdt->cfg->sw_reset_mask_offset + i * 4);
+	}
 
 	writel(ctrl, wdt->base + WDT_CTRL);
-	writel(WDT_SW_RESET_COUNT_CLEAR, wdt->base + WDT_SW_RESET_CTRL);
-	writel(WDT_SW_RESET_ENABLE, wdt->base + WDT_SW_RESET_CTRL);
+	writel(WDT_SW_RESET_COUNT_CLEAR, wdt->base + wdt->cfg->sw_reset_ctrl);
+	writel(WDT_SW_RESET_ENABLE, wdt->base + wdt->cfg->sw_reset_ctrl);
 
 	/* system must be reset immediately */
 	mdelay(1000);
@@ -439,6 +450,7 @@ static int aspeed_wdt_probe(struct platform_device *pdev)
 	u32 duration;
 	u32 status;
 	int ret;
+	int i;
 
 	wdt = devm_kzalloc(dev, sizeof(*wdt), GFP_KERNEL);
 	if (!wdt)
@@ -532,8 +544,8 @@ static int aspeed_wdt_probe(struct platform_device *pdev)
 
 	if ((of_device_is_compatible(np, "aspeed,ast2500-wdt")) ||
 		(of_device_is_compatible(np, "aspeed,ast2600-wdt"))) {
-		u32 reset_mask[2];
-		size_t nrstmask = of_device_is_compatible(np, "aspeed,ast2600-wdt") ? 2 : 1;
+		u32 reset_mask[6];
+		size_t nrstmask = wdt->cfg->reset_mask_num;
 		u32 reg = readl(wdt->base + WDT_RESET_WIDTH);
 
 		reg &= wdt->cfg->ext_pulse_width_mask;
@@ -554,9 +566,8 @@ static int aspeed_wdt_probe(struct platform_device *pdev)
 
 		ret = of_property_read_u32_array(np, "aspeed,reset-mask", reset_mask, nrstmask);
 		if (!ret) {
-			writel(reset_mask[0], wdt->base + WDT_RESET_MASK1);
-			if (nrstmask > 1)
-				writel(reset_mask[1], wdt->base + WDT_RESET_MASK2);
+			for (i = 0; i < nrstmask; i++)
+				writel(reset_mask[i], wdt->base + WDT_RESET_MASK1 + i * 4);
 		}
 	}
 
