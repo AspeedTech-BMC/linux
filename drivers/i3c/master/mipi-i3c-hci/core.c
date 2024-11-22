@@ -994,6 +994,30 @@ ast2700_i3c_target_priv_xfers(struct i3c_dev_desc *dev,
 	return xfer;
 }
 
+int ast2700_i3c_target_put_rdata(struct i3c_dev_desc *dev,
+				 struct i3c_priv_xfer *i3c_xfers, int nxfers)
+{
+	struct i3c_master_controller *m = i3c_dev_get_master(dev);
+	struct i3c_hci *hci = to_i3c_hci(m);
+	struct hci_xfer *read_xfer;
+
+	reinit_completion(&hci->pending_r_comp);
+	read_xfer = ast2700_i3c_target_priv_xfers(dev, i3c_xfers, nxfers,
+						  TID_TARGET_RD_DATA);
+	if (!read_xfer)
+		return -EINVAL;
+
+	if (!wait_for_completion_interruptible_timeout(&hci->pending_r_comp,
+						       msecs_to_jiffies(1000))) {
+		dev_warn(&hci->master.dev, "timeout waiting for master read\n");
+		mipi_i3c_hci_pio_reset(hci);
+		return -EINVAL;
+	}
+	hci_free_xfer(read_xfer, 1);
+
+	return 0;
+}
+
 static int ast2700_i3c_target_generate_ibi(struct i3c_dev_desc *dev, const u8 *data, int len)
 {
 	struct i3c_master_controller *m = i3c_dev_get_master(dev);
@@ -1116,7 +1140,7 @@ static const struct i3c_target_ops ast2700_i3c_target_ops = {
 	.bus_init = ast2700_i3c_target_bus_init,
 	.bus_cleanup = ast2700_i3c_target_bus_cleanup,
 	.hj_req = ast2700_i3c_target_hj_req,
-	.priv_xfers = NULL,
+	.priv_xfers = ast2700_i3c_target_put_rdata,
 	.generate_ibi = ast2700_i3c_target_generate_ibi,
 	.pending_read_notify = ast2700_i3c_target_pending_read_notify,
 	.is_ibi_enabled = ast2700_i3c_target_is_ibi_enabled,
