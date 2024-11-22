@@ -253,7 +253,7 @@ config DA8XX_MSTPRI
 
 config ASPEED_LTPI
 	bool "Aspeed LTPI bus controller driver"
-	depends on MACH_ASPEED_G7
+	depends on ARCH_ASPEED
 	help
 	  LVDS Tunneling Protocol and Interface (LTPI) bus controller
 
