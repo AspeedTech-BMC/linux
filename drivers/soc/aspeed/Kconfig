@@ -99,30 +99,23 @@ config ASPEED_SBC
 	  Say yes to provide information about the secure boot controller in
 	  debugfs.
 
-config ASPEED_ESPI
-	tristate "ASPEED eSPI slave driver"
-	select AST2500_ESPI if MACH_ASPEED_G5
-	select AST2600_ESPI if MACH_ASPEED_G6
-	default n
+config AST2500_ESPI
+	tristate "ASPEED AST2500 eSPI slave driver"
 	help
-	  Enable driver support for the Aspeed eSPI engine. The eSPI engine
+	  Enable driver support for Aspeed AST2500 eSPI engine. The eSPI engine
 	  plays as a slave device in BMC to communicate with the Host over
 	  the eSPI interface. The four eSPI channels, namely peripheral,
 	  virtual wire, out-of-band, and flash are supported.
 
-config AST2500_ESPI
-	tristate
-	depends on ASPEED_ESPI
-	help
-	  Enable driver support for Aspeed AST2500 eSPI engine.
-
 config AST2600_ESPI
-	tristate
-	depends on ASPEED_ESPI
+	tristate "ASPEED AST2600 eSPI slave driver"
 	help
-	  Enable driver support for Aspeed AST2600 eSPI engine.
+	  Enable driver support for Aspeed AST2600 eSPI engine. The eSPI engine
+	  plays as a slave device in BMC to communicate with the Host over
+	  the eSPI interface. The four eSPI channels, namely peripheral,
+	  virtual wire, out-of-band, and flash are supported.
 
-config ASPEED_AST2700_ESPI
+config AST2700_ESPI
 	tristate "ASPEED AST2700 eSPI slave driver"
 	help
 	  Enable driver support for Aspeed AST2700 eSPI engine. The eSPI engine
