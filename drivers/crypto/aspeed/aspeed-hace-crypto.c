@@ -1225,7 +1225,7 @@ void aspeed_unregister_hace_crypto_algs(struct aspeed_hace_dev *hace_dev)
 		crypto_engine_unregister_skcipher(&aspeed_crypto_algs_g6[i].alg.skcipher);
 }
 
-#ifdef CONFIG_ASPEED_OTP
+#ifdef CONFIG_AST2600_OTP
 void find_vault_key(struct aspeed_hace_dev *hace_dev)
 {
 	struct aspeed_engine_crypto *crypto_engine = &hace_dev->crypto_engine;
@@ -1255,7 +1255,7 @@ void aspeed_register_hace_crypto_algs(struct aspeed_hace_dev *hace_dev)
 
 	CIPHER_DBG(hace_dev, "\n");
 
-#ifdef CONFIG_ASPEED_OTP
+#ifdef CONFIG_AST2600_OTP
 	find_vault_key(hace_dev);
 #else
 	hace_dev->crypto_engine.load_vault_key = 0;

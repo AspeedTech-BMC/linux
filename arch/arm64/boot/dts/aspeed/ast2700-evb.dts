@@ -948,6 +948,10 @@
 	status = "okay";
 };
 
+&hace {
+	status = "okay";
+};
+
 #if 1
 &pcie0_mmbi0 {
 	status = "okay";
