@@ -102,6 +102,10 @@
 	status = "okay";
 };
 
+&ltpi0_gpio {
+	status = "okay";
+};
+
 &uart3 {
 	/delete-property/ pinctrl-names;
 	/delete-property/ pinctrl-0;

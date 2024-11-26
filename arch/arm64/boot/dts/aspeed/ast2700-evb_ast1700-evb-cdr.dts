@@ -23,7 +23,15 @@
 	status = "okay";
 };
 
+&ltpi0_gpio {
+	status = "okay";
+};
+
 &ltpi1 {
+	status = "okay";
+};
+
+&ltpi1_gpio {
 	status = "okay";
 };
 

@@ -2294,6 +2294,7 @@
 			ngpios = <112>;
 			interrupt-controller;
 			#interrupt-cells = <2>;
+			status = "disabled";
 		};
 
 		ltpi1: ltpi@14c35000 {
@@ -2316,6 +2317,7 @@
 			ngpios = <112>;
 			interrupt-controller;
 			#interrupt-cells = <2>;
+			status = "disabled";
 		};
 
 		wdt0: watchdog@14c37000 {

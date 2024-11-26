@@ -456,6 +456,10 @@
 	status = "okay";
 };
 
+&ltpi0_gpio {
+	status = "okay";
+};
+
 &peci0 {
 	status = "okay";
 };
