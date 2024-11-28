@@ -179,12 +179,16 @@ static int aspeed_lpc_enable_snoop(struct aspeed_lpc_snoop *snoop,
 
 	/* Create FIFO datastructure */
 	rc = kfifo_alloc(&chan->fifo, SNOOP_FIFO_SIZE, GFP_KERNEL);
-	if (rc)
+	if (rc) {
+		dev_err(dev, "cannot allocate kFIFO\n");
 		return rc;
+	}
 
 	chan->id = ida_alloc(&aspeed_lpc_snoop_ida, GFP_KERNEL);
-	if (chan->id < 0)
+	if (chan->id < 0) {
+		dev_err(dev, "cannot allocate ID\n");
 		return chan->id;
+	}
 
 	chan->mdev.parent = dev;
 	chan->mdev.minor = MISC_DYNAMIC_MINOR;
@@ -192,8 +196,10 @@ static int aspeed_lpc_enable_snoop(struct aspeed_lpc_snoop *snoop,
 					 DEVICE_NAME, chan->id);
 	chan->mdev.fops = &snoop_fops;
 	rc = misc_register(&chan->mdev);
-	if (rc)
+	if (rc) {
+		dev_err(dev, "cannot register misc device\n");
 		return rc;
+	}
 
 	/* Enable LPC snoop channel at requested port */
 	switch (hw_channel) {

@@ -429,9 +429,10 @@ static int aspeed_pcc_probe(struct platform_device *pdev)
 		return pcc->mdev_id;
 	}
 
+	pcc->mdev.parent = dev;
+	pcc->mdev.minor = MISC_DYNAMIC_MINOR;
 	pcc->mdev.name = devm_kasprintf(dev, GFP_KERNEL, "%s%d", DEVICE_NAME,
 					pcc->mdev_id);
-	pcc->mdev.parent = dev;
 	pcc->mdev.fops = &pcc_fops;
 	rc = misc_register(&pcc->mdev);
 	if (rc) {
