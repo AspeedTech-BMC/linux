@@ -129,6 +129,7 @@
 			#size-cells = <0>;
 			reg = <0x0 0x50c20000 0x0 0x1000>;
 			interrupts-extended = <&ltpi1_intc1_1 0>;
+			i3c-scl-hz = <1000000>;
 			clocks = <&ltpi1_syscon SCU1_CLK_GATE_I3C0CLK>;
 			resets = <&ltpi1_syscon SCU1_RESET_I3C0>;
 			status = "disabled";
@@ -140,6 +141,7 @@
 			#size-cells = <0>;
 			reg = <0x0 0x50c21000 0x0 0x1000>;
 			interrupts-extended = <&ltpi1_intc1_1 1>;
+			i3c-scl-hz = <1000000>;
 			clocks = <&ltpi1_syscon SCU1_CLK_GATE_I3C1CLK>;
 			resets = <&ltpi1_syscon SCU1_RESET_I3C1>;
 			status = "disabled";
@@ -151,6 +153,7 @@
 			#size-cells = <0>;
 			reg = <0x0 0x50c22000 0x0 0x1000>;
 			interrupts-extended = <&ltpi1_intc1_1 2>;
+			i3c-scl-hz = <1000000>;
 			clocks = <&ltpi1_syscon SCU1_CLK_GATE_I3C2CLK>;
 			resets = <&ltpi1_syscon SCU1_RESET_I3C2>;
 			status = "disabled";
@@ -162,6 +165,7 @@
 			#size-cells = <0>;
 			reg = <0x0 0x50c23000 0x0 0x1000>;
 			interrupts-extended = <&ltpi1_intc1_1 3>;
+			i3c-scl-hz = <1000000>;
 			clocks = <&ltpi1_syscon SCU1_CLK_GATE_I3C3CLK>;
 			resets = <&ltpi1_syscon SCU1_RESET_I3C3>;
 			status = "disabled";
@@ -173,6 +177,7 @@
 			#size-cells = <0>;
 			reg = <0x0 0x50c24000 0x0 0x1000>;
 			interrupts-extended = <&ltpi1_intc1_1 4>;
+			i3c-scl-hz = <1000000>;
 			clocks = <&ltpi1_syscon AST1700_CLK_GATE_I3C4CLK>;
 			resets = <&ltpi1_syscon AST1700_RESET_I3C4>;
 			status = "disabled";
@@ -184,6 +189,7 @@
 			#size-cells = <0>;
 			reg = <0x0 0x50c25000 0x0 0x1000>;
 			interrupts-extended = <&ltpi1_intc1_1 5>;
+			i3c-scl-hz = <1000000>;
 			clocks = <&ltpi1_syscon AST1700_CLK_GATE_I3C5CLK>;
 			resets = <&ltpi1_syscon AST1700_RESET_I3C5>;
 			status = "disabled";
@@ -195,6 +201,7 @@
 			#size-cells = <0>;
 			reg = <0x0 0x50c26000 0x0 0x1000>;
 			interrupts-extended = <&ltpi1_intc1_1 6>;
+			i3c-scl-hz = <1000000>;
 			clocks = <&ltpi1_syscon AST1700_CLK_GATE_I3C6CLK>;
 			resets = <&ltpi1_syscon AST1700_RESET_I3C6>;
 			status = "disabled";
@@ -206,6 +213,7 @@
 			#size-cells = <0>;
 			reg = <0x0 0x50c27000 0x0 0x1000>;
 			interrupts-extended = <&ltpi1_intc1_1 7>;
+			i3c-scl-hz = <1000000>;
 			clocks = <&ltpi1_syscon AST1700_CLK_GATE_I3C7CLK>;
 			resets = <&ltpi1_syscon AST1700_RESET_I3C7>;
 			status = "disabled";
@@ -217,6 +225,7 @@
 			#size-cells = <0>;
 			reg = <0x0 0x50c28000 0x0 0x1000>;
 			interrupts-extended = <&ltpi1_intc1_1 8>;
+			i3c-scl-hz = <1000000>;
 			clocks = <&ltpi1_syscon AST1700_CLK_GATE_I3C8CLK>;
 			resets = <&ltpi1_syscon AST1700_RESET_I3C8>;
 			status = "disabled";
@@ -228,6 +237,7 @@
 			#size-cells = <0>;
 			reg = <0x0 0x50c29000 0x0 0x1000>;
 			interrupts-extended = <&ltpi1_intc1_1 9>;
+			i3c-scl-hz = <1000000>;
 			clocks = <&ltpi1_syscon AST1700_CLK_GATE_I3C9CLK>;
 			resets = <&ltpi1_syscon AST1700_RESET_I3C9>;
 			status = "disabled";
@@ -239,6 +249,7 @@
 			#size-cells = <0>;
 			reg = <0x0 0x50c2a000 0x0 0x1000>;
 			interrupts-extended = <&ltpi1_intc1_1 10>;
+			i3c-scl-hz = <1000000>;
 			clocks = <&ltpi1_syscon AST1700_CLK_GATE_I3C10CLK>;
 			resets = <&ltpi1_syscon AST1700_RESET_I3C10>;
 			status = "disabled";
@@ -250,6 +261,7 @@
 			#size-cells = <0>;
 			reg = <0x0 0x50c2b000 0x0 0x1000>;
 			interrupts-extended = <&ltpi1_intc1_1 11>;
+			i3c-scl-hz = <1000000>;
 			clocks = <&ltpi1_syscon AST1700_CLK_GATE_I3C11CLK>;
 			resets = <&ltpi1_syscon AST1700_RESET_I3C11>;
 			status = "disabled";
@@ -261,6 +273,7 @@
 			#size-cells = <0>;
 			reg = <0x0 0x50c2c000 0x0 0x1000>;
 			interrupts-extended = <&ltpi1_intc1_1 12>;
+			i3c-scl-hz = <1000000>;
 			clocks = <&ltpi1_syscon SCU1_CLK_GATE_I3C12CLK>;
 			resets = <&ltpi1_syscon SCU1_RESET_I3C12>;
 			status = "disabled";
@@ -272,6 +285,7 @@
 			#size-cells = <0>;
 			reg = <0x0 0x50c2d000 0x0 0x1000>;
 			interrupts-extended = <&ltpi1_intc1_1 13>;
+			i3c-scl-hz = <1000000>;
 			clocks = <&ltpi1_syscon SCU1_CLK_GATE_I3C13CLK>;
 			resets = <&ltpi1_syscon SCU1_RESET_I3C13>;
 			status = "disabled";
@@ -283,6 +297,7 @@
 			#size-cells = <0>;
 			reg = <0x0 0x50c2e000 0x0 0x1000>;
 			interrupts-extended = <&ltpi1_intc1_1 14>;
+			i3c-scl-hz = <1000000>;
 			clocks = <&ltpi1_syscon SCU1_CLK_GATE_I3C14CLK>;
 			resets = <&ltpi1_syscon SCU1_RESET_I3C14>;
 			status = "disabled";
@@ -294,6 +309,7 @@
 			#size-cells = <0>;
 			reg = <0x0 0x50c2f000 0x0 0x1000>;
 			interrupts-extended = <&ltpi1_intc1_1 15>;
+			i3c-scl-hz = <1000000>;
 			clocks = <&ltpi1_syscon SCU1_CLK_GATE_I3C15CLK>;
 			resets = <&ltpi1_syscon SCU1_RESET_I3C15>;
 			status = "disabled";
