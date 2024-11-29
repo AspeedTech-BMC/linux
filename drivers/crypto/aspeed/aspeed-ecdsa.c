@@ -108,19 +108,19 @@ static int aspeed_ecdsa_wait_complete(struct aspeed_ecdsa_dev *ecdsa_dev)
 
 	sts = ast_read(ecdsa_dev, ASPEED_ECC_STS_REG) & ECC_VERIFY_PASS;
 	if (sts == ECC_VERIFY_PASS) {
-		AST_DBG(ecdsa_dev, "Verify PASS !\n");
-
 		ecdsa_engine->results = 0;
-		/* Stop ECDSA engine */
-		if (ecdsa_engine->flags & CRYPTO_FLAGS_BUSY)
-			tasklet_schedule(&ecdsa_engine->done_task);
-		else
-			dev_err(ecdsa_dev->dev, "ECDSA no active requests.\n");
+		AST_DBG(ecdsa_dev, "Verify PASS !\n");
 
 	} else {
 		ecdsa_engine->results = -EKEYREJECTED;
 		AST_DBG(ecdsa_dev, "Verify FAILED !\n");
 	}
+
+	/* Stop ECDSA engine */
+	if (ecdsa_engine->flags & CRYPTO_FLAGS_BUSY)
+		tasklet_schedule(&ecdsa_engine->done_task);
+	else
+		dev_err(ecdsa_dev->dev, "ECDSA no active requests.\n");
 
 	return ecdsa_engine->results;
 }
@@ -533,6 +533,7 @@ static struct aspeed_ecdsa_alg aspeed_ecdsa_nist_p256 = {
 			.cra_module = THIS_MODULE,
 			.cra_ctxsize = sizeof(struct aspeed_ecc_ctx),
 			.cra_flags = CRYPTO_ALG_TYPE_AKCIPHER |
+				     CRYPTO_ALG_KERN_DRIVER_ONLY |
 				     CRYPTO_ALG_NEED_FALLBACK,
 		},
 	},
@@ -555,6 +556,7 @@ static struct aspeed_ecdsa_alg aspeed_ecdsa_nist_p384 = {
 			.cra_module = THIS_MODULE,
 			.cra_ctxsize = sizeof(struct aspeed_ecc_ctx),
 			.cra_flags = CRYPTO_ALG_TYPE_AKCIPHER |
+				     CRYPTO_ALG_KERN_DRIVER_ONLY |
 				     CRYPTO_ALG_NEED_FALLBACK,
 		},
 	},
