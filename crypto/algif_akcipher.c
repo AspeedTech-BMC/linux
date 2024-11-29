@@ -106,6 +106,10 @@ static int _akcipher_recvmsg(struct socket *sock, struct msghdr *msg,
 	sg_init_table(areq->tsgl, areq->tsgl_entries);
 	af_alg_pull_tsgl(sk, used, areq->tsgl, 0);
 
+	/* Handle specific operation: verify op */
+	if (ctx->op == ALG_OP_VERIFY)
+		used -= len;
+
 	/* Initialize the crypto operation */
 	akcipher_request_set_tfm(&areq->cra_u.akcipher_req, tfm);
 	akcipher_request_set_crypt(&areq->cra_u.akcipher_req, areq->tsgl,
