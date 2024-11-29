@@ -107,6 +107,7 @@
 			reg = <0x0 0x30c24000 0x0 0x1000>;
 			interrupts-extended = <&intc0_6 6>;
 			clocks = <&ltpi0_syscon AST1700_CLK_GATE_I3C4CLK>;
+			i3c-scl-hz = <1000000>;
 			resets = <&ltpi0_syscon AST1700_RESET_I3C4>;
 			status = "disabled";
 		};
@@ -118,6 +119,7 @@
 			reg = <0x0 0x30c25000 0x0 0x1000>;
 			interrupts-extended = <&intc0_6 7>;
 			clocks = <&ltpi0_syscon AST1700_CLK_GATE_I3C5CLK>;
+			i3c-scl-hz = <1000000>;
 			resets = <&ltpi0_syscon AST1700_RESET_I3C5>;
 			status = "disabled";
 		};
@@ -129,6 +131,7 @@
 			reg = <0x0 0x30c26000 0x0 0x1000>;
 			interrupts-extended = <&intc0_6 8>;
 			clocks = <&ltpi0_syscon AST1700_CLK_GATE_I3C6CLK>;
+			i3c-scl-hz = <1000000>;
 			resets = <&ltpi0_syscon AST1700_RESET_I3C6>;
 			status = "disabled";
 		};
@@ -140,6 +143,7 @@
 			reg = <0x0 0x30c27000 0x0 0x1000>;
 			interrupts-extended = <&intc0_6 9>;
 			clocks = <&ltpi0_syscon AST1700_CLK_GATE_I3C7CLK>;
+			i3c-scl-hz = <1000000>;
 			resets = <&ltpi0_syscon AST1700_RESET_I3C7>;
 			status = "disabled";
 		};
@@ -150,6 +154,7 @@
 			#size-cells = <0>;
 			reg = <0x0 0x30c28000 0x0 0x1000>;
 			interrupts-extended = <&intc0_6 10>;
+			i3c-scl-hz = <1000000>;
 			clocks = <&ltpi0_syscon AST1700_CLK_GATE_I3C8CLK>;
 			resets = <&ltpi0_syscon AST1700_RESET_I3C8>;
 			status = "disabled";
@@ -161,6 +166,7 @@
 			#size-cells = <0>;
 			reg = <0x0 0x30c29000 0x0 0x1000>;
 			interrupts-extended = <&intc0_6 11>;
+			i3c-scl-hz = <1000000>;
 			clocks = <&ltpi0_syscon AST1700_CLK_GATE_I3C9CLK>;
 			resets = <&ltpi0_syscon AST1700_RESET_I3C9>;
 			status = "disabled";
@@ -172,6 +178,7 @@
 			#size-cells = <0>;
 			reg = <0x0 0x30c2a000 0x0 0x1000>;
 			interrupts-extended = <&intc0_6 12>;
+			i3c-scl-hz = <1000000>;
 			clocks = <&ltpi0_syscon AST1700_CLK_GATE_I3C10CLK>;
 			resets = <&ltpi0_syscon AST1700_RESET_I3C10>;
 			status = "disabled";
@@ -183,6 +190,7 @@
 			#size-cells = <0>;
 			reg = <0x0 0x30c2b000 0x0 0x1000>;
 			interrupts-extended = <&intc0_6 13>;
+			i3c-scl-hz = <1000000>;
 			clocks = <&ltpi0_syscon AST1700_CLK_GATE_I3C11CLK>;
 			resets = <&ltpi0_syscon AST1700_RESET_I3C11>;
 			status = "disabled";
