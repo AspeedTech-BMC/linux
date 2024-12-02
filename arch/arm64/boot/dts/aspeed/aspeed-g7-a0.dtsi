@@ -2058,13 +2058,13 @@
 		};
 
 		wdt0: watchdog@14c37000 {
-			compatible = "aspeed,ast2700-wdt";
-			reg = <0x0 0x14c37000 0x0 0x40>;
+			compatible = "aspeed,ast2700a0-wdt";
+			reg = <0x0 0x14c37000 0x0 0x80>;
 		};
 
 		wdt1: watchdog@14c37080 {
-			compatible = "aspeed,ast2700-wdt";
-			reg = <0x0 0x14c37080 0x0 0x40>;
+			compatible = "aspeed,ast2700a0-wdt";
+			reg = <0x0 0x14c37080 0x0 0x80>;
 		};
 
 		sgpios: sgpios@14c3c000 {
