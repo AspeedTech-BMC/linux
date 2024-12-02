@@ -146,19 +146,9 @@ struct ast2700_clk_fixed_rate_data {
 
 struct ast2700_clk_info {
 	const char *name;
-	const char * const *parent_names;
-	const struct clk_div_table *div_table;
-	unsigned long fixed_rate;
-	unsigned int mult;
-	unsigned int div;
-	u32 reg;
-	u32 flags;
-	u32 type;
 	u8 clk_idx;
-	u8 bit_shift;
-	u8 bit_width;
-	u8 num_parents;
-
+	u32 reg;
+	u32 type;
 	union {
 		struct ast2700_clk_fixed_factor_data factor;
 		struct ast2700_clk_fixed_rate_data rate;
