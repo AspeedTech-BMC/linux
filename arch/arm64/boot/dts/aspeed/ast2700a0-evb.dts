@@ -576,7 +576,7 @@
 		spi-max-frequency = <50000000>;
 		spi-tx-bus-width = <4>;
 		spi-rx-bus-width = <4>;
-#include "aspeed-flash-layout-128-a0.dtsi"
+#include "aspeed-evb-flash-layout-128-a0.dtsi"
 	};
 
 	flash@1 {
