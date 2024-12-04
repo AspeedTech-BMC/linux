@@ -68,7 +68,7 @@
 #define AST2600_I2CC_SDA_DRIVE_1T_EN		BIT(8)
 #define AST2600_I2CC_M_SDA_DRIVE_1T_EN		BIT(7)
 #define AST2600_I2CC_M_HIGH_SPEED_EN		BIT(6)
-#define AST2600_I2CC_4T_DEBOUNCE			GENMASK(5, 4)
+#define AST2700_I2CC_MANUAL_DEBOUNCE		GENMASK(5, 4)
 /* reserver 5 : 2 */
 #define AST2600_I2CC_SLAVE_EN			BIT(1)
 #define AST2600_I2CC_MASTER_EN			BIT(0)
@@ -257,6 +257,12 @@
 #define MSIC_CONFIG_ACTIMING1		0x74
 #define MSIC_I2C_SET_TIMEOUT(s, m)		(((s) << 16) | (m))
 
+/* 0x9c : Misc 2 Debounce Setting */
+#define MSIC2_CONFIG				0x94
+#define AST2700_DEBOUNCE_MASK		GENMASK_ULL(7, 0)
+#define AST2700_DEBOUNCE_LEVEL_MAX	0x20
+#define AST2700_DEBOUNCE_LEVEL_MIN	0x2
+
 #define I2C_SLAVE_MSG_BUF_SIZE		4096
 
 #define AST2600_I2C_DMA_SIZE		4096
@@ -302,6 +308,7 @@ struct ast2600_i2c_bus {
 	enum xfer_mode			mode;
 	enum i2c_version		version;
 	bool				multi_master;
+	u8					debounce_level;
 	/* Buffer mode */
 	void __iomem			*buf_base;
 	int				ast2700_workaround;
@@ -1854,7 +1861,7 @@ master_out:
 static void ast2600_i2c_init(struct ast2600_i2c_bus *i2c_bus)
 {
 	struct platform_device *pdev = to_platform_device(i2c_bus->dev);
-	u32 fun_ctrl = AST2600_I2CC_BUS_AUTO_RELEASE | AST2600_I2CC_MASTER_EN | AST2600_I2CC_4T_DEBOUNCE;
+	u32 fun_ctrl = AST2600_I2CC_BUS_AUTO_RELEASE | AST2600_I2CC_MASTER_EN;
 
 	/* I2C Reset */
 	writel(0, i2c_bus->reg_base + AST2600_I2CC_FUN_CTRL);
@@ -1862,6 +1869,26 @@ static void ast2600_i2c_init(struct ast2600_i2c_bus *i2c_bus)
 	i2c_bus->multi_master = device_property_read_bool(&pdev->dev, "multi-master");
 	if (!i2c_bus->multi_master)
 		fun_ctrl |= AST2600_I2CC_MULTI_MASTER_DIS;
+
+	/* I2C Debounce level */
+	if (device_property_read_u8(&pdev->dev, "debounce-level", &i2c_bus->debounce_level)) {
+		u32 debounce_level = 0;
+
+		/* AST2700 support manual debounce setting */
+		if (i2c_bus->version == AST2700) {
+			if (i2c_bus->debounce_level > AST2700_DEBOUNCE_LEVEL_MAX)
+				i2c_bus->debounce_level = AST2700_DEBOUNCE_LEVEL_MAX;
+			if (i2c_bus->debounce_level < AST2700_DEBOUNCE_LEVEL_MIN)
+				i2c_bus->debounce_level = AST2700_DEBOUNCE_LEVEL_MIN;
+		}
+
+		debounce_level = readl(i2c_bus->reg_base + MSIC2_CONFIG)
+		& AST2700_DEBOUNCE_MASK;
+		debounce_level |= i2c_bus->debounce_level;
+		writel(debounce_level, i2c_bus->reg_base + MSIC2_CONFIG);
+
+		fun_ctrl |= AST2700_I2CC_MANUAL_DEBOUNCE;
+	}
 
 	/* Enable Master Mode */
 	writel(fun_ctrl, i2c_bus->reg_base + AST2600_I2CC_FUN_CTRL);
