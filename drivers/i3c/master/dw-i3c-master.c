@@ -1535,11 +1535,28 @@ static int dw_i3c_target_priv_xfers(struct i3c_dev_desc *dev,
 	return 0;
 }
 
-static int dw_i3c_target_generate_ibi(struct i3c_dev_desc *dev, const u8 *data, int len)
+static int dw_i3c_target_reset_controller(struct dw_i3c_master *master)
+{
+	int ret;
+
+	ret = reset_control_assert(master->core_rst);
+	if (ret)
+		return ret;
+
+	ret = reset_control_deassert(master->core_rst);
+	if (ret)
+		return ret;
+
+	return dw_i3c_target_bus_init(&master->base);
+}
+
+static int dw_i3c_target_generate_ibi(struct i3c_dev_desc *dev, const u8 *data,
+				      int len)
 {
 	struct i3c_master_controller *m = i3c_dev_get_master(dev);
 	struct dw_i3c_master *master = to_dw_i3c_master(m);
 	u32 reg;
+	int ret;
 
 	if (data || len != 0)
 		return -EOPNOTSUPP;
@@ -1552,7 +1569,13 @@ static int dw_i3c_target_generate_ibi(struct i3c_dev_desc *dev, const u8 *data, 
 	writel(1, master->regs + SLV_INTR_REQ);
 
 	if (!wait_for_completion_timeout(&master->target.comp, XFER_TIMEOUT)) {
-		dev_warn(&master->base.dev, "Timeout waiting for completion\n");
+		dev_warn(&master->base.dev, "Timeout waiting for completion: Reset controller\n");
+		kfree(master->target.rx.buf);
+
+		ret = dw_i3c_target_reset_controller(master);
+		if (ret)
+			dev_warn(&master->base.dev, "Reset controller failure: %d\n", ret);
+
 		return -EINVAL;
 	}
 
@@ -1634,7 +1657,6 @@ static int dw_i3c_target_pending_read_notify(struct i3c_dev_desc *dev,
 	ret = dw_i3c_target_generate_ibi(dev, NULL, 0);
 	if (ret) {
 		dev_warn(&master->base.dev, "Timeout waiting for completion: IBI MDB\n");
-		dw_i3c_target_reset_queue(master);
 		return -EINVAL;
 	}
 
