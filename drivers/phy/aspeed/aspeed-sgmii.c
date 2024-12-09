@@ -36,7 +36,7 @@ struct aspeed_sgmii {
 	struct regmap *plda_regmap;
 };
 
-static int aspeed_sgmii_phy_init(struct phy *phy)
+static void aspeed_sgmii_set_nway(struct phy *phy)
 {
 	struct aspeed_sgmii *sgmii = phy_get_drvdata(phy);
 	u32 reg;
@@ -61,6 +61,34 @@ static int aspeed_sgmii_phy_init(struct phy *phy)
 	writel(SGMII_PCTL_TX_DEEMPH_3_5DB, sgmii->regs + SGMII_PHY_PIPE_CTL);
 	reg = SGMII_MODE_USE_LOCAL_CONFIG | SGMII_MODE_ENABLE;
 	writel(reg, sgmii->regs + SGMII_MODE);
+}
+
+static void aspeed_sgmii_set_2_5g(struct phy *phy)
+{
+	struct aspeed_sgmii *sgmii = phy_get_drvdata(phy);
+	u32 reg;
+
+	/* For HiSGMII 2.5G speed */
+	reg = PLDA_CLK_SEL_INTERNAL_25M | FIELD_PREP(PLDA_CLK_FREQ_MULTI, 0x64);
+	regmap_write(sgmii->plda_regmap, PLDA_CLK, reg);
+
+	writel(0, sgmii->regs + SGMII_MODE);
+
+	writel(SGMII_CFG_FIFO_MODE, sgmii->regs + SGMII_CFG);
+	reg = SGMII_CFG_SW_RESET | SGMII_CFG_PWR_DOWN | SGMII_CFG_FIFO_MODE;
+	writel(reg, sgmii->regs + SGMII_CFG);
+
+	reg = SGMII_CFG_FIFO_MODE | SGMII_CFG_SPEED_1G;
+	writel(reg, sgmii->regs + SGMII_CFG);
+
+	writel(SGMII_PCTL_TX_DEEMPH_3_5DB, sgmii->regs + SGMII_PHY_PIPE_CTL);
+	reg = SGMII_MODE_USE_LOCAL_CONFIG | SGMII_MODE_ENABLE;
+	writel(reg, sgmii->regs + SGMII_MODE);
+}
+
+static int aspeed_sgmii_phy_init(struct phy *phy)
+{
+	aspeed_sgmii_set_nway(phy);
 
 	return 0;
 }
@@ -77,30 +105,10 @@ static int aspeed_sgmii_phy_exit(struct phy *phy)
 
 static int aspeed_sgmii_phy_set_speed(struct phy *phy, int speed)
 {
-	struct aspeed_sgmii *sgmii = phy_get_drvdata(phy);
-	u32 reg;
-
-	reg = SGMII_CFG_FIFO_MODE;
-	switch (speed) {
-	case SPEED_1000:
-	case SPEED_2500:
-		reg |= SGMII_CFG_SPEED_1G;
-		break;
-	case SPEED_100:
-		reg |= SGMII_CFG_SPEED_100M;
-		break;
-	case SPEED_10:
-	default:
-		reg |= SGMII_CFG_SPEED_10M;
-		break;
-	}
-	writel(reg, sgmii->regs + SGMII_CFG);
-
-	if (speed == SPEED_2500) {
-		/* For HiSGMII 2.5G speed */
-		reg = PLDA_CLK_SEL_INTERNAL_25M | FIELD_PREP(PLDA_CLK_FREQ_MULTI, 0x64);
-		regmap_write(sgmii->plda_regmap, PLDA_CLK, reg);
-	}
+	if (speed == SPEED_2500)
+		aspeed_sgmii_set_2_5g(phy);
+	else
+		aspeed_sgmii_set_nway(phy);
 
 	return 0;
 }
