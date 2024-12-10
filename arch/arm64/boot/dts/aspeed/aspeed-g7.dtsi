@@ -559,14 +559,6 @@
 				interrupt-controller;
 			};
 
-			soc0_rst: reset-controller@200 {
-				reg = <0 0x200 0 0x40>;
-			};
-
-			soc0_clk: clock-controller@240 {
-				reg = <0 0x240 0 0x1c0>;
-			};
-
 			pinctrl0: pinctrl@400 {
 				compatible = "aspeed,ast2700-soc0-pinctrl";
 				reg = <0 0x400 0 0x600>;
@@ -1450,14 +1442,6 @@
 				reg = <0 0x108 0 0x8>;
 				interrupts-extended = <&intc1_5 26>;
 				interrupt-controller;
-			};
-
-			soc1_rst: reset-controller@200 {
-				#reset-cells = <1>;
-			};
-
-			soc1_clk: clock-controller@240 {
-				reg = <0 0x240 0 0x1c0>;
 			};
 
 			pinctrl1: pinctrl@400 {
