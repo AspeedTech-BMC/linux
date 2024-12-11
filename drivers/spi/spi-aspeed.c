@@ -1165,12 +1165,6 @@ static int aspeed_spi_dirmap_create(struct spi_mem_dirmap_desc *desc)
 		ast_ctrl->chips[target_cs].max_clk_freq =
 			desc->mem->spi->max_speed_hz;
 
-		ast_ctrl->disable_calib = false;
-		if (!of_property_read_bool(ast_ctrl->dev->of_node,
-			"timing-calibration-disabled")) {
-			ast_ctrl->disable_calib = true;
-		}
-
 		ret = info->calibrate(ast_ctrl, target_cs);
 
 		dev_info(dev, "read bus width: %d [0x%08x]\n",
@@ -1295,6 +1289,32 @@ static const struct spi_controller_mem_ops aspeed_spi_ops_cmd_read_dma_write = {
 	.dirmap_read = aspeed_spi_dirmap_cmd_read,
 	.dirmap_write = aspeed_spi_dirmap_dma_write,
 };
+
+static int aspeed_spi_setup(struct spi_device *spi)
+{
+	struct aspeed_spi_controller *ast_ctrl =
+			spi_controller_get_devdata(spi->controller);
+	uint32_t max_freq = spi->max_speed_hz;
+	uint32_t hclk_div;
+	uint32_t cs = spi->chip_select;
+	uint32_t reg_val;
+	uint32_t i;
+	struct aspeed_spi_chip *chip = &ast_ctrl->chips[cs];
+
+	if (ast_ctrl->disable_calib) {
+		/* configure SPI clock frequency */
+		hclk_div = aspeed_2600_spi_clk_basic_setting(ast_ctrl, &max_freq);
+		reg_val = readl(ast_ctrl->regs + OFFSET_CE0_CTRL_REG + cs * 4);
+		reg_val = (reg_val & 0xf0fff0ff) | hclk_div;
+		writel(reg_val, ast_ctrl->regs + OFFSET_CE0_CTRL_REG + cs * 4);
+
+		/* add clock setting info for CE ctrl setting */
+		for (i = 0; i < ASPEED_SPI_MAX; i++)
+			chip->ctrl_val[i] = (chip->ctrl_val[i] & 0xf0fff0ff) | hclk_div;
+	}
+
+	return 0;
+}
 
 /*
  * Initialize SPI controller for each chip select.
@@ -1433,6 +1453,10 @@ static int aspeed_spi_probe(struct platform_device *pdev)
 	if (of_property_read_bool(dev->of_node, "spi-quad-address"))
 		ast_ctrl->flag |= ASPEED_SPI_QUAD_ADDR_SUPPORT;
 
+	ast_ctrl->disable_calib = false;
+	if (of_property_read_bool(dev->of_node, "timing-calibration-disabled"))
+		ast_ctrl->disable_calib = true;
+
 	ast_ctrl->irq = platform_get_irq(pdev, 0);
 	if (ast_ctrl->irq < 0) {
 		dev_err(dev, "fail to get irq (%d)\n", ast_ctrl->irq);
@@ -1470,6 +1494,7 @@ static int aspeed_spi_probe(struct platform_device *pdev)
 
 	spi_ctrl->dev.of_node = dev->of_node;
 	spi_ctrl->num_chipselect = ast_ctrl->num_cs;
+	spi_ctrl->setup = aspeed_spi_setup;
 
 	ret = aspeed_spi_ctrl_init(ast_ctrl);
 	if (ret)
