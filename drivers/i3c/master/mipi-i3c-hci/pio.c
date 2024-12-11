@@ -606,13 +606,12 @@ static bool hci_pio_process_resp(struct i3c_hci *hci, struct hci_pio_data *pio)
 				}
 			} else {
 				/* ibi or master read or HDR read */
-				if (!TARGET_RESP_CCC_HDR(resp) ||
-				    TARGET_RESP_CCC_HDR(resp) & 0x80) {
-					if (TARGET_RESP_TID_A0(resp) ==
-					    TID_TARGET_IBI)
+				if (!TARGET_RESP_STATUS(resp) &&
+				    (!TARGET_RESP_CCC_HDR(resp) ||
+				     TARGET_RESP_CCC_HDR(resp) & 0x80)) {
+					if (TARGET_RESP_TID_A0(resp) == TID_TARGET_IBI)
 						complete(&hci->ibi_comp);
-					else if (TARGET_RESP_TID_A0(resp) ==
-						 TID_TARGET_RD_DATA)
+					else if (TARGET_RESP_TID_A0(resp) == TID_TARGET_RD_DATA)
 						complete(&hci->pending_r_comp);
 				}
 			}
@@ -649,6 +648,12 @@ static bool hci_pio_process_resp(struct i3c_hci *hci, struct hci_pio_data *pio)
 					 TID_TARGET_RD_DATA)
 					complete(&hci->pending_r_comp);
 			}
+		}
+		if (TARGET_RESP_STATUS(resp) >= TARGET_RESP_ERR_CRC &&
+		    TARGET_RESP_STATUS(resp) <= TARGET_RESP_ERR_I2C_READ_TOO_MUCH) {
+			dev_err(&hci->master.dev, "Target Xfer Error: 0x%lx",
+				TARGET_RESP_STATUS(resp));
+			hci_pio_err(hci, pio, 0);
 		}
 		/* Keep the response interrupt enable*/
 		return false;
