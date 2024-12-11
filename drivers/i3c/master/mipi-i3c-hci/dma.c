@@ -560,12 +560,18 @@ static void hci_dma_xfer_done(struct i3c_hci *hci, struct hci_rh_data *rh)
 			    TARGET_RESP_TID(resp), TARGET_RESP_CCC_HDR(resp),
 			    TARGET_RESP_DATA_LENGTH(resp));
 			/* ibi or master read or HDR read */
-			if (!TARGET_RESP_CCC_INDICATE(resp)) {
+			if (!TARGET_RESP_STATUS(resp) && !TARGET_RESP_CCC_INDICATE(resp)) {
 				if (TARGET_RESP_TID(resp) == TID_TARGET_IBI)
 					complete(&hci->ibi_comp);
-				else if (TARGET_RESP_TID(resp) ==
-					 TID_TARGET_RD_DATA)
+				else if (TARGET_RESP_TID(resp) == TID_TARGET_RD_DATA)
 					complete(&hci->pending_r_comp);
+			}
+
+			if (TARGET_RESP_STATUS(resp) >= TARGET_RESP_ERR_CRC &&
+			    TARGET_RESP_STATUS(resp) <= TARGET_RESP_ERR_I2C_READ_TOO_MUCH) {
+				dev_err(&hci->master.dev, "Target Xfer Error: 0x%lx",
+					TARGET_RESP_STATUS(resp));
+				mipi_i3c_hci_resume(hci);
 			}
 		}
 		xfer = rh->src_xfers[done_ptr];
