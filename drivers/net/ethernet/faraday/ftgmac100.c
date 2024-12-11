@@ -2031,10 +2031,10 @@ static int ftgmac100_probe(struct platform_device *pdev)
 	}
 
 	priv->rst = devm_reset_control_get_optional_exclusive(priv->dev, NULL);
-	if (IS_ERR(priv->rst))
+	if (IS_ERR(priv->rst)) {
+		err = PTR_ERR(priv->rst);
 		goto err_register_netdev;
-	if (!priv->rst)
-		dev_info(&pdev->dev, "no reset control found\n");
+	}
 
 	err = reset_control_assert(priv->rst);
 	if (err) {
