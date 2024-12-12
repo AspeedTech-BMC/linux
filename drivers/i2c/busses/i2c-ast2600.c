@@ -270,7 +270,8 @@
 #define MASTER_TRIGGER_LAST_STOP	(AST2600_I2CM_RX_CMD_LAST | AST2600_I2CM_STOP_CMD)
 #define SLAVE_TRIGGER_CMD	(AST2600_I2CS_ACTIVE_ALL | AST2600_I2CS_PKT_MODE_EN)
 
-#define AST_I2C_TIMEOUT_CLK		0x1
+#define AST2600_I2C_TIMEOUT_CLK		0x1
+#define AST2700_I2C_TIMEOUT_CLK		0x3
 
 enum xfer_mode {
 	BYTE_MODE,
@@ -357,15 +358,9 @@ static u32 ast2600_select_i2c_clock(struct ast2600_i2c_bus *i2c_bus)
 	scl_high = (divisor - scl_low - 2) & GENMASK(3, 0);
 	data = (scl_high - 1) << 20 | scl_high << 16 | scl_low << 12 | baseclk_idx;
 	if (i2c_bus->timeout) {
-		if (i2c_bus->version == AST2600) {
-			i2c_bus->timeout = min(divisor, 31);
-			data |= AST2600_I2CC_TTIMEOUT(i2c_bus->timeout);
-		} else {
-			i2c_bus->timeout = min(divisor, 255);
-			writel(MSIC_I2C_SET_TIMEOUT(i2c_bus->timeout, i2c_bus->timeout),
-			       i2c_bus->reg_base + MSIC_CONFIG_ACTIMING1);
-		}
-		data |= AST2600_I2CC_TOUTBASECLK(AST_I2C_TIMEOUT_CLK);
+		i2c_bus->timeout = min(divisor, 31);
+		data |= AST2600_I2CC_TTIMEOUT(i2c_bus->timeout);
+		data |= AST2600_I2CC_TOUTBASECLK(AST2600_I2C_TIMEOUT_CLK);
 	}
 
 	return data;
@@ -394,6 +389,12 @@ static u32 ast2700_select_i2c_clock(struct ast2600_i2c_bus *i2c_bus)
 	scl_low = min(divisor * 9 / 16 - 1, 15);
 	scl_high = (divisor - scl_low - 2) & GENMASK(3, 0);
 	data = (scl_high - 1) << 20 | scl_high << 16 | scl_low << 12 | baseclk_idx;
+	if (i2c_bus->timeout) {
+		i2c_bus->timeout = min(i2c_bus->timeout, 255);
+		writel(MSIC_I2C_SET_TIMEOUT(i2c_bus->timeout, i2c_bus->timeout),
+		       i2c_bus->reg_base + MSIC_CONFIG_ACTIMING1);
+		data |= AST2600_I2CC_TOUTBASECLK(AST2700_I2C_TIMEOUT_CLK);
+	}
 
 	return data;
 }
