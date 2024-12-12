@@ -371,6 +371,33 @@ static u32 ast2600_select_i2c_clock(struct ast2600_i2c_bus *i2c_bus)
 	return data;
 }
 
+static u32 ast2700_select_i2c_clock(struct ast2600_i2c_bus *i2c_bus)
+{
+	unsigned long base_clk;
+	int baseclk_idx = 0;
+	int divisor = 0;
+	u32 scl_low;
+	u32 scl_high;
+	u32 data;
+
+	for (int i = 0; i < 0x100; i++) {
+		base_clk = (i2c_bus->apb_clk) / (i + 1);
+		if ((base_clk / i2c_bus->timing_info.bus_freq_hz) <= 32) {
+			baseclk_idx = i;
+			divisor = DIV_ROUND_UP(base_clk, i2c_bus->timing_info.bus_freq_hz);
+			break;
+		}
+	}
+
+	baseclk_idx = min(baseclk_idx, 0xff);
+	divisor = min(divisor, 32);
+	scl_low = min(divisor * 9 / 16 - 1, 15);
+	scl_high = (divisor - scl_low - 2) & GENMASK(3, 0);
+	data = (scl_high - 1) << 20 | scl_high << 16 | scl_low << 12 | baseclk_idx;
+
+	return data;
+}
+
 static u8 ast2600_i2c_recover_bus(struct ast2600_i2c_bus *i2c_bus)
 {
 	u32 state = readl(i2c_bus->reg_base + AST2600_I2CC_STS_AND_BUFF);
@@ -1899,7 +1926,10 @@ static void ast2600_i2c_init(struct ast2600_i2c_bus *i2c_bus)
 	writel(0, i2c_bus->reg_base + AST2600_I2CS_ADDR_CTRL);
 
 	/* Set AC Timing */
-	writel(ast2600_select_i2c_clock(i2c_bus), i2c_bus->reg_base + AST2600_I2CC_AC_TIMING);
+	if (i2c_bus->version == AST2700)
+		writel(ast2700_select_i2c_clock(i2c_bus), i2c_bus->reg_base + AST2600_I2CC_AC_TIMING);
+	else
+		writel(ast2600_select_i2c_clock(i2c_bus), i2c_bus->reg_base + AST2600_I2CC_AC_TIMING);
 
 	/* Clear Interrupt */
 	writel(GENMASK(27, 0), i2c_bus->reg_base + AST2600_I2CM_ISR);
