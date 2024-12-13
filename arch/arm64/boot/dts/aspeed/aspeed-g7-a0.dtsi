@@ -1287,7 +1287,7 @@
 			};
 
 			pinctrl1: pinctrl@400 {
-				compatible = "aspeed,ast2700-soc1-pinctrl";
+				compatible = "aspeed,ast2700a0-soc1-pinctrl";
 				reg = <0x0 0x400 0x100>;
 			};
 		};
