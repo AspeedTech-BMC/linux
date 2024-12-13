@@ -389,7 +389,8 @@ static void aspeed_wdt_update_bootstatus(struct platform_device *pdev,
 	else if (status & (scu.wdt_reset_mask << reset_mask_shift))
 		wdt->wdd.bootstatus = WDIOF_CARDRESET;
 
-	if (of_device_is_compatible(dev.of_node, "aspeed,ast2700a0-wdt")) {
+	if (of_device_is_compatible(dev.of_node, "aspeed,ast2700a0-wdt") ||
+	    of_device_is_compatible(dev.of_node, "aspeed,ast2700-wdt")) {
 		status = readl(wdt->base + WDT_SW_FLAGS_CTRL);
 		if (status & WDT_SW_RESET_INDICATOR) {
 			wdt->wdd.bootstatus = WDIOF_EXTERN1;
