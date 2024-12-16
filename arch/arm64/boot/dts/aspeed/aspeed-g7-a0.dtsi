@@ -610,22 +610,22 @@
 			};
 		};
 
-		pcie_config0: pcie_config@12c02960 {
+		pcie_config0: pcie-config@12c02960 {
 			compatible = "syscon", "simple-mfd";
 			reg = <0 0x12c02960 0 0x40>;
 		};
 
-		pcie_config1: pcie_config@12c029a0 {
+		pcie_config1: pcie-config@12c029a0 {
 			compatible = "syscon", "simple-mfd";
 			reg = <0 0x12c029a0 0 0x40>;
 		};
 
-		pcie_device0: pcie_device@12c02a00 {
+		pcie_device0: pcie-device@12c02a00 {
 			compatible = "syscon", "simple-mfd";
 			reg = <0 0x12c02a00 0 0x80>;
 		};
 
-		pcie_device1: pcie_device@12c02a80 {
+		pcie_device1: pcie-device@12c02a80 {
 			compatible = "syscon", "simple-mfd";
 			reg = <0 0x12c02a80 0 0x80>;
 		};
@@ -677,7 +677,7 @@
 			<&scu_ic0 ASPEED_AST2700_SCU_IC0_PCIE_PERST_HI_TO_LO>;
 		};
 
-		disp_intf: disp_intf {
+		disp_intf: disp-intf {
 			compatible = "aspeed,ast2700-disp-intf", "syscon";
 			reg = <0x0 0x12c1d000 0x0 0x40>;
 			syscon = <&syscon0>;
@@ -704,12 +704,12 @@
 			#interrupt-cells = <2>;
 		};
 
-		pcie_phy0: pcie_phy@12c15000 {
+		pcie_phy0: pcie-phy@12c15000 {
 			compatible = "aspeed,ast2700-pcie-phy", "syscon";
 			reg = <0x0 0x12c15000 0x0 0x800>;
 		};
 
-		pcie_phy1: rc_bridge@12c15800 {
+		pcie_phy1: rc-bridge@12c15800 {
 			compatible = "aspeed,ast2700-pcie-phy", "syscon";
 			reg = <0x0 0x12c15800 0x0 0x800>;
 		};
@@ -800,7 +800,7 @@
 				status = "disabled";
 			};
 
-			pcie_lpc0_ibt: pcie_ibt@140 {
+			pcie_lpc0_ibt: pcie-ibt@140 {
 				compatible = "aspeed,ast2700-ibt-bmc";
 				reg = <0x140 0x18>;
 				interrupts = <GIC_SPI 72 IRQ_TYPE_LEVEL_HIGH>;
@@ -859,7 +859,7 @@
 				status = "disabled";
 			};
 
-			pcie_lpc1_ibt: pcie_ibt@140 {
+			pcie_lpc1_ibt: pcie-ibt@140 {
 				compatible = "aspeed,ast2700-ibt-bmc";
 				reg = <0x140 0x18>;
 				interrupts = <GIC_SPI 85 IRQ_TYPE_LEVEL_HIGH>;
@@ -899,12 +899,12 @@
 			status = "disabled";
 		};
 
-		e2m_config0: e2m_config@12c21000 {
+		e2m_config0: e2m-config@12c21000 {
 			compatible = "syscon", "simple-mfd";
 			reg = <0 0x12c21000 0 0x200>;
 		};
 
-		e2m_config1: e2m_config@12c22000 {
+		e2m_config1: e2m-config@12c22000 {
 			compatible = "syscon", "simple-mfd";
 			reg = <0 0x12c22000 0 0x200>;
 		};
@@ -1726,28 +1726,28 @@
 			#size-cells = <1>;
 			ranges = <0x0 0x0 0x14c31000 0x1000>;
 
-			lpc0_kcs0: lpc_kcs@24 {
+			lpc0_kcs0: lpc-kcs@24 {
 				compatible = "aspeed,ast2700-kcs-bmc";
 				reg = <0x24 0x1>, <0x30 0x1>, <0x3c 0x1>;
 				interrupts-extended = <&intc0_0 4>;
 				status = "disabled";
 			};
 
-			lpc0_kcs1: lpc_kcs@28 {
+			lpc0_kcs1: lpc-kcs@28 {
 				compatible = "aspeed,ast2700-kcs-bmc";
 				reg = <0x28 0x1>, <0x34 0x1>, <0x40 0x1>;
 				interrupts-extended = <&intc0_0 5>;
 				status = "disabled";
 			};
 
-			lpc0_kcs2: lpc_kcs@2c {
+			lpc0_kcs2: lpc-kcs@2c {
 				compatible = "aspeed,ast2700-kcs-bmc";
 				reg = <0x2c 0x1>, <0x38 0x1>, <0x44 0x1>;
 				interrupts-extended = <&intc0_0 6>;
 				status = "disabled";
 			};
 
-			lpc0_kcs3: lpc_kcs@114 {
+			lpc0_kcs3: lpc-kcs@114 {
 				compatible = "aspeed,ast2700-kcs-bmc";
 				reg = <0x114 0x1>, <0x118 0x1>, <0x11c 0x1>;
 				interrupts-extended = <&intc0_0 7>;

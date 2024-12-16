@@ -1,82 +1,82 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 &ltpi1_pinctrl {
-	pinctrl_ltpi1_i2c0_default: ltpi1_i2c0_default {
+	pinctrl_ltpi1_i2c0_default: ltpi1-i2c0-default {
 		function = "I2C0";
 		groups = "I2C0";
 	};
 
-	pinctrl_ltpi1_i2c1_default: ltpi1_i2c1_default {
+	pinctrl_ltpi1_i2c1_default: ltpi1-i2c1-default {
 		function = "I2C1";
 		groups = "I2C1";
 	};
 
-	pinctrl_ltpi1_i2c2_default: ltpi1_i2c2_default {
+	pinctrl_ltpi1_i2c2_default: ltpi1-i2c2-default {
 		function = "I2C2";
 		groups = "I2C2";
 	};
 
-	pinctrl_ltpi1_i2c3_default: ltpi1_i2c3_default {
+	pinctrl_ltpi1_i2c3_default: ltpi1-i2c3-default {
 		function = "I2C3";
 		groups = "I2C3";
 	};
 
-	pinctrl_ltpi1_i2c4_default: ltpi1_i2c4_default {
+	pinctrl_ltpi1_i2c4_default: ltpi1-i2c4-default {
 		function = "I2C4";
 		groups = "I2C4";
 	};
 
-	pinctrl_ltpi1_i2c5_default: ltpi1_i2c5_default {
+	pinctrl_ltpi1_i2c5_default: ltpi1-i2c5-default {
 		function = "I2C5";
 		groups = "I2C5";
 	};
 
-	pinctrl_ltpi1_i2c6_default: ltpi1_i2c6_default {
+	pinctrl_ltpi1_i2c6_default: ltpi1-i2c6-default {
 		function = "I2C6";
 		groups = "I2C6";
 	};
 
-	pinctrl_ltpi1_i2c7_default: ltpi1_i2c7_default {
+	pinctrl_ltpi1_i2c7_default: ltpi1-i2c7-default {
 		function = "I2C7";
 		groups = "I2C7";
 	};
 
-	pinctrl_ltpi1_i2c8_default: ltpi1_i2c8_default {
+	pinctrl_ltpi1_i2c8_default: ltpi1-i2c8-default {
 		function = "I2C8";
 		groups = "I2C8";
 	};
 
-	pinctrl_ltpi1_i2c9_default: ltpi1_i2c9_default {
+	pinctrl_ltpi1_i2c9_default: ltpi1-i2c9-default {
 		function = "I2C9";
 		groups = "I2C9";
 	};
 
-	pinctrl_ltpi1_i2c10_default: ltpi1_i2c10_default {
+	pinctrl_ltpi1_i2c10_default: ltpi1-i2c10-default {
 		function = "I2C10";
 		groups = "I2C410";
 	};
 
-	pinctrl_ltpi1_i2c11_default: ltpi1_i2c11_default {
+	pinctrl_ltpi1_i2c11_default: ltpi1-i2c11-default {
 		function = "I2C11";
 		groups = "I2C11";
 	};
 
-	pinctrl_ltpi1_i2c12_default: ltpi1_i2c12_default {
+	pinctrl_ltpi1_i2c12_default: ltpi1-i2c12-default {
 		function = "I2C12";
 		groups = "I2C12";
 	};
 
-	pinctrl_ltpi1_i2c13_default: ltpi1_i2c13_default {
+	pinctrl_ltpi1_i2c13_default: ltpi1-i2c13-default {
 		function = "I2C13";
 		groups = "I2C13";
 	};
 
-	pinctrl_ltpi1_i2c14_default: ltpi1_i2c14_default {
+	pinctrl_ltpi1_i2c14_default: ltpi1-i2c14-default {
 		function = "I2C14";
 		groups = "I2C14";
 	};
 
-	pinctrl_ltpi1_i2c15_default: ltpi1_i2c15_default {
+	pinctrl_ltpi1_i2c15_default: ltpi1-i2c15-default {
 		function = "I2C15";
 		groups = "I2C15";
 	};
