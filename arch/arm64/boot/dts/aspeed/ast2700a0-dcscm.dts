@@ -821,6 +821,16 @@
 	status = "okay";
 };
 
+&mctp0 {
+	status = "okay";
+	memory-region = <&mctp0_reserved>;
+};
+
+&mctp1 {
+	status = "okay";
+	memory-region = <&mctp1_reserved>;
+};
+
 &i2c0 {
 	/* SMB_PMBUS1_SCM */
 	/delete-property/ pinctrl-names;
