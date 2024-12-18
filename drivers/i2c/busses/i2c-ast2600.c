@@ -2075,6 +2075,9 @@ static int ast2600_i2c_probe(struct platform_device *pdev)
 	else
 		i2c_bus->mode = DMA_MODE;
 
+	if (device_property_read_bool(dev, "aspeed,enable-byte"))
+		i2c_bus->mode = BYTE_MODE;
+
 	if (device_property_read_bool(dev, "aspeed,enable-buff"))
 		i2c_bus->mode = BUFF_MODE;
 
