@@ -31,57 +31,7 @@
 		#size-cells = <2>;
 		ranges;
 
-		mcu_fw: mcu-firmware@42fe00000 {
-			reg = <0x4 0x2fe00000 0x0 0x200000>;
-			no-map;
-		};
-
-		atf: trusted-firmware-a@430000000 {
-			reg = <0x4 0x30000000 0x0 0x80000>;
-			no-map;
-		};
-
-		optee_core: optee-core@430080000 {
-			reg = <0x4 0x30080000 0x0 0x1000000>;
-			no-map;
-		};
-
-		mctp0_reserved: mctp0-reserved@431080000 {
-			reg = <0x4 0x31080000 0x0 0x10000>;
-			compatible = "shared-dma-pool";
-			no-map;
-		};
-
-		mctp1_reserved: mctp1-reserved@431090000 {
-			reg = <0x4 0x31090000 0x0 0x10000>;
-			compatible = "shared-dma-pool";
-			no-map;
-		};
-
-		vbios_base0: vbios-base0@4310a0000 {
-			reg = <0x4 0x310a0000 0x0 0x10000>;
-			no-map;
-		};
-
-		vbios_base1: vbios-base1@4310b0000 {
-			reg = <0x4 0x310b0000 0x0 0x10000>;
-			no-map;
-		};
-
-		ssp_memory: ssp-memory@432000000 {
-			reg = <0x4 0x32000000 0x0 0x2000000>;
-			no-map;
-		};
-
-		tsp_memory: tsp-memory@434000000 {
-			reg = <0x4 0x34000000 0x0 0x2000000>;
-			no-map;
-		};
-
-		espi_mmbi_memory: espi-mmbi-memory@436000000 {
-			reg = <0x4 0x36000000 0x0 0x4000000>;
-			no-map;
-		};
+		#include "ast2700-reserved-mem.dtsi"
 
 		bmc_dev0_memory: bmc-dev0-memory {
 			size = <0x0 0x00100000>;
