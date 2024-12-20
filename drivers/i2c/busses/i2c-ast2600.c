@@ -1753,7 +1753,10 @@ static int ast2600_i2c_master_irq(struct ast2600_i2c_bus *i2c_bus)
 
 	i2c_bus->cmd_err = ast2600_i2c_irq_err_to_errno(sts);
 	if (i2c_bus->cmd_err) {
-		writel(AST2600_I2CM_PKT_DONE, i2c_bus->reg_base + AST2600_I2CM_ISR);
+		if (i2c_bus->version == AST2700)
+			writel(sts, i2c_bus->reg_base + AST2600_I2CM_ISR);
+		else
+			writel(AST2600_I2CM_PKT_DONE, i2c_bus->reg_base + AST2600_I2CM_ISR);
 		complete(&i2c_bus->cmd_complete);
 		return 1;
 	}
