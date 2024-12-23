@@ -2258,11 +2258,6 @@ static int aspeed_mctp_remove(struct platform_device *pdev)
 
 	aspeed_mctp_drv_fini(priv);
 
-	if (priv->rc_f)
-		reset_control_assert(priv->reset_dma);
-
-	reset_control_assert(priv->reset);
-
 	return 0;
 }
 
