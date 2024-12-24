@@ -1494,10 +1494,15 @@ static const struct of_device_id ast2700_scu_match[] = {
 MODULE_DEVICE_TABLE(of, ast2700_scu_match);
 
 static struct platform_driver ast2700_scu_driver = {
+	.probe = ast2700_soc_clk_probe,
 	.driver = {
 		.name = "clk-ast2700",
 		.of_match_table = ast2700_scu_match,
 	},
 };
 
-module_platform_driver_probe(ast2700_scu_driver, ast2700_soc_clk_probe);
+static int __init clk_ast2700_init(void)
+{
+	return platform_driver_register(&ast2700_scu_driver);
+}
+arch_initcall(clk_ast2700_init);

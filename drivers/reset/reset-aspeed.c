@@ -316,7 +316,11 @@ static struct auxiliary_driver aspeed_reset_driver = {
 	.id_table	= aspeed_reset_ids,
 };
 
-module_auxiliary_driver(aspeed_reset_driver);
+static int __init rest_aspeed_init(void)
+{
+	return auxiliary_driver_register(&aspeed_reset_driver);
+}
+subsys_initcall(rest_aspeed_init);
 
 MODULE_AUTHOR("Ryan Chen <ryan_chen@aspeedtech.com>");
 MODULE_DESCRIPTION("ASPEED SoC Reset Controller Driver");
