@@ -51,10 +51,13 @@ static DEFINE_IDA(aspeed_pcc_ida);
 #define   PCCR1_DONT_CARE_BITS_MASK	GENMASK(21, 16)
 #define   PCCR1_DONT_CARE_BITS_SHIFT	16
 #define PCCR2	0x138
-#define   PCCR2_DMA_DONE		BIT(4)
-#define   PCCR2_DATA_RDY		PCCR2_DMA_DONE
-#define   PCCR2_RX_TMOUT_INT		BIT(2)
-#define   PCCR2_RX_AVAIL_INT		BIT(1)
+#define   PCCR2_INT_STATUS_PATTERN_B	BIT(16)
+#define   PCCR2_INT_STATUS_PATTERN_A	BIT(8)
+#define   PCCR2_INT_STATUS_DMA_DONE	BIT(4)
+#define   PCCR2_INT_STATUS_DATA_RDY	PCCR2_INT_STATUS_DMA_DONE
+#define   PCCR2_INT_STATUS_RX_OVER	BIT(3)
+#define   PCCR2_INT_STATUS_RX_TMOUT	BIT(2)
+#define   PCCR2_INT_STATUS_RX_AVAIL	BIT(1)
 #define PCCR3	0x13c
 #define   PCCR3_FIFO_DATA_MASK		GENMASK(7, 0)
 
@@ -169,10 +172,9 @@ static irqreturn_t aspeed_pcc_dma_isr(int irq, void *arg)
 	struct aspeed_pcc *pcc = (struct aspeed_pcc*)arg;
 	struct kfifo *fifo = &pcc->fifo;
 
+	regmap_write_bits(pcc->regmap, PCCR2, PCCR2_INT_STATUS_DMA_DONE, PCCR2_INT_STATUS_DMA_DONE);
+
 	regmap_read(pcc->regmap, PCCR6, &reg);
-
-	regmap_write_bits(pcc->regmap, PCCR2, PCCR2_DMA_DONE, PCCR2_DMA_DONE);
-
 	wptr = (reg & PCCR6_DMA_CUR_ADDR) - (pcc->dma.addr & PCCR6_DMA_CUR_ADDR);
 	rptr = pcc->dma.rptr;
 
@@ -200,13 +202,13 @@ static irqreturn_t aspeed_pcc_isr(int irq, void *arg)
 
 	regmap_read(pcc->regmap, PCCR2, &sts);
 
-	if (!(sts & (PCCR2_RX_TMOUT_INT | PCCR2_RX_AVAIL_INT | PCCR2_DMA_DONE)))
+	if (!(sts & (PCCR2_INT_STATUS_RX_TMOUT | PCCR2_INT_STATUS_RX_AVAIL | PCCR2_INT_STATUS_DMA_DONE)))
 		return IRQ_NONE;
 
 	if (pcc->dma_mode)
 		return aspeed_pcc_dma_isr(irq, arg);
 
-	while (sts & PCCR2_DATA_RDY) {
+	while (sts & PCCR2_INT_STATUS_DATA_RDY) {
 		regmap_read(pcc->regmap, PCCR3, &reg);
 
 		if (kfifo_is_full(fifo))
@@ -329,22 +331,6 @@ static int aspeed_pcc_probe(struct platform_device *pdev)
 		return -ENOMEM;
 
 	pcc->dev = dev;
-
-	rc = dma_set_mask_and_coherent(dev, DMA_BIT_MASK(64));
-	if (rc) {
-		dev_err(dev, "cannot set 64-bits DMA mask\n");
-		return rc;
-	}
-
-	pcc->regmap = syscon_node_to_regmap(pdev->dev.parent->of_node);
-	if (IS_ERR(pcc->regmap)) {
-		dev_err(dev, "cannot map register\n");
-		return -ENODEV;
-	}
-
-	/* disable PCC for safety */
-	regmap_update_bits(pcc->regmap, PCCR0, PCCR0_EN, 0);
-
 	rc = of_property_read_u32(dev->of_node, "port-addr", &pcc->port);
 	if (rc) {
 		dev_err(dev, "cannot get port address\n");
@@ -382,6 +368,17 @@ static int aspeed_pcc_probe(struct platform_device *pdev)
 	else
 		pcc->port_hbits_select = 0x3;
 
+	/* AP note A2600-15 */
+	pcc->a2600_15 = of_property_read_bool(dev->of_node, "A2600-15");
+	if (pcc->a2600_15)
+		dev_info(dev, "A2600-15 AP note patch is selected\n");
+
+	rc = dma_set_mask_and_coherent(dev, DMA_BIT_MASK(64));
+	if (rc) {
+		dev_err(dev, "cannot set 64-bits DMA mask\n");
+		return rc;
+	}
+
 	pcc->dma_mode = of_property_read_bool(dev->of_node, "dma-mode");
 	if (pcc->dma_mode) {
 		pcc->dma.size = PCC_DMA_BUFSZ;
@@ -403,10 +400,22 @@ static int aspeed_pcc_probe(struct platform_device *pdev)
 		return -ENOMEM;
 	}
 
-	/* AP note A2600-15 */
-	pcc->a2600_15 = of_property_read_bool(dev->of_node, "A2600-15");
-	if (pcc->a2600_15)
-		dev_info(dev, "A2600-15 AP note patch is selected\n");
+	pcc->regmap = syscon_node_to_regmap(pdev->dev.parent->of_node);
+	if (IS_ERR(pcc->regmap)) {
+		dev_err(dev, "cannot map register\n");
+		return -ENODEV;
+	}
+
+	/* Disable PCC and DMA Mode for safety */
+	regmap_update_bits(pcc->regmap, PCCR0, PCCR0_EN |  PCCR0_EN_DMA_MODE, 0);
+
+	/* Clear Rx FIFO. */
+	regmap_update_bits(pcc->regmap, PCCR0, PCCR0_CLR_RX_FIFO, 1);
+
+	/* Clear All interrupts status. */
+	regmap_write(pcc->regmap, PCCR2,
+		     PCCR2_INT_STATUS_RX_OVER | PCCR2_INT_STATUS_DMA_DONE |
+		     PCCR2_INT_STATUS_PATTERN_A | PCCR2_INT_STATUS_PATTERN_B);
 
 	pcc->irq = platform_get_irq(pdev, 0);
 	if (pcc->irq < 0) {
