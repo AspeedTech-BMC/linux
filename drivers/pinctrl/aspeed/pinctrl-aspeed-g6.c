@@ -49,6 +49,7 @@
 #define SCU630		0x630 /* Disable GPIO Internal Pull-Down #4 */
 #define SCU634		0x634 /* Disable GPIO Internal Pull-Down #5 */
 #define SCU638		0x638 /* Disable GPIO Internal Pull-Down #6 */
+#define SCU650		0x650 /* Driving Strength */
 #define SCU690		0x690 /* Multi-function Pin Control #24 */
 #define SCU694		0x694 /* Multi-function Pin Control #25 */
 #define SCU698		0x698 /* Multi-function Pin Control #26 */
@@ -2763,6 +2764,11 @@ static struct aspeed_pin_config aspeed_g6_configs[] = {
 	{ PIN_CONFIG_POWER_SOURCE,   { F24, B24 }, SCU458, BIT_MASK(5)},
 	{ PIN_CONFIG_DRIVE_STRENGTH, { F24, B24 }, SCU458, GENMASK(3, 2)},
 
+	/* GPIOJ */
+	{ PIN_CONFIG_DRIVE_STRENGTH, { B20, A20 }, SCU650, BIT_MASK(12)},
+	{ PIN_CONFIG_DRIVE_STRENGTH, { E19, D20 }, SCU650, BIT_MASK(13)},
+	{ PIN_CONFIG_DRIVE_STRENGTH, { C19, A19 }, SCU650, BIT_MASK(14)},
+	{ PIN_CONFIG_DRIVE_STRENGTH, { C20, D19 }, SCU650, BIT_MASK(15)},
 	/* GPIO18E */
 	ASPEED_SB_PINCONF(PIN_CONFIG_BIAS_PULL_DOWN, Y1, Y4, SCU40C, 4),
 	ASPEED_SB_PINCONF(PIN_CONFIG_BIAS_DISABLE,   Y1, Y4, SCU40C, 4),
