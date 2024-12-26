@@ -1683,6 +1683,17 @@ static bool dw_i3c_target_is_ibi_enabled(struct i3c_dev_desc *dev)
 	return !!(reg & SLV_EVENT_CTRL_SIR_EN);
 }
 
+static u8 dw_i3c_target_get_dyn_addr(struct i3c_master_controller *m)
+{
+	struct dw_i3c_master *master = to_dw_i3c_master(m);
+	u32 reg;
+
+	reg = readl(master->regs + DEVICE_ADDR);
+	if (reg & DEV_ADDR_DYNAMIC_ADDR_VALID)
+		return FIELD_GET(DEV_ADDR_DYNAMIC, reg);
+	return 0;
+}
+
 static int dw_i3c_master_reattach_i3c_dev(struct i3c_dev_desc *dev,
 					  u8 old_dyn_addr)
 {
@@ -2361,6 +2372,7 @@ static const struct i3c_target_ops dw_mipi_i3c_target_ops = {
 	.pending_read_notify = dw_i3c_target_pending_read_notify,
 	.is_hj_enabled =  dw_i3c_target_is_hj_enabled,
 	.is_ibi_enabled = dw_i3c_target_is_ibi_enabled,
+	.get_dyn_addr = dw_i3c_target_get_dyn_addr,
 };
 
 static const struct i3c_master_controller_ops dw_mipi_i3c_ops = {
