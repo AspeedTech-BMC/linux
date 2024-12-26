@@ -712,49 +712,49 @@
 			ranges = <0x0 0x0 0x12c19000 0x800>;
 
 			pcie_lpc0_kcs0: pcie-kcs@24 {
-				compatible = "aspeed,ast2700-kcs-bmc";
+				compatible = "aspeed,ast2600-kcs-bmc";
 				reg = <0x24 0x1>, <0x30 0x1>, <0x3c 0x1>;
 				interrupts = <GIC_SPI 74 IRQ_TYPE_LEVEL_HIGH>;
 				status = "disabled";
 			};
 
 			pcie_lpc0_kcs1: pcie-kcs@28 {
-				compatible = "aspeed,ast2700-kcs-bmc";
+				compatible = "aspeed,ast2600-kcs-bmc";
 				reg = <0x28 0x1>, <0x34 0x1>, <0x40 0x1>;
 				interrupts = <GIC_SPI 75 IRQ_TYPE_LEVEL_HIGH>;
 				status = "disabled";
 			};
 
 			pcie_lpc0_kcs2: pcie-kcs@2c {
-				compatible = "aspeed,ast2700-kcs-bmc";
+				compatible = "aspeed,ast2600-kcs-bmc";
 				reg = <0x2c 0x1>, <0x38 0x1>, <0x44 0x1>;
 				interrupts = <GIC_SPI 76 IRQ_TYPE_LEVEL_HIGH>;
 				status = "disabled";
 			};
 
 			pcie_lpc0_kcs3: pcie-kcs@114 {
-				compatible = "aspeed,ast2700-kcs-bmc";
+				compatible = "aspeed,ast2600-kcs-bmc";
 				reg = <0x114 0x1>, <0x118 0x1>, <0x11c 0x1>;
 				interrupts = <GIC_SPI 77 IRQ_TYPE_LEVEL_HIGH>;
 				status = "disabled";
 			};
 
 			pcie_lpc0_snoop: pcie-snoop@80 {
-				compatible = "aspeed,ast2700-lpc-snoop";
+				compatible = "aspeed,ast2600-lpc-snoop";
 				reg = <0x80 0x80>;
 				interrupts = <GIC_SPI 71 IRQ_TYPE_LEVEL_HIGH>;
 				status = "disabled";
 			};
 
 			pcie_lpc0_pcc: pcie-pcc@0 {
-				compatible = "aspeed,ast2700-lpc-pcc";
+				compatible = "aspeed,ast2600-lpc-pcc";
 				reg = <0x0 0x140>;
 				interrupts = <GIC_SPI 73 IRQ_TYPE_LEVEL_HIGH>;
 				status = "disabled";
 			};
 
 			pcie_lpc0_ibt: pcie-ibt@140 {
-				compatible = "aspeed,ast2700-ibt-bmc";
+				compatible = "aspeed,ast2600-ibt-bmc";
 				reg = <0x140 0x18>;
 				interrupts = <GIC_SPI 72 IRQ_TYPE_LEVEL_HIGH>;
 				status = "disabled";
@@ -771,49 +771,49 @@
 			ranges = <0x0 0x0 0x12c19800 0x800>;
 
 			pcie_lpc1_kcs0: pcie-kcs@24 {
-				compatible = "aspeed,ast2700-kcs-bmc";
+				compatible = "aspeed,ast2600-kcs-bmc";
 				reg = <0x24 0x1>, <0x30 0x1>, <0x3c 0x1>;
 				interrupts = <GIC_SPI 87 IRQ_TYPE_LEVEL_HIGH>;
 				status = "disabled";
 			};
 
 			pcie_lpc1_kcs1: pcie-kcs@28 {
-				compatible = "aspeed,ast2700-kcs-bmc";
+				compatible = "aspeed,ast2600-kcs-bmc";
 				reg = <0x28 0x1>, <0x34 0x1>, <0x40 0x1>;
 				interrupts = <GIC_SPI 88 IRQ_TYPE_LEVEL_HIGH>;
 				status = "disabled";
 			};
 
 			pcie_lpc1_kcs2: pcie-kcs@2c {
-				compatible = "aspeed,ast2700-kcs-bmc";
+				compatible = "aspeed,ast2600-kcs-bmc";
 				reg = <0x2c 0x1>, <0x38 0x1>, <0x44 0x1>;
 				interrupts = <GIC_SPI 89 IRQ_TYPE_LEVEL_HIGH>;
 				status = "disabled";
 			};
 
 			pcie_lpc1_kcs3: pcie-kcs@114 {
-				compatible = "aspeed,ast2700-kcs-bmc";
+				compatible = "aspeed,ast2600-kcs-bmc";
 				reg = <0x114 0x1>, <0x118 0x1>, <0x11c 0x1>;
 				interrupts = <GIC_SPI 90 IRQ_TYPE_LEVEL_HIGH>;
 				status = "disabled";
 			};
 
 			pcie_lpc1_snoop: pcie-snoop@80 {
-				compatible = "aspeed,ast2700-lpc-snoop";
+				compatible = "aspeed,ast2600-lpc-snoop";
 				reg = <0x80 0x80>;
 				interrupts = <GIC_SPI 84 IRQ_TYPE_LEVEL_HIGH>;
 				status = "disabled";
 			};
 
 			pcie_lpc1_pcc: pcie-pcc@0 {
-				compatible = "aspeed,ast2700-lpc-pcc";
+				compatible = "aspeed,ast2600-lpc-pcc";
 				reg = <0x0 0x140>;
 				interrupts = <GIC_SPI 86 IRQ_TYPE_LEVEL_HIGH>;
 				status = "disabled";
 			};
 
 			pcie_lpc1_ibt: pcie-ibt@140 {
-				compatible = "aspeed,ast2700-ibt-bmc";
+				compatible = "aspeed,ast2600-ibt-bmc";
 				reg = <0x140 0x18>;
 				interrupts = <GIC_SPI 85 IRQ_TYPE_LEVEL_HIGH>;
 				status = "disabled";
@@ -1926,28 +1926,28 @@
 			ranges = <0x0 0x0 0x14c31000 0x1000>;
 
 			lpc0_kcs0: lpc-kcs@24 {
-				compatible = "aspeed,ast2700-kcs-bmc";
+				compatible = "aspeed,ast2600-kcs-bmc";
 				reg = <0x24 0x1>, <0x30 0x1>, <0x3c 0x1>;
 				interrupts-extended = <&intc1_0 4>;
 				status = "disabled";
 			};
 
 			lpc0_kcs1: lpc-kcs@28 {
-				compatible = "aspeed,ast2700-kcs-bmc";
+				compatible = "aspeed,ast2600-kcs-bmc";
 				reg = <0x28 0x1>, <0x34 0x1>, <0x40 0x1>;
 				interrupts-extended = <&intc1_0 5>;
 				status = "disabled";
 			};
 
 			lpc0_kcs2: lpc-kcs@2c {
-				compatible = "aspeed,ast2700-kcs-bmc";
+				compatible = "aspeed,ast2600-kcs-bmc";
 				reg = <0x2c 0x1>, <0x38 0x1>, <0x44 0x1>;
 				interrupts-extended = <&intc1_0 6>;
 				status = "disabled";
 			};
 
 			lpc0_kcs3: lpc-kcs@114 {
-				compatible = "aspeed,ast2700-kcs-bmc";
+				compatible = "aspeed,ast2600-kcs-bmc";
 				reg = <0x114 0x1>, <0x118 0x1>, <0x11c 0x1>;
 				interrupts-extended = <&intc1_0 7>;
 				status = "disabled";
@@ -1968,7 +1968,7 @@
 			};
 
 			lpc0_reset: reset-controller@98 {
-				compatible = "aspeed,ast2700-lpc-reset";
+				compatible = "aspeed,ast2600-lpc-reset";
 				reg = <0x98 0x4>;
 				#reset-cells = <1>;
 			};
@@ -1980,7 +1980,7 @@
 			};
 
 			lpc0_ibt: ibt@140 {
-				compatible = "aspeed,ast2700-ibt-bmc";
+				compatible = "aspeed,ast2600-ibt-bmc";
 				reg = <0x140 0x18>;
 				interrupts-extended = <&intc1_0 2>;
 				status = "disabled";
@@ -2004,49 +2004,49 @@
 			ranges = <0x0 0x0 0x14c32000 0x1000>;
 
 			lpc1_kcs0: kcs@24 {
-				compatible = "aspeed,ast2700-kcs-bmc";
+				compatible = "aspeed,ast2600-kcs-bmc";
 				reg = <0x24 0x1>, <0x30 0x1>, <0x3c 0x1>;
 				interrupts-extended = <&intc1_1 4>;
 				status = "disabled";
 			};
 
 			lpc1_kcs1: kcs@28 {
-				compatible = "aspeed,ast2700-kcs-bmc";
+				compatible = "aspeed,ast2600-kcs-bmc";
 				reg = <0x28 0x1>, <0x34 0x1>, <0x40 0x1>;
 				interrupts-extended = <&intc1_1 5>;
 				status = "disabled";
 			};
 
 			lpc1_kcs2: kcs@2c {
-				compatible = "aspeed,ast2700-kcs-bmc";
+				compatible = "aspeed,ast2600-kcs-bmc";
 				reg = <0x2c 0x1>, <0x38 0x1>, <0x44 0x1>;
 				interrupts-extended = <&intc1_1 6>;
 				status = "disabled";
 			};
 
 			lpc1_kcs3: kcs@114 {
-				compatible = "aspeed,ast2700-kcs-bmc";
+				compatible = "aspeed,ast2600-kcs-bmc";
 				reg = <0x114 0x1>, <0x118 0x1>, <0x11c 0x1>;
 				interrupts-extended = <&intc1_1 7>;
 				status = "disabled";
 			};
 
 			lpc1_snoop: lpc-snoop@80 {
-				compatible = "aspeed,ast2700-lpc-snoop";
+				compatible = "aspeed,ast2600-lpc-snoop";
 				reg = <0x80 0x80>;
 				interrupts-extended = <&intc1_1 1>;
 				status = "disabled";
 			};
 
 			lpc1_pcc: lpc-pcc@0 {
-				compatible = "aspeed,ast2700-lpc-pcc";
+				compatible = "aspeed,ast2600-lpc-pcc";
 				reg = <0x0 0x140>;
 				interrupts-extended = <&intc1_1 3>;
 				status = "disabled";
 			};
 
 			lpc1_reset: reset-controller@98 {
-				compatible = "aspeed,ast2700-lpc-reset";
+				compatible = "aspeed,ast2600-lpc-reset";
 				reg = <0x98 0x4>;
 				#reset-cells = <1>;
 			};
@@ -2058,7 +2058,7 @@
 			};
 
 			lpc1_ibt: ibt@140 {
-				compatible = "aspeed,ast2700-ibt-bmc";
+				compatible = "aspeed,ast2600-ibt-bmc";
 				reg = <0x140 0x18>;
 				interrupts-extended = <&intc1_1 2>;
 				status = "disabled";

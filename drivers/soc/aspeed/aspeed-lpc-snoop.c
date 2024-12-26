@@ -331,8 +331,6 @@ static const struct of_device_id aspeed_lpc_snoop_match[] = {
 	  .data = &ast2500_model_data },
 	{ .compatible = "aspeed,ast2600-lpc-snoop",
 	  .data = &ast2500_model_data },
-	{ .compatible = "aspeed,ast2700-lpc-snoop",
-	  .data = &ast2500_model_data },
 	{ },
 };
 
