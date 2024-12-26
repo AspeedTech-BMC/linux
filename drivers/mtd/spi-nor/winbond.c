@@ -31,6 +31,11 @@ w25q256_post_bfpt_fixups(struct spi_nor *nor,
 	return 0;
 }
 
+static void w25q01gjv_wrsr_fixups(struct spi_nor *nor)
+{
+	nor->flags |= SNOR_F_WR_VSR;
+}
+
 int spi_nor_read_w25q02gjv(struct mtd_info *mtd, loff_t from, size_t len,
 			   size_t *retlen, u_char *buf)
 {
@@ -88,6 +93,10 @@ static struct spi_nor_fixups w25q256_fixups = {
 
 static struct spi_nor_fixups w25q02gjv_fixups = {
 	.post_fixups = w25q02gjv_post_fixups,
+};
+
+static struct spi_nor_fixups w25q01gjv_fixups = {
+	.post_sfdp = w25q01gjv_wrsr_fixups,
 };
 
 static const struct flash_info winbond_parts[] = {
@@ -176,7 +185,8 @@ static const struct flash_info winbond_parts[] = {
 			     SPI_NOR_HAS_LOCK | SPI_NOR_HAS_TB)
 	  .fixups = &w25q02gjv_fixups },
 	{ "w25q01jviq", INFO(0xef4021, 0, 64 * 1024, 2048,
-			     SECT_4K | SPI_NOR_DUAL_READ | SPI_NOR_QUAD_READ) },
+			     SECT_4K | SPI_NOR_DUAL_READ | SPI_NOR_QUAD_READ)
+	  .fixups = &w25q01gjv_fixups },
 };
 
 /**

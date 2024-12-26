@@ -339,6 +339,38 @@ int spi_nor_write_enable(struct spi_nor *nor)
 }
 
 /**
+ * spi_nor_vsr_write_enable() - Set write enable latch for volatile status register.
+ * @nor:	pointer to 'struct spi_nor'.
+ *
+ * Return: 0 on success, -errno otherwise.
+ */
+int spi_nor_vsr_write_enable(struct spi_nor *nor)
+{
+	int ret;
+
+	if (nor->spimem) {
+		struct spi_mem_op op =
+			SPI_MEM_OP(SPI_MEM_OP_CMD(SPINOR_OP_VSR_WREN, 0),
+				   SPI_MEM_OP_NO_ADDR,
+				   SPI_MEM_OP_NO_DUMMY,
+				   SPI_MEM_OP_NO_DATA);
+
+		spi_nor_spimem_setup_op(nor, &op, nor->reg_proto);
+
+		ret = spi_mem_exec_op(nor->spimem, &op);
+	} else {
+		ret = spi_nor_controller_ops_write_reg(nor, SPINOR_OP_VSR_WREN,
+						       NULL, 0);
+	}
+
+	if (ret)
+		dev_dbg(nor->dev,
+			"error %d on Write Enable for Volatile Status Register\n",
+			ret);
+	return ret;
+}
+
+/**
  * spi_nor_write_disable() - Send Write Disable instruction to the chip.
  * @nor:	pointer to 'struct spi_nor'.
  *
@@ -903,7 +935,11 @@ int spi_nor_write_sr(struct spi_nor *nor, const u8 *sr, size_t len)
 {
 	int ret;
 
-	ret = spi_nor_write_enable(nor);
+	if (nor->flags & SNOR_F_WR_VSR)
+		ret = spi_nor_vsr_write_enable(nor);
+	else
+		ret = spi_nor_write_enable(nor);
+
 	if (ret)
 		return ret;
 
