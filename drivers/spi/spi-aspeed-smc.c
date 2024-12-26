@@ -331,7 +331,7 @@ static ssize_t aspeed_spi_read_user(struct aspeed_spi_chip *chip,
 	aspeed_spi_set_io_mode(chip, io_mode);
 	ret = aspeed_spi_send_addr(chip, op->addr.nbytes, op->addr.val);
 	if (ret < 0)
-		return ret;
+		goto stop_user;
 
 	if (op->dummy.buswidth && op->dummy.nbytes) {
 		for (i = 0; i < op->dummy.nbytes; i++)
@@ -343,9 +343,10 @@ static ssize_t aspeed_spi_read_user(struct aspeed_spi_chip *chip,
 	aspeed_spi_set_io_mode(chip, io_mode);
 	aspeed_spi_read_from_ahb(buf, chip->ahb_base, len);
 
+stop_user:
 	aspeed_spi_stop_user(chip);
 
-	return 0;
+	return ret;
 }
 
 static ssize_t aspeed_spi_write_user(struct aspeed_spi_chip *chip,
@@ -364,15 +365,16 @@ static ssize_t aspeed_spi_write_user(struct aspeed_spi_chip *chip,
 	aspeed_spi_set_io_mode(chip, io_mode);
 	ret = aspeed_spi_send_addr(chip, op->addr.nbytes, op->addr.val);
 	if (ret < 0)
-		return ret;
+		goto stop_user;
 
 	io_mode = aspeed_spi_get_io_mode(op, SPI_OP_DATA);
 	aspeed_spi_set_io_mode(chip, io_mode);
 	aspeed_spi_write_to_ahb(chip->ahb_base, op->data.buf.out, op->data.nbytes);
 
+stop_user:
 	aspeed_spi_stop_user(chip);
 
-	return 0;
+	return ret;
 }
 
 /* support for 1-1-1, 1-1-2 or 1-1-4 */
