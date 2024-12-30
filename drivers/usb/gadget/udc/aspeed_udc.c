@@ -278,6 +278,17 @@ static const char * const ast_ep_name[] = {
 
 /*-------------------------------------------------------------------------*/
 
+static inline void ast_udc_dma_workaround(void *addr)
+{
+	/*
+	 * The workaround consists of using a dummy read of the memory before
+	 * doing the MMIO writes. This will ensure that the previous writes
+	 * have been "pushed out".
+	 */
+	mb();
+	(void)__raw_readl((void __iomem *)addr);
+}
+
 static void ast_udc_done(struct ast_udc_ep *ep, struct ast_udc_request *req,
 			 int status)
 {
@@ -514,6 +525,9 @@ static int ast_dma_descriptor_setup(struct ast_udc_ep *ep, u32 dma_buf,
 		chunk -= size;
 		offset += size;
 
+		if (last)
+			ast_udc_dma_workaround(&ep->descs[ep->descs_wptr]);
+
 		EP_DBG(ep, "descs[%d]: 0x%x 0x%x\n",
 		       ep->descs_wptr,
 		       ep->descs[ep->descs_wptr].des_0,
@@ -542,6 +556,9 @@ static void ast_udc_epn_kick(struct ast_udc_ep *ep, struct ast_udc_request *req)
 
 	EP_DBG(ep, "kick req @%p, len:%d, dir:%d\n",
 	       req, tx_len, ep->dir_in);
+
+	if (ep->dir_in)
+		ast_udc_dma_workaround(req->req.buf + req->req.actual);
 
 	ast_ep_write(ep, req->req.dma + req->req.actual, AST_UDC_EP_DMA_BUFF);
 
