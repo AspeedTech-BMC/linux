@@ -333,6 +333,12 @@
 		       "D20", "A6", "B6", "N14", "B7", "B8";
 		drive-strength = <1>;
 	};
+
+	pinctrl_rgmii1_driving: rgmii1-driving {
+		pins = "D19", "C19", "D15", "B12", "B10", "P13",
+		       "C18", "C6", "C7", "D7", "N13", "C8";
+		drive-strength = <1>;
+	};
 };
 
 &gpio0 {
@@ -648,7 +654,7 @@
 	phy-handle = <&ethphy1>;
 
 	pinctrl-names = "default";
-	pinctrl-0 = <&pinctrl_rgmii1_default>;
+	pinctrl-0 = <&pinctrl_rgmii1_default &pinctrl_rgmii1_driving>;
 };
 
 #if 0
