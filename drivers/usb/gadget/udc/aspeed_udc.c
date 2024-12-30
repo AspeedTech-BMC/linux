@@ -478,7 +478,7 @@ static int ast_dma_descriptor_setup(struct ast_udc_ep *ep, u32 dma_buf,
 	struct device *dev = &udc->pdev->dev;
 	bool last = false;
 	int chunk, count;
-	u32 offset;
+	u32 offset, size;
 
 	if (!ep->descs) {
 		dev_warn(dev, "%s: Empty DMA descs list failure\n",
@@ -489,9 +489,9 @@ static int ast_dma_descriptor_setup(struct ast_udc_ep *ep, u32 dma_buf,
 	chunk = tx_len;
 	offset = count = 0;
 
-	EP_DBG(ep, "req @%p, %s:%d, %s:0x%x, %s:0x%x\n", req,
+	EP_DBG(ep, "req @%p, %s:%d, %s:0x%x, %s:0x%x zero=%d\n", req,
 	       "wptr", ep->descs_wptr, "dma_buf", dma_buf,
-	       "tx_len", tx_len);
+	       "tx_len", tx_len, req->req.zero);
 
 	/* Create Descriptor Lists */
 	while (chunk >= 0 && !last && count < AST_UDC_DESCS_COUNT) {
@@ -499,13 +499,20 @@ static int ast_dma_descriptor_setup(struct ast_udc_ep *ep, u32 dma_buf,
 		ep->descs[ep->descs_wptr].des_0 = dma_buf + offset;
 
 		if (chunk > ep->chunk_max) {
-			ep->descs[ep->descs_wptr].des_1 = ep->chunk_max;
+			size = ep->chunk_max;
 		} else {
-			ep->descs[ep->descs_wptr].des_1 = chunk;
-			last = true;
+			size = chunk;
+			/*
+			 * Check if this is the last packet?
+			 * May go the loop again for the zero length packet
+			 */
+			if (!chunk || !req->req.zero || (chunk % ep->ep.maxpacket) != 0)
+				last = true;
 		}
 
-		chunk -= ep->chunk_max;
+		ep->descs[ep->descs_wptr].des_1 = size;
+		chunk -= size;
+		offset += size;
 
 		EP_DBG(ep, "descs[%d]: 0x%x 0x%x\n",
 		       ep->descs_wptr,
@@ -520,8 +527,6 @@ static int ast_dma_descriptor_setup(struct ast_udc_ep *ep, u32 dma_buf,
 
 		if (ep->descs_wptr >= AST_UDC_DESCS_COUNT)
 			ep->descs_wptr = 0;
-
-		offset = ep->chunk_max * count;
 	}
 
 	return 0;
@@ -549,11 +554,13 @@ static void ast_udc_epn_kick(struct ast_udc_ep *ep, struct ast_udc_request *req)
 static void ast_udc_epn_kick_desc(struct ast_udc_ep *ep,
 				  struct ast_udc_request *req)
 {
+	u32 count;
 	u32 descs_max_size;
 	u32 tx_len;
 	u32 last;
 
-	descs_max_size = AST_EP_DMA_DESC_MAX_LEN * AST_UDC_DESCS_COUNT;
+	count = req->req.zero ? AST_UDC_DESCS_COUNT - 1 : AST_UDC_DESCS_COUNT;
+	descs_max_size = AST_EP_DMA_DESC_MAX_LEN * count;
 
 	last = req->req.length - req->req.actual;
 	tx_len = last > descs_max_size ? descs_max_size : last;
