@@ -177,69 +177,6 @@
 		cooling-levels = <0 15 128 255>;
 	};
 
-	fan9: pwm-fan9 {
-		compatible = "pwm-fan";
-		pwms = <&pwm_tach 9 40000 0>;	/* Target freq:25 kHz */
-		cooling-min-state = <0>;
-		cooling-max-state = <3>;
-		#cooling-cells = <2>;
-		cooling-levels = <0 15 128 255>;
-	};
-
-	fan10: pwm-fan10 {
-		compatible = "pwm-fan";
-		pwms = <&pwm_tach 10 40000 0>;	/* Target freq:25 kHz */
-		cooling-min-state = <0>;
-		cooling-max-state = <3>;
-		#cooling-cells = <2>;
-		cooling-levels = <0 15 128 255>;
-	};
-
-	fan11: pwm-fan11 {
-		compatible = "pwm-fan";
-		pwms = <&pwm_tach 11 40000 0>;	/* Target freq:25 kHz */
-		cooling-min-state = <0>;
-		cooling-max-state = <3>;
-		#cooling-cells = <2>;
-		cooling-levels = <0 15 128 255>;
-	};
-
-	fan12: pwm-fan12 {
-		compatible = "pwm-fan";
-		pwms = <&pwm_tach 12 40000 0>;	/* Target freq:25 kHz */
-		cooling-min-state = <0>;
-		cooling-max-state = <3>;
-		#cooling-cells = <2>;
-		cooling-levels = <0 15 128 255>;
-	};
-
-	fan13: pwm-fan13 {
-		compatible = "pwm-fan";
-		pwms = <&pwm_tach 13 40000 0>;	/* Target freq:25 kHz */
-		cooling-min-state = <0>;
-		cooling-max-state = <3>;
-		#cooling-cells = <2>;
-		cooling-levels = <0 15 128 255>;
-	};
-
-	fan14: pwm-fan14 {
-		compatible = "pwm-fan";
-		pwms = <&pwm_tach 14 40000 0>;	/* Target freq:25 kHz */
-		cooling-min-state = <0>;
-		cooling-max-state = <3>;
-		#cooling-cells = <2>;
-		cooling-levels = <0 15 128 255>;
-	};
-
-	fan15: pwm-fan15 {
-		compatible = "pwm-fan";
-		pwms = <&pwm_tach 15 40000 0>;	/* Target freq:25 kHz */
-		cooling-min-state = <0>;
-		cooling-max-state = <3>;
-		#cooling-cells = <2>;
-		cooling-levels = <0 15 128 255>;
-	};
-
 	iio-hwmon {
 		compatible = "iio-hwmon";
 		status = "disabled";
@@ -257,10 +194,7 @@
 		     &pinctrl_pwm2_default &pinctrl_pwm3_default
 		     &pinctrl_pwm4_default &pinctrl_pwm5_default
 		     &pinctrl_pwm6_default &pinctrl_pwm7_default
-		     &pinctrl_pwm8_default &pinctrl_pwm9_default
-		     &pinctrl_pwm10_default &pinctrl_pwm11_default
-		     &pinctrl_pwm12_default &pinctrl_pwm13_default
-		     &pinctrl_pwm14_default &pinctrl_pwm15_default
+		     &pinctrl_pwm8_default
 		     &pinctrl_tach0_default &pinctrl_tach1_default
 		     &pinctrl_tach2_default &pinctrl_tach3_default
 		     &pinctrl_tach4_default &pinctrl_tach5_default
