@@ -525,6 +525,7 @@
 #endif
 
 &can0 {
+	can-internal-loopback;
 	status = "okay";
 };
 
