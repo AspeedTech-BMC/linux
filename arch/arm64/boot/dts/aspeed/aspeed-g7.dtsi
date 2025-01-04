@@ -1681,7 +1681,7 @@
 			clocks = <&syscon1 SCU1_CLK_GATE_I3C0CLK>;
 			resets = <&syscon1 SCU1_RESET_I3C0>, <&syscon1 SCU1_RESET_I3CDMA>;
 			pinctrl-names = "default";
-			pinctrl-0 = <&pinctrl_i3c0_default>;
+			pinctrl-0 = <&pinctrl_hvi3c0_default>;
 			status = "disabled";
 		};
 
@@ -1694,7 +1694,7 @@
 			clocks = <&syscon1 SCU1_CLK_GATE_I3C1CLK>;
 			resets = <&syscon1 SCU1_RESET_I3C1>, <&syscon1 SCU1_RESET_I3CDMA>;
 			pinctrl-names = "default";
-			pinctrl-0 = <&pinctrl_i3c1_default>;
+			pinctrl-0 = <&pinctrl_hvi3c1_default>;
 			status = "disabled";
 		};
 
@@ -1707,7 +1707,7 @@
 			clocks = <&syscon1 SCU1_CLK_GATE_I3C2CLK>;
 			resets = <&syscon1 SCU1_RESET_I3C2>, <&syscon1 SCU1_RESET_I3CDMA>;
 			pinctrl-names = "default";
-			pinctrl-0 = <&pinctrl_i3c2_default>;
+			pinctrl-0 = <&pinctrl_hvi3c2_default>;
 			status = "disabled";
 		};
 
@@ -1720,7 +1720,7 @@
 			clocks = <&syscon1 SCU1_CLK_GATE_I3C3CLK>;
 			resets = <&syscon1 SCU1_RESET_I3C3>, <&syscon1 SCU1_RESET_I3CDMA>;
 			pinctrl-names = "default";
-			pinctrl-0 = <&pinctrl_i3c3_default>;
+			pinctrl-0 = <&pinctrl_hvi3c3_default>;
 			status = "disabled";
 		};
 

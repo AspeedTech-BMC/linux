@@ -2106,7 +2106,7 @@
 	};
 };
 
-#include "aspeed-g7-pinctrl.dtsi"
+#include "aspeed-g7-a0-pinctrl.dtsi"
 
 &i2c {
 	i2c_global: i2c-global-regs@0 {
