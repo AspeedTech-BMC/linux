@@ -11,4 +11,5 @@ dtb-$(CONFIG_ARCH_ASPEED) += \
 	ast2700a0-dcscm_ast1700a0-demo.dtb \
 	ast2700-dcscm_ast1700-evb.dtb \
 	ast2700a0-evb-256-abr.dtb \
-	ast2700-evb-256-abr.dtb
+	ast2700-evb-256-abr.dtb \
+	ast2700-slt.dtb
