@@ -155,7 +155,7 @@ static int aspeed_hace_probe(struct platform_device *pdev)
 		return rc;
 	}
 
-	hace_dev->rst = devm_reset_control_get_by_index(&pdev->dev, 0);
+	hace_dev->rst = devm_reset_control_get_shared(dev, NULL);
 	if (IS_ERR(hace_dev->rst)) {
 		dev_err(&pdev->dev, "Failed to get hace reset\n");
 		return PTR_ERR(hace_dev->rst);

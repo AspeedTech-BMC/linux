@@ -681,7 +681,7 @@ static int aspeed_ecdsa_probe(struct platform_device *pdev)
 		return PTR_ERR(ecdsa_dev->clk);
 	}
 
-	ecdsa_dev->rst = devm_reset_control_get_by_index(dev, 0);
+	ecdsa_dev->rst = devm_reset_control_get_shared(dev, NULL);
 	if (IS_ERR(ecdsa_dev->rst)) {
 		dev_err(dev, "Failed to get ecdsa reset\n");
 		return PTR_ERR(ecdsa_dev->rst);
