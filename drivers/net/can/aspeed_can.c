@@ -190,6 +190,9 @@
 #define STB_INVALID_HANDLE_VAL		0xffffffff
 #define STB_INVALID_SKB_IDX		0xffffffff
 
+/* SW flag */
+#define ASPEED_CAN_INTERNEL_LOOPBACK	0x00000001
+
 struct can_stb_ring_obj {
 	u32 idx;
 	u32 skb_idx;
@@ -216,6 +219,7 @@ struct aspeed_can_priv {
 	u32 tb_mode;
 	u32 stb_mode_policy;
 	u32 frame_handle;
+	u32 flag;
 };
 
 static const struct can_bittiming_const aspeed_can_bittiming_const = {
@@ -712,12 +716,16 @@ static int aspeed_can_chip_start(struct net_device *ndev)
 	aspeed_can_tb_mode_conf(ndev);
 
 	aspeed_can_loopback_ext_conf(ndev, false);
-	if (priv->can.ctrlmode & CAN_CTRLMODE_LOOPBACK) {
-		aspeed_can_loopback_ext_conf(ndev, true);
+	if (priv->flag & ASPEED_CAN_INTERNEL_LOOPBACK) {
+		aspeed_can_loopback_int_conf(ndev, true);
 		aspeed_can_sack_conf(ndev, true);
+	} else {
+		if (priv->can.ctrlmode & CAN_CTRLMODE_LOOPBACK) {
+			aspeed_can_loopback_ext_conf(ndev, true);
+			aspeed_can_sack_conf(ndev, true);
+		}
+		aspeed_can_loopback_int_conf(ndev, false);
 	}
-
-	aspeed_can_loopback_int_conf(ndev, false);
 
 	priv->can.state = CAN_STATE_ERROR_ACTIVE;
 	priv->frame_handle = 0;
@@ -1634,6 +1642,9 @@ static int aspeed_can_probe(struct platform_device *pdev)
 	priv->stb_ring = kzalloc(sizeof(*priv->stb_ring) *
 				 STB_IDX_RING_SZ, GFP_KERNEL);
 	aspeed_can_stb_ring_obj_init(ndev);
+
+	if (of_property_read_bool(priv->dev->of_node, "can-internal-loopback"))
+		priv->flag |= ASPEED_CAN_INTERNEL_LOOPBACK;
 
 	priv->reset = devm_reset_control_get_exclusive(&pdev->dev, NULL);
 	if (IS_ERR(priv->reset))
