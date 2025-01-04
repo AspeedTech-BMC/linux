@@ -315,6 +315,7 @@
 
 &i3c1 {
 	initial-role = "primary";
+	i3c-scl-hz = <10000000>;
 	status = "okay";
 };
 
@@ -327,6 +328,7 @@
 
 &i3c3 {
 	initial-role = "primary";
+	i3c-scl-hz = <10000000>;
 	status = "okay";
 };
 
@@ -339,6 +341,7 @@
 
 &i3c5 {
 	initial-role = "primary";
+	i3c-scl-hz = <10000000>;
 	status = "okay";
 };
 
@@ -351,6 +354,7 @@
 
 &i3c7 {
 	initial-role = "primary";
+	i3c-scl-hz = <10000000>;
 	status = "okay";
 };
 
@@ -363,6 +367,7 @@
 
 &i3c9 {
 	initial-role = "primary";
+	i3c-scl-hz = <10000000>;
 	status = "okay";
 };
 
@@ -375,6 +380,7 @@
 
 &i3c11 {
 	initial-role = "primary";
+	i3c-scl-hz = <10000000>;
 	status = "okay";
 };
 
@@ -387,6 +393,7 @@
 
 &i3c13 {
 	initial-role = "primary";
+	i3c-scl-hz = <10000000>;
 	status = "okay";
 };
 
@@ -399,6 +406,7 @@
 
 &i3c15 {
 	initial-role = "primary";
+	i3c-scl-hz = <10000000>;
 	status = "okay";
 };
 
