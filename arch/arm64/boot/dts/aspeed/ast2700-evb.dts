@@ -1042,17 +1042,8 @@
 #endif
 
 #if 1
-
 &i2c0 {
 	status = "okay";
-	sensor@4d {
-		compatible = "national,lm75";
-		reg = <0x4d>;
-	};
-	rtc@30 {
-		compatible = "s35390a";
-		reg = <0x30>;
-	};
 };
 
 &i2c1 {
@@ -1067,7 +1058,31 @@
 	status = "okay";
 };
 
+&i2c4 {
+	status = "okay";
+};
+
+&i2c5 {
+	status = "okay";
+};
+
+&i2c6 {
+	status = "okay";
+};
+
+&i2c7 {
+	status = "okay";
+};
+
 &i2c8 {
+	status = "okay";
+};
+
+&i2c9 {
+	status = "okay";
+};
+
+&i2c10 {
 	status = "okay";
 };
 
@@ -1075,6 +1090,21 @@
 	status = "okay";
 };
 
+&i2c12 {
+	status = "okay";
+};
+
+&i2c13 {
+	status = "okay";
+};
+
+&i2c14 {
+	status = "okay";
+};
+
+&i2c15 {
+	status = "okay";
+};
 #endif
 
 #if 0
