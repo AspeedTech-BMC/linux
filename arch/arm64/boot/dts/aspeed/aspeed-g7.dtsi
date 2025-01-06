@@ -1414,7 +1414,7 @@
 			no-memory-wc;
 
 			exported@0 {
-				reg = <0 0x0 0 0x18000>;
+				reg = <0 0x0 0 0x40000>;
 				export;
 			};
 		};
