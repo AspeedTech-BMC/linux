@@ -42,6 +42,8 @@
 #define SCU1_CLK_STOP2		0x260
 #define SCU1_CLK_SEL1		0x280
 #define SCU1_CLK_SEL2		0x284
+#define SCU1_CLK_I3C_DIV_MASK	GENMASK(25, 23)
+#define SCU1_CLK_I3C_DIV(n)	((n) - 1)
 #define UXCLK_MASK		GENMASK(1, 0)
 #define HUXCLK_MASK		GENMASK(4, 3)
 #define SCU1_HPLL_PARAM		0x300
@@ -1367,6 +1369,11 @@ static int ast2700_soc_clk_probe(struct platform_device *pdev)
 
 		ast2700_soc1_configure_mac01_clk(clk_ctrl);
 	}
+
+	/* I3C 250MHz = HPLL/4 */
+	writel((readl(clk_base + SCU1_CLK_SEL2) & ~SCU1_CLK_I3C_DIV_MASK) |
+		       FIELD_PREP(SCU1_CLK_I3C_DIV_MASK, SCU1_CLK_I3C_DIV(4)),
+	       clk_base + SCU1_CLK_SEL2);
 
 	for (i = 0; i < clk_data->nr_clks; i++) {
 		const struct ast2700_clk_info *clk = &clk_data->clk_info[i];
