@@ -536,6 +536,9 @@
 #endif
 
 &can0 {
+	/delete-property/ pinctrl-0;
+	/delete-property/ pinctrl-names;
+	can-internal-loopback;
 	status = "okay";
 };
 
