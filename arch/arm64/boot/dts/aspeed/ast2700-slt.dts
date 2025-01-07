@@ -566,10 +566,24 @@
 
 &mdio0 {
 	status = "okay";
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	ethphy0: ethernet-phy@0 {
+		compatible = "ethernet-phy-ieee802.3-c22";
+		reg = <0>;
+	};
 };
 
 &mdio1 {
 	status = "okay";
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	ethphy1: ethernet-phy@0 {
+		compatible = "ethernet-phy-ieee802.3-c22";
+		reg = <0>;
+	};
 };
 
 &mdio2 {
@@ -587,28 +601,20 @@
 	status = "okay";
 
 	phy-mode = "rgmii";
+	phy-handle = <&ethphy0>;
 
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_rgmii0_default &pinctrl_rgmii0_driving>;
-
-	fixed-link {
-		speed = <1000>;
-		full-duplex;
-	};
 };
 
 &mac1 {
 	status = "okay";
 
 	phy-mode = "rgmii";
+	phy-handle = <&ethphy1>;
 
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_rgmii1_default>;
-
-	fixed-link {
-		speed = <1000>;
-		full-duplex;
-	};
 };
 
 &sgmii {
@@ -629,10 +635,10 @@
 #endif
 
 &syscon1 {
-	mac0-clk-delay = <0x35 0x34
+	mac0-clk-delay = <0x33 0x30
 			  0x10 0x10
 			  0x10 0x10>;
-	mac1-clk-delay = <0x35 0x33
+	mac1-clk-delay = <0x31 0x31
 			  0x10 0x10
 			  0x10 0x10>;
 	assigned-clocks = <&syscon1 SCU1_CLK_MACHCLK>,
