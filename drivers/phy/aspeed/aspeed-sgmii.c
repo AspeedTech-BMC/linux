@@ -10,9 +10,10 @@
 #include <linux/regmap.h>
 #include <linux/ethtool.h>
 
-#define SGMII_CFG		0x00
-#define SGMII_PHY_PIPE_CTL	0x20
-#define SGMII_MODE		0x30
+#define SGMII_CFG			0x00
+#define SGMII_PHY_PIPE_CTL		0x20
+#define SGMII_FIFO_DELAY_THREHOLD	0x28
+#define SGMII_MODE			0x30
 
 #define SGMII_CFG_FIFO_MODE		BIT(0)
 #define SGMII_CFG_SPEED_10M		0
@@ -58,6 +59,8 @@ static void aspeed_sgmii_set_nway(struct phy *phy)
 	reg = SGMII_CFG_AN_ENABLE;
 	writel(reg, sgmii->regs + SGMII_CFG);
 
+	writel(0x0a, sgmii->regs + SGMII_FIFO_DELAY_THREHOLD);
+
 	writel(SGMII_PCTL_TX_DEEMPH_3_5DB, sgmii->regs + SGMII_PHY_PIPE_CTL);
 	reg = SGMII_MODE_ENABLE;
 	writel(reg, sgmii->regs + SGMII_MODE);
@@ -80,6 +83,8 @@ static void aspeed_sgmii_set_2_5g(struct phy *phy)
 
 	reg = SGMII_CFG_SPEED_1G;
 	writel(reg, sgmii->regs + SGMII_CFG);
+
+	writel(0x0a, sgmii->regs + SGMII_FIFO_DELAY_THREHOLD);
 
 	writel(SGMII_PCTL_TX_DEEMPH_3_5DB, sgmii->regs + SGMII_PHY_PIPE_CTL);
 	reg = SGMII_MODE_ENABLE;
