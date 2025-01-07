@@ -59,7 +59,7 @@ static void aspeed_sgmii_set_nway(struct phy *phy)
 	writel(reg, sgmii->regs + SGMII_CFG);
 
 	writel(SGMII_PCTL_TX_DEEMPH_3_5DB, sgmii->regs + SGMII_PHY_PIPE_CTL);
-	reg = SGMII_MODE_USE_LOCAL_CONFIG | SGMII_MODE_ENABLE;
+	reg = SGMII_MODE_ENABLE;
 	writel(reg, sgmii->regs + SGMII_MODE);
 }
 
@@ -82,7 +82,7 @@ static void aspeed_sgmii_set_2_5g(struct phy *phy)
 	writel(reg, sgmii->regs + SGMII_CFG);
 
 	writel(SGMII_PCTL_TX_DEEMPH_3_5DB, sgmii->regs + SGMII_PHY_PIPE_CTL);
-	reg = SGMII_MODE_USE_LOCAL_CONFIG | SGMII_MODE_ENABLE;
+	reg = SGMII_MODE_ENABLE;
 	writel(reg, sgmii->regs + SGMII_MODE);
 }
 
