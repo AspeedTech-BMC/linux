@@ -501,7 +501,7 @@
 		compatible = "tcg,tpm_tis-spi";
 		spi-max-frequency = <34000000>;
 		reg = <0>;
-		status = "disabled";
+		status = "okay";
 	};
 };
 #else
