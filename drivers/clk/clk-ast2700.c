@@ -547,8 +547,6 @@ static const struct ast2700_clk_info ast2700_scu0_clk_info[] __initconst = {
 	PLL_CLK(SCU0_CLK_CRT1, DCLK_FIXED, "crt1clk", NULL, SCU0_CRT1CLK_PARAM),
 	PLL_CLK(SCU0_CLK_MPHY, CLK_MISC, "mphyclk", mphysrc, SCU0_MPHYCLK_PARAM),
 	PLL_CLK(SCU0_CLK_U2PHY_REFCLK, CLK_MISC, "u2phy_refclk", u2phy_refclksrc, SCU0_CLK_SEL2),
-	PLL_CLK(SCU0_CLK_MPHY, CLK_MISC, "mphyclk", soc0_hpll, SCU0_MPHYCLK_PARAM),
-	PLL_CLK(SCU0_CLK_U2PHY_REFCLK, CLK_MISC, "u2phy_refclk", soc0_mpll_div8, SCU0_CLK_SEL2),
 	FIXED_FACTOR_CLK(SCU0_CLK_HPLL_DIV2, "soc0-hpll_div2", soc0_hpll, 1, 2),
 	FIXED_FACTOR_CLK(SCU0_CLK_HPLL_DIV4, "soc0-hpll_div4", soc0_hpll, 1, 4),
 	FIXED_FACTOR_CLK(SCU0_CLK_MPLL_DIV2, "soc0-mpll_div2", soc0_mpll, 1, 2),
@@ -865,9 +863,9 @@ static const struct ast2700_clk_info ast2700_scu1_clk_info[] __initconst = {
 		 SCU1_CLK_STOP2, 12, 0),
 	GATE_CLK(SCU1_CLK_GATE_CANCLK, CLK_GATE_ASPEED, "canclk-gate", canclk,
 		 SCU1_CLK_STOP2, 13, 0),
-	GATE_CLK(SCU1_CLK_GATE_PCICLK, CLK_GATE_ASPEED, "pciclk-gate", canclk,
+	GATE_CLK(SCU1_CLK_GATE_PCICLK, CLK_GATE_ASPEED, "pciclk-gate", NULL,
 		 SCU1_CLK_STOP2, 14, 0),
-	GATE_CLK(SCU1_CLK_GATE_SLICLK, CLK_GATE_ASPEED, "soc1-sliclk-gate", canclk,
+	GATE_CLK(SCU1_CLK_GATE_SLICLK, CLK_GATE_ASPEED, "soc1-sliclk-gate", NULL,
 		 SCU1_CLK_STOP2, 15, CLK_IS_CRITICAL),
 	GATE_CLK(SCU1_CLK_GATE_E2MCLK, CLK_GATE_ASPEED, "soc1-e2m-gate", NULL,
 		 SCU1_CLK_STOP2, 16, CLK_IS_CRITICAL),
@@ -1041,7 +1039,7 @@ static const struct ast2700_clk_info ast2700a0_scu1_clk_info[] __initconst = {
 		 SCU1_CLK_STOP2, 19, 0),
 };
 
-static struct clk_hw *ast2700_clk_hw_register_hpll(int clk_idx, void __iomem *reg,
+static struct clk_hw *ast2700_clk_hw_register_hpll(void __iomem *reg,
 						   const char *name, const char *parent_name,
 						   struct ast2700_clk_ctrl *clk_ctrl)
 {
@@ -1106,9 +1104,7 @@ static struct clk_hw *ast2700_clk_hw_register_pll(int clk_idx, void __iomem *reg
 {
 	int scu = clk_ctrl->clk_data->scu;
 	unsigned int mult, div;
-	u32 val;
-
-	val = readl(reg);
+	u32 val = readl(reg);
 
 	if (val & BIT(24)) {
 		/* Pass through mode */
@@ -1136,7 +1132,7 @@ static struct clk_hw *ast2700_clk_hw_register_pll(int clk_idx, void __iomem *reg
 	return devm_clk_hw_register_fixed_factor(clk_ctrl->dev, name, parent_name, 0, mult, div);
 }
 
-static struct clk_hw *ast2700_clk_hw_register_dclk(int clk_idx, void __iomem *reg, const char *name,
+static struct clk_hw *ast2700_clk_hw_register_dclk(void __iomem *reg, const char *name,
 						   struct ast2700_clk_ctrl *clk_ctrl)
 {
 	unsigned int mult, div, r, n;
@@ -1158,7 +1154,7 @@ static struct clk_hw *ast2700_clk_hw_register_dclk(int clk_idx, void __iomem *re
 	return devm_clk_hw_register_fixed_rate(clk_ctrl->dev, name, NULL, 0, (xdclk * mult) / div);
 }
 
-static struct clk_hw *ast2700_clk_hw_register_uartpll(int clk_idx, void __iomem *reg,
+static struct clk_hw *ast2700_clk_hw_register_uartpll(void __iomem *reg,
 						      const char *name, const char *parent_name,
 						      struct ast2700_clk_ctrl *clk_ctrl)
 {
@@ -1398,12 +1394,12 @@ static int ast2700_soc_clk_probe(struct platform_device *pdev)
 			const struct ast2700_clk_pll_data *pll = &clk->data.pll;
 
 			reg = clk_ctrl->base + pll->reg;
-			hws[i] = ast2700_clk_hw_register_dclk(i, reg, clk->name, clk_ctrl);
+			hws[i] = ast2700_clk_hw_register_dclk(reg, clk->name, clk_ctrl);
 		} else if (clk->type == CLK_HPLL) {
 			const struct ast2700_clk_pll_data *pll = &clk->data.pll;
 
 			reg = clk_ctrl->base + pll->reg;
-			hws[i] = ast2700_clk_hw_register_hpll(i, reg, clk->name,
+			hws[i] = ast2700_clk_hw_register_hpll(reg, clk->name,
 							      pll->parent->name, clk_ctrl);
 		} else if (clk->type == CLK_PLL) {
 			const struct ast2700_clk_pll_data *pll = &clk->data.pll;
@@ -1415,7 +1411,7 @@ static int ast2700_soc_clk_probe(struct platform_device *pdev)
 			const struct ast2700_clk_pll_data *pll = &clk->data.pll;
 
 			reg = clk_ctrl->base + pll->reg;
-			hws[i] = ast2700_clk_hw_register_uartpll(i, reg, clk->name,
+			hws[i] = ast2700_clk_hw_register_uartpll(reg, clk->name,
 								 pll->parent->name, clk_ctrl);
 		} else if (clk->type == CLK_MUX) {
 			const struct ast2700_clk_mux_data *mux = &clk->data.mux;
