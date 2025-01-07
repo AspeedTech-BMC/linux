@@ -418,6 +418,11 @@ static const struct clk_parent_data d_clk_sels[] = {
 	{ .fw_name = "soc0-mpll_div2", .name = "soc0-mpll_div2" },
 };
 
+static const struct clk_parent_data hclk_clk_sels[] = {
+	{ .fw_name = "soc0-hpll", .name = "soc0-hpll" },
+	{ .fw_name = "soc0-mpll", .name = "soc0-mpll" },
+};
+
 static const struct clk_parent_data mhpll_clk_sels[] = {
 	{ .fw_name = "soc0-mpll", .name = "soc0-mpll" },
 	{ .fw_name = "soc0-hpll", .name = "soc0-hpll" },
@@ -564,7 +569,7 @@ static const struct ast2700_clk_info ast2700_scu0_clk_info[] __initconst = {
 		    SCU0_CLK_SEL2, 30, 1, ast2700_clk_uart_div_table),
 	MUX_CLK(SCU0_CLK_PSP, "pspclk", psp_clk_sels, ARRAY_SIZE(psp_clk_sels),
 		SCU0_HWSTRAP1, 2, 3),
-	MUX_CLK(SCU0_CLK_AHBMUX, "soc0-ahbmux", mhpll_clk_sels, ARRAY_SIZE(mhpll_clk_sels),
+	MUX_CLK(SCU0_CLK_AHBMUX, "soc0-ahbmux", hclk_clk_sels, ARRAY_SIZE(hclk_clk_sels),
 		SCU0_HWSTRAP1, 7, 1),
 	MUX_CLK(SCU0_CLK_EMMCMUX, "emmcsrc-mux", emmc_clk_sels, ARRAY_SIZE(emmc_clk_sels),
 		SCU0_CLK_SEL1, 11, 1),
