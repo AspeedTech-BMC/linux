@@ -227,14 +227,6 @@
 	memory-region = <&mctp2_reserved>;
 };
 
-&sgpiom0 {
-	status = "okay";
-};
-
-&sgpiom1 {
-	status = "okay";
-};
-
 &adc0 {
 	aspeed,int-vref-microvolt = <2500000>;
 	status = "disabled";
