@@ -793,7 +793,7 @@
 };
 #endif
 
-#if 1
+#if 0
 &bmc_dev1 {
 	status = "okay";
 	memory-region = <&bmc_dev1_memory>;
