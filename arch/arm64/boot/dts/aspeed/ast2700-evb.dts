@@ -985,14 +985,6 @@
 	status = "okay";
 };
 
-&i2c8 {
-	status = "okay";
-};
-
-&i2c9 {
-	status = "okay";
-};
-
 &i2c10 {
 	status = "okay";
 };
