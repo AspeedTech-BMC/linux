@@ -303,11 +303,70 @@
 };
 
 &pinctrl1 {
+	pinctrl_i3c0_3_hv_voltage: i3chv-voltage {
+		pins = "U25";
+		power-source = <1800>;
+	};
+
+	pinctrl_i3c0_driving: i3c0-driving {
+		pins = "U25", "U26";
+		drive-strength = <2>;
+	};
+
+	pinctrl_i3c1_driving: i3c1-driving {
+		pins = "Y26", "AA24";
+		drive-strength = <2>;
+	};
+
+	pinctrl_i3c2_driving: i3c2-driving {
+		pins = "R25", "AA26";
+		drive-strength = <2>;
+	};
+
+	pinctrl_i3c3_driving: i3c3-driving {
+		pins = "R26", "Y25";
+		drive-strength = <2>;
+	};
+
+	pinctrl_i3c12_15_hv_voltage: i3chv-voltage {
+		pins = "W25";
+		power-source = <1800>;
+	};
+
+	pinctrl_i3c12_driving: i3c12-driving {
+		pins = "W25", "Y23";
+		drive-strength = <2>;
+	};
+
+	pinctrl_i3c13_driving: i3c13-driving {
+		pins = "Y24", "W21";
+		drive-strength = <2>;
+	};
+
+	pinctrl_i3c14_driving: i3c14-driving {
+		pins = "AA23", "AC22";
+		drive-strength = <2>;
+	};
+
+	pinctrl_i3c15_driving: i3c15-driving {
+		pins = "AB22", "Y21";
+		drive-strength = <2>;
+	};
+
 	pinctrl_rgmii0_driving: rgmii0-driving {
 		pins = "C20", "C19", "A8", "R14", "A7", "P14",
 		       "D20", "A6", "B6", "N14", "B7", "B8";
 		drive-strength = <1>;
 	};
+};
+
+&gpio0 {
+	pinctrl-0 = <&pinctrl_i3c0_3_hv_voltage &pinctrl_i3c12_15_hv_voltage
+		     &pinctrl_i3c0_driving &pinctrl_i3c1_driving
+		     &pinctrl_i3c2_driving &pinctrl_i3c3_driving
+		     &pinctrl_i3c12_driving &pinctrl_i3c13_driving
+		     &pinctrl_i3c14_driving &pinctrl_i3c15_driving>;
+	pinctrl-names = "default";
 };
 
 &i3c0 {
