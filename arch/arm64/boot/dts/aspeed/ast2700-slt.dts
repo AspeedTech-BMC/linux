@@ -414,7 +414,7 @@
 	};
 
 	flash@2 {
-		status = "disabled";
+		status = "okay";
 		m25p,fast-read;
 		label = "fmc0:2";
 		spi-max-frequency = <50000000>;
@@ -438,7 +438,7 @@
 	};
 
 	flash@1 {
-		status = "disabled";
+		status = "okay";
 		m25p,fast-read;
 		label = "spi0:1";
 		spi-max-frequency = <50000000>;
@@ -462,7 +462,7 @@
 	};
 
 	flash@1 {
-		status = "disabled";
+		status = "okay";
 		m25p,fast-read;
 		label = "spi1:1";
 		spi-max-frequency = <50000000>;
@@ -471,7 +471,7 @@
 	};
 };
 
-#if 1
+#if 0
 &spi2 {
 	compatible = "aspeed,ast2700-spi-txrx";
 	pinctrl-0 = <&pinctrl_spi2_default>;
