@@ -991,10 +991,6 @@
 	status = "okay";
 };
 
-&i2c14 {
-	status = "okay";
-};
-
 &i2c15 {
 	status = "okay";
 };
