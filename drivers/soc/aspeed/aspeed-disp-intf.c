@@ -14,6 +14,9 @@
 
 #define DEVICE_NAME	"aspeed-disp-intf"
 
+#define AST2700_SCU_CHIP_ID		0x0
+#define  SCU_CPU_REVISION_ID_HW		GENMASK(23, 16)
+
 #define AST2700_SCU_PIN_SEL		0x414
 #define  AST2700_SCU_D1PLL_SEL		GENMASK(13, 12)
 #define  AST2700_SCU_DAC_SRC_SEL	GENMASK(11, 10)
@@ -22,9 +25,6 @@
 #define AST2600_SCU_PIN_SEL		0x0C0
 #define  AST2600_SCU_DP_SRC_SEL		BIT(18)
 #define  AST2600_SCU_DAC_SRC_SEL	BIT(16)
-
-#define VGA_LINK_SRC			0x50
-#define  VGA_LINK_SRC_SEL		GENMASK(1, 0)
 
 struct aspeed_disp_intf_config {
 	u8 version;
@@ -39,7 +39,6 @@ struct aspeed_disp_intf_config {
 struct aspeed_disp_intf {
 	struct device *dev;
 	struct miscdevice miscdev;
-	void __iomem *reg_base;
 	struct regmap *scu;
 	const struct aspeed_disp_intf_config *config;
 };
@@ -104,13 +103,6 @@ static ssize_t dac_src_store(struct device *dev,
 	else
 		regmap_update_bits(intf->scu, config->dac_src_sel, AST2700_SCU_DAC_SRC_SEL,
 				   FIELD_PREP(AST2700_SCU_DAC_SRC_SEL, src));
-	if (intf->reg_base) {
-		u32 tmp = readl(intf->reg_base + VGA_LINK_SRC);
-
-		tmp &= ~VGA_LINK_SRC_SEL;
-		tmp |= FIELD_PREP(VGA_LINK_SRC_SEL, src);
-		writel(tmp, intf->reg_base + VGA_LINK_SRC);
-	}
 
 	return count;
 }
@@ -153,10 +145,17 @@ static ssize_t dp_src_store(struct device *dev, struct device_attribute *attr,
 		regmap_update_bits(intf->scu, config->dp_src_sel, AST2600_SCU_DP_SRC_SEL,
 				   FIELD_PREP(AST2600_SCU_DP_SRC_SEL, src));
 	} else {
+		u32 val;
+
 		regmap_update_bits(intf->scu, config->dp_src_sel, AST2700_SCU_DP_SRC_SEL,
 				   FIELD_PREP(AST2700_SCU_DP_SRC_SEL, src));
-		regmap_update_bits(intf->scu, config->dp_src_sel, AST2700_SCU_D1PLL_SEL,
-				   FIELD_PREP(AST2700_SCU_D1PLL_SEL, src));
+
+		// D1PLL used in A0 only
+		regmap_read(intf->scu, AST2700_SCU_CHIP_ID, &val);
+		if (FIELD_GET(SCU_CPU_REVISION_ID_HW, val) == 0) {
+			regmap_update_bits(intf->scu, config->dp_src_sel, AST2700_SCU_D1PLL_SEL,
+					   FIELD_PREP(AST2700_SCU_D1PLL_SEL, src));
+		}
 	}
 
 	return count;
@@ -192,7 +191,6 @@ static int aspeed_disp_intf_probe(struct platform_device *pdev)
 		return -ENODEV;
 
 	intf->dev = dev;
-	intf->reg_base = devm_platform_ioremap_resource(pdev, 0);
 	intf->scu = syscon_regmap_lookup_by_phandle(dev->of_node, "syscon");
 	if (IS_ERR(intf->scu)) {
 		dev_err(dev, "failed to find SCU regmap\n");
@@ -221,7 +219,6 @@ static void aspeed_disp_intf_remove(struct platform_device *pdev)
 
 	sysfs_remove_group(&intf->dev->kobj, &aspeed_disp_intf_attgrp);
 	misc_deregister(&intf->miscdev);
-	iounmap(intf->reg_base);
 	devm_kfree(&pdev->dev, intf);
 }
 
