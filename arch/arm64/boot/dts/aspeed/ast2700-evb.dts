@@ -766,6 +766,10 @@
 	memory-region = <&video_engine_memory1>;
 };
 
+&disp_intf {
+	status = "okay";
+};
+
 &rtc {
 	status = "okay";
 };
