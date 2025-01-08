@@ -899,6 +899,7 @@
 &jtag0 {
 	status = "okay";
 };
+#endif
 
 &sdio_controller {
 	status = "okay";
@@ -909,7 +910,7 @@
 		regulator-name = "SDHCI0 Vcc";
 		regulator-min-microvolt = <3300000>;
 		regulator-max-microvolt = <3300000>;
-		gpios = <&gpio0 ASPEED_GPIO(H, 0) GPIO_ACTIVE_HIGH>;
+		gpios = <&gpio0 ASPEED_GPIO(G, 6) GPIO_ACTIVE_HIGH>;
 		enable-active-high;
 	};
 
@@ -940,8 +941,6 @@
 	vqmmc-supply = <&vccq_sdhci0>;
 	sd-uhs-sdr104; /* enable sdr104 to execute tuning */
 };
-
-#endif
 
 #if 1
 &i2c0 {
