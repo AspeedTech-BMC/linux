@@ -21,6 +21,7 @@
 #include <linux/interrupt.h>
 #include <linux/workqueue.h>
 #include <linux/gpio/consumer.h>
+#include <linux/bitfield.h>
 
 /*	PCI Host Controller registers */
 #define ASPEED_PCIE_CLASS_CODE		0x04
@@ -110,6 +111,11 @@
 #define CFGE_TLP_FIRE			BIT(0)
 #define H2X_CFGE_RET_DATA	0x3C
 #define H2X_REMAP_DIRECT_ADDR	0x78
+
+/* AST2700 PEHR */
+#define PEHR_GEN_CAPABILITY	0x60
+#define PORT_TPYE			GENMASK(7, 4)
+#define PORT_TYPE_ROOT			BIT(2)
 
 /* TLP configuration type 0 and type 1 */
 #define CRG_READ_FMTTYPE(type)		(0x04000000 | (type << 24))
@@ -1101,6 +1107,7 @@ static int aspeed_ast2700_setup(struct platform_device *pdev)
 {
 	struct aspeed_pcie *pcie = platform_get_drvdata(pdev);
 	struct device *dev = pcie->dev;
+	u32 cfg_val;
 
 	pcie->h2xrst = devm_reset_control_get(dev, "h2x");
 	if (IS_ERR(pcie->h2xrst))
@@ -1131,7 +1138,10 @@ static int aspeed_ast2700_setup(struct platform_device *pdev)
 	reset_control_deassert(pcie->h2xrst);
 
 	regmap_write(pcie->pciephy, 0x5C, 0x40000000);
-	regmap_write(pcie->pciephy, 0x60, 0x244);
+	/* Configure to Root port */
+	regmap_read(pcie->pciephy, PEHR_GEN_CAPABILITY, &cfg_val);
+	regmap_write(pcie->pciephy, PEHR_GEN_CAPABILITY,
+		     (cfg_val & ~PORT_TPYE) | FIELD_PREP(PORT_TPYE, PORT_TYPE_ROOT));
 
 	/* PCIe Host Enable */
 	writel(0, pcie->reg + H2X_CTRL);
