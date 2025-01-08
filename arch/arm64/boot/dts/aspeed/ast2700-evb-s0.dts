@@ -5,3 +5,13 @@
 / {
 	model = "AST2700-EVB Test S0 Test";
 };
+
+&espi1 {
+	status = "okay";
+	perif-dma-mode;
+	perif-mcyc-enable;
+	perif-mcyc-src-addr = <0x0 0x98000000>;
+	perif-mcyc-size = <0x0 0x10000>;
+	oob-dma-mode;
+	flash-dma-mode;
+};
