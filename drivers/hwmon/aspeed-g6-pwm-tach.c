@@ -139,7 +139,7 @@ struct aspeed_pwm_tach_data {
 	unsigned long clk_rate;
 	struct pwm_chip chip;
 	bool tach_present[TACH_ASPEED_NR_TACHS];
-	u32 tach_divisor;
+	u32 tach_divisor[TACH_ASPEED_NR_TACHS];
 };
 
 static inline struct aspeed_pwm_tach_data *
@@ -284,12 +284,14 @@ static void aspeed_tach_ch_enable(struct aspeed_pwm_tach_data *priv, u8 tach_ch,
 		       priv->base + TACH_ASPEED_CTRL(tach_ch));
 }
 
-static int aspeed_tach_val_to_rpm(struct aspeed_pwm_tach_data *priv, u32 tach_val)
+static int aspeed_tach_val_to_rpm(struct aspeed_pwm_tach_data *priv,
+				  u32 tach_val, u8 fan_tach_ch)
 {
 	u64 rpm;
 	u32 tach_div;
 
-	tach_div = tach_val * priv->tach_divisor * DEFAULT_FAN_PULSE_PR;
+	tach_div = tach_val * priv->tach_divisor[fan_tach_ch] *
+		   DEFAULT_FAN_PULSE_PR;
 
 	dev_dbg(priv->dev, "clk %ld, tach_val %d , tach_div %d\n",
 		priv->clk_rate, tach_val, tach_div);
@@ -310,7 +312,7 @@ static int aspeed_get_fan_tach_ch_rpm(struct aspeed_pwm_tach_data *priv,
 	if (!(val & TACH_ASPEED_FULL_MEASUREMENT))
 		return 0;
 	val = FIELD_GET(TACH_ASPEED_VALUE_MASK, val);
-	return aspeed_tach_val_to_rpm(priv, val);
+	return aspeed_tach_val_to_rpm(priv, val, fan_tach_ch);
 }
 
 static int aspeed_tach_hwmon_read(struct device *dev,
@@ -347,11 +349,11 @@ static int aspeed_tach_hwmon_write(struct device *dev,
 		if (!is_power_of_2(val) || (ilog2(val) % 2) ||
 		    DIV_TO_REG(val) > 0xb)
 			return -EINVAL;
-		priv->tach_divisor = val;
+		priv->tach_divisor[channel] = val;
 		reg_val = readl(priv->base + TACH_ASPEED_CTRL(channel));
 		reg_val &= ~TACH_ASPEED_CLK_DIV_T_MASK;
 		reg_val |= FIELD_PREP(TACH_ASPEED_CLK_DIV_T_MASK,
-				      DIV_TO_REG(priv->tach_divisor));
+				      DIV_TO_REG(priv->tach_divisor[channel]));
 		writel(reg_val, priv->base + TACH_ASPEED_CTRL(channel));
 		break;
 	default:
@@ -409,7 +411,7 @@ static void aspeed_present_fan_tach(struct aspeed_pwm_tach_data *priv, u8 *tach_
 	for (index = 0; index < count; index++) {
 		ch = tach_ch[index];
 		priv->tach_present[ch] = true;
-		priv->tach_divisor = DEFAULT_TACH_DIV;
+		priv->tach_divisor[ch] = DEFAULT_TACH_DIV;
 
 		val = readl(priv->base + TACH_ASPEED_CTRL(ch));
 		val &= ~(TACH_ASPEED_INVERS_LIMIT | TACH_ASPEED_DEBOUNCE_MASK |
@@ -418,7 +420,7 @@ static void aspeed_present_fan_tach(struct aspeed_pwm_tach_data *priv, u8 *tach_
 		val |= (DEBOUNCE_3_CLK << TACH_ASPEED_DEBOUNCE_BIT) |
 		       F2F_EDGES |
 		       FIELD_PREP(TACH_ASPEED_CLK_DIV_T_MASK,
-				  DIV_TO_REG(priv->tach_divisor));
+				  DIV_TO_REG(priv->tach_divisor[ch]));
 		writel(val, priv->base + TACH_ASPEED_CTRL(ch));
 
 		aspeed_tach_ch_enable(priv, ch, true);
