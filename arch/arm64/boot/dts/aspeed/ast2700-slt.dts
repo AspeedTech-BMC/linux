@@ -181,7 +181,11 @@
 		     &pinctrl_tach0_default &pinctrl_tach1_default
 		     &pinctrl_tach2_default &pinctrl_tach3_default
 		     &pinctrl_tach4_default &pinctrl_tach5_default
-		     &pinctrl_tach6_default &pinctrl_tach7_default>;
+		     &pinctrl_tach6_default &pinctrl_tach7_default
+		     &pinctrl_tach8_default &pinctrl_tach9_default
+		     &pinctrl_tach10_default &pinctrl_tach11_default
+		     &pinctrl_tach12_default &pinctrl_tach13_default
+		     &pinctrl_tach14_default &pinctrl_tach15_default>;
 	fan-0 {
 		tach-ch = /bits/ 8 <0x0>;
 	};
@@ -205,6 +209,30 @@
 	};
 	fan-7 {
 		tach-ch = /bits/ 8 <0x7>;
+	};
+	fan-8 {
+		tach-ch = /bits/ 8 <0x8>;
+	};
+	fan-9 {
+		tach-ch = /bits/ 8 <0x9>;
+	};
+	fan-10 {
+		tach-ch = /bits/ 8 <0xA>;
+	};
+	fan-11 {
+		tach-ch = /bits/ 8 <0xB>;
+	};
+	fan-12 {
+		tach-ch = /bits/ 8 <0xC>;
+	};
+	fan-13 {
+		tach-ch = /bits/ 8 <0xD>;
+	};
+	fan-14 {
+		tach-ch = /bits/ 8 <0xE>;
+	};
+	fan-15 {
+		tach-ch = /bits/ 8 <0xF>;
 	};
 };
 
