@@ -916,7 +916,7 @@
 };
 #endif
 
-#if 0
+#if 1
 &uphy3a {
 	status = "okay";
 };
@@ -926,7 +926,7 @@
 };
 #endif
 
-#if 0
+#if 1
 &xhci0 {
 	status = "okay";
 };
@@ -936,7 +936,7 @@
 };
 #endif
 
-#if 1
+#if 0
 &vhuba1 {
 	status = "okay";
 };
@@ -957,7 +957,7 @@
 };
 #endif
 
-#if 1
+#if 0
 &usb3ahp {
 	status = "okay";
 };
@@ -974,6 +974,14 @@
 	status = "okay";
 };
 #endif
+
+&vhubc {
+	status = "okay";
+};
+
+&ehci3 {
+	status = "okay";
+};
 
 &wdt0 {
 	status = "okay";
