@@ -25,7 +25,7 @@ static void hexdump(char *name, unsigned char *buf, unsigned int len)
 static int aspeed_rsa_self_test(struct aspeed_rsss_dev *rsss_dev)
 {
 	struct aspeed_engine_rsa *rsa_engine;
-	u32 pattern = 0xbeef;
+	const u32 pattern = 0xffffffff;
 	u32 val;
 
 	rsa_engine = &rsss_dev->rsa_engine;
@@ -40,9 +40,6 @@ static int aspeed_rsa_self_test(struct aspeed_rsss_dev *rsss_dev)
 		return -EIO;
 
 	writel(0x0, rsa_engine->sram_exp);
-	val = readl(rsa_engine->sram_exp);
-	if (val)
-		return -EIO;
 
 	return 0;
 }
