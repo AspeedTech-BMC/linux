@@ -668,16 +668,6 @@
 	flash-dma-mode;
 };
 
-&espi1 {
-	status = "okay";
-	perif-dma-mode;
-	perif-mcyc-enable;
-	perif-mcyc-src-addr = <0x0 0x98000000>;
-	perif-mcyc-size = <0x0 0x10000>;
-	oob-dma-mode;
-	flash-dma-mode;
-};
-
 &lpc0_kcs0 {
 	status = "okay";
 	kcs-io-addr = <0xca0>;
