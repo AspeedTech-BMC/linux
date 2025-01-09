@@ -2314,6 +2314,18 @@
 			reg = <0x0 0x14c37080 0x0 0x80>;
 		};
 
+		wdt2: watchdog@14c37100 {
+			compatible = "aspeed,ast2700-wdt";
+			reg = <0x0 0x14c37100 0x0 0x80>;
+			status = "disabled";
+		};
+
+		wdt3: watchdog@14c37180 {
+			compatible = "aspeed,ast2700-wdt";
+			reg = <0x0 0x14c37180 0x0 0x80>;
+			status = "disabled";
+		};
+
 		sgpios: sgpios@14c3c000 {
 			#gpio-cells = <2>;
 			gpio-controller;
