@@ -66,6 +66,7 @@
 #define SCU_AST2700_PCIE0_BMC_CLASS_REV		0xa18
 #define SCU_AST2700_PCIE1_BMC_CLASS_REV		0xa98
 #define  SCU_BMC_CLASS_REV_XDMA			 0xff000001
+#define  SCU_BMC_CLASS_REV_MASK			 0xffffff00
 
 #define XDMA_CMDQ_SIZE				PAGE_SIZE
 #define XDMA_NUM_CMDS				\
@@ -962,8 +963,9 @@ static int aspeed_xdma_init_scu(struct aspeed_xdma *ctx, struct device *dev)
 
 		if (pcie_device_bmc) {
 			selection = bmc;
-			regmap_write(scu, ctx->chip->scu_bmc_class,
-				     SCU_BMC_CLASS_REV_XDMA);
+			regmap_update_bits(scu, ctx->chip->scu_bmc_class,
+					   SCU_BMC_CLASS_REV_MASK,
+					   SCU_BMC_CLASS_REV_XDMA);
 		} else {
 			selection = vga;
 		}
