@@ -898,10 +898,11 @@
 	status = "okay";
 };
 
-#if 0
 &i2c11 {
 	status = "okay";
 };
+
+#if 0
 
 &ehci0 {
 	status = "okay";
