@@ -1321,6 +1321,17 @@ static void ast2700_soc1_configure_mac01_clk(struct ast2700_clk_ctrl *clk_ctrl)
 	writel(reg[2], clk_ctrl->base + SCU1_MAC12_CLK_DLY_10M);
 }
 
+static void ast2700_soc1_configure_i3c_clk(struct ast2700_clk_ctrl *clk_ctrl)
+{
+	if (readl(clk_ctrl->base + SCU1_REVISION_ID) & REVISION_ID)
+		/* I3C 250MHz = HPLL/4 */
+		writel((readl(clk_ctrl->base + SCU1_CLK_SEL2) &
+			~SCU1_CLK_I3C_DIV_MASK) |
+			       FIELD_PREP(SCU1_CLK_I3C_DIV_MASK,
+					  SCU1_CLK_I3C_DIV(4)),
+		       clk_ctrl->base + SCU1_CLK_SEL2);
+}
+
 static int ast2700_soc_clk_probe(struct platform_device *pdev)
 {
 	struct ast2700_clk_data *clk_data;
@@ -1373,12 +1384,8 @@ static int ast2700_soc_clk_probe(struct platform_device *pdev)
 		}
 
 		ast2700_soc1_configure_mac01_clk(clk_ctrl);
+		ast2700_soc1_configure_i3c_clk(clk_ctrl);
 	}
-
-	/* I3C 250MHz = HPLL/4 */
-	writel((readl(clk_base + SCU1_CLK_SEL2) & ~SCU1_CLK_I3C_DIV_MASK) |
-		       FIELD_PREP(SCU1_CLK_I3C_DIV_MASK, SCU1_CLK_I3C_DIV(4)),
-	       clk_base + SCU1_CLK_SEL2);
 
 	for (i = 0; i < clk_data->nr_clks; i++) {
 		const struct ast2700_clk_info *clk = &clk_data->clk_info[i];
