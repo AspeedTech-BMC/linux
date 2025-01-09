@@ -26,16 +26,19 @@ static DEFINE_IDA(bmc_device_ida);
 
 #define SCU_TRIGGER_MSI
 
-/* =================== AST2600 SCU Define ================================================ */
-#define ASPEED_SCU04				0x04
-#define AST2600A3_SCU04	0x05030303
-#define ASPEED_SCUC20				0xC20
-#define ASPEED_SCUC24				0xC24
-#define MSI_ROUTING_MASK		GENMASK(11, 10)
-#define PCIDEV1_INTX_MSI_HOST2BMC_EN	BIT(18)
-#define MSI_ROUTING_PCIe2LPC_PCIDEV0	(0x1 << 10)
-#define MSI_ROUTING_PCIe2LPC_PCIDEV1	(0x2 << 10)
-/* ================================================================================== */
+/* AST2600 SCU */
+#define ASPEED_SCU04			0x04
+#define AST2600A3_SCU04				0x05030303
+#define ASPEED_SCUC20			0xC20
+#define ASPEED_SCUC24			0xC24
+#define MSI_ROUTING_MASK			GENMASK(11, 10)
+#define PCIDEV1_INTX_MSI_HOST2BMC_EN		BIT(18)
+#define MSI_ROUTING_PCIe2LPC_PCIDEV0		(0x1 << 10)
+#define MSI_ROUTING_PCIe2LPC_PCIDEV1		(0x2 << 10)
+/* AST2700 SCU */
+#define SCU0_REVISION_ID		0x0
+#define REVISION_ID				GENMASK(23, 16)
+/* Host2BMC */
 #define ASPEED_BMC_MEM_BAR			0xF10
 #define  PCIE2PCI_MEM_BAR_ENABLE		BIT(1)
 #define  HOST2BMC_MEM_BAR_ENABLE		BIT(0)
@@ -54,7 +57,6 @@ static DEFINE_IDA(bmc_device_ida);
 #define ASPEED_BMC_BMC2HOST_STS		0xA040
 #define	 BMC2HOST_INT_STS_DOORBELL		BIT(31)
 #define	 BMC2HOST_ENABLE_INTB			BIT(30)
-/* */
 #define	 BMC2HOST_Q1_FULL				BIT(27)
 #define	 BMC2HOST_Q1_EMPTY				BIT(26)
 #define	 BMC2HOST_Q2_FULL				BIT(25)
@@ -399,6 +401,7 @@ static int aspeed_ast2700_init(struct platform_device *pdev)
 	struct device *dev = &pdev->dev;
 	u32 pcie_config_ctl = SCU_PCIE_CONF_BMC_DEV_EN_IRQ |
 			      SCU_PCIE_CONF_BMC_DEV_EN_MMIO | SCU_PCIE_CONF_BMC_DEV_EN;
+	u32 scu_id;
 	int i;
 
 	bmc_device->config = syscon_regmap_lookup_by_phandle(dev->of_node, "aspeed,config");
@@ -419,6 +422,12 @@ static int aspeed_ast2700_init(struct platform_device *pdev)
 		return PTR_ERR(bmc_device->e2m);
 	}
 
+	bmc_device->scu = syscon_regmap_lookup_by_phandle(dev->of_node, "aspeed,scu");
+	if (IS_ERR(bmc_device->scu)) {
+		dev_err(&pdev->dev, "failed to find SCU regmap\n");
+		return PTR_ERR(bmc_device->scu);
+	}
+
 	if (bmc_device->pcie2lpc)
 		pcie_config_ctl |= SCU_PCIE_CONF_BMC_DEV_EN_E2L |
 				   SCU_PCIE_CONF_BMC_DEV_EN_LPC_DECODE;
@@ -433,9 +442,15 @@ static int aspeed_ast2700_init(struct platform_device *pdev)
 
 	//EnPCIaMSI_EnPCIaIntA_EnPCIaMst_EnPCIaDev
 	//Disable MSI[bit25] in ast2700A0 int only
-	regmap_update_bits(bmc_device->device, 0x70,
-			   BIT(17) | BIT(9) | BIT(1),
-			   BIT(25) | BIT(17) | BIT(9) | BIT(1));
+	regmap_read(bmc_device->scu, SCU0_REVISION_ID, &scu_id);
+	if (scu_id & REVISION_ID)
+		regmap_update_bits(bmc_device->device, 0x70,
+				   BIT(25) | BIT(17) | BIT(9) | BIT(1),
+				   BIT(25) | BIT(17) | BIT(9) | BIT(1));
+	else
+		regmap_update_bits(bmc_device->device, 0x70,
+				   BIT(17) | BIT(9) | BIT(1),
+				   BIT(25) | BIT(17) | BIT(9) | BIT(1));
 
 	//bar size check for 4k align
 	for (i = 1; i < 16; i++) {
@@ -608,7 +623,6 @@ static int aspeed_bmc_device_probe(struct platform_device *pdev)
 		dev_err(dev, "can't get reserved memory\n");
 	bmc_device->bmc_mem_virt = dma_alloc_coherent(&pdev->dev, bmc_device->bmc_mem_size,
 						      &bmc_device->bmc_mem_phy, GFP_KERNEL);
-	memset(bmc_device->bmc_mem_virt, 0, bmc_device->bmc_mem_size);
 
 	bmc_device->irq = platform_get_irq(pdev, 0);
 	if (bmc_device->irq < 0) {
