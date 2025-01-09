@@ -1070,7 +1070,7 @@
 
 #endif
 
-#if 1
+#if 0
 &uphy3a {
 	status = "okay";
 };
@@ -1090,7 +1090,7 @@
 };
 #endif
 
-#if 1
+#if 0
 &vhuba1 {
 	status = "okay";
 };
@@ -1101,7 +1101,7 @@
 
 #endif
 
-#if 0
+#if 1
 &vhuba0 {
 	status = "okay";
 };
@@ -1111,7 +1111,7 @@
 };
 #endif
 
-#if 1
+#if 0
 &usb3ahp {
 	status = "okay";
 };
