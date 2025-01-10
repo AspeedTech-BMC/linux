@@ -1063,7 +1063,7 @@
 	status = "okay";
 };
 
-&i2c10 {
+&i2c8 {
 	status = "okay";
 };
 
