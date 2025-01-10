@@ -149,27 +149,6 @@
 				<&adc1 0>, <&adc1 1>, <&adc1 2>, <&adc1 3>,
 				<&adc1 4>, <&adc1 5>, <&adc1 6>, <&adc1 7>;
 	};
-
-	vcc_sdhci0: regulator-vcc-sdhci0 {
-		compatible = "regulator-fixed";
-		regulator-name = "SDHCI0 Vcc";
-		regulator-min-microvolt = <3300000>;
-		regulator-max-microvolt = <3300000>;
-		gpios = <&gpio0 ASPEED_GPIO(H, 0) GPIO_ACTIVE_HIGH>;
-		enable-active-high;
-	};
-
-	vccq_sdhci0: regulator-vccq-sdhci0 {
-		compatible = "regulator-gpio";
-		regulator-name = "SDHCI0 VccQ";
-		regulator-min-microvolt = <1800000>;
-		regulator-max-microvolt = <3300000>;
-		gpios = <&gpio0 ASPEED_GPIO(G, 7) GPIO_ACTIVE_HIGH>;
-		gpios-states = <1>;
-		states = <3300000 1>,
-			 <1800000 0>;
-	};
-
 };
 
 &pwm_tach {
