@@ -466,23 +466,6 @@
 	};
 };
 
-#if 0
-&spi2 {
-	compatible = "aspeed,ast2700-spi-txrx";
-	pinctrl-0 = <&pinctrl_spi2_default>;
-	pinctrl-names = "default";
-	status = "okay";
-
-	spi-aspeed-full-duplex;
-
-	tpm0: tpmdev@0 {
-		compatible = "tcg,tpm_tis-spi";
-		spi-max-frequency = <34000000>;
-		reg = <0>;
-		status = "disabled";
-	};
-};
-#else
 &spi2 {
 	compatible = "aspeed,ast2700-spi";
 	pinctrl-0 = <&pinctrl_spi2_default &pinctrl_spi2_cs1_default>;
@@ -511,7 +494,6 @@
 		spi-rx-bus-width = <2>;
 	};
 };
-#endif
 
 &can0 {
 	/delete-property/ pinctrl-0;
@@ -617,12 +599,6 @@
 	phy-handle = <&ethphy2>;
 };
 
-#if 0
-&pcie2 {
-	status = "okay";
-};
-#endif
-
 &syscon1 {
 	mac0-clk-delay = <0x33 0x30
 			  0x10 0x10
@@ -703,7 +679,6 @@
 	status = "okay";
 };
 
-#if 1
 &pcie0_mmbi0 {
 	status = "okay";
 	memory-region = <&pcie0_mmbi0_memory>;
@@ -719,9 +694,7 @@
 	mmbi-bmc-int-value = /bits/ 8 <0x44>;
 	mmbi-bmc-int-offset = <0x100400>;
 };
-#endif
 
-#if 1
 &bmc_dev0 {
 	status = "okay";
 	memory-region = <&bmc_dev0_memory>;
@@ -776,78 +749,10 @@
 	status = "okay";
 	bt-channel = <2>;
 };
-#else
-&pcie0 {
-	status = "okay";
-};
-#endif
 
-#if 0
-&bmc_dev1 {
-	status = "okay";
-	memory-region = <&bmc_dev1_memory>;
-};
-
-&xdma1 {
-	status = "okay";
-	memory-region = <&xdma_memory1>;
-};
-
-&pcie_vuart2 {
-	port = <0x3f8>;
-	sirq = <4>;
-	sirq-polarity = <0>;
-
-	status = "okay";
-};
-
-&pcie_vuart3 {
-	port = <0x2f8>;
-	sirq = <3>;
-	sirq-polarity = <0>;
-
-	status = "okay";
-};
-#else
 &pcie1 {
 	status = "okay";
 };
-#endif
-
-#if 0
-&i3c0 {
-	status = "okay";
-};
-
-&jtag0 {
-	status = "okay";
-};
-
-&jtag1 {
-	status = "okay";
-};
-
-&sdio_controller {
-	status = "okay";
-	mmc-hs200-1_8v;
-};
-
-&sdhci {
-	status = "okay";
-	bus-width = <4>;
-	max-frequency = <100000000>;
-	/* DDR50 bits in CAPA2 are not supported */
-	sdhci-caps-mask = <0x6 0x0>;
-	sdhci-drive-type = /bits/ 8 <3>;
-	sdhci,wp-inverted;
-	pinctrl-names = "default";
-	pinctrl-0 = <&pinctrl_sd_default>;
-	vmmc-supply = <&vcc_sdhci0>;
-	vqmmc-supply = <&vccq_sdhci0>;
-	sd-uhs-sdr104; /* enable sdr104 to execute tuning */
-};
-
-#endif
 
 &i2c0 {
 	status = "okay";
