@@ -918,7 +918,7 @@
 	status = "okay";
 };
 
-#if 0
+#if 1
 
 &ehci0 {
 	status = "okay";
@@ -933,7 +933,7 @@
 };
 #endif
 
-#if 1
+#if 0
 &uphy3a {
 	status = "okay";
 };
@@ -943,7 +943,7 @@
 };
 #endif
 
-#if 1
+#if 0
 &xhci0 {
 	status = "okay";
 };
