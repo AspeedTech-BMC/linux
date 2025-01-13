@@ -227,7 +227,7 @@ static void aspeed_i3c_of_populate_bus_timing(struct i3c_hci *hci, struct device
 		lcnt = DIV_ROUND_CLOSEST(pp_low, core_period) - 1;
 	} else if (hci->master.bus.mode == I3C_BUS_MODE_PURE) {
 		total_cnt = DIV_ROUND_UP(core_rate, hci->master.bus.scl_rate.i3c) - 2;
-		hcnt = (total_cnt >> 1);
+		hcnt = DIV_ROUND_DOWN_ULL(total_cnt * 2, 5);
 		lcnt = (total_cnt - hcnt);
 	} else {
 		total_cnt = DIV_ROUND_UP(core_rate, hci->master.bus.scl_rate.i3c) - 2;
