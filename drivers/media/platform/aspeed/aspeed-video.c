@@ -2964,12 +2964,6 @@ static int aspeed_video_probe(struct platform_device *pdev)
 	if (IS_ERR(video->base))
 		return PTR_ERR(video->base);
 
-	// workaround for ast2700-A0
-	if (video->id == 1)
-		video->vga_base = devm_platform_ioremap_resource(pdev, 1);
-	else
-		video->vga_base = ERR_PTR(-ENODEV);
-
 	config = of_device_get_match_data(&pdev->dev);
 	if (!config)
 		return -ENODEV;
@@ -2999,6 +2993,12 @@ static int aspeed_video_probe(struct platform_device *pdev)
 	rc = aspeed_video_init(video);
 	if (rc)
 		return rc;
+
+	// workaround for ast2700-A0
+	if (video->version == 7 && video->hw_revision == 0 && video->id == 1)
+		video->vga_base = devm_platform_ioremap_resource(pdev, 1);
+	else
+		video->vga_base = ERR_PTR(-ENODEV);
 
 	/* vga_ctrl is a property to say if VGA will be on/off with KVM */
 	vga_ctrl = of_find_property(pdev->dev.of_node, "vga_ctrl", NULL) ? 1 : 0;
