@@ -576,7 +576,7 @@ static int aspeed_bmc_device_probe(struct platform_device *pdev)
 {
 	struct aspeed_bmc_device *bmc_device;
 	struct device *dev = &pdev->dev;
-	struct reserved_mem *mem;
+	struct resource res;
 	const void *md = of_device_get_match_data(dev);
 	struct device_node *np;
 	int ret = 0, i;
@@ -600,29 +600,29 @@ static int aspeed_bmc_device_probe(struct platform_device *pdev)
 	if (IS_ERR(bmc_device->reg_base))
 		goto out_region;
 
+	ret = dma_set_mask_and_coherent(dev, DMA_BIT_MASK(64));
+	if (ret) {
+		dev_err(dev, "cannot set 64-bits DMA mask\n");
+		goto out_region;
+	}
+
 	np = of_parse_phandle(dev->of_node, "memory-region", 0);
-	if (!np) {
+	if (!np || of_address_to_resource(np, 0, &res)) {
 		dev_err(dev, "Failed to find memory-region.\n");
 		ret = -ENOMEM;
 		goto out_region;
 	}
 
-	mem = of_reserved_mem_lookup(np);
 	of_node_put(np);
-	if (!mem) {
-		dev_err(dev, "Failed to find reserved memory.\n");
+
+	bmc_device->bmc_mem_phy = res.start;
+	bmc_device->bmc_mem_size = resource_size(&res);
+	bmc_device->bmc_mem_virt = devm_ioremap_resource(dev, &res);
+	if (!bmc_device->bmc_mem_virt) {
+		dev_err(dev, "cannot map bmc dev memory region\n");
 		ret = -ENOMEM;
 		goto out_region;
 	}
-
-	bmc_device->bmc_mem_size = mem->size;
-
-	dma_set_mask_and_coherent(dev, DMA_BIT_MASK(64));
-
-	if (of_reserved_mem_device_init(dev))
-		dev_err(dev, "can't get reserved memory\n");
-	bmc_device->bmc_mem_virt = dma_alloc_coherent(&pdev->dev, bmc_device->bmc_mem_size,
-						      &bmc_device->bmc_mem_phy, GFP_KERNEL);
 
 	bmc_device->irq = platform_get_irq(pdev, 0);
 	if (bmc_device->irq < 0) {
@@ -684,8 +684,7 @@ out_irq:
 	devm_free_irq(&pdev->dev, bmc_device->irq, bmc_device);
 out_unmap:
 	iounmap(bmc_device->reg_base);
-	dma_free_coherent(&pdev->dev, bmc_device->bmc_mem_size,
-			  bmc_device->bmc_mem_virt, bmc_device->bmc_mem_phy);
+	devm_iounmap(&pdev->dev, bmc_device->bmc_mem_virt);
 out_region:
 	devm_kfree(&pdev->dev, bmc_device);
 	dev_warn(dev, "aspeed bmc device: driver init failed (ret=%d)!\n", ret);
@@ -705,8 +704,7 @@ static int  aspeed_bmc_device_remove(struct platform_device *pdev)
 
 	iounmap(bmc_device->reg_base);
 
-	dma_free_coherent(&pdev->dev, bmc_device->bmc_mem_size,
-			  bmc_device->bmc_mem_virt, bmc_device->bmc_mem_phy);
+	devm_iounmap(&pdev->dev, bmc_device->bmc_mem_virt);
 
 	devm_kfree(&pdev->dev, bmc_device);
 

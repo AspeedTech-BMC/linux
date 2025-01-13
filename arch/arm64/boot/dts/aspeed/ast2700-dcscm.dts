@@ -33,20 +33,6 @@
 
 		#include "ast2700-reserved-mem.dtsi"
 
-		bmc_dev0_memory: bmc-dev0-memory {
-			size = <0x0 0x00100000>;
-			alignment = <0x0 0x00100000>;
-			compatible = "shared-dma-pool";
-			no-map;
-		};
-
-		bmc_dev1_memory: bmc-dev1-memory {
-			size = <0x0 0x00100000>;
-			alignment = <0x0 0x00100000>;
-			compatible = "shared-dma-pool";
-			no-map;
-		};
-
 		video_engine_memory0: video0 {
 			size = <0x0 0x04000000>;
 			alignment = <0x0 0x00010000>;
