@@ -186,7 +186,7 @@ static void aspeed_i3c_phy_init(struct i3c_hci *hci)
 
 static void aspeed_i3c_of_populate_bus_timing(struct i3c_hci *hci, struct device_node *np)
 {
-	u16 hcnt, lcnt, total_cnt;
+	u16 hcnt, lcnt, total_cnt, min_tbit_cnt;
 	unsigned long core_rate, core_period;
 	u32 val, pp_high = 0, pp_low = 0, od_high = 0, od_low = 0, thd_dat = 0, internal_pu = 0;
 	u32 ctrl0, ctrl1, ctrl2;
@@ -195,6 +195,11 @@ static void aspeed_i3c_of_populate_bus_timing(struct i3c_hci *hci, struct device
 	core_rate = clk_get_rate(hci->clk);
 	/* core_period is in nanosecond */
 	core_period = DIV_ROUND_UP(1000000000, core_rate);
+	/*
+	 * The T-bits margin in our I3C controller is too tight to be set at 12.5MHz.
+	 * Set it to a minimum of 60ns to ensure proper functionality.
+	 */
+	min_tbit_cnt = DIV_ROUND_UP(60, core_period) - 1;
 
 	dev_info(&hci->master.dev, "core rate = %ld core period = %ld ns", core_rate, core_period);
 
@@ -235,8 +240,8 @@ static void aspeed_i3c_of_populate_bus_timing(struct i3c_hci *hci, struct device
 	/* Address assign command(ENTDAA) will always use SDR0 setting */
 	ast_phy_write(PHY_I3C_SDR0_CTRL0, ctrl0);
 	ast_phy_write(PHY_I3C_DDR_CTRL0, ctrl0);
-	ctrl1 = FIELD_PREP(PHY_I3C_SDR0_CTRL1_TBIT_H, hcnt) |
-		FIELD_PREP(PHY_I3C_SDR0_CTRL1_TBIT_L, lcnt);
+	ctrl1 = FIELD_PREP(PHY_I3C_SDR0_CTRL1_TBIT_H, max(hcnt, min_tbit_cnt)) |
+		FIELD_PREP(PHY_I3C_SDR0_CTRL1_TBIT_L, max(lcnt, min_tbit_cnt));
 	ast_phy_write(sdr_ctrl0_reg + PHY_I3C_CTRL1_OFFSET, ctrl1);
 	ast_phy_write(PHY_I3C_SDR0_CTRL1, ctrl1);
 	ast_phy_write(PHY_I3C_DDR_CTRL1, ctrl1);
