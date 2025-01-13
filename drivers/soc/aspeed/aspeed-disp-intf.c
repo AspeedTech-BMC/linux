@@ -97,13 +97,23 @@ static ssize_t dac_src_store(struct device *dev,
 	}
 
 	dac_src = src;
-	if (config->version == 6)
+	if (config->version == 6) {
 		regmap_update_bits(intf->scu, config->dac_src_sel, AST2600_SCU_DAC_SRC_SEL,
 				   FIELD_PREP(AST2600_SCU_DAC_SRC_SEL, src));
-	else
-		regmap_update_bits(intf->scu, config->dac_src_sel, AST2700_SCU_DAC_SRC_SEL,
-				   FIELD_PREP(AST2700_SCU_DAC_SRC_SEL, src));
+	} else {
+		u32 id;
+		u32 mask = AST2700_SCU_DAC_SRC_SEL;
+		u32 val = FIELD_PREP(AST2700_SCU_DAC_SRC_SEL, src);
 
+		// D1PLL used in A0 only
+		regmap_read(intf->scu, AST2700_SCU_CHIP_ID, &id);
+		if (FIELD_GET(SCU_CPU_REVISION_ID_HW, id) != 0) {
+			mask |= AST2700_SCU_D1PLL_SEL;
+			val |= FIELD_PREP(AST2700_SCU_D1PLL_SEL, src);
+		}
+
+		regmap_update_bits(intf->scu, config->dac_src_sel, mask, val);
+	}
 	return count;
 }
 
