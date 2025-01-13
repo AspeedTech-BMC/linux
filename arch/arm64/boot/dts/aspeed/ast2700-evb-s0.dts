@@ -19,3 +19,11 @@
 	oob-dma-mode;
 	flash-dma-mode;
 };
+
+&sdio_controller {
+	status = "disabled";
+};
+
+&sdhci {
+	status = "disabled";
+};
