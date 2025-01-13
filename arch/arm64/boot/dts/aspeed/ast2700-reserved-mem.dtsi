@@ -1,7 +1,12 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 /* AST2700 reserved memories with fixed address */
-espi_mmbi_memory: espi-mmbi-memory@428000000 {
+espi0_mmbi_memory: espi0-mmbi-memory@424000000 {
+	reg = <0x4 0x24000000 0x0 0x4000000>;
+	no-map;
+};
+
+espi1_mmbi_memory: espi1-mmbi-memory@428000000 {
 	reg = <0x4 0x28000000 0x0 0x4000000>;
 	no-map;
 };

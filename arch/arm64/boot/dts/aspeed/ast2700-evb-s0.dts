@@ -9,6 +9,10 @@
 &espi1 {
 	status = "okay";
 	perif-dma-mode;
+	perif-mmbi-enable;
+	perif-mmbi-src-addr = <0x0 0xa8000000>;
+	perif-mmbi-tgt-memory = <&espi1_mmbi_memory>;
+	perif-mmbi-instance-num = <0x1>;
 	perif-mcyc-enable;
 	perif-mcyc-src-addr = <0x0 0x98000000>;
 	perif-mcyc-size = <0x0 0x10000>;
