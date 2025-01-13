@@ -1072,7 +1072,7 @@ static long ast2600_espi_oob_dma_get_rx(struct file *fp,
 
 	espi = container_of(oob, struct ast2600_espi, oob);
 
-	wptr = readl(espi->regs + ESPI_OOB_RX_DESC_WPTR);
+	wptr = FIELD_PREP(ESPI_OOB_RX_DESC_WPTR_WP, readl(espi->regs + ESPI_OOB_RX_DESC_WPTR));
 
 	d = &oob->dma.rxd_virt[wptr];
 
