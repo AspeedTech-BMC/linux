@@ -255,7 +255,7 @@ static int aspeed_pcie_mmbi_probe(struct platform_device *pdev)
 {
 	struct aspeed_pcie_mmbi *mmbi;
 	struct device *dev = &pdev->dev;
-	struct reserved_mem *mem;
+	struct resource res;
 	struct device_node *np;
 	const void *md;
 	int ret = 0;
@@ -289,27 +289,22 @@ static int aspeed_pcie_mmbi_probe(struct platform_device *pdev)
 
 	/* Get MMBI memory size */
 	np = of_parse_phandle(dev->of_node, "memory-region", 0);
-	if (!np) {
+	if (!np || of_address_to_resource(np, 0, &res)) {
 		dev_err(dev, "Failed to find memory-region.\n");
 		ret = -ENOMEM;
 		goto out_region;
 	}
-	mem = of_reserved_mem_lookup(np);
+
 	of_node_put(np);
-	if (!mem) {
-		dev_err(dev, "Failed to find reserved memory.\n");
+
+	mmbi->mem_phy = res.start;
+	mmbi->mem_size = resource_size(&res);
+	mmbi->mem_virt = devm_ioremap_resource(dev, &res);
+	if (!mmbi->mem_virt) {
+		dev_err(dev, "cannot map mmbi memory region\n");
 		ret = -ENOMEM;
 		goto out_region;
 	}
-	mmbi->mem_size = mem->size;
-
-	/* Allocate MMBI memory */
-	dma_set_mask_and_coherent(dev, DMA_BIT_MASK(64));
-	if (of_reserved_mem_device_init(dev))
-		dev_err(dev, "can't get reserved memory\n");
-	mmbi->mem_virt = dma_alloc_coherent(&pdev->dev, mmbi->mem_size,
-					    &mmbi->mem_phy, GFP_KERNEL);
-	memset(mmbi->mem_virt, 0, mmbi->mem_size);
 
 	/* Get IRQ */
 	mmbi->irq = platform_get_irq(pdev, 0);
@@ -355,11 +350,11 @@ static int aspeed_pcie_mmbi_probe(struct platform_device *pdev)
 
 	return 0;
 out_irq:
-	devm_free_irq(&pdev->dev, mmbi->irq, mmbi);
+	devm_free_irq(dev, mmbi->irq, mmbi);
 out_unmap:
-	dma_free_coherent(&pdev->dev, mmbi->mem_size, mmbi->mem_virt, mmbi->mem_phy);
+	devm_iounmap(dev, mmbi->mem_virt);
 out_region:
-	devm_kfree(&pdev->dev, mmbi);
+	devm_kfree(dev, mmbi);
 	dev_warn(dev, "aspeed bmc device: driver init failed (ret=%d)!\n", ret);
 	return ret;
 }
@@ -370,7 +365,7 @@ static int  aspeed_pcie_mmbi_remove(struct platform_device *pdev)
 
 	misc_deregister(&mmbi->mdev);
 	devm_free_irq(&pdev->dev, mmbi->irq, mmbi);
-	dma_free_coherent(&pdev->dev, mmbi->mem_size, mmbi->mem_virt, mmbi->mem_phy);
+	devm_iounmap(&pdev->dev, mmbi->mem_virt);
 	devm_kfree(&pdev->dev, mmbi);
 
 	return 0;
