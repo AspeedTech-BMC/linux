@@ -469,7 +469,7 @@ struct i3c_master_controller_ops {
 				 const struct i3c_ccc_cmd *cmd);
 	int (*send_ccc_cmd)(struct i3c_master_controller *master,
 			    struct i3c_ccc_cmd *cmd);
-	int (*send_hdr_cmds)(struct i3c_master_controller *master,
+	int (*send_hdr_cmds)(struct i3c_dev_desc *dev,
 			     struct i3c_hdr_cmd *cmds, int ncmds);
 	int (*priv_xfers)(struct i3c_dev_desc *dev,
 			  struct i3c_priv_xfer *xfers,
@@ -589,8 +589,6 @@ int i3c_master_register(struct i3c_master_controller *master,
 			const struct i3c_master_controller_ops *ops,
 			bool secondary);
 void i3c_master_unregister(struct i3c_master_controller *master);
-int i3c_master_send_hdr_cmds(struct i3c_master_controller *master,
-			     struct i3c_hdr_cmd *cmds, int ncmds);
 int i3c_register(struct i3c_master_controller *master,
 		 struct device *parent,
 		 const struct i3c_master_controller_ops *master_ops,

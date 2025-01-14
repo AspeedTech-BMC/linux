@@ -1393,9 +1393,10 @@ static int dw_i3c_master_priv_xfers(struct i3c_dev_desc *dev,
 	return ret;
 }
 
-static int dw_i3c_master_send_hdr_cmds(struct i3c_master_controller *m,
+static int dw_i3c_master_send_hdr_cmds(struct i3c_dev_desc *dev,
 				       struct i3c_hdr_cmd *cmds, int ncmds)
 {
+	struct i3c_master_controller *m = i3c_dev_get_master(dev);
 	struct dw_i3c_master *master = to_dw_i3c_master(m);
 	u8 dat_index;
 	int ret, i, ntxwords = 0, nrxwords = 0;
@@ -1433,14 +1434,11 @@ static int dw_i3c_master_send_hdr_cmds(struct i3c_master_controller *m,
 	for (i = 0; i < ncmds; i++) {
 		struct dw_i3c_cmd *cmd = &xfer->cmds[i];
 
-		dev_dbg(&master->base.dev, "cmds[%d] addr = %x", i,
-			cmds[i].addr);
-		dat_index = master->platform_ops->get_addr_pos(master,
-							       cmds[i].addr);
+		dat_index = master->platform_ops->get_addr_pos(master, dev->info.dyn_addr);
 
 		if (dat_index < 0)
 			return dat_index;
-		master->platform_ops->flush_dat(master, cmds[i].addr);
+		master->platform_ops->flush_dat(master, dev->info.dyn_addr);
 
 		cmd->cmd_hi =
 			COMMAND_PORT_ARG_DATA_LEN(cmds[i].ndatawords << 1) |

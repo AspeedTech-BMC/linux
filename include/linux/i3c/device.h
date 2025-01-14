@@ -56,7 +56,6 @@ enum i3c_hdr_mode {
  * struct i3c_hdr_cmd - I3C HDR command
  * @mode: HDR mode selected for this command
  * @code: command opcode
- * @addr: I3C dynamic address
  * @ndatawords: number of data words (a word is 16bits wide)
  * @data: input/output buffer
  * @err: I3C error code
@@ -64,7 +63,6 @@ enum i3c_hdr_mode {
 struct i3c_hdr_cmd {
 	enum i3c_hdr_mode mode;
 	u8 code;
-	u8 addr;
 	int ndatawords;
 	union {
 		void *in;

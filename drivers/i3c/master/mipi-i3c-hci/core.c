@@ -595,9 +595,10 @@ out:
 	return ret;
 }
 
-static int i3c_hci_send_hdr_cmds(struct i3c_master_controller *m,
+static int i3c_hci_send_hdr_cmds(struct i3c_dev_desc *dev,
 				 struct i3c_hdr_cmd *cmds, int ncmds)
 {
+	struct i3c_master_controller *m = i3c_dev_get_master(dev);
 	struct i3c_hci *hci = to_i3c_hci(m);
 	struct hci_xfer *xfer;
 	DECLARE_COMPLETION_ONSTACK(done);
@@ -627,8 +628,7 @@ static int i3c_hci_send_hdr_cmds(struct i3c_master_controller *m,
 			xfer[i].data = cmds[i].data.in;
 		else
 			xfer[i].data = (void *)cmds[i].data.out;
-		hci->cmd->prep_hdr(hci, xfer, cmds[i].addr, cmds[i].code,
-				   cmds[i].mode);
+		hci->cmd->prep_hdr(hci, xfer, dev->info.dyn_addr, cmds[i].code, cmds[i].mode);
 
 		xfer[i].cmd_desc[0] |= CMD_0_ROC;
 	}
