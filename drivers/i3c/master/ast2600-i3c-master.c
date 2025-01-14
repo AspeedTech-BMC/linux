@@ -401,6 +401,9 @@ struct aspeed_i3c_dev_group {
 		u32 set;
 		u32 clr;
 	} mask;
+
+	/* To protect the hardware DAT during transfers */
+	struct mutex lock;
 };
 
 struct aspeed_i3c_master {
@@ -742,6 +745,41 @@ static int aspeed_i3c_master_get_free_pos(struct aspeed_i3c_master *master)
 	return ffs(master->free_pos) - 1;
 }
 
+static u32 aspeed_i3c_master_get_group_dat(struct aspeed_i3c_master *master, u8 addr)
+{
+	struct aspeed_i3c_dev_group *dev_grp = &master->dev_group[ADDR_GRP(addr)];
+
+	return dev_grp->dat[ADDR_HID(addr)];
+}
+
+static int aspeed_i3c_master_get_group_hw_index(struct aspeed_i3c_master *master,
+						u8 addr)
+{
+	struct aspeed_i3c_dev_group *dev_grp = &master->dev_group[ADDR_GRP(addr)];
+
+	return dev_grp->hw_index;
+}
+
+static struct aspeed_i3c_dev_group *
+aspeed_i3c_master_get_group(struct aspeed_i3c_master *master, u8 addr)
+{
+	return &master->dev_group[ADDR_GRP(addr)];
+}
+
+static void aspeed_i3c_master_dat_lock(struct aspeed_i3c_master *master, u8 addr)
+{
+	struct aspeed_i3c_dev_group *grp = aspeed_i3c_master_get_group(master, addr);
+
+	mutex_lock(&grp->lock);
+}
+
+static void aspeed_i3c_master_dat_unlock(struct aspeed_i3c_master *master, u8 addr)
+{
+	struct aspeed_i3c_dev_group *grp = aspeed_i3c_master_get_group(master, addr);
+
+	mutex_unlock(&grp->lock);
+}
+
 static void aspeed_i3c_master_init_group_dat(struct aspeed_i3c_master *master)
 {
 	struct aspeed_i3c_dev_group *dev_grp;
@@ -761,6 +799,8 @@ static void aspeed_i3c_master_init_group_dat(struct aspeed_i3c_master *master)
 		dev_grp->mask.clr = def_clr;
 		for (j = 0; j < MAX_DEVS_IN_GROUP; j++)
 			dev_grp->dat[j] = 0;
+
+		mutex_init(&dev_grp->lock);
 	}
 
 	for (i = 0; i < master->maxdevs; i++)
@@ -778,6 +818,8 @@ static int aspeed_i3c_master_set_group_dat(struct aspeed_i3c_master *master, u8 
 	val &= ~DEV_ADDR_TABLE_DA_PARITY;
 	val |= FIELD_PREP(DEV_ADDR_TABLE_DA_PARITY, even_parity(addr));
 	dev_grp->dat[idx] = val;
+
+	aspeed_i3c_master_dat_lock(master, addr);
 
 	if (val) {
 		dev_grp->free_pos &= ~BIT(idx);
@@ -815,28 +857,8 @@ static int aspeed_i3c_master_set_group_dat(struct aspeed_i3c_master *master, u8 
 		}
 	}
 out:
+	aspeed_i3c_master_dat_unlock(master, addr);
 	return dev_grp->hw_index;
-}
-
-static u32 aspeed_i3c_master_get_group_dat(struct aspeed_i3c_master *master, u8 addr)
-{
-	struct aspeed_i3c_dev_group *dev_grp = &master->dev_group[ADDR_GRP(addr)];
-
-	return dev_grp->dat[ADDR_HID(addr)];
-}
-
-static int aspeed_i3c_master_get_group_hw_index(struct aspeed_i3c_master *master,
-					    u8 addr)
-{
-	struct aspeed_i3c_dev_group *dev_grp = &master->dev_group[ADDR_GRP(addr)];
-
-	return dev_grp->hw_index;
-}
-
-static struct aspeed_i3c_dev_group *
-aspeed_i3c_master_get_group(struct aspeed_i3c_master *master, u8 addr)
-{
-	return &master->dev_group[ADDR_GRP(addr)];
 }
 
 static int aspeed_i3c_master_sync_hw_dat(struct aspeed_i3c_master *master, u8 addr)
@@ -848,6 +870,7 @@ static int aspeed_i3c_master_sync_hw_dat(struct aspeed_i3c_master *master, u8 ad
 	if (!dat || hw_index < 0)
 		return -1;
 
+	aspeed_i3c_master_dat_lock(master, addr);
 	dat &= ~dev_grp->mask.clr;
 	dat |= dev_grp->mask.set;
 	writel(dat, master->regs +
@@ -1654,8 +1677,12 @@ static int aspeed_i3c_ccc_set(struct aspeed_i3c_master *master,
 	}
 
 	xfer = aspeed_i3c_master_alloc_xfer(master, 1);
-	if (!xfer)
+	if (!xfer) {
+		if (ccc->id & I3C_CCC_DIRECT)
+			aspeed_i3c_master_dat_unlock(master, ccc->dests[0].addr);
+
 		return -ENOMEM;
+	}
 
 	cmd = xfer->cmds;
 	cmd->tx_buf = ccc->dests[0].payload.data;
@@ -1693,6 +1720,9 @@ static int aspeed_i3c_ccc_set(struct aspeed_i3c_master *master,
 		aspeed_i3c_master_resume(master);
 	}
 
+	if (ccc->id & I3C_CCC_DIRECT)
+		aspeed_i3c_master_dat_unlock(master, ccc->dests[0].addr);
+
 	ret = xfer->ret;
 	if (ret)
 		dev_err(master->dev, "xfer error: %x\n", xfer->cmds[0].error);
@@ -1717,8 +1747,10 @@ static int aspeed_i3c_ccc_get(struct aspeed_i3c_master *master, struct i3c_ccc_c
 		return pos;
 
 	xfer = aspeed_i3c_master_alloc_xfer(master, 1);
-	if (!xfer)
+	if (!xfer) {
+		aspeed_i3c_master_dat_unlock(master, ccc->dests[0].addr);
 		return -ENOMEM;
+	}
 
 	cmd = xfer->cmds;
 	cmd->rx_buf = ccc->dests[0].payload.data;
@@ -1753,6 +1785,8 @@ static int aspeed_i3c_ccc_get(struct aspeed_i3c_master *master, struct i3c_ccc_c
 		}
 		aspeed_i3c_master_resume(master);
 	}
+
+	aspeed_i3c_master_dat_unlock(master, ccc->dests[0].addr);
 
 	ret = xfer->ret;
 	if (ret)
@@ -2086,6 +2120,8 @@ static int aspeed_i3c_master_priv_xfers(struct i3c_dev_desc *dev,
 		aspeed_i3c_master_resume(master);
 	}
 
+	aspeed_i3c_master_dat_unlock(master, dev->info.dyn_addr);
+
 	for (i = 0; i < i3c_nxfers; i++) {
 		struct aspeed_i3c_cmd *cmd = &xfer->cmds[i];
 
@@ -2191,6 +2227,7 @@ static int aspeed_i3c_master_send_hdr_cmd(struct i3c_dev_desc *dev,
 		}
 		aspeed_i3c_master_resume(master);
 	}
+	aspeed_i3c_master_dat_unlock(master, dev->info.dyn_addr);
 
 	for (i = 0; i < ncmds; i++) {
 		struct aspeed_i3c_cmd *cmd = &xfer->cmds[i];
@@ -2346,6 +2383,8 @@ static int aspeed_i3c_master_i2c_xfers(struct i2c_dev_desc *dev,
 		}
 		aspeed_i3c_master_resume(master);
 	}
+
+	aspeed_i3c_master_dat_unlock(master, dev->addr);
 
 	ret = xfer->ret;
 	if (ret)
