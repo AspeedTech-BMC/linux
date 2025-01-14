@@ -224,7 +224,9 @@ static int aspeed_ast2700_pcie_mmbi_init(struct platform_device *pdev)
 	}
 
 	/* HOST Interrupt: MSI */
-	regmap_write(mmbi->e2m, ASPEED_E2M_EVENT_EN, BIT(e2m_index));
+	regmap_read(mmbi->e2m, ASPEED_E2M_EVENT_EN, &value);
+	value |= BIT(e2m_index);
+	regmap_write(mmbi->e2m, ASPEED_E2M_EVENT_EN, value);
 
 	/* B2H Write Protect */
 	sprot_size = (mmbi->mem_size / 2) / SZ_1M;
