@@ -2101,12 +2101,13 @@ static int aspeed_i3c_master_priv_xfers(struct i3c_dev_desc *dev,
 	return ret;
 }
 
-static int aspeed_i3c_master_send_hdr_cmd(struct i3c_master_controller *m,
+static int aspeed_i3c_master_send_hdr_cmd(struct i3c_dev_desc *dev,
 					  struct i3c_hdr_cmd *cmds,
 					  int ncmds)
 {
+	struct aspeed_i3c_i2c_dev_data *data = i3c_dev_get_master_data(dev);
+	struct i3c_master_controller *m = i3c_dev_get_master(dev);
 	struct aspeed_i3c_master *master = to_aspeed_i3c_master(m);
-	u8 dat_index;
 	int ret, i, ntxwords = 0, nrxwords = 0;
 	u32 sda_lvl_pre, sda_lvl_post;
 	struct aspeed_i3c_xfer *xfer;
@@ -2138,10 +2139,10 @@ static int aspeed_i3c_master_send_hdr_cmd(struct i3c_master_controller *m,
 	if (!xfer)
 		return -ENOMEM;
 
+	data->index = aspeed_i3c_master_sync_hw_dat(master, dev->info.dyn_addr);
+
 	for (i = 0; i < ncmds; i++) {
 		struct aspeed_i3c_cmd *cmd = &xfer->cmds[i];
-
-		dat_index = aspeed_i3c_master_sync_hw_dat(master, cmds[i].addr);
 
 		cmd->cmd_hi = COMMAND_PORT_ARG_DATA_LEN(cmds[i].ndatawords << 1) |
 			      COMMAND_PORT_TRANSFER_ARG;
@@ -2163,7 +2164,7 @@ static int aspeed_i3c_master_send_hdr_cmd(struct i3c_master_controller *m,
 		}
 
 		cmd->cmd_lo |= COMMAND_PORT_TID(i) |
-			       COMMAND_PORT_DEV_INDEX(dat_index) |
+			       COMMAND_PORT_DEV_INDEX(data->index) |
 			       COMMAND_PORT_ROC;
 
 		if (i == (ncmds - 1))
