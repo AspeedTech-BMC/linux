@@ -21,6 +21,11 @@ pcie1_mmbi4_memory: pcie1-mmbi4-memory@423c00000 {
 	no-map;
 };
 
+pcie2_mmbi0_memory: pcie2-mmbi0-memory@423e00000 {
+	reg = <0x4 0x23e00000 0x0 0x200000>;
+	no-map;
+};
+
 espi0_mmbi_memory: espi0-mmbi-memory@424000000 {
 	reg = <0x4 0x24000000 0x0 0x4000000>;
 	no-map;
