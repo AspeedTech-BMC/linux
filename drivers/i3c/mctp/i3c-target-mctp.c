@@ -39,6 +39,7 @@ struct i3c_target_mctp {
 	int id;
 	struct mctp_client *client;
 	spinlock_t client_lock; /* to protect client access */
+	bool mdb_append_pec;
 };
 
 struct mctp_client {
@@ -260,8 +261,10 @@ static ssize_t i3c_target_mctp_write(struct file *file, const char __user *buf,
 		dev_warn(i3cdev_to_dev(priv->i3cdev), "IBI not enabled\n");
 		return count;
 	}
-
-	ibi_data = kzalloc(2, GFP_KERNEL);
+	if (priv->mdb_append_pec)
+		ibi_data = kzalloc(2, GFP_KERNEL);
+	else
+		ibi_data = kzalloc(1, GFP_KERNEL);
 	if (!ibi_data)
 		return -ENOMEM;
 	ibi_data[0] = I3C_MCTP_MDB;
@@ -278,9 +281,13 @@ static ssize_t i3c_target_mctp_write(struct file *file, const char __user *buf,
 	}
 
 	i3c_device_get_info(priv->i3cdev, &info);
-	pec_append(info.dyn_addr << 1 | 0x1, ibi_data, 1);
+	if (priv->mdb_append_pec) {
+		pec_append(info.dyn_addr << 1 | 0x1, ibi_data, 1);
+		xfers[0].len = 2;
+	} else {
+		xfers[0].len = 1;
+	}
 	xfers[0].data.out = ibi_data;
-	xfers[0].len = 2;
 
 	xfers[1].data.out = tx_data;
 	xfers[1].len = count;
@@ -331,6 +338,36 @@ static struct i3c_target_read_setup i3c_target_mctp_rx_packet_setup = {
 	.handler = i3c_target_mctp_rx_packet_enqueue,
 };
 
+static ssize_t mdb_append_pec_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct i3c_device *i3cdev = dev_get_drvdata(dev);
+	struct i3c_target_mctp *priv = i3cdev_get_drvdata(i3cdev);
+	ssize_t ret;
+
+	ret = sysfs_emit(buf, "%d\n", priv->mdb_append_pec);
+
+	return ret;
+}
+
+static ssize_t mdb_append_pec_store(struct device *dev, struct device_attribute *attr,
+				    const char *buf, size_t count)
+{
+	struct i3c_device *i3cdev = dev_get_drvdata(dev);
+	struct i3c_target_mctp *priv = i3cdev_get_drvdata(i3cdev);
+	bool res;
+	int ret;
+
+	ret = kstrtobool(buf, &res);
+	if (ret)
+		return ret;
+
+	priv->mdb_append_pec = res;
+
+	return count;
+}
+
+static DEVICE_ATTR_RW(mdb_append_pec);
+
 static int i3c_target_mctp_probe(struct i3c_device *i3cdev)
 {
 	struct device *parent = i3cdev_to_dev(i3cdev);
@@ -361,10 +398,23 @@ static int i3c_target_mctp_probe(struct i3c_device *i3cdev)
 	}
 
 	dev = device_create(i3c_target_mctp_class, parent,
-			    MKDEV(MAJOR(i3c_target_mctp_devt), priv->id), NULL,
+			    MKDEV(MAJOR(i3c_target_mctp_devt), priv->id), i3cdev,
 			    "i3c-mctp-target-%d", priv->id);
 	if (IS_ERR(dev)) {
 		ret = PTR_ERR(dev);
+		goto err;
+	}
+
+	/*
+	 * By default, the PEC is appended to the MDB as a hardware workaround for the AST2600 I3C
+	 * controller as primary controller.
+	 */
+	priv->mdb_append_pec = 1;
+
+	ret = device_create_file(dev, &dev_attr_mdb_append_pec);
+	if (unlikely(ret)) {
+		dev_err(dev, "Failed creating device attrs\n");
+		ret = -EINVAL;
 		goto err;
 	}
 
