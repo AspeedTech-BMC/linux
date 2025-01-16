@@ -22,6 +22,9 @@
 
 static DEFINE_IDA(aspeed_pcc_ida);
 
+#define HICR6	0x084
+#define   HICR6_EN2BMODE		BIT(19)
+#define SNPWADR	0x090
 #define PCCR6	0x0c4
 #define   PCCR6_DMA_CUR_ADDR		GENMASK(27, 0)
 #define PCCR4	0x0d0
@@ -32,6 +35,9 @@ static DEFINE_IDA(aspeed_pcc_ida);
 #define   PCCR5_DMA_ADDRH_SHIFT		24
 #define   PCCR5_DMA_LEN_MASK		GENMASK(23, 0)
 #define   PCCR5_DMA_LEN_SHIFT		0
+#define HICRB	0x100
+#define   HICRB_ENSNP0D			BIT(14)
+#define   HICRB_ENSNP1D			BIT(15)
 #define PCCR0	0x130
 #define   PCCR0_EN_DMA_INT		BIT(31)
 #define   PCCR0_EN_DMA_MODE		BIT(14)
@@ -231,15 +237,13 @@ static irqreturn_t aspeed_pcc_isr(int irq, void *arg)
  * eSPI response when PCC is used for port I/O byte snooping
  * over eSPI.
  */
-#define SNPWADR	0x90
-#define HICR6	0x84
-#define HICRB	0x100
 static int aspeed_a2600_15(struct aspeed_pcc *pcc, struct device *dev)
 {
 	struct device_node *np;
+	u32 hicrb_en;
 
 	/* abort if snoop is enabled */
-	np = of_find_compatible_node(NULL, NULL, "aspeed,ast2600-lpc-snoop");
+	np = of_find_compatible_node(dev->parent->of_node, NULL, "aspeed,ast2600-lpc-snoop");
 	if (np) {
 		if (of_device_is_available(np)) {
 			dev_err(dev, "A2600-15 should be applied with snoop disabled\n");
@@ -257,11 +261,11 @@ static int aspeed_a2600_15(struct aspeed_pcc *pcc, struct device *dev)
 	regmap_write(pcc->regmap, SNPWADR, pcc->port | ((pcc->port + 2) << 16));
 
 	/* set HICRB[15:14]=11b to enable ACCEPT response for SNPWADR */
-	regmap_update_bits(pcc->regmap, HICRB, BIT(14) | BIT(15),
-			   BIT(14) | BIT(15));
+	hicrb_en = HICRB_ENSNP0D | HICRB_ENSNP1D;
+	regmap_update_bits(pcc->regmap, HICRB, hicrb_en, hicrb_en);
 
 	/* set HICR6[19] to extend SNPWADR to 2x range */
-	regmap_update_bits(pcc->regmap, HICR6, BIT(19), BIT(19));
+	regmap_update_bits(pcc->regmap, HICR6, HICR6_EN2BMODE, HICR6_EN2BMODE);
 
 	return 0;
 }
