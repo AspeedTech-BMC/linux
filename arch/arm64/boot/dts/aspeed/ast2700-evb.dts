@@ -670,7 +670,7 @@
 	phy-mode = "sgmii";
 	phy-handle = <&ethphy2>;
 };
-
+#else
 &pcie2 {
 	status = "okay";
 };
