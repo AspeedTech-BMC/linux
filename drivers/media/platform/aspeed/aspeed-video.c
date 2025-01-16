@@ -1660,7 +1660,7 @@ static void aspeed_video_set_resolution(struct aspeed_video *video)
 
 	/* Don't use direct mode below 1024 x 768 (irqs don't fire) */
 	if (video->input == VIDEO_INPUT_VGA && size < DIRECT_FETCH_THRESHOLD &&
-	    (video->version != 7 || video->hw_revision != 0)) {
+	    (video->version != 7)) {
 		v4l2_dbg(1, debug, &video->v4l2_dev, "Capture: Sync Mode\n");
 		aspeed_video_write(video, VE_TGS_0,
 				   FIELD_PREP(VE_TGS_FIRST,
