@@ -40,6 +40,8 @@ struct ast_vhub_match_data {
 	enum ast_g7_pcie g7_pcie;
 	u32 usb_mode_mask;
 	u32 xhci_mode_mask;
+	u32 txfifo_fix_reg;
+	u32 txfifo_fix_val;
 };
 
 void ast_vhub_done(struct ast_vhub_ep *ep, struct ast_vhub_req *req,
@@ -365,6 +367,7 @@ static int ast_vhub_probe(struct platform_device *pdev)
 	int i, rc = 0;
 	const struct device_node *np = pdev->dev.of_node;
 	const struct ast_vhub_match_data *pdata;
+	u32 val;
 
 	vhub = devm_kzalloc(&pdev->dev, sizeof(*vhub), GFP_KERNEL);
 	if (!vhub)
@@ -442,6 +445,13 @@ static int ast_vhub_probe(struct platform_device *pdev)
 		rc = ast_vhub_init_pcie(vhub, pdata);
 		if (rc)
 			goto err;
+
+		/* For G7 PortA/B, enable the option of TXFIFO fix.
+		 * It forces the CRC error for a re-try when vHub cannot fetch DRAM in time.
+		 */
+		val = readl(vhub->regs + pdata->txfifo_fix_reg);
+		writel(pdata->txfifo_fix_val | val,
+		       vhub->regs + pdata->txfifo_fix_reg);
 	}
 
 	/* Check if we need to limit the HW to USB1 */
@@ -522,24 +532,32 @@ static const struct ast_vhub_match_data aspeed_g7_vhuba0_match_data = {
 	.g7_pcie = PCIE_EHCI,
 	.usb_mode_mask = GENMASK(25, 24),
 	.xhci_mode_mask = 0,
+	.txfifo_fix_reg = 0x800,
+	.txfifo_fix_val = BIT(13),
 };
 
 static const struct ast_vhub_match_data aspeed_g7_vhubb0_match_data = {
 	.g7_pcie = PCIE_EHCI,
 	.usb_mode_mask = GENMASK(29, 28),
 	.xhci_mode_mask = 0,
+	.txfifo_fix_reg = 0x800,
+	.txfifo_fix_val = BIT(13),
 };
 
 static const struct ast_vhub_match_data aspeed_g7_vhuba1_match_data = {
 	.g7_pcie = PCIE_XHCI,
 	.usb_mode_mask = GENMASK(3, 2),
 	.xhci_mode_mask = BIT_MASK(9),
+	.txfifo_fix_reg = 0x80C,
+	.txfifo_fix_val = BIT(31),
 };
 
 static const struct ast_vhub_match_data aspeed_g7_vhubb1_match_data = {
 	.g7_pcie = PCIE_XHCI,
 	.usb_mode_mask = GENMASK(7, 6),
 	.xhci_mode_mask = BIT_MASK(10),
+	.txfifo_fix_reg = 0x80C,
+	.txfifo_fix_val = BIT(31),
 };
 
 static const struct ast_vhub_match_data aspeed_g7_vhubc_match_data = {
