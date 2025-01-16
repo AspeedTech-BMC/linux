@@ -1215,7 +1215,7 @@
 
 	pinctrl_pcierc2_perst_default: pcierc2_perst_default {
 		function = "PCIERC";
-		groups = "PCIERC2PERST";
+		groups = "PE2SGRSTN";
 	};
 
 	pinctrl_usb2cud_default: usb2cud_default {
