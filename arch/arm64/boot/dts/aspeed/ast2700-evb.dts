@@ -1054,10 +1054,6 @@
 &i2c13 {
 	status = "okay";
 };
-
-&i2c15 {
-	status = "okay";
-};
 #endif
 
 #if 0
