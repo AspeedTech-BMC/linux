@@ -2696,6 +2696,7 @@ static int aspeed_i3c_master_enable_ibi(struct i3c_dev_desc *dev)
 		dev_grp->mask.clr = mask_clr_backup;
 		dev_grp->mask.set = mask_set_backup;
 		aspeed_i3c_master_sync_hw_dat(master, dev->info.dyn_addr);
+		aspeed_i3c_master_dat_unlock(master, dev->info.dyn_addr);
 		spin_unlock_irqrestore(&master->ibi.lock, flags);
 	}
 
