@@ -392,7 +392,7 @@
 
 &spi0 {
 	status = "okay";
-	pinctrl-0 = <&pinctrl_spi0_default &pinctrl_spi0_cs1_default>;
+	pinctrl-0 = <&pinctrl_spi0_default &pinctrl_spi0_cs1_default &pinctrl_spi0_quad_default>;
 	pinctrl-names = "default";
 
 	flash@0 {
@@ -400,8 +400,8 @@
 		m25p,fast-read;
 		label = "spi0:0";
 		spi-max-frequency = <50000000>;
-		spi-tx-bus-width = <2>;
-		spi-rx-bus-width = <2>;
+		spi-tx-bus-width = <4>;
+		spi-rx-bus-width = <4>;
 	};
 
 	flash@1 {
@@ -409,14 +409,14 @@
 		m25p,fast-read;
 		label = "spi0:1";
 		spi-max-frequency = <50000000>;
-		spi-tx-bus-width = <2>;
-		spi-rx-bus-width = <2>;
+		spi-tx-bus-width = <4>;
+		spi-rx-bus-width = <4>;
 	};
 };
 
 &spi1 {
 	status = "okay";
-	pinctrl-0 = <&pinctrl_spi1_default &pinctrl_spi1_cs1_default>;
+	pinctrl-0 = <&pinctrl_spi1_default &pinctrl_spi1_cs1_default &pinctrl_spi1_quad_default>;
 	pinctrl-names = "default";
 
 	flash@0 {
@@ -424,8 +424,8 @@
 		m25p,fast-read;
 		label = "spi1:0";
 		spi-max-frequency = <50000000>;
-		spi-tx-bus-width = <2>;
-		spi-rx-bus-width = <2>;
+		spi-tx-bus-width = <4>;
+		spi-rx-bus-width = <4>;
 	};
 
 	flash@1 {
@@ -433,14 +433,14 @@
 		m25p,fast-read;
 		label = "spi1:1";
 		spi-max-frequency = <50000000>;
-		spi-tx-bus-width = <2>;
-		spi-rx-bus-width = <2>;
+		spi-tx-bus-width = <4>;
+		spi-rx-bus-width = <4>;
 	};
 };
 
 &spi2 {
 	compatible = "aspeed,ast2700-spi";
-	pinctrl-0 = <&pinctrl_spi2_default &pinctrl_spi2_cs1_default>;
+	pinctrl-0 = <&pinctrl_spi2_default &pinctrl_spi2_cs1_default &pinctrl_spi2_quad_default>;
 	pinctrl-names = "default";
 	status = "okay";
 
@@ -451,8 +451,8 @@
 		m25p,fast-read;
 		label = "spi2:0";
 		spi-max-frequency = <50000000>;
-		spi-tx-bus-width = <2>;
-		spi-rx-bus-width = <2>;
+		spi-tx-bus-width = <4>;
+		spi-rx-bus-width = <4>;
 	};
 
 	flash@1 {
@@ -462,8 +462,8 @@
 		m25p,fast-read;
 		label = "spi2:1";
 		spi-max-frequency = <50000000>;
-		spi-tx-bus-width = <2>;
-		spi-rx-bus-width = <2>;
+		spi-tx-bus-width = <4>;
+		spi-rx-bus-width = <4>;
 	};
 };
 
