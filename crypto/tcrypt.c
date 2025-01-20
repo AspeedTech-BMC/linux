@@ -1708,6 +1708,11 @@ static int do_test(const char *alg, u32 type, u32 mask, int m, u32 num_mb)
 		ret = min(ret, tcrypt_test("cts(cbc(sm4))"));
 		break;
 
+	case 99:
+		ret = min(ret, tcrypt_test("ofb(aes)"));
+		ret = min(ret, tcrypt_test("cfb(aes)"));
+		break;
+
 	case 100:
 		ret = min(ret, tcrypt_test("hmac(md5)"));
 		break;
