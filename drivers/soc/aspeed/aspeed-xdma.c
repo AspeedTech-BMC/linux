@@ -977,9 +977,10 @@ static int aspeed_xdma_init_scu(struct aspeed_xdma *ctx, struct device *dev)
 			u32 mask = (ctx->chip->regs.bmc_cmdq_addr_ext)
 				 ? SCU_AST2700_MISC_CTRL_XDMA_CLIENT
 				 : SCU_AST2600_MISC_CTRL_XDMA_BMC;
-			u32 disable = (ctx->chip->regs.bmc_cmdq_addr_ext)
-				 ? DEBUG_CTRL_AST2700_XDMA_DISABLE
-				 : DEBUG_CTRL_AST2600_XDMA_DISABLE;
+			u32 disable = DEBUG_CTRL_AST2600_XDMA_DISABLE;
+
+			if (ctx->chip->regs.bmc_cmdq_addr_ext)
+				disable |= DEBUG_CTRL_AST2700_XDMA_DISABLE;
 
 			regmap_update_bits(scu, ctx->chip->scu_misc_ctrl,
 					   mask, mask);
