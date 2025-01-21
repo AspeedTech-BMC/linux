@@ -44,4 +44,39 @@ config I3C_MUX_IMX3102
 
 source "drivers/i3c/mctp/Kconfig"
 source "drivers/i3c/master/Kconfig"
+
+config I3C_HUB
+	tristate "I3C HUB support"
+	depends on I3C
+	select REGMAP_I3C
+	help
+	  This enables support for I3C HUB. Say Y here to use I3C HUB driver to
+	  configure I3C HUB device.
+
+	  I3C HUB drivers will be loaded automatically when I3C device with BCR
+	  equals to 0xC2 (HUB device) is detected on the bus.
+
+config I3C_HUB_POLLING_MODE
+	bool "Enable polling mode for I3C Hub SMBus Agent"
+	default n
+	depends on I3C_HUB
+	help
+	  This makes I3C HUB to get the SMBus Agent events with polling mode"
+
+config I3C_HUB_TP_IDENDIFY
+	bool "I3C Hub Identification by Target Port"
+	default n
+	depends on I3C_HUB
+	help
+	  Iendify the I3C Hub instance by a target port
+
+config I3C_HUB_IDENTIFY_TP_NR
+	int "Target Port used for Hub Identification"
+	default 0
+	range 0 7
+	depends on I3C_HUB_TP_IDENDIFY
+	help
+	  Select which target port is used for the identification.
+
+
 endif # I3C
