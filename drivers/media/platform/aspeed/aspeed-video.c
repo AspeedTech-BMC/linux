@@ -391,6 +391,7 @@ struct aspeed_video {
 	struct work_struct rst_work;
 
 	unsigned int max_compressed_size;
+	struct aspeed_video_addr pool;
 	struct aspeed_video_addr srcs[2];
 	struct aspeed_video_addr jpeg;
 	struct aspeed_video_addr bcd;
@@ -780,7 +781,6 @@ static int aspeed_video_start_frame(struct aspeed_video *video)
 	unsigned long flags;
 	struct aspeed_video_buffer *buf;
 	u32 seq_ctrl = aspeed_video_read(video, VE_SEQ_CTRL);
-	bool bcd_buf_need = (video->format != VIDEO_FMT_STANDARD);
 
 	if (video->v4l2_input_status) {
 		v4l2_dbg(1, debug, &video->v4l2_dev, "No signal; don't start frame\n");
@@ -791,20 +791,6 @@ static int aspeed_video_start_frame(struct aspeed_video *video)
 	    !(seq_ctrl & VE_SEQ_CTRL_CAP_BUSY)) {
 		v4l2_dbg(1, debug, &video->v4l2_dev, "Engine busy; don't start frame\n");
 		return -EBUSY;
-	}
-
-	if (bcd_buf_need && !video->bcd.size) {
-		if (!aspeed_video_alloc_buf(video, &video->bcd,
-					    VE_BCD_BUFF_SIZE)) {
-			dev_err(video->dev, "Failed to allocate BCD buffer\n");
-			dev_err(video->dev, "don't start frame\n");
-			return -ENOMEM;
-		}
-		aspeed_video_write(video, VE_BCD_ADDR, _make_addr(video->bcd.dma));
-		v4l2_dbg(1, debug, &video->v4l2_dev, "bcd addr(%pad) size(%d)\n",
-			 &video->bcd.dma, video->bcd.size);
-	} else if (!bcd_buf_need && video->bcd.size) {
-		aspeed_video_free_buf(video, &video->bcd);
 	}
 
 	if (video->input == VIDEO_INPUT_GFX) {
@@ -1700,34 +1686,8 @@ static void aspeed_video_set_resolution(struct aspeed_video *video)
 				    ctrl);
 	}
 
-	size *= 4;
-
-	if (size != video->srcs[0].size) {
-		if (video->srcs[0].size)
-			aspeed_video_free_buf(video, &video->srcs[0]);
-		if (video->srcs[1].size)
-			aspeed_video_free_buf(video, &video->srcs[1]);
-
-		if (!aspeed_video_alloc_buf(video, &video->srcs[0], size))
-			goto err_mem;
-		if (!aspeed_video_alloc_buf(video, &video->srcs[1], size))
-			goto err_mem;
-
-		v4l2_dbg(1, debug, &video->v4l2_dev, "src buf0 addr(%pad) size(%d)\n",
-			 &video->srcs[0].dma, video->srcs[0].size);
-		v4l2_dbg(1, debug, &video->v4l2_dev, "src buf1 addr(%pad) size(%d)\n",
-			 &video->srcs[1].dma, video->srcs[1].size);
-		aspeed_video_write(video, VE_SRC0_ADDR, _make_addr(video->srcs[0].dma));
-		aspeed_video_write(video, VE_SRC1_ADDR, _make_addr(video->srcs[1].dma));
-	}
-
-	return;
-
-err_mem:
-	dev_err(video->dev, "Failed to allocate source buffers\n");
-
-	if (video->srcs[0].size)
-		aspeed_video_free_buf(video, &video->srcs[0]);
+	aspeed_video_write(video, VE_SRC0_ADDR, _make_addr(video->srcs[0].dma));
+	aspeed_video_write(video, VE_SRC1_ADDR, _make_addr(video->srcs[1].dma));
 }
 
 /*
@@ -1832,6 +1792,7 @@ static void aspeed_video_init_regs(struct aspeed_video *video)
 	aspeed_video_write(video, VE_COMP_OFFSET, 0);
 
 	aspeed_video_write(video, VE_JPEG_ADDR, video->jpeg.dma);
+	aspeed_video_write(video, VE_BCD_ADDR, _make_addr(video->bcd.dma));
 
 	/* Set control registers */
 	aspeed_video_write(video, VE_SEQ_CTRL, VE_SEQ_CTRL_AUTO_COMP);
@@ -1908,15 +1869,6 @@ static void aspeed_video_stop(struct aspeed_video *video)
 	cancel_delayed_work_sync(&video->res_work);
 
 	aspeed_video_off(video);
-
-	if (video->srcs[0].size)
-		aspeed_video_free_buf(video, &video->srcs[0]);
-
-	if (video->srcs[1].size)
-		aspeed_video_free_buf(video, &video->srcs[1]);
-
-	if (video->bcd.size)
-		aspeed_video_free_buf(video, &video->bcd);
 
 	video->v4l2_input_status = V4L2_IN_ST_NO_SIGNAL;
 	video->flags = 0;
@@ -2833,6 +2785,7 @@ static int aspeed_video_init(struct aspeed_video *video)
 	int rc;
 	struct device *dev = video->dev;
 	unsigned int mask_size = (video->version >= 7) ? 64 : 32;
+	u32 resv_size = VE_MAX_SRC_BUFFER_SIZE * 2 + VE_JPEG_HEADER_SIZE + VE_BCD_BUFF_SIZE;
 
 	video->scu = syscon_regmap_lookup_by_phandle(dev->of_node, "aspeed,scu");
 	video->gfx = aspeed_regmap_lookup(dev->of_node, "aspeed,gfx");
@@ -2911,14 +2864,32 @@ static int aspeed_video_init(struct aspeed_video *video)
 		goto err_release_reserved_mem;
 	}
 
-	if (!aspeed_video_alloc_buf(video, &video->jpeg,
-				    VE_JPEG_HEADER_SIZE)) {
-		dev_err(dev, "Failed to allocate DMA for JPEG header\n");
+	if (!aspeed_video_alloc_buf(video, &video->pool, resv_size)) {
+		dev_err(dev, "Failed to allocate DMA pool\n");
 		rc = -ENOMEM;
 		goto err_release_reserved_mem;
 	}
-	dev_info(video->dev, "alloc mem size(%d) at %pad for jpeg header\n",
-		 VE_JPEG_HEADER_SIZE, &video->jpeg.dma);
+	video->jpeg.size = VE_JPEG_HEADER_SIZE;
+	video->jpeg.virt = video->pool.virt;
+	video->jpeg.dma = video->pool.dma;
+	video->bcd.size = VE_BCD_BUFF_SIZE;
+	video->bcd.virt = video->jpeg.virt + video->jpeg.size;
+	video->bcd.dma = video->jpeg.dma + video->jpeg.size;
+	video->srcs[0].size = VE_MAX_SRC_BUFFER_SIZE;
+	video->srcs[0].dma = video->bcd.dma + video->bcd.size;
+	video->srcs[1].size = VE_MAX_SRC_BUFFER_SIZE;
+	video->srcs[1].dma = video->srcs[0].dma + video->srcs[0].size;
+
+	dev_info(video->dev, "alloc mem size(%d) at %pad for pool\n",
+		 resv_size, &video->pool.dma);
+	v4l2_dbg(1, debug, &video->v4l2_dev, "jpeg header addr(%pad) size(%d)\n",
+		 &video->jpeg.dma, video->jpeg.size);
+	v4l2_dbg(1, debug, &video->v4l2_dev, "bcd addr(%pad) size(%d)\n",
+		 &video->bcd.dma, video->bcd.size);
+	v4l2_dbg(1, debug, &video->v4l2_dev, "src buf0 addr(%pad) size(%d)\n",
+		 &video->srcs[0].dma, video->srcs[0].size);
+	v4l2_dbg(1, debug, &video->v4l2_dev, "src buf1 addr(%pad) size(%d)\n",
+		 &video->srcs[1].dma, video->srcs[1].size);
 
 	aspeed_video_init_jpeg_table(video->jpeg.virt, video->yuv420);
 
@@ -3007,7 +2978,6 @@ static int aspeed_video_probe(struct platform_device *pdev)
 
 	rc = aspeed_video_setup_video(video);
 	if (rc) {
-		aspeed_video_free_buf(video, &video->jpeg);
 		clk_unprepare(video->vclk);
 		clk_unprepare(video->eclk);
 		return rc;
@@ -3044,7 +3014,7 @@ static void aspeed_video_remove(struct platform_device *pdev)
 
 	v4l2_device_unregister(v4l2_dev);
 
-	aspeed_video_free_buf(video, &video->jpeg);
+	aspeed_video_free_buf(video, &video->pool);
 
 	of_reserved_mem_device_release(dev);
 }
