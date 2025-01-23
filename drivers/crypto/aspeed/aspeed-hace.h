@@ -301,5 +301,6 @@ void aspeed_unregister_hace_crypto_algs(struct aspeed_hace_dev *hace_dev);
 int aspeed_hace_hash_init(struct aspeed_hace_dev *hace_dev);
 int aspeed_hace_crypto_init(struct aspeed_hace_dev *hace_dev);
 int find_dummy_key(const char *key, int keylen);
+int aspeed_hace_reset(struct aspeed_hace_dev *dev);
 
 #endif

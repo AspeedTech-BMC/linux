@@ -263,6 +263,13 @@ static int aspeed_ahash_transfer(struct aspeed_hace_dev *hace_dev)
 
 	memcpy(req->result, hash_engine->digest_addr, rctx->digsize);
 
+	/*
+	 * Workaround for aes engine hang: The sha configuration may cause aes
+	 * engine to hang. To address this issue, the hace engine is reset after
+	 * the hash calculation is completed.
+	 */
+	aspeed_hace_reset(hace_dev);
+
 	return aspeed_ahash_complete(hace_dev);
 }
 

@@ -42,6 +42,30 @@ int find_dummy_key(const char *key, int keylen)
 	return ret;
 }
 
+int aspeed_hace_reset(struct aspeed_hace_dev *hace_dev)
+{
+	int rc;
+
+	HACE_DBG(hace_dev, "\n");
+
+	if (!hace_dev->rst)
+		return -ENODEV;
+
+	rc = reset_control_assert(hace_dev->rst);
+	if (rc) {
+		dev_err(hace_dev->dev, "Hace reset failed (assert).\n");
+		return rc;
+	}
+
+	rc = reset_control_deassert(hace_dev->rst);
+	if (rc) {
+		dev_err(hace_dev->dev, "Hace reset failed (deassert).\n");
+		return rc;
+	}
+
+	return 0;
+}
+
 /* HACE interrupt service routine */
 static irqreturn_t aspeed_hace_irq(int irq, void *dev)
 {
