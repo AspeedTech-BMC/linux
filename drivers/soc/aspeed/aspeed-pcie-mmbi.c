@@ -104,38 +104,10 @@ static __poll_t aspeed_pcie_mmbi_poll(struct file *file, struct poll_table_struc
 	return EPOLLIN;
 }
 
-static long aspeed_pcie_mmib_host_int(struct file *file, struct aspeed_pcie_mmbi *mmbi)
-{
-	u32 event;
-
-	event = regmap_read(mmbi->e2m, ASPEED_E2M_EVENT, &event);
-	if (!(event & BIT(mmbi->e2m_index)))
-		regmap_write(mmbi->e2m, ASPEED_E2M_EVENT_SET, BIT(mmbi->e2m_index));
-	else
-		return -EBUSY;
-
-	return 0;
-}
-
-static long aspeed_pcie_mmbi_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
-{
-	struct aspeed_pcie_mmbi *mmbi = file_aspeed_pcie_mmbi(file);
-
-	switch (cmd) {
-	case ASPEED_PCIE_MMBI_HOST_INT:
-		return aspeed_pcie_mmib_host_int(file, mmbi);
-	default:
-		break;
-	};
-
-	return -EINVAL;
-}
-
 static const struct file_operations aspeed_pcie_mmbi_fops = {
 	.owner		= THIS_MODULE,
 	.mmap		= aspeed_pcie_mmbi_mmap,
 	.poll		= aspeed_pcie_mmbi_poll,
-	.unlocked_ioctl = aspeed_pcie_mmbi_ioctl,
 };
 
 static irqreturn_t aspeed_pcie_mmbi_isr(int irq, void *dev_id)
@@ -193,7 +165,7 @@ static int aspeed_ast2700_pcie_mmbi_init(struct platform_device *pdev)
 	mmbi->mdev.minor = MISC_DYNAMIC_MINOR;
 	mmbi->mdev.name =
 		devm_kasprintf(dev, GFP_KERNEL, "pcie%d-mmbi%d", mmbi->soc_index, e2m_index);
-	//mmbi->mdev.fops = &aspeed_pcie_mmbi_fops;
+	mmbi->mdev.fops = &aspeed_pcie_mmbi_fops;
 	ret = misc_register(&mmbi->mdev);
 	if (ret) {
 		dev_err(dev, "cannot register device %s\n", mmbi->mdev.name);
