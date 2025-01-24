@@ -1109,7 +1109,7 @@ bool blk_attempt_plug_merge(struct request_queue *q, struct bio *bio,
 	struct request *rq;
 
 	plug = blk_mq_plug(bio);
-	if (!plug || rq_list_empty(plug->mq_list))
+	if (!plug || rq_list_empty(&plug->mq_list))
 		return false;
 
 	rq_list_for_each(&plug->mq_list, rq) {
