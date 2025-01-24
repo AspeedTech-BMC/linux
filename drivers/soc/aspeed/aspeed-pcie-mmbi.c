@@ -46,9 +46,11 @@ struct aspeed_pcie_mmbi {
 	struct regmap *e2m;
 	int irq;
 	const struct aspeed_platform *platform;
+	/* E2M index */
 	int id;
+	int pid;
+	int scu_bar_offset;
 	int e2m_index;
-	int soc_index;
 
 	/* MISC */
 	struct miscdevice mdev;
@@ -131,27 +133,62 @@ static irqreturn_t aspeed_pcie_mmbi_isr(int irq, void *dev_id)
  * BAR index|    2    3    4    5    2    3    4    5 |    0    1    2    3    4    5 |
  * SCU BAR  |   3c   4c   5c   6c   3c   4c   5c   6c |   1c   50   3c   4c   5c   6c |
  */
-static u32 ast2700_scu_bar_offset[] = { 0x3c, 0x4c, 0x5c, 0x6c, 0x3c, 0x4c, 0x5c,
-					0x6c, 0x1c, 0x50, 0x3c, 0x4c, 0x5c, 0x6c };
-static u32 ast2700_e2m_pid[] = { 3, 4, 5, 6, 11, 12, 13, 14, 2, 3, 4, 5, 6, 7 };
-
 static int aspeed_ast2700_pcie_mmbi_init(struct platform_device *pdev)
 {
 	struct aspeed_pcie_mmbi *mmbi = platform_get_drvdata(pdev);
 	struct device *dev = &pdev->dev;
 	u32 value, sprot_size, e2m_index, pid;
+	struct resource res;
 	int ret, i;
 
-	mmbi->e2m_index = mmbi->id % 8;
-	e2m_index = mmbi->e2m_index;
-	pid = ast2700_e2m_pid[mmbi->id];
-	if (mmbi->id < 8) {
-		regmap_write(mmbi->device, 0x18, 0xFF000027);
-		mmbi->soc_index = 0;
-	} else {
-		regmap_write(mmbi->device, 0x18, 0x0C0C0027);
-		mmbi->soc_index = 1;
+	/* Get register map*/
+	mmbi->e2m = syscon_node_to_regmap(dev->of_node->parent);
+	if (IS_ERR(mmbi->e2m)) {
+		dev_err(&pdev->dev, "failed to find e2m regmap\n");
+		return PTR_ERR(mmbi->e2m);
 	}
+	if (of_address_to_resource(dev->of_node->parent, 0, &res)) {
+		dev_err(&pdev->dev, "Failed to get e2m resource\n");
+		return -EINVAL;
+	}
+	if (res.start == 0x14c1d000)
+		mmbi->id = 2;
+	else if (res.start == 0x12c22000)
+		mmbi->id = 1;
+	else
+		mmbi->id = 0;	/* 0x12c21000 */
+
+	mmbi->device = syscon_regmap_lookup_by_phandle(dev->of_node->parent, "aspeed,device");
+	if (IS_ERR(mmbi->device)) {
+		dev_err(&pdev->dev, "failed to find device regmap\n");
+		return PTR_ERR(mmbi->device);
+	}
+
+	ret = of_property_read_u32(dev->of_node, "index", &mmbi->e2m_index);
+	if (ret < 0) {
+		dev_err(dev, "cannot get mmbi index value\n");
+		return ret;
+	}
+
+	ret = of_property_read_u32(dev->of_node, "pid", &mmbi->pid);
+	if (ret < 0) {
+		dev_err(dev, "cannot get mmbi pid value\n");
+		return ret;
+	}
+
+	ret = of_property_read_u32(dev->of_node, "bar", &mmbi->scu_bar_offset);
+	if (ret < 0) {
+		dev_err(dev, "cannot get mmbi bar value\n");
+		return ret;
+	}
+
+	e2m_index = mmbi->e2m_index;
+	pid = mmbi->pid;
+	/* PCIe device class, sub-class, protocol and reversion */
+	if (mmbi->id < 2)
+		regmap_write(mmbi->device, 0x18, 0xFF000027);
+	else
+		regmap_write(mmbi->device, 0x18, 0x0C0C0027);
 
 	/* MSI */
 	regmap_update_bits(mmbi->device, 0x74, GENMASK(7, 4), BIT(7) | (5 << 4));
@@ -164,7 +201,7 @@ static int aspeed_ast2700_pcie_mmbi_init(struct platform_device *pdev)
 	mmbi->mdev.parent = dev;
 	mmbi->mdev.minor = MISC_DYNAMIC_MINOR;
 	mmbi->mdev.name =
-		devm_kasprintf(dev, GFP_KERNEL, "pcie%d-mmbi%d", mmbi->soc_index, e2m_index);
+		devm_kasprintf(dev, GFP_KERNEL, "pcie%d-mmbi%d", mmbi->id, e2m_index);
 	mmbi->mdev.fops = &aspeed_pcie_mmbi_fops;
 	ret = misc_register(&mmbi->mdev);
 	if (ret) {
@@ -184,7 +221,7 @@ static int aspeed_ast2700_pcie_mmbi_init(struct platform_device *pdev)
 		dev_warn(mmbi->dev, "Bar size not align for 4K : %dK\n",
 			 (u32)mmbi->mem_size / 1024);
 	}
-	regmap_write(mmbi->device, ast2700_scu_bar_offset[mmbi->id], (mmbi->mem_phy >> 4) | i);
+	regmap_write(mmbi->device, mmbi->scu_bar_offset, (mmbi->mem_phy >> 4) | i);
 	regmap_write(mmbi->e2m, ASPEED_E2M_ADRMAP00 + (4 * pid), (mmbi->mem_phy >> 4) | i);
 
 	/* BMC Interrupt */
@@ -246,21 +283,6 @@ static int aspeed_pcie_mmbi_probe(struct platform_device *pdev)
 	mmbi->dev = dev;
 	mmbi->platform = md;
 
-	/* Get register map*/
-	mmbi->e2m = syscon_node_to_regmap(dev->of_node->parent);
-	if (IS_ERR(mmbi->e2m)) {
-		dev_err(&pdev->dev, "failed to find e2m regmap\n");
-		ret = PTR_ERR(mmbi->e2m);
-		goto out_region;
-	}
-
-	mmbi->device = syscon_regmap_lookup_by_phandle(dev->of_node->parent, "aspeed,device");
-	if (IS_ERR(mmbi->device)) {
-		dev_err(&pdev->dev, "failed to find device regmap\n");
-		ret =  PTR_ERR(mmbi->device);
-		goto out_region;
-	}
-
 	/* Get MMBI memory size */
 	np = of_parse_phandle(dev->of_node, "memory-region", 0);
 	if (!np || of_address_to_resource(np, 0, &res)) {
@@ -294,12 +316,6 @@ static int aspeed_pcie_mmbi_probe(struct platform_device *pdev)
 	}
 
 	init_waitqueue_head(&mmbi->bmc_int_wq);
-
-	mmbi->id = of_alias_get_id(dev->of_node, "pcie_mmbi");
-	if (mmbi->id < 0) {
-		dev_err(dev, "cannot get valid E2M index value\n");
-		goto out_irq;
-	}
 
 	mmbi->bmc_int_en = true;
 	/* H2B Interrupt */
