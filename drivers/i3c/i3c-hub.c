@@ -1843,7 +1843,7 @@ static int i3c_hub_read_identify_tp(struct i3c_hub *hub)
 
 #ifdef CONFIG_I3C_HUB_TP_IDENDIFY
 	int tp_nr = CONFIG_I3C_HUB_IDENTIFY_TP_NR;
-	unsigned int sscl_input, ssda_input, reg19;
+	unsigned int sscl_input, ssda_input, reg19, pull_ups;
 	int ret;
 
 	dev_info(&hub->i3cdev->dev, "Use TP[%d] for identification\n", tp_nr);
@@ -1863,14 +1863,23 @@ static int i3c_hub_read_identify_tp(struct i3c_hub *hub)
 	ret = i3c_hub_port_enable(hub, tp_nr);
 	if (ret)
 		goto recover;
+	/* Disable the internal pull up resistors to prevent false reading */
+	ret = regmap_read(hub->regmap, HUB_REG_TP_PULLUP_EN, &pull_ups);
+	if (ret)
+		goto recover;
+
+	ret = regmap_write(hub->regmap, HUB_REG_TP_PULLUP_EN,
+			   pull_ups & ~(BIT(tp_nr)));
+	if (ret)
+		goto recover_pull_ups;
 
 	ret = regmap_read(hub->regmap, HUB_REG_TP_SCL_IN_LEVEL_STS, &sscl_input);
 	if (ret)
-		goto recover;
+		goto recover_pull_ups;
 
 	ret = regmap_read(hub->regmap, HUB_REG_TP_SDA_IN_LEVEL_STS, &ssda_input);
 	if (ret)
-		goto recover;
+		goto recover_pull_ups;
 
 	sscl_input = (sscl_input > tp_nr) & 0x01;
 	ssda_input = (ssda_input > tp_nr) & 0x01;
@@ -1878,6 +1887,8 @@ static int i3c_hub_read_identify_tp(struct i3c_hub *hub)
 	tp_id = (int)((ssda_input << 1) | (sscl_input));
 	dev_info(&hub->i3cdev->dev, "id-tpx from TP[%d]: %d\n", tp_nr, tp_id);
 
+recover_pull_ups:
+	regmap_write(hub->regmap, HUB_REG_TP_PULLUP_EN, pull_ups);
 recover:
 	regmap_write(hub->regmap, HUB_REG_DEV_CONF, reg19);
 
