@@ -611,7 +611,7 @@
 			compatible = "aspeed,ast2700-gfx", "syscon";
 			reg = <0 0x12c09000 0 0x100>;
 			reg-io-width = <4>;
-			clocks = <&syscon0 SCU0_CLK_CRT1>;
+			clocks = <&syscon0 SCU0_CLK_GATE_CRT0CLK>;
 			resets = <&syscon0 SCU0_RESET_CRT0>;
 			syscon = <&syscon0>;
 			status = "disabled";
