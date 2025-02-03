@@ -9,6 +9,30 @@
 	model = "AST2700-DCSCM_AST1700-EVB";
 };
 
+&ltpi0_i3c0 {
+	initial-role = "target";
+	pid = <0x000007ec 0x06000000>;
+	dcr = /bits/ 8 <0xcc>;
+	status = "okay";
+};
+
+&ltpi0_i3c1 {
+	initial-role = "primary";
+	status = "okay";
+};
+
+&ltpi0_i3c2 {
+	initial-role = "target";
+	pid = <0x000007ec 0x06000000>;
+	dcr = /bits/ 8 <0xcc>;
+	status = "okay";
+};
+
+&ltpi0_i3c3 {
+	initial-role = "primary";
+	status = "okay";
+};
+
 &ltpi0_i3c4 {
 	initial-role = "target";
 	pid = <0x000007ec 0x06000000>;
@@ -53,6 +77,30 @@
 };
 
 &ltpi0_i3c11 {
+	initial-role = "primary";
+	status = "okay";
+};
+
+&ltpi0_i3c12 {
+	initial-role = "target";
+	pid = <0x000007ec 0x06000000>;
+	dcr = /bits/ 8 <0xcc>;
+	status = "okay";
+};
+
+&ltpi0_i3c13 {
+	initial-role = "primary";
+	status = "okay";
+};
+
+&ltpi0_i3c14 {
+	initial-role = "target";
+	pid = <0x000007ec 0x06000000>;
+	dcr = /bits/ 8 <0xcc>;
+	status = "okay";
+};
+
+&ltpi0_i3c15 {
 	initial-role = "primary";
 	status = "okay";
 };
