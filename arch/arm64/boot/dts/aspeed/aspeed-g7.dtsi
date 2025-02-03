@@ -2252,7 +2252,7 @@
 			reg-shift = <2>;
 			reg-io-width = <4>;
 			interrupts-extended = <&intc1_0 23>;
-			clock-frequency = <1846154>;
+			clock-frequency = <59076923>;
 			no-loopback-test;
 			pinctrl-names = "default";
 			status = "disabled";
@@ -2264,7 +2264,7 @@
 			reg-shift = <2>;
 			reg-io-width = <4>;
 			interrupts-extended = <&intc1_1 23>;
-			clock-frequency = <1846154>;
+			clock-frequency = <59076923>;
 			no-loopback-test;
 			pinctrl-names = "default";
 			status = "disabled";
