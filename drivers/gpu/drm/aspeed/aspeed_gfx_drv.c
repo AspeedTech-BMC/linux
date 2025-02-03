@@ -138,7 +138,7 @@ static const struct aspeed_gfx_config ast2700_config = {
 	.pcie_int_h_to_l = PCIE_PERST_H_T_L_G7,
 	.pcie_link_reg = PCIE_LINK_REG_G7,
 	.pcie_link_bit = PCIE_LINK_STATUS_G7,
-	.soc_crt_bit = 0,
+	.soc_crt_bit = BIT(11),
 	.soc_dp_bit = BIT(9),
 };
 
