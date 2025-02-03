@@ -195,16 +195,12 @@
 	status = "okay";
 };
 
-/* UART9 and UART10 will be mapped to the pinout on AST1700. */
-&uart9 {
-	/delete-property/ pinctrl-names;
-	/delete-property/ pinctrl-0;
+/* UART13 and UART14 will be tunnelded to LTPI UART channels */
+&uart13 {
 	status = "okay";
 };
 
-&uart10 {
-	/delete-property/ pinctrl-names;
-	/delete-property/ pinctrl-0;
+&uart14 {
 	status = "okay";
 };
 
