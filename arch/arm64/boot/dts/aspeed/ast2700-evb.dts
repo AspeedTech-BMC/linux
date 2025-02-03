@@ -996,7 +996,6 @@
 	/* DDR50 bits in CAPA2 are not supported */
 	sdhci-caps-mask = <0x6 0x0>;
 	sdhci-drive-type = /bits/ 8 <3>;
-	sdhci,wp-inverted;
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_sd_default>;
 	vmmc-supply = <&vcc_sdhci0>;
