@@ -10,8 +10,8 @@
 #include <linux/platform_device.h>
 #include <linux/slab.h>
 #include <linux/units.h>
-#include <soc/aspeed/reset-aspeed.h>
 
+#include <soc/aspeed/reset-aspeed.h>
 #include <dt-bindings/clock/aspeed,ast2700-scu.h>
 
 #define SCU_CLK_12MHZ	(12 * HZ_PER_MHZ)
@@ -1076,7 +1076,7 @@ static void ast2700_soc1_configure_i3c_clk(struct ast2700_clk_ctrl *clk_ctrl)
 
 static int ast2700_soc_clk_probe(struct platform_device *pdev)
 {
-	struct ast2700_clk_data *clk_data;
+	const struct ast2700_clk_data *clk_data;
 	struct ast2700_clk_ctrl *clk_ctrl;
 	struct clk_hw_onecell_data *clk_hw_data;
 	struct device *dev = &pdev->dev;
@@ -1131,7 +1131,7 @@ static int ast2700_soc_clk_probe(struct platform_device *pdev)
 
 	for (i = 0; i < clk_data->nr_clks; i++) {
 		const struct ast2700_clk_info *clk = &clk_data->clk_info[i];
-		void __iomem *reg = clk_ctrl->base + clk->reg;
+		void __iomem *reg;
 
 		if (clk->type == CLK_FIXED) {
 			const struct ast2700_clk_fixed_rate_data *fixed_rate = &clk->data.rate;
