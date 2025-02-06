@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include "ast2700-evb.dts"
+#include <dt-bindings/i2c/i2c.h>
 
 / {
 	model = "AST2700-EVB Test S1 Test";
@@ -26,4 +27,185 @@
 
 &sdhci {
 	status = "disabled";
+};
+
+&can0 {
+	status = "disabled";
+};
+
+// S1 use 0x12 as its slave address
+&i2c0 {
+	clock-frequency = <1000000>;
+	status = "okay";
+	multi-master;
+	mctp-controller;
+	mctp@12 {
+		compatible = "mctp-i2c-controller";
+		reg = <(0x12 | I2C_OWN_SLAVE_ADDRESS)>;
+	};
+};
+
+&i2c1 {
+	clock-frequency = <1000000>;
+	status = "okay";
+	multi-master;
+	mctp-controller;
+	mctp@12 {
+		compatible = "mctp-i2c-controller";
+		reg = <(0x12 | I2C_OWN_SLAVE_ADDRESS)>;
+	};
+};
+
+&i2c2 {
+	clock-frequency = <1000000>;
+	status = "okay";
+	multi-master;
+	mctp-controller;
+	mctp@12 {
+		compatible = "mctp-i2c-controller";
+		reg = <(0x12 | I2C_OWN_SLAVE_ADDRESS)>;
+	};
+};
+
+&i2c3 {
+	clock-frequency = <1000000>;
+	status = "okay";
+	multi-master;
+	mctp-controller;
+	mctp@12 {
+		compatible = "mctp-i2c-controller";
+		reg = <(0x12 | I2C_OWN_SLAVE_ADDRESS)>;
+	};
+};
+
+&i2c4 {
+	clock-frequency = <1000000>;
+	status = "okay";
+	multi-master;
+	mctp-controller;
+	mctp@12 {
+		compatible = "mctp-i2c-controller";
+		reg = <(0x12 | I2C_OWN_SLAVE_ADDRESS)>;
+	};
+};
+
+&i2c5 {
+	clock-frequency = <1000000>;
+	status = "okay";
+	multi-master;
+	mctp-controller;
+	mctp@12 {
+		compatible = "mctp-i2c-controller";
+		reg = <(0x12 | I2C_OWN_SLAVE_ADDRESS)>;
+	};
+};
+
+&i2c6 {
+	clock-frequency = <1000000>;
+	status = "okay";
+	multi-master;
+	mctp-controller;
+	mctp@12 {
+		compatible = "mctp-i2c-controller";
+		reg = <(0x12 | I2C_OWN_SLAVE_ADDRESS)>;
+	};
+};
+
+&i2c7 {
+	clock-frequency = <1000000>;
+	status = "okay";
+	multi-master;
+	mctp-controller;
+	mctp@12 {
+		compatible = "mctp-i2c-controller";
+		reg = <(0x12 | I2C_OWN_SLAVE_ADDRESS)>;
+	};
+};
+
+&i2c8 {
+	clock-frequency = <1000000>;
+	status = "okay";
+	multi-master;
+	mctp-controller;
+	mctp@12 {
+		compatible = "mctp-i2c-controller";
+		reg = <(0x12 | I2C_OWN_SLAVE_ADDRESS)>;
+	};
+};
+
+&i2c9 {
+	clock-frequency = <1000000>;
+	status = "okay";
+	multi-master;
+	mctp-controller;
+	mctp@12 {
+		compatible = "mctp-i2c-controller";
+		reg = <(0x12 | I2C_OWN_SLAVE_ADDRESS)>;
+	};
+};
+
+&i2c10 {
+	clock-frequency = <1000000>;
+	status = "okay";
+	multi-master;
+	mctp-controller;
+	mctp@12 {
+		compatible = "mctp-i2c-controller";
+		reg = <(0x12 | I2C_OWN_SLAVE_ADDRESS)>;
+	};
+};
+
+&i2c11 {
+	clock-frequency = <1000000>;
+	status = "okay";
+	multi-master;
+	mctp-controller;
+	mctp@12 {
+		compatible = "mctp-i2c-controller";
+		reg = <(0x12 | I2C_OWN_SLAVE_ADDRESS)>;
+	};
+};
+
+&i2c12 {
+	clock-frequency = <1000000>;
+	status = "okay";
+	multi-master;
+	mctp-controller;
+	mctp@12 {
+		compatible = "mctp-i2c-controller";
+		reg = <(0x12 | I2C_OWN_SLAVE_ADDRESS)>;
+	};
+};
+
+&i2c13 {
+	clock-frequency = <1000000>;
+	status = "okay";
+	multi-master;
+	mctp-controller;
+	mctp@12 {
+		compatible = "mctp-i2c-controller";
+		reg = <(0x12 | I2C_OWN_SLAVE_ADDRESS)>;
+	};
+};
+
+&i2c14 {
+	clock-frequency = <1000000>;
+	status = "okay";
+	multi-master;
+	mctp-controller;
+	mctp@12 {
+		compatible = "mctp-i2c-controller";
+		reg = <(0x12 | I2C_OWN_SLAVE_ADDRESS)>;
+	};
+};
+
+&i2c15 {
+	clock-frequency = <1000000>;
+	status = "okay";
+	multi-master;
+	mctp-controller;
+	mctp@12 {
+		compatible = "mctp-i2c-controller";
+		reg = <(0x12 | I2C_OWN_SLAVE_ADDRESS)>;
+	};
 };
