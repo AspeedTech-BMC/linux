@@ -66,31 +66,6 @@ static void aspeed_sgmii_set_nway(struct phy *phy)
 	writel(reg, sgmii->regs + SGMII_MODE);
 }
 
-static void aspeed_sgmii_set_2_5g(struct phy *phy)
-{
-	struct aspeed_sgmii *sgmii = phy_get_drvdata(phy);
-	u32 reg;
-
-	/* For HiSGMII 2.5G speed */
-	reg = PLDA_CLK_SEL_INTERNAL_25M | FIELD_PREP(PLDA_CLK_FREQ_MULTI, 0x64);
-	regmap_write(sgmii->plda_regmap, PLDA_CLK, reg);
-
-	writel(0, sgmii->regs + SGMII_MODE);
-
-	writel(0, sgmii->regs + SGMII_CFG);
-	reg = SGMII_CFG_SW_RESET | SGMII_CFG_PWR_DOWN;
-	writel(reg, sgmii->regs + SGMII_CFG);
-
-	reg = SGMII_CFG_SPEED_1G;
-	writel(reg, sgmii->regs + SGMII_CFG);
-
-	writel(0x0a, sgmii->regs + SGMII_FIFO_DELAY_THREHOLD);
-
-	writel(SGMII_PCTL_TX_DEEMPH_3_5DB, sgmii->regs + SGMII_PHY_PIPE_CTL);
-	reg = SGMII_MODE_ENABLE;
-	writel(reg, sgmii->regs + SGMII_MODE);
-}
-
 static int aspeed_sgmii_phy_init(struct phy *phy)
 {
 	aspeed_sgmii_set_nway(phy);
@@ -108,20 +83,9 @@ static int aspeed_sgmii_phy_exit(struct phy *phy)
 	return 0;
 }
 
-static int aspeed_sgmii_phy_set_speed(struct phy *phy, int speed)
-{
-	if (speed == SPEED_2500)
-		aspeed_sgmii_set_2_5g(phy);
-	else
-		aspeed_sgmii_set_nway(phy);
-
-	return 0;
-}
-
 static const struct phy_ops aspeed_sgmii_phyops = {
 	.init		= aspeed_sgmii_phy_init,
 	.exit		= aspeed_sgmii_phy_exit,
-	.set_speed	= aspeed_sgmii_phy_set_speed,
 	.owner		= THIS_MODULE,
 };
 
