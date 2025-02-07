@@ -632,7 +632,9 @@ static int aspeed_ast2700_rd_conf(struct pci_bus *bus, unsigned int devfn,
 
 		pcie->tx_tag++;
 
-		ret = readl_poll_timeout(pcie->reg + H2X_CFGE_INT_STS, status, (status & CFGE_RX_IDLE), 0, 20);
+		ret = readl_poll_timeout(pcie->reg + H2X_CFGE_INT_STS, status,
+					 (status & CFGE_RX_IDLE), 0, 50000);
+		writel(status, pcie->reg + H2X_CFGE_INT_STS);
 		if (ret) {
 			dev_err(pcie->dev,
 				"RC [%04X:%02X:%02X.%02X] : RX Conf. timeout, sts: %x\n",
@@ -707,7 +709,8 @@ static int aspeed_ast2700_wr_conf(struct pci_bus *bus, unsigned int devfn,
 		pcie->tx_tag++;
 
 		ret = readl_poll_timeout(pcie->reg + H2X_CFGE_INT_STS, status,
-					 (status & CFGE_RX_IDLE), 0, 20);
+					 (status & CFGE_RX_IDLE), 0, 50000);
+		writel(status, pcie->reg + H2X_CFGE_INT_STS);
 		if (ret)
 			dev_err(pcie->dev,
 				"RC [%04X:%02X:%02X.%02X] : TX Conf. timeout, sts: %x\n",
@@ -1155,7 +1158,7 @@ static int aspeed_ast2700_setup(struct platform_device *pdev)
 	writel(0x60000000 + (0x20000000 * pcie->domain), pcie->reg + H2X_REMAP_DIRECT_ADDR);
 
 	reset_control_deassert(pcie->perst);
-	mdelay(500);
+	mdelay(1000);
 
 	/* Clear INTx isr */
 	writel(0, pcie->reg + pcie->platform->reg_intx_sts);
