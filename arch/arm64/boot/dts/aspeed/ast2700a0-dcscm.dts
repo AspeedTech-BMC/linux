@@ -34,15 +34,15 @@
 		#include "ast2700-reserved-mem.dtsi"
 
 		video_engine_memory0: video0 {
-			size = <0x0 0x04000000>;
-			alignment = <0x0 0x00010000>;
+			size = <0x0 0x02c00000>;
+			alignment = <0x0 0x00100000>;
 			compatible = "shared-dma-pool";
 			reusable;
 		};
 
 		video_engine_memory1: video1{
-			size = <0x0 0x04000000>;
-			alignment = <0x0 0x00010000>;
+			size = <0x0 0x02c00000>;
+			alignment = <0x0 0x00100000>;
 			compatible = "shared-dma-pool";
 			reusable;
 		};
