@@ -2046,9 +2046,6 @@ static int ftgmac100_probe(struct platform_device *pdev)
 			dev_err(priv->dev, "Failed to init sgmii phy\n");
 			goto err_register_netdev;
 		}
-		/* If using fixed link in dts, sgmii need to be forced */
-		if (of_phy_is_fixed_link(np))
-			phy_set_speed(priv->sgmii, netdev->phydev->speed);
 	}
 
 	/* Default ring sizes */
