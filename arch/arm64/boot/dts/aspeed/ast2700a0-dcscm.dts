@@ -164,14 +164,14 @@
 	status = "okay";
 };
 
-/* Enable UART2 and UART3 for obmc-console. */
+/* Enable UART2 and UART9 for obmc-console. */
 &uart2 {
 	/delete-property/ pinctrl-names;
 	/delete-property/ pinctrl-0;
 	status = "okay";
 };
 
-&uart3 {
+&uart9 {
 	/delete-property/ pinctrl-names;
 	/delete-property/ pinctrl-0;
 	status = "okay";
@@ -182,14 +182,14 @@
 	status = "okay";
 };
 
-/* Enable UART7 and UART8 for obmc-console. */
+/* Enable UART7 and UART10 for obmc-console. */
 &uart7 {
 	/delete-property/ pinctrl-names;
 	/delete-property/ pinctrl-0;
 	status = "okay";
 };
 
-&uart8 {
+&uart10 {
 	/delete-property/ pinctrl-names;
 	/delete-property/ pinctrl-0;
 	status = "okay";
