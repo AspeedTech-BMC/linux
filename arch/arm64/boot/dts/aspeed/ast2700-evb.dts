@@ -5,6 +5,9 @@
 #include "aspeed-g7.dtsi"
 #include <dt-bindings/gpio/aspeed-gpio.h>
 
+#define PCIE0_EP 1	// 1: EP, 0: RC
+#define PCIE1_EP 1	// 1: EP, 0: RC
+
 / {
 	model = "AST2700-EVB";
 	compatible = "aspeed,ast2700-evb", "aspeed,ast2700";
@@ -815,7 +818,7 @@
 	status = "okay";
 };
 
-#if 1
+#if PCIE0_EP
 &bmc_dev0 {
 	status = "okay";
 	memory-region = <&bmc_dev0_memory>;
@@ -884,7 +887,7 @@
 };
 #endif
 
-#if 1
+#if PCIE1_EP
 &bmc_dev1 {
 	status = "okay";
 	memory-region = <&bmc_dev1_memory>;
