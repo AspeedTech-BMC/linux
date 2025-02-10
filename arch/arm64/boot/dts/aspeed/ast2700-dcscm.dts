@@ -98,19 +98,29 @@
 };
 
 &pinctrl1 {
-	pinctrl_i3c13_driving: i3c13-driving {
-		pins = "AE23", "AE19";
-		drive-strength = <3>;
+	pinctrl_i3c0_3_hv_voltage: i3chv-voltage {
+		pins = "U25";
+		power-source = <1800>;
 	};
 
-	pinctrl_i3c14_driving: i3c14-driving {
-		pins = "AF23", "Y25";
-		drive-strength = <3>;
+	pinctrl_i3c0_driving: i3c0-driving {
+		pins = "U25", "U26";
+		drive-strength = <2>;
 	};
 
-	pinctrl_i3c15_driving: i3c15-driving {
-		pins = "AA25", "AF19";
-		drive-strength = <3>;
+	pinctrl_i3c1_driving: i3c1-driving {
+		pins = "Y26", "AA24";
+		drive-strength = <2>;
+	};
+
+	pinctrl_i3c2_driving: i3c2-driving {
+		pins = "R25", "AA26";
+		drive-strength = <2>;
+	};
+
+	pinctrl_i3c3_driving: i3c3-driving {
+		pins = "R26", "Y25";
+		drive-strength = <2>;
 	};
 
 	pinctrl_rgmii0_driving: rgmii0-driving {
@@ -120,8 +130,32 @@
 	};
 };
 
-/* AST2700 i3c0 -> AST1060 i3c2 for MCTP over I3C. */
 &i3c0 {
+	/* BMC_HPM_I3C_I2C_14, If AST1060 I3C_BMC_PFR_SCM_SEL(GPION4)=0 and I3C_SCM_EN(GPION5)=0 */
+	initial-role = "primary";
+	status = "okay";
+};
+
+&i3c1 {
+	/* BMC_I2C_I3C1_SCL1 */
+	initial-role = "primary";
+	status = "okay";
+};
+
+&i3c2 {
+	/* BMC_I2C_I3C2_SCL2 */
+	initial-role = "primary";
+	status = "okay";
+};
+
+&i3c3 {
+	/* I3C_DBG_SCM */
+	initial-role = "primary";
+	status = "okay";
+};
+
+/* AST2700 i3c4 -> AST1060 i3c2 for MCTP over I3C. */
+&i3c4 {
 	/* I3C_PFR_BMC */
 	initial-role = "target";
 	pid = <0x000007ec 0x06000000>;
@@ -129,32 +163,14 @@
 	status = "okay";
 };
 
-&i3c1 {
+&i3c5 {
 	/* I3C_MNG_BMC_SCM */
 	initial-role = "primary";
 	status = "okay";
 };
 
-&i3c2 {
+&i3c6 {
 	/* I3C_SPD_SCM */
-	initial-role = "primary";
-	status = "okay";
-};
-
-&i3c13 {
-	/* I3C_MNG_SMC */
-	initial-role = "primary";
-	status = "okay";
-};
-
-&i3c14 {
-	/* I3C_DBG_BMC */
-	initial-role = "primary";
-	status = "okay";
-};
-
-&i3c15 {
-	/* I3C_PCIE_BMC */
 	initial-role = "primary";
 	status = "okay";
 };
@@ -387,8 +403,79 @@
 	status = "okay";
 };
 
+/* The LTPI GPIO table is defined in Chapter 6 of the AST2700 LTPI Design Guide v10.pdf. */
+/* line 0:BMC_GPI0(LTPI0_INL16), 1:BMC_GPO0(LTPI0_ONL16), 2:BMC_GPI1(LTPI0_INL17), 3:BMC_GPO1(LTPI0_ONL17), etc... */
+/* BMC_GPI[63:0]   = LTPI0_INL[79:16], BMC_GPO[63:0]   = LTPI0_ONL[79:16] */
+/* BMC_GPI[71:64]  = LTPI0_ILL[11:4],  BMC_GPO[71:64]  = LTPI0_OLL[11:4] */
+/* BMC_GPI[111:72] = LTPI0_INL[127:88],BMC_GPO[111:72] = LTPI0_ONL[127:88] */
 &ltpi0_gpio {
 	status = "okay";
+	gpio-line-names =
+		/*00-07*/ "","","","","","","","",
+		/*08-15*/ "","","","","","","","",
+		/*16-23*/ "","FM_CPU_FBRK_DEBUG_N","","FM_BMC_TRUST_N","","FM_RST_BTN_OUT_CPU0_PLD_N_OE","","FM_PWR_BTN_OUT_CPU0_N",
+		/*24-31*/ "","FM_BMC_ONCTL_N","","","","","","",
+		/*32-39*/ "","BIOS_POST_CODE_LED_0","","BIOS_POST_CODE_LED_1","","BIOS_POST_CODE_LED_2","","BIOS_POST_CODE_LED_3",
+		/*40-47*/ "FP_ID_BTN_N","BIOS_POST_CODE_LED_4","FP_RST_BTN_N","BIOS_POST_CODE_LED_5","","BIOS_POST_CODE_LED_6","","BIOS_POST_CODE_LED_7",
+		/*48-55*/ "","A_P3V_BAT_SCALED_EN","","FM_TPM_EN_PULSE","","FM_SKT0_FAULT_LED","","FM_SKT1_FAULT_LED",
+		/*56-63*/ "","","","","","RST_BMC_SMB_PCIE_MUX_N","","SURPRISE_RESET",
+		/*64-71*/ "PWRGD_S0_PWROK_CPU0","","","","","","","",
+		/*72-79*/ "","","","","","","","",
+		/*80-87*/ "","","","","","","","",
+		/*88-95*/ "","","","","","","","",
+		/*96-103*/ "","","","","","","","",
+		/*104-111*/ "","","","","","","","",
+		/*112-119*/ "","","","","","","","",
+		/*120-127*/ "","","","","","","","",
+		/*128-135*/ "","","","","","","","",
+		/*136-143*/ "","","","","","","","",
+		/*144-151*/ "","","","","","","","",
+		/*152-159*/ "","","","","","","","",
+		/*160-167*/ "","","","","","","","",
+		/*168-175*/ "","","","","","","","",
+		/*176-183*/ "","","","","","","","",
+		/*184-191*/ "","","","","","","","",
+		/*192-199*/ "","","","","","","","",
+		/*200-207*/ "","","","","","","","",
+		/*208-215*/ "","","","","","","","",
+		/*216-223*/ "","","","","","","","";
+
+	gpio_17 {
+		gpio-hog;
+		gpios = <17 GPIO_ACTIVE_HIGH>;
+		output-high;
+		line-name = "FM_CPU_FBRK_DEBUG_N";
+	};
+	gpio_19 {
+		gpio-hog;
+		gpios = <19 GPIO_ACTIVE_HIGH>;
+		output-high;
+		line-name = "FM_BMC_TRUST_N";
+	};
+	gpio_25 {
+		gpio-hog;
+		gpios = <25 GPIO_ACTIVE_HIGH>;
+		output-low;
+		line-name = "FM_BMC_ONCTL_N";
+	};
+	gpio_53 {
+		gpio-hog;
+		gpios = <53 GPIO_ACTIVE_HIGH>;
+		output-high;
+		line-name = "FM_SKT0_FAULT_LED";
+	};
+	gpio_61 {
+		gpio-hog;
+		gpios = <61 GPIO_ACTIVE_HIGH>;
+		output-high;
+		line-name = "RST_BMC_SMB_PCIE_MUX_N";
+	};
+	gpio_63 {
+		gpio-hog;
+		gpios = <63 GPIO_ACTIVE_HIGH>;
+		output-high;
+		line-name = "SURPRISE_RESET";
+	};
 };
 
 &peci0 {
@@ -421,10 +508,10 @@
 };
 
 &syscon1 {
-	mac0-clk-delay = <0x35 0x34
+	mac0-clk-delay = <0x33 0x30
 			  0x10 0x10
 			  0x10 0x10>;
-	mac1-clk-delay = <0x35 0x33
+	mac1-clk-delay = <0x31 0x31
 			  0x10 0x10
 			  0x10 0x10>;
 	assigned-clocks = <&syscon1 SCU1_CLK_MACHCLK>,
@@ -434,15 +521,20 @@
 };
 
 &gpio0 {
+	pinctrl-0 = <&pinctrl_i3c0_3_hv_voltage
+		     &pinctrl_i3c0_driving &pinctrl_i3c1_driving
+		     &pinctrl_i3c2_driving &pinctrl_i3c3_driving>;
+	pinctrl-names = "default";
+
 	gpio-line-names =
 		/*A0-A7*/ "","","","","","","","",
 		/*B0-B7*/ "","","","","","","","",
 		/*C0-C7*/ "","","","","","","","",
 		/*D0-D7*/ "","","","","","","","",
-		/*E0-E7*/ "","","","","","","","",
+		/*E0-E7*/ "","","","","FP_LED_STATUS_GREEN_CPLD_N","FP_LED_STATUS_AMBER_CPLD_N","","",
 		/*F0-F7*/ "","","","","","","","",
 		/*G0-G7*/ "","","","","","","","",
-		/*H0-H7*/ "FP_LED_STATUS_GREEN_BMC_N","FP_LED_STATUS_AMBER_BMC_N","","","","","","",
+		/*H0-H7*/ "","","","","","","","",
 		/*I0-I7*/ "","","","","","","","",
 		/*J0-J7*/ "","","","","","","","",
 		/*K0-K7*/ "","","","","","","","",
@@ -468,11 +560,16 @@
 		/*AE0-AE7*/ "","","","","","","","";
 };
 
-/* AST2700 support SGPIO slave to 272 pins. */
-/* SGPIO slave are defined in Chapter 4.1 of the AST1700 Design Guide_v01.docx. */
-/* line 0:SCM_GPI0, 1:SCM_GPO0, 2:SCM_GPI1, 3:SCM_GPO1, etc... */
-/* line 32:PFR_GPI0, 33:PFR_GPO0, 34:PFR_GPI1, 35:PFR_GPO1, etc... */
-/* line 80:BMC_GPI0, 81:BMC_GPO0, 82:BMC_GPI1, 83:BMC_GPO1, etc... */
+/* AST2700 A1 support SGPIO slave to 72*2 pins. */
+/* The SGPIO slave table is defined in Chapter 7 of the AST2700 LTPI Design Guide v10.pdf. */
+/* line 0:BMC_SGPI0(SCM_GPI0), 1:BMC_SGPO0(SCM_GPO0), 2:BMC_SGPI1(SCM_GPI1), 3:BMC_SGPO1(SCM_GPO1), etc... */
+/* line 32:BMC_SGPI16(LTPI0_INL80), 33:BMC_SGPO16(LTPI0_ONL80), 34:LTPI0_INL81, 35:LTPI0_ONL81, etc... */
+/* BMC_SGPI[15:0] = SCM_GPI0[15:0], BMC_SGPO[15:0] = BMC_SGPO0[15:0] */
+/* BMC_SGPI[23:16] = LTPI0_INL[87:80], BMC_SGPO[23:16] = LTPI0_ONL[87:80] */
+/* BMC_SGPI[31:24] = LTPI1_INL[87:80], BMC_SGPO[31:24] = LTPI1_ONL[87:80] */
+/* BMC_SGPI[47:32] = LTPI0_INL[15:0],  BMC_SGPO[47:32] = LTPI0_ONL[15:0] */
+/* BMC_SGPI[63:48] = LTPI1_INL[15:0],  BMC_SGPO[63:48] = LTPI1_ONL[15:0] */
+/* BMC_SGPI[71:64] = SREG_GPO[7:0],    BMC_SGPO[71:64] = SREG_GPI[7:0] */
 /* The designe guide only define SCM_GPO9(FP_PWR_BTN_PFR_N) for PFR output pin. */
 /* We use AST2700 SGPIOS line 18 (FP_PWR_BTN_PFR_N_BMC_IN) for x86-power-control power button input. */
 &sgpios {
@@ -490,70 +587,22 @@
 		/*72-79*/ "","","","","","","","",
 		/*80-87*/ "","","","","","","","",
 		/*88-95*/ "","","","","","","","",
-		/*96-103*/ "","FM_CPU_FBRK_DEBUG_N","","FM_BMC_TRUST_N","","FM_RST_BTN_OUT_CPU0_PLD_N_OE","","FM_PWR_BTN_OUT_CPU0_N",
-		/*104-111*/ "","FM_BMC_ONCTL_N","","","","","","",
-		/*112-119*/ "","BIOS_POST_CODE_LED_0","","BIOS_POST_CODE_LED_1","","BIOS_POST_CODE_LED_2","","BIOS_POST_CODE_LED_3",
-		/*120-127*/ "","BIOS_POST_CODE_LED_4","","BIOS_POST_CODE_LED_5","","BIOS_POST_CODE_LED_6","","BIOS_POST_CODE_LED_7",
-		/*128-135*/ "","A_P3V_BAT_SCALED_EN","","FM_TPM_EN_PULSE","","FM_SKT0_FAULT_LED","","FM_SKT1_FAULT_LED",
-		/*136-143*/ "","","","","","RST_BMC_SMB_PCIE_MUX_N","","SURPRISE_RESET",
-		/*144-151*/ "","","","","","","","",
-		/*152-159*/ "","","","","","","","",
-		/*160-167*/ "","","","","","","","",
-		/*168-175*/ "","","","","","","","",
-		/*176-183*/ "","","FP_ID_BTN_N","","FP_RST_BTN_N","","","",
-		/*184-191*/ "","","","","","","","",
-		/*192-199*/ "","","","","","","","",
-		/*200-207*/ "","","","","","","","",
-		/*208-215*/ "","","","","","","","",
-		/*216-223*/ "","","","","","","","",
-		/*224-231*/ "","","","","PWRGD_S0_PWROK_CPU0","","","",
-		/*232-239*/ "","","","","","","","",
-		/*240-247*/ "","","","","","","","",
-		/*248-255*/ "","","","","","","","",
-		/*256-263*/ "","","","","","","","",
-		/*264-271*/ "","","","","","","","";
-
-	gpio_97 {
-		gpio-hog;
-		gpios = <97 GPIO_ACTIVE_HIGH>;
-		output-high;
-		line-name = "FM_CPU_FBRK_DEBUG_N";
-	};
-	gpio_99 {
-		gpio-hog;
-		gpios = <99 GPIO_ACTIVE_HIGH>;
-		output-high;
-		line-name = "FM_BMC_TRUST_N";
-	};
-	gpio_105 {
-		gpio-hog;
-		gpios = <105 GPIO_ACTIVE_HIGH>;
-		output-low;
-		line-name = "FM_BMC_ONCTL_N";
-	};
-	gpio_133 {
-		gpio-hog;
-		gpios = <133 GPIO_ACTIVE_HIGH>;
-		output-high;
-		line-name = "FM_SKT0_FAULT_LED";
-	};
-	gpio_141 {
-		gpio-hog;
-		gpios = <141 GPIO_ACTIVE_HIGH>;
-		output-high;
-		line-name = "RST_BMC_SMB_PCIE_MUX_N";
-	};
-	gpio_143 {
-		gpio-hog;
-		gpios = <143 GPIO_ACTIVE_HIGH>;
-		output-high;
-		line-name = "SURPRISE_RESET";
-	};
+		/*96-103*/ "","","","","","","","",
+		/*104-111*/ "","","","","","","","",
+		/*112-119*/ "","","","","","","","",
+		/*120-127*/ "","","","","","","","",
+		/*128-135*/ "","","","","","","","",
+		/*136-143*/ "","","","","","","","",
+		/*144-151*/ "","","","","","","","";
 };
 
 &espi0 {
 	status = "okay";
 	perif-dma-mode;
+	perif-mmbi-enable;
+	perif-mmbi-src-addr = <0x0 0xa8000000>;
+	perif-mmbi-tgt-memory = <&espi0_mmbi_memory>;
+	perif-mmbi-instance-num = <0x1>;
 	perif-mcyc-enable;
 	perif-mcyc-src-addr = <0x0 0x98000000>;
 	perif-mcyc-size = <0x0 0x10000>;
@@ -564,6 +613,10 @@
 &espi1 {
 	status = "okay";
 	perif-dma-mode;
+	perif-mmbi-enable;
+	perif-mmbi-src-addr = <0x0 0xa8000000>;
+	perif-mmbi-tgt-memory = <&espi1_mmbi_memory>;
+	perif-mmbi-instance-num = <0x1>;
 	perif-mcyc-enable;
 	perif-mcyc-src-addr = <0x0 0x98000000>;
 	perif-mcyc-size = <0x0 0x10000>;
@@ -663,6 +716,10 @@
 	memory-region = <&video_engine_memory1>;
 };
 
+&disp_intf {
+	status = "okay";
+};
+
 &rtc {
 	status = "okay";
 };
@@ -672,6 +729,10 @@
 };
 
 &ecdsa {
+	status = "okay";
+};
+
+&hace {
 	status = "okay";
 };
 
@@ -766,6 +827,7 @@
 	memory-region = <&mctp1_reserved>;
 };
 
+#if 0  /* Disable i2c0 and i2c4. It is testing for LTPI passthrough. */
 &i2c0 {
 	/* SMB_PMBUS1_SCM */
 	/delete-property/ pinctrl-names;
@@ -773,49 +835,37 @@
 	status = "okay";
 };
 
-&i2c1 {
-	/* SMB_PMBUS2_SCM */
+&i2c4 {
+	/* SMB_PMBUS1_SCM */
 	/delete-property/ pinctrl-names;
 	/delete-property/ pinctrl-0;
 	status = "okay";
 };
+#endif
+
+#if 0 /* Disable i2c1, Cancel to SCI pin due to 2nd NCSI. */
+&i2c1 {
+	/* SMB_IPMB_SCL1 */
+	status = "okay";
+};
+#endif
 
 &i2c2 {
-	/delete-property/ pinctrl-names;
-	/delete-property/ pinctrl-0;
-	status = "okay";
-};
-
-&i2c3 {
-	/delete-property/ pinctrl-names;
-	/delete-property/ pinctrl-0;
-	status = "okay";
-};
-
-&i2c4 {
-	/delete-property/ pinctrl-names;
-	/delete-property/ pinctrl-0;
+	/* SMB_CPLD_SCL2 */
 	status = "okay";
 };
 
 &i2c5 {
-	/delete-property/ pinctrl-names;
-	/delete-property/ pinctrl-0;
+	/* SMB_TMP_BMC */
 	status = "okay";
-};
-
-&i2c6 {
-	/* SMB_PMBUS2_PFR_SCL_F1 */
-	status = "okay";
-};
-
-&i2c7 {
-	/* SMB_CPLD */
-	status = "okay";
+	lm75@4b {
+		compatible = "national,lm75";
+		reg = <0x4b>;
+	};
 };
 
 &i2c8 {
-	/* SMB_PMBUS1_PFR_SCL_F1 */
+	/* SMB_PCIE_SCM */
 	status = "okay";
 };
 
@@ -829,20 +879,8 @@
 	};
 };
 
-/* AST2700 A0 P0 i2c10 -> AST1060 i2c5 for PFR mailbox. */
+/* AST2700 A1 i2c10 -> AST1060 i2c0 for PFR mailbox. */
 &i2c10 {
-	/* SMB_PCIE_BMC */
-	status = "okay";
-	multi-master;
-	mctp-controller;
-	mctp@10 {
-		compatible = "mctp-i2c-controller";
-		reg = <(0x10 | I2C_OWN_SLAVE_ADDRESS)>;
-	};
-};
-
-/* AST2700 A0 P1 i2c11 -> AST1060 i2c0 for PFR mailbox. */
-&i2c11 {
 	/* SMB_HSBP_BMC */
 	status = "okay";
 	multi-master;
@@ -853,56 +891,39 @@
 	};
 };
 
-&i2c12 {
-	/* SMB_TMP_BMC */
-	status = "okay";
-	lm75@4b {
-		compatible = "national,lm75";
-		reg = <0x4b>;
-	};
-};
-
-/* AST2700 i2c15 -> AST1060 i2c2 for PCH mailbox. */
-&i2c15 {
-	/* SMB_IPMB */
-	status = "okay";
-	pinctrl-0 = <&pinctrl_di2c15_default>;
-	multi-master;
-	mctp-controller;
-	mctp@10 {
-		compatible = "mctp-i2c-controller";
-		reg = <(0x10 | I2C_OWN_SLAVE_ADDRESS)>;
-	};
-};
-
-&uphy3a {
+&i2c11 {
+	/* BMC_HPM_I3C_I2C_13 */
 	status = "okay";
 };
 
-&uphy3b {
+&vhuba0 {
 	status = "okay";
 };
 
-&vhuba1 {
+&vhubb0 {
 	status = "okay";
 };
 
-&vhubb1 {
+&vhubc {
 	status = "okay";
 };
 
-&usb3ahp {
+&ehci3 {
 	status = "okay";
 };
 
-&usb3bhp {
+&uhci1 {
 	status = "okay";
 };
 
-&uphy2a {
+&wdt0 {
 	status = "okay";
 };
 
-&uphy2b {
+&wdt1 {
+	status = "okay";
+};
+
+&otp {
 	status = "okay";
 };
