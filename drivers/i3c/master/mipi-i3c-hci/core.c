@@ -512,6 +512,8 @@ static int i3c_hci_send_ccc_cmd(struct i3c_master_controller *m,
 			ccc->err = I3C_ERROR_M2;
 			fallthrough;
 		default:
+			dev_err(&hci->master.dev, "resp status = %lx",
+				RESP_STATUS(xfer[i].response));
 			ret = -EIO;
 			goto out;
 		}
