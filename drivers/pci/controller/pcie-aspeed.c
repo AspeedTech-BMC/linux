@@ -99,7 +99,7 @@
 #define H2X_BRIDGE_DIRECT_EN		BIT(1)
 #define H2X_CFGE_INT_STS	0x08
 #define CFGE_TX_IDLE			BIT(0)
-#define CFGE_RX_IDLE			BIT(1)
+#define CFGE_RX_BUSY			BIT(1)
 #define H2X_CFGI_TLP		0x20
 #define H2X_CFGI_WR_DATA	0x24
 #define H2X_CFGI_CTRL		0x28
@@ -625,23 +625,33 @@ static int aspeed_ast2700_rd_conf(struct pci_bus *bus, unsigned int devfn,
 		writel(CRG_READ_FMTTYPE(type) | CRG_PAYLOAD_SIZE, pcie->reg + H2X_CFGE_TLP_1ST);
 		writel(0x40100F | (pcie->tx_tag << 8), pcie->reg + H2X_CFGE_TLP_NEXT);
 		writel(bdf_offset, pcie->reg + H2X_CFGE_TLP_NEXT);
-		/* Clear TX/RX status */
-		writel(CFGE_TX_IDLE | CFGE_RX_IDLE, pcie->reg + H2X_CFGE_INT_STS);
+		/* Clear tx & rx status */
+		writel(CFGE_TX_IDLE | CFGE_RX_BUSY, pcie->reg + H2X_CFGE_INT_STS);
 		/* Issue command */
 		writel(CFGE_TLP_FIRE, pcie->reg + H2X_CFGE_CTRL);
 
-		pcie->tx_tag++;
-
+		/* Check TX */
 		ret = readl_poll_timeout(pcie->reg + H2X_CFGE_INT_STS, status,
-					 (status & CFGE_RX_IDLE), 0, 50000);
-		writel(status, pcie->reg + H2X_CFGE_INT_STS);
+					 (status & CFGE_TX_IDLE), 0, 50);
 		if (ret) {
 			dev_err(pcie->dev,
-				"RC [%04X:%02X:%02X.%02X] : RX Conf. timeout, sts: %x\n",
+				"[%X:%02X:%02X.%02X]CR tx timeout sts: 0x%08x\n",
 				pcie->domain, bus->number, PCI_SLOT(devfn),
 				PCI_FUNC(devfn), status);
 			*val = 0xffffffff;
-			return PCIBIOS_SUCCESSFUL;
+			goto out;
+		}
+
+		/* Check RX */
+		ret = readl_poll_timeout(pcie->reg + H2X_CFGE_INT_STS, status,
+					 (status & CFGE_RX_BUSY), 0, 50000);
+		if (ret) {
+			dev_err(pcie->dev,
+				"[%X:%02X:%02X.%02X]CR rx timeoutsts: 0x%08x\n",
+				pcie->domain, bus->number, PCI_SLOT(devfn),
+				PCI_FUNC(devfn), status);
+			*val = 0xffffffff;
+			goto out;
 		}
 		*val = readl(pcie->reg + H2X_CFGE_RET_DATA);
 	}
@@ -655,6 +665,10 @@ static int aspeed_ast2700_rd_conf(struct pci_bus *bus, unsigned int devfn,
 		break;
 	}
 
+out:
+	/* Clear status */
+	writel(status, pcie->reg + H2X_CFGE_INT_STS);
+	pcie->tx_tag++;
 	return PCIBIOS_SUCCESSFUL;
 }
 
@@ -701,25 +715,35 @@ static int aspeed_ast2700_wr_conf(struct pci_bus *bus, unsigned int devfn,
 		writel(0x401000 | (pcie->tx_tag << 8) | byte_en, pcie->reg + H2X_CFGE_TLP_NEXT);
 		writel(bdf_offset, pcie->reg + H2X_CFGE_TLP_NEXT);
 		writel(val, pcie->reg + H2X_CFGE_TLP_NEXT);
-		/* Clear TX/RX idle status */
-		writel(CFGE_TX_IDLE | CFGE_RX_IDLE, pcie->reg + H2X_CFGE_INT_STS);
+		/* Clear tx & rx status */
+		writel(CFGE_TX_IDLE | CFGE_RX_BUSY, pcie->reg + H2X_CFGE_INT_STS);
 		/* Issue command */
 		writel(CFGE_TLP_FIRE, pcie->reg + H2X_CFGE_CTRL);
 
-		pcie->tx_tag++;
-
+		/* Check TX */
 		ret = readl_poll_timeout(pcie->reg + H2X_CFGE_INT_STS, status,
-					 (status & CFGE_RX_IDLE), 0, 50000);
-		writel(status, pcie->reg + H2X_CFGE_INT_STS);
+					 (status & CFGE_TX_IDLE), 0, 50);
 		if (ret)
 			dev_err(pcie->dev,
-				"RC [%04X:%02X:%02X.%02X] : TX Conf. timeout, sts: %x\n",
+				"[%X:%02X:%02X.%02X]CT tx timeout sts: 0x%08x\n",
+				pcie->domain, bus->number, PCI_SLOT(devfn),
+				PCI_FUNC(devfn), status);
+
+		/* Check RX */
+		ret = readl_poll_timeout(pcie->reg + H2X_CFGE_INT_STS, status,
+					 (status & CFGE_RX_BUSY), 0, 50000);
+		if (ret)
+			dev_err(pcie->dev,
+				"[%X:%02X:%02X.%02X]CT rx timeout sts: 0x%08x\n",
 				pcie->domain, bus->number, PCI_SLOT(devfn),
 				PCI_FUNC(devfn), status);
 
 		(void)readl(pcie->reg + H2X_CFGE_RET_DATA);
 	}
 
+	/* Clear status */
+	writel(status, pcie->reg + H2X_CFGE_INT_STS);
+	pcie->tx_tag++;
 	return PCIBIOS_SUCCESSFUL;
 }
 
