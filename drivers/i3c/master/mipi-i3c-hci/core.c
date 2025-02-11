@@ -1268,6 +1268,14 @@ static irqreturn_t i3c_aspeed_irq_handler(int irqn, void *dev_id)
 	return result;
 }
 
+#ifdef CONFIG_ARCH_ASPEED
+#define PIO_DATA_BUFFER_THLD_CTRL	0x14
+#define DATA_RX_START_THLD		GENMASK(26, 24)
+#define DATA_TX_START_THLD		GENMASK(18, 16)
+#define DATA_RX_BUF_THLD		GENMASK(10, 8)
+#define DATA_TX_BUF_THLD		GENMASK(2, 0)
+#endif
+
 static int i3c_hci_init(struct i3c_hci *hci)
 {
 	u32 regval, offset;
@@ -1411,6 +1419,11 @@ static int i3c_hci_init(struct i3c_hci *hci)
 			hci->io = &mipi_i3c_hci_dma;
 			reset_control_deassert(hci->dma_rst);
 			dev_info(&hci->master.dev, "Using DMA\n");
+#ifdef CONFIG_ARCH_ASPEED
+			writel((readl(hci->PIO_regs + (PIO_DATA_BUFFER_THLD_CTRL)) &
+				~(DATA_TX_START_THLD)),
+			       hci->PIO_regs + (PIO_DATA_BUFFER_THLD_CTRL));
+#endif
 		}
 	}
 
