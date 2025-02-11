@@ -2440,6 +2440,9 @@
 			#size-cells = <2>;
 			aspeed,device = <&pcie_device2>;
 
+			pinctrl-0 = <&pinctrl_pcierc2_perst_default>;
+			pinctrl-names = "default";
+
 			e2m_ic2: interrupt-controller@14 {
 				#interrupt-cells = <1>;
 				compatible = "aspeed,ast2700-e2m-ic";
