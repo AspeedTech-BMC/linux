@@ -36,6 +36,10 @@
 #define ASPEED_E2M_SPROT_SIDG0		0x210
 #define ASPEED_E2M_SPROT_CTL0		0x280
 #define ASPEED_E2M_SPROT_ADR0		0x2C0
+
+/* AST2700 SCU */
+#define ASPEED_SCU_DECODE_DEV		BIT(18)
+#define ASPEED_SCU_INT_EN		BIT(23)
 struct aspeed_platform {
 	int (*mmbi_init)(struct platform_device *pdev);
 };
@@ -144,11 +148,11 @@ static int aspeed_ast2700_pcie_mmbi_init(struct platform_device *pdev)
 	/* Get register map*/
 	mmbi->e2m = syscon_node_to_regmap(dev->of_node->parent);
 	if (IS_ERR(mmbi->e2m)) {
-		dev_err(&pdev->dev, "failed to find e2m regmap\n");
+		dev_err(dev, "failed to find e2m regmap\n");
 		return PTR_ERR(mmbi->e2m);
 	}
 	if (of_address_to_resource(dev->of_node->parent, 0, &res)) {
-		dev_err(&pdev->dev, "Failed to get e2m resource\n");
+		dev_err(dev, "Failed to get e2m resource\n");
 		return -EINVAL;
 	}
 	if (res.start == 0x14c1d000)
@@ -160,7 +164,7 @@ static int aspeed_ast2700_pcie_mmbi_init(struct platform_device *pdev)
 
 	mmbi->device = syscon_regmap_lookup_by_phandle(dev->of_node->parent, "aspeed,device");
 	if (IS_ERR(mmbi->device)) {
-		dev_err(&pdev->dev, "failed to find device regmap\n");
+		dev_err(dev, "failed to find device regmap\n");
 		return PTR_ERR(mmbi->device);
 	}
 
@@ -184,11 +188,13 @@ static int aspeed_ast2700_pcie_mmbi_init(struct platform_device *pdev)
 
 	e2m_index = mmbi->e2m_index;
 	pid = mmbi->pid;
-	/* PCIe device class, sub-class, protocol and reversion */
-	if (mmbi->id < 2)
+	if (mmbi->id < 2) {
+		/* PCIe device class, sub-class, protocol and reversion */
 		regmap_write(mmbi->device, 0x18, 0xFF000027);
-	else
+	} else {
 		regmap_write(mmbi->device, 0x18, 0x0C0C0027);
+		regmap_write(mmbi->device, 0x78, ASPEED_SCU_INT_EN | ASPEED_SCU_DECODE_DEV);
+	}
 
 	/* MSI */
 	regmap_update_bits(mmbi->device, 0x74, GENMASK(7, 4), BIT(7) | (5 << 4));
@@ -218,7 +224,7 @@ static int aspeed_ast2700_pcie_mmbi_init(struct platform_device *pdev)
 	}
 	if (i == 16) {
 		i = 0;
-		dev_warn(mmbi->dev, "Bar size not align for 4K : %dK\n",
+		dev_warn(dev, "Bar size not align for 4K : %dK\n",
 			 (u32)mmbi->mem_size / 1024);
 	}
 	regmap_write(mmbi->device, mmbi->scu_bar_offset, (mmbi->mem_phy >> 4) | i);
