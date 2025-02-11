@@ -113,9 +113,26 @@
 #define H2X_REMAP_DIRECT_ADDR	0x78
 
 /* AST2700 PEHR */
-#define PEHR_GEN_CAPABILITY	0x60
+#define PEHR_VID_DID		0x00
+#define PEHR_MISC_58		0x58
+#define LOCAL_SCALE_SUP			BIT(0)
+#define PEHR_MISC_5C		0x5C
+#define PEHR_MISC_60		0x60
 #define PORT_TPYE			GENMASK(7, 4)
 #define PORT_TYPE_ROOT			BIT(2)
+#define PEHR_MISC_70		0x70
+#define PEHR_MISC_78		0x78
+
+/* AST2700 SCU */
+#define SCU_60			0x60
+#define RC_E2M_PATH_EN			BIT(0)
+#define RC_H2XS_PATH_EN			BIT(16)
+#define RC_H2XD_PATH_EN			BIT(17)
+#define RC_H2XX_PATH_EN			BIT(18)
+#define RC_UPSTREAM_MEM_EN		BIT(19)
+#define SCU_64			0x64
+#define SCU_70			0x70
+#define SCU_78			0x78
 
 /* TLP configuration type 0 and type 1 */
 #define CRG_READ_FMTTYPE(type)		(0x04000000 | (type << 24))
@@ -1150,24 +1167,28 @@ static int aspeed_ast2700_setup(struct platform_device *pdev)
 
 	reset_control_assert(pcie->perst);
 
-	regmap_write(pcie->pciephy, 0x00, 0x11501a02);
-	regmap_write(pcie->pciephy, 0x70, 0xa00c0);
-	regmap_write(pcie->pciephy, 0x78, 0x80030);
-	regmap_write(pcie->pciephy, 0x58, 0x1);
+	regmap_write(pcie->pciephy, PEHR_VID_DID, 0x11501a02);
+	regmap_write(pcie->pciephy, PEHR_MISC_70, 0xa00c0);
+	regmap_write(pcie->pciephy, PEHR_MISC_78, 0x80030);
+	regmap_write(pcie->pciephy, PEHR_MISC_58, LOCAL_SCALE_SUP);
 
-	regmap_write(pcie->device, 0x60, 0xf0001);
-	regmap_write(pcie->device, 0x64, 0xff00ff00);
-	regmap_write(pcie->device, 0x70, 0);
-	regmap_write(pcie->device, 0x78, (pcie->domain == 1) ? BIT(31) : 0);
+	regmap_update_bits(pcie->device, SCU_60,
+			   RC_E2M_PATH_EN | RC_H2XS_PATH_EN | RC_H2XD_PATH_EN | RC_H2XX_PATH_EN |
+				   RC_UPSTREAM_MEM_EN,
+			   RC_E2M_PATH_EN | RC_H2XS_PATH_EN | RC_H2XD_PATH_EN | RC_H2XX_PATH_EN |
+				   RC_UPSTREAM_MEM_EN);
+	regmap_write(pcie->device, SCU_64, 0xff00ff00);
+	regmap_write(pcie->device, SCU_70, 0);
+	regmap_write(pcie->device, SCU_78, (pcie->domain == 1) ? BIT(31) : 0);
 
 	reset_control_assert(pcie->h2xrst);
 	mdelay(10);
 	reset_control_deassert(pcie->h2xrst);
 
-	regmap_write(pcie->pciephy, 0x5C, 0x40000000);
+	regmap_write(pcie->pciephy, PEHR_MISC_5C, 0x40000000);
 	/* Configure to Root port */
-	regmap_read(pcie->pciephy, PEHR_GEN_CAPABILITY, &cfg_val);
-	regmap_write(pcie->pciephy, PEHR_GEN_CAPABILITY,
+	regmap_read(pcie->pciephy, PEHR_MISC_60, &cfg_val);
+	regmap_write(pcie->pciephy, PEHR_MISC_60,
 		     (cfg_val & ~PORT_TPYE) | FIELD_PREP(PORT_TPYE, PORT_TYPE_ROOT));
 
 	/* PCIe Host Enable */
