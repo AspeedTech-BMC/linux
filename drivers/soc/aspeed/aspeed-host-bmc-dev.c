@@ -80,7 +80,7 @@ enum msi_index {
 static int ast2600_msi_idx_table[MAX_MSI_NUM] = { 4, 21, 16, 15 };
 static int ast2700_soc0_msi_idx_table[MAX_MSI_NUM] = { 0, 11, 6, 5, 28, 29, 30, 31 };
 /* ARRAY = MMIB0_MSI, MMBI1_MSI, MMBI2_MSI, MMBI3_MSI, MMBI4_MSI, MMBI5_MSI */
-static int ast2700_soc1_msi_idx_table[MAX_MSI_NUM] = { 0, 1, 2, 3, 4, 5 };
+static int ast2700_soc1_msi_idx_table[MAX_MSI_NUM] = { 1, 2, 3, 4, 5, 6 };
 
 struct aspeed_platform {
 	int (*setup)(struct pci_dev *pdev);
