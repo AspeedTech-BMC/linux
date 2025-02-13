@@ -826,13 +826,13 @@ struct aspeed_pinmux_data {
 	const struct aspeed_pinmux_ops *ops;
 
 	const struct aspeed_pin_group *groups;
-	const unsigned int ngroups;
+	unsigned int ngroups;
 
 	const struct aspeed_pin_function *functions;
-	const unsigned int nfunctions;
+	unsigned int nfunctions;
 
 	const struct aspeed_g7_pincfg *configs_g7;
-	const unsigned int nconfigs_g7;
+	unsigned int nconfigs_g7;
 
 };
 

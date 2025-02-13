@@ -70,15 +70,15 @@ struct aspeed_pinctrl_data {
 	struct regmap *scu;
 
 	const struct pinctrl_pin_desc *pins;
-	const unsigned int npins;
+	unsigned int npins;
 
 	const struct aspeed_pin_config *configs;
-	const unsigned int nconfigs;
+	unsigned int nconfigs;
 
 	struct aspeed_pinmux_data pinmux;
 
 	const struct aspeed_pin_config_map *confmaps;
-	const unsigned int nconfmaps;
+	unsigned int nconfmaps;
 };
 
 /* Aspeed pinctrl helpers */
