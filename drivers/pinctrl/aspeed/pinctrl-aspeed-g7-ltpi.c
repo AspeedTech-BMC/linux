@@ -1113,23 +1113,25 @@ static struct pinctrl_desc aspeed_g7_ltpi_pinctrl_desc = {
 	.owner = THIS_MODULE,
 };
 
-static struct aspeed_pinctrl_data aspeed_g7_pinctrl_data = {
-	.pins = aspeed_g7_ltpi_pins,
-	.npins = ARRAY_SIZE(aspeed_g7_ltpi_pins),
-	.pinmux = {
-		.groups = aspeed_g7_ltpi_pingroups,
-		.ngroups = ARRAY_SIZE(aspeed_g7_ltpi_pingroups),
-		.functions = aspeed_g7_ltpi_funcs,
-		.nfunctions = ARRAY_SIZE(aspeed_g7_ltpi_funcs),
-		.configs_g7 = pin_cfg,
-		.nconfigs_g7 = ARRAY_SIZE(pin_cfg),
-	},
-};
-
 static int aspeed_g7_ltpi_pinctrl_probe(struct platform_device *pdev)
 {
-	return aspeed_pinctrl_probe(pdev, &aspeed_g7_ltpi_pinctrl_desc,
-				    &aspeed_g7_pinctrl_data);
+	struct aspeed_pinctrl_data *ltpi_pinctrl_data;
+
+	ltpi_pinctrl_data = devm_kzalloc(&pdev->dev, sizeof(*ltpi_pinctrl_data),
+					 GFP_KERNEL);
+	if (!ltpi_pinctrl_data)
+		return -ENOMEM;
+
+	ltpi_pinctrl_data->pins = aspeed_g7_ltpi_pins;
+	ltpi_pinctrl_data->npins = ARRAY_SIZE(aspeed_g7_ltpi_pins);
+	ltpi_pinctrl_data->pinmux.groups = aspeed_g7_ltpi_pingroups;
+	ltpi_pinctrl_data->pinmux.ngroups = ARRAY_SIZE(aspeed_g7_ltpi_pingroups);
+	ltpi_pinctrl_data->pinmux.functions = aspeed_g7_ltpi_funcs;
+	ltpi_pinctrl_data->pinmux.nfunctions = ARRAY_SIZE(aspeed_g7_ltpi_funcs);
+	ltpi_pinctrl_data->pinmux.configs_g7 = pin_cfg;
+	ltpi_pinctrl_data->pinmux.nconfigs_g7 = ARRAY_SIZE(pin_cfg);
+
+	return aspeed_pinctrl_probe(pdev, &aspeed_g7_ltpi_pinctrl_desc, ltpi_pinctrl_data);
 }
 
 static const struct of_device_id aspeed_g7_ltpi_pinctrl_match[] = {
