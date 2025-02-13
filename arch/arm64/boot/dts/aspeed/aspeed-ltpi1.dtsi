@@ -580,7 +580,7 @@
 		#size-cells = <0>;
 		#interrupt-cells = <1>;
 		reg = <0xf00 0x80>, <0xfa0 0x20>;
-		compatible = "aspeed,ast2700-i2c;
+		compatible = "aspeed,ast2700-i2c";
 		aspeed,global-regs = <&ltpi1_i2c_global>;
 		aspeed,enable-dma;
 		clocks = <&ltpi1_syscon AST1700_CLK_APB>;
