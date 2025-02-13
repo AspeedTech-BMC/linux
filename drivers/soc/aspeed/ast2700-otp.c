@@ -15,7 +15,7 @@
 #include <linux/of.h>
 #include <linux/module.h>
 #include <asm/io.h>
-#include <uapi/linux/aspeed-otp.h>
+#include <uapi/linux/otp_ast2700.h>
 
 static DEFINE_SPINLOCK(otp_state_lock);
 

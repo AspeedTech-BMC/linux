@@ -3,8 +3,8 @@
  * Copyright (C) 2021 ASPEED Technology Inc.
  */
 
-#ifndef _UAPI_LINUX_ASPEED_OTP_H
-#define _UAPI_LINUX_ASPEED_OTP_H
+#ifndef _UAPI_LINUX_OTP_AST2700_H
+#define _UAPI_LINUX_OTP_AST2700_H
 
 #include <linux/ioctl.h>
 #include <linux/types.h>
@@ -16,9 +16,6 @@ struct otp_read {
 };
 
 struct otp_prog {
-	unsigned int dw_offset;
-	unsigned int bit_offset;
-	unsigned int value;
 	unsigned int w_offset;
 	unsigned int len;
 	uint8_t *data;
@@ -47,4 +44,4 @@ struct otp_revid {
 #define ASPEED_OTP_SET_ECC		_IO(OTPIOC_BASE, 8)
 #define ASPEED_OTP_GET_REVID		_IOR(OTPIOC_BASE, 9, struct otp_revid)
 
-#endif /* _UAPI_LINUX_ASPEED_OTP_H */
+#endif /* _UAPI_LINUX_OTP_AST2700_H */
