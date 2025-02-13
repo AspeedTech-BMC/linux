@@ -62,6 +62,15 @@
 			status = "disabled";
 		};
 
+		ltpi1_pwm_tach: pwm-tach-controller@500c0000 {
+			compatible = "aspeed,ast2700-pwm-tach";
+			reg = <0x0 0x500c0000 0 0x100>;
+			clocks = <&ltpi1_syscon AST1700_CLK_AHB>;
+			resets = <&ltpi1_syscon AST1700_RESET_PWM>;
+			#pwm-cells = <3>;
+			status = "disabled";
+		};
+
 		ltpi1_adc0: adc@50c00000 {
 			compatible = "aspeed,ast2700-adc0";
 			reg = <0x0 0x50c00000 0 0x100>;
@@ -130,8 +139,10 @@
 			reg = <0x0 0x50c20000 0x0 0x1000>;
 			interrupts-extended = <&ltpi1_intc1_1 0>;
 			i3c-scl-hz = <1000000>;
-			clocks = <&ltpi1_syscon SCU1_CLK_GATE_I3C0CLK>;
-			resets = <&ltpi1_syscon SCU1_RESET_I3C0>;
+			clocks = <&ltpi1_syscon AST1700_CLK_GATE_I3C0CLK>;
+			resets = <&ltpi1_syscon AST1700_RESET_I3C0>, <&ltpi1_syscon AST1700_RESET_I3CDMA>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&pinctrl_ltpi1_hvi3c0_default>;
 			status = "disabled";
 		};
 
@@ -142,8 +153,10 @@
 			reg = <0x0 0x50c21000 0x0 0x1000>;
 			interrupts-extended = <&ltpi1_intc1_1 1>;
 			i3c-scl-hz = <1000000>;
-			clocks = <&ltpi1_syscon SCU1_CLK_GATE_I3C1CLK>;
-			resets = <&ltpi1_syscon SCU1_RESET_I3C1>;
+			clocks = <&ltpi1_syscon AST1700_CLK_GATE_I3C1CLK>;
+			resets = <&ltpi1_syscon AST1700_RESET_I3C1>, <&ltpi1_syscon AST1700_RESET_I3CDMA>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&pinctrl_ltpi1_hvi3c1_default>;
 			status = "disabled";
 		};
 
@@ -154,8 +167,10 @@
 			reg = <0x0 0x50c22000 0x0 0x1000>;
 			interrupts-extended = <&ltpi1_intc1_1 2>;
 			i3c-scl-hz = <1000000>;
-			clocks = <&ltpi1_syscon SCU1_CLK_GATE_I3C2CLK>;
-			resets = <&ltpi1_syscon SCU1_RESET_I3C2>;
+			clocks = <&ltpi1_syscon AST1700_CLK_GATE_I3C2CLK>;
+			resets = <&ltpi1_syscon AST1700_RESET_I3C2>, <&ltpi1_syscon AST1700_RESET_I3CDMA>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&pinctrl_ltpi1_hvi3c2_default>;
 			status = "disabled";
 		};
 
@@ -166,8 +181,10 @@
 			reg = <0x0 0x50c23000 0x0 0x1000>;
 			interrupts-extended = <&ltpi1_intc1_1 3>;
 			i3c-scl-hz = <1000000>;
-			clocks = <&ltpi1_syscon SCU1_CLK_GATE_I3C3CLK>;
-			resets = <&ltpi1_syscon SCU1_RESET_I3C3>;
+			clocks = <&ltpi1_syscon AST1700_CLK_GATE_I3C3CLK>;
+			resets = <&ltpi1_syscon AST1700_RESET_I3C3>, <&ltpi1_syscon AST1700_RESET_I3CDMA>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&pinctrl_ltpi1_hvi3c3_default>;
 			status = "disabled";
 		};
 
@@ -179,7 +196,9 @@
 			interrupts-extended = <&ltpi1_intc1_1 4>;
 			i3c-scl-hz = <1000000>;
 			clocks = <&ltpi1_syscon AST1700_CLK_GATE_I3C4CLK>;
-			resets = <&ltpi1_syscon AST1700_RESET_I3C4>;
+			resets = <&ltpi1_syscon AST1700_RESET_I3C4>, <&ltpi1_syscon AST1700_RESET_I3CDMA>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&pinctrl_ltpi1_i3c4_default>;
 			status = "disabled";
 		};
 
@@ -191,7 +210,9 @@
 			interrupts-extended = <&ltpi1_intc1_1 5>;
 			i3c-scl-hz = <1000000>;
 			clocks = <&ltpi1_syscon AST1700_CLK_GATE_I3C5CLK>;
-			resets = <&ltpi1_syscon AST1700_RESET_I3C5>;
+			resets = <&ltpi1_syscon AST1700_RESET_I3C5>, <&ltpi1_syscon AST1700_RESET_I3CDMA>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&pinctrl_ltpi1_i3c5_default>;
 			status = "disabled";
 		};
 
@@ -203,7 +224,9 @@
 			interrupts-extended = <&ltpi1_intc1_1 6>;
 			i3c-scl-hz = <1000000>;
 			clocks = <&ltpi1_syscon AST1700_CLK_GATE_I3C6CLK>;
-			resets = <&ltpi1_syscon AST1700_RESET_I3C6>;
+			resets = <&ltpi1_syscon AST1700_RESET_I3C6>, <&ltpi1_syscon AST1700_RESET_I3CDMA>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&pinctrl_ltpi1_i3c6_default>;
 			status = "disabled";
 		};
 
@@ -215,7 +238,9 @@
 			interrupts-extended = <&ltpi1_intc1_1 7>;
 			i3c-scl-hz = <1000000>;
 			clocks = <&ltpi1_syscon AST1700_CLK_GATE_I3C7CLK>;
-			resets = <&ltpi1_syscon AST1700_RESET_I3C7>;
+			resets = <&ltpi1_syscon AST1700_RESET_I3C7>, <&ltpi1_syscon AST1700_RESET_I3CDMA>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&pinctrl_ltpi1_i3c7_default>;
 			status = "disabled";
 		};
 
@@ -227,7 +252,9 @@
 			interrupts-extended = <&ltpi1_intc1_1 8>;
 			i3c-scl-hz = <1000000>;
 			clocks = <&ltpi1_syscon AST1700_CLK_GATE_I3C8CLK>;
-			resets = <&ltpi1_syscon AST1700_RESET_I3C8>;
+			resets = <&ltpi1_syscon AST1700_RESET_I3C8>, <&ltpi1_syscon AST1700_RESET_I3CDMA>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&pinctrl_ltpi1_i3c8_default>;
 			status = "disabled";
 		};
 
@@ -239,7 +266,9 @@
 			interrupts-extended = <&ltpi1_intc1_1 9>;
 			i3c-scl-hz = <1000000>;
 			clocks = <&ltpi1_syscon AST1700_CLK_GATE_I3C9CLK>;
-			resets = <&ltpi1_syscon AST1700_RESET_I3C9>;
+			resets = <&ltpi1_syscon AST1700_RESET_I3C9>, <&ltpi1_syscon AST1700_RESET_I3CDMA>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&pinctrl_ltpi1_i3c9_default>;
 			status = "disabled";
 		};
 
@@ -251,7 +280,9 @@
 			interrupts-extended = <&ltpi1_intc1_1 10>;
 			i3c-scl-hz = <1000000>;
 			clocks = <&ltpi1_syscon AST1700_CLK_GATE_I3C10CLK>;
-			resets = <&ltpi1_syscon AST1700_RESET_I3C10>;
+			resets = <&ltpi1_syscon AST1700_RESET_I3C10>, <&ltpi1_syscon AST1700_RESET_I3CDMA>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&pinctrl_ltpi1_i3c10_default>;
 			status = "disabled";
 		};
 
@@ -263,7 +294,9 @@
 			interrupts-extended = <&ltpi1_intc1_1 11>;
 			i3c-scl-hz = <1000000>;
 			clocks = <&ltpi1_syscon AST1700_CLK_GATE_I3C11CLK>;
-			resets = <&ltpi1_syscon AST1700_RESET_I3C11>;
+			resets = <&ltpi1_syscon AST1700_RESET_I3C11>, <&ltpi1_syscon AST1700_RESET_I3CDMA>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&pinctrl_ltpi1_i3c11_default>;
 			status = "disabled";
 		};
 
@@ -274,8 +307,10 @@
 			reg = <0x0 0x50c2c000 0x0 0x1000>;
 			interrupts-extended = <&ltpi1_intc1_1 12>;
 			i3c-scl-hz = <1000000>;
-			clocks = <&ltpi1_syscon SCU1_CLK_GATE_I3C12CLK>;
-			resets = <&ltpi1_syscon SCU1_RESET_I3C12>;
+			clocks = <&ltpi1_syscon AST1700_CLK_GATE_I3C12CLK>;
+			resets = <&ltpi1_syscon AST1700_RESET_I3C12>, <&ltpi1_syscon AST1700_RESET_I3CDMA>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&pinctrl_ltpi1_hvi3c12_default>;
 			status = "disabled";
 		};
 
@@ -286,8 +321,10 @@
 			reg = <0x0 0x50c2d000 0x0 0x1000>;
 			interrupts-extended = <&ltpi1_intc1_1 13>;
 			i3c-scl-hz = <1000000>;
-			clocks = <&ltpi1_syscon SCU1_CLK_GATE_I3C13CLK>;
-			resets = <&ltpi1_syscon SCU1_RESET_I3C13>;
+			clocks = <&ltpi1_syscon AST1700_CLK_GATE_I3C13CLK>;
+			resets = <&ltpi1_syscon AST1700_RESET_I3C13>, <&ltpi1_syscon AST1700_RESET_I3CDMA>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&pinctrl_ltpi1_hvi3c13_default>;
 			status = "disabled";
 		};
 
@@ -298,8 +335,10 @@
 			reg = <0x0 0x50c2e000 0x0 0x1000>;
 			interrupts-extended = <&ltpi1_intc1_1 14>;
 			i3c-scl-hz = <1000000>;
-			clocks = <&ltpi1_syscon SCU1_CLK_GATE_I3C14CLK>;
-			resets = <&ltpi1_syscon SCU1_RESET_I3C14>;
+			clocks = <&ltpi1_syscon AST1700_CLK_GATE_I3C14CLK>;
+			resets = <&ltpi1_syscon AST1700_RESET_I3C14>, <&ltpi1_syscon AST1700_RESET_I3CDMA>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&pinctrl_ltpi1_hvi3c14_default>;
 			status = "disabled";
 		};
 
@@ -310,8 +349,10 @@
 			reg = <0x0 0x50c2f000 0x0 0x1000>;
 			interrupts-extended = <&ltpi1_intc1_1 15>;
 			i3c-scl-hz = <1000000>;
-			clocks = <&ltpi1_syscon SCU1_CLK_GATE_I3C15CLK>;
-			resets = <&ltpi1_syscon SCU1_RESET_I3C15>;
+			clocks = <&ltpi1_syscon AST1700_CLK_GATE_I3C15CLK>;
+			resets = <&ltpi1_syscon AST1700_RESET_I3C15>, <&ltpi1_syscon AST1700_RESET_I3CDMA>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&pinctrl_ltpi1_hvi3c15_default>;
 			status = "disabled";
 		};
 
@@ -350,9 +391,10 @@
 		reg = <0x100 0x80>, <0x1a0 0x20>;
 		compatible = "aspeed,ast2700-i2c";
 		aspeed,global-regs = <&ltpi1_i2c_global>;
+		aspeed,enable-dma;
 		clocks = <&ltpi1_syscon AST1700_CLK_APB>;
 		resets = <&ltpi1_syscon AST1700_RESET_I2C>;
-		interrupts-extended = <&ltpi1_intc1_1 0>;
+		interrupts-extended = <&ltpi1_intc1_0 0>;
 		clock-frequency = <100000>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&pinctrl_ltpi1_i2c0_default>;
@@ -366,6 +408,7 @@
 		reg = <0x200 0x80>, <0x2a0 0x20>;
 		compatible = "aspeed,ast2700-i2c";
 		aspeed,global-regs = <&ltpi1_i2c_global>;
+		aspeed,enable-dma;
 		clocks = <&ltpi1_syscon AST1700_CLK_APB>;
 		resets = <&ltpi1_syscon AST1700_RESET_I2C>;
 		interrupts-extended = <&ltpi1_intc1_0 1>;
@@ -382,6 +425,7 @@
 		reg = <0x300 0x80>, <0x3a0 0x20>;
 		compatible = "aspeed,ast2700-i2c";
 		aspeed,global-regs = <&ltpi1_i2c_global>;
+		aspeed,enable-dma;
 		clocks = <&ltpi1_syscon AST1700_CLK_APB>;
 		resets = <&ltpi1_syscon AST1700_RESET_I2C>;
 		interrupts-extended = <&ltpi1_intc1_0 2>;
@@ -398,6 +442,7 @@
 		reg = <0x400 0x80>, <0x4a0 0x20>;
 		compatible = "aspeed,ast2700-i2c";
 		aspeed,global-regs = <&ltpi1_i2c_global>;
+		aspeed,enable-dma;
 		clocks = <&ltpi1_syscon AST1700_CLK_APB>;
 		resets = <&ltpi1_syscon AST1700_RESET_I2C>;
 		interrupts-extended = <&ltpi1_intc1_0 3>;
@@ -414,6 +459,7 @@
 		reg = <0x500 0x80>, <0x5a0 0x20>;
 		compatible = "aspeed,ast2700-i2c";
 		aspeed,global-regs = <&ltpi1_i2c_global>;
+		aspeed,enable-dma;
 		clocks = <&ltpi1_syscon AST1700_CLK_APB>;
 		resets = <&ltpi1_syscon AST1700_RESET_I2C>;
 		clock-frequency = <100000>;
@@ -430,6 +476,7 @@
 		reg = <0x600 0x80>, <0x6a0 0x20>;
 		compatible = "aspeed,ast2700-i2c";
 		aspeed,global-regs = <&ltpi1_i2c_global>;
+		aspeed,enable-dma;
 		clocks = <&ltpi1_syscon AST1700_CLK_APB>;
 		resets = <&ltpi1_syscon AST1700_RESET_I2C>;
 		interrupts-extended = <&ltpi1_intc1_0 5>;
