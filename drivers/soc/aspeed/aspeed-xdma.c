@@ -769,6 +769,8 @@ static __poll_t aspeed_xdma_poll(struct file *file,
 			mask |= EPOLLOUT | EPOLLWRNORM;
 	}
 
+	aspeed_xdma_reset(ctx);
+
 	return mask;
 }
 
