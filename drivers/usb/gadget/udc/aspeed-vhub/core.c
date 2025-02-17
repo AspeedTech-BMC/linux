@@ -413,15 +413,12 @@ static int ast_vhub_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, vhub);
 
-	vhub->rst = devm_reset_control_get_optional_exclusive(&pdev->dev, NULL);
+	vhub->rst = devm_reset_control_get_optional_shared(&pdev->dev, NULL);
 
 	if (IS_ERR(vhub->rst)) {
 		rc = PTR_ERR(vhub->rst);
 		goto err;
 	}
-	rc = reset_control_assert(vhub->rst);
-	if (rc)
-		goto err;
 
 	vhub->clk = devm_clk_get(&pdev->dev, NULL);
 	if (IS_ERR(vhub->clk)) {
