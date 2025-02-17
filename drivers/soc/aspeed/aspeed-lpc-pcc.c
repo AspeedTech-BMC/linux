@@ -303,9 +303,9 @@ static int aspeed_pcc_probe(struct platform_device *pdev)
 		return -ENOMEM;
 
 	pcc->dev = dev;
-	rc = of_property_read_u32(dev->of_node, "port-addr", &pcc->port);
+	rc = of_property_read_u32(dev->of_node, "pcc-ports", &pcc->port);
 	if (rc) {
-		dev_err(dev, "cannot get port address\n");
+		dev_err(dev, "no pcc ports configured\n");
 		return -ENODEV;
 	}
 
