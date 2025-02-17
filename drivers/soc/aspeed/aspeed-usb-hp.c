@@ -15,6 +15,8 @@
 #include <linux/mfd/syscon.h>
 #include <linux/phy/phy.h>
 
+#define	USB_HP_BEHCI84	0x84	/* Controller Fine-tune Register */
+
 static const struct of_device_id aspeed_usb_hp_dt_ids[] = {
 	{
 		.compatible = "aspeed,ast2600-usb2ahp",
@@ -36,6 +38,10 @@ MODULE_DEVICE_TABLE(of, aspeed_usb_hp_dt_ids);
 
 static int aspeed_usb_hp_probe(struct platform_device *pdev)
 {
+	struct device_node	*node = pdev->dev.of_node;
+	void __iomem		*regs;
+	bool			ehci_32bits_quirk;
+	u32			val;
 	struct clk		*clk;
 	struct reset_control	*rst;
 	struct regmap		*device;
@@ -70,7 +76,7 @@ static int aspeed_usb_hp_probe(struct platform_device *pdev)
 		return rc;
 	}
 
-	rst = devm_reset_control_get_shared(&pdev->dev, NULL);
+	rst = devm_reset_control_get_optional_shared(&pdev->dev, NULL);
 	if (IS_ERR(rst)) {
 		rc = PTR_ERR(rst);
 		goto err;
@@ -103,6 +109,15 @@ static int aspeed_usb_hp_probe(struct platform_device *pdev)
 				   BIT(19) | BIT(11) | BIT(3),
 				   BIT(19) | BIT(11) | BIT(3));
 	} else {
+		ehci_32bits_quirk =
+			device_property_read_bool(&pdev->dev, "aspeed,ehci_32bits_quirk");
+
+		if (ehci_32bits_quirk) {
+			regs = of_iomap(node, 0);
+			val = readl(regs + USB_HP_BEHCI84) & ~BIT(11);
+			writel(val, regs + USB_HP_BEHCI84);
+		}
+
 		//EnPCIaMSI_EnPCIaIntA_EnPCIaMst_EnPCIaDev
 		/* Turn on PCIe EHCI without MSI */
 		regmap_update_bits(device, 0x70,
