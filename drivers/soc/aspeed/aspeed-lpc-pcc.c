@@ -100,7 +100,7 @@ struct aspeed_pcc_dma {
 	uint32_t size;
 };
 
-struct aspeed_pcc {
+struct aspeed_pcc_ctrl {
 	struct device *dev;
 	struct regmap *regmap;
 	int irq;
@@ -128,12 +128,12 @@ static inline bool is_valid_high_bits_select(uint32_t sel)
 }
 
 static ssize_t aspeed_pcc_file_read(struct file *file, char __user *buffer,
-		size_t count, loff_t *ppos)
+				    size_t count, loff_t *ppos)
 {
 	int rc;
 	unsigned int copied;
-	struct aspeed_pcc *pcc = container_of(file->private_data,
-					      struct aspeed_pcc,
+	struct aspeed_pcc_ctrl *pcc = container_of(file->private_data,
+					      struct aspeed_pcc_ctrl,
 					      mdev);
 
 	if (kfifo_is_empty(&pcc->fifo)) {
@@ -152,12 +152,9 @@ static ssize_t aspeed_pcc_file_read(struct file *file, char __user *buffer,
 }
 
 static __poll_t aspeed_pcc_file_poll(struct file *file,
-		struct poll_table_struct *pt)
+				     struct poll_table_struct *pt)
 {
-	struct aspeed_pcc *pcc = container_of(
-			file->private_data,
-			struct aspeed_pcc,
-			mdev);
+	struct aspeed_pcc_ctrl *pcc = container_of(file->private_data, struct aspeed_pcc_ctrl, mdev);
 
 	poll_wait(file, &pcc->wq, pt);
 
@@ -173,7 +170,7 @@ static const struct file_operations pcc_fops = {
 static irqreturn_t aspeed_pcc_dma_isr(int irq, void *arg)
 {
 	uint32_t reg, rptr, wptr;
-	struct aspeed_pcc *pcc = (struct aspeed_pcc*)arg;
+	struct aspeed_pcc_ctrl *pcc = (struct aspeed_pcc_ctrl *)arg;
 	struct kfifo *fifo = &pcc->fifo;
 
 	regmap_write_bits(pcc->regmap, PCCR2, PCCR2_INT_STATUS_DMA_DONE, PCCR2_INT_STATUS_DMA_DONE);
@@ -201,12 +198,14 @@ static irqreturn_t aspeed_pcc_dma_isr(int irq, void *arg)
 static irqreturn_t aspeed_pcc_isr(int irq, void *arg)
 {
 	uint32_t sts, reg;
-	struct aspeed_pcc *pcc = (struct aspeed_pcc*)arg;
+	struct aspeed_pcc_ctrl *pcc = (struct aspeed_pcc_ctrl *)arg;
 	struct kfifo *fifo = &pcc->fifo;
 
 	regmap_read(pcc->regmap, PCCR2, &sts);
 
-	if (!(sts & (PCCR2_INT_STATUS_RX_TMOUT | PCCR2_INT_STATUS_RX_AVAIL | PCCR2_INT_STATUS_DMA_DONE)))
+	if (!(sts & (PCCR2_INT_STATUS_RX_TMOUT |
+		     PCCR2_INT_STATUS_RX_AVAIL |
+		     PCCR2_INT_STATUS_DMA_DONE)))
 		return IRQ_NONE;
 
 	if (pcc->dma_mode)
@@ -235,7 +234,7 @@ static irqreturn_t aspeed_pcc_isr(int irq, void *arg)
  * eSPI response when PCC is used for port I/O byte snooping
  * over eSPI.
  */
-static int aspeed_a2600_15(struct aspeed_pcc *pcc, struct device *dev)
+static int aspeed_a2600_15(struct aspeed_pcc_ctrl *pcc, struct device *dev)
 {
 	struct device_node *np;
 	u32 hicrb_en;
@@ -268,7 +267,7 @@ static int aspeed_a2600_15(struct aspeed_pcc *pcc, struct device *dev)
 	return 0;
 }
 
-static int aspeed_pcc_enable(struct aspeed_pcc *pcc, struct device *dev)
+static int aspeed_pcc_enable(struct aspeed_pcc_ctrl *pcc, struct device *dev)
 {
 	int rc;
 
@@ -321,7 +320,7 @@ static int aspeed_pcc_enable(struct aspeed_pcc *pcc, struct device *dev)
 static int aspeed_pcc_probe(struct platform_device *pdev)
 {
 	int rc;
-	struct aspeed_pcc *pcc;
+	struct aspeed_pcc_ctrl *pcc;
 	struct device *dev = &pdev->dev;
 	uint32_t fifo_size = PAGE_SIZE;
 
@@ -340,7 +339,7 @@ static int aspeed_pcc_probe(struct platform_device *pdev)
 	of_property_read_u32(dev->of_node, "rec-mode", &pcc->rec_mode);
 	if (!is_valid_rec_mode(pcc->rec_mode)) {
 		dev_err(dev, "invalid record mode: %u\n",
-				pcc->rec_mode);
+			pcc->rec_mode);
 		return -EINVAL;
 	}
 
@@ -363,9 +362,9 @@ static int aspeed_pcc_probe(struct platform_device *pdev)
 				pcc->port_hbits_select);
 			return -EINVAL;
 		}
-	}
-	else
+	} else {
 		pcc->port_hbits_select = 0x3;
+	}
 
 	/* AP note A2600-15 */
 	pcc->a2600_15 = of_property_read_bool(dev->of_node, "A2600-15");
@@ -472,7 +471,7 @@ err_free_kfifo:
 static int aspeed_pcc_remove(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
-	struct aspeed_pcc *pcc = dev_get_drvdata(dev);
+	struct aspeed_pcc_ctrl *pcc = dev_get_drvdata(dev);
 
 	kfifo_free(&pcc->fifo);
 	misc_deregister(&pcc->mdev);
@@ -481,7 +480,6 @@ static int aspeed_pcc_remove(struct platform_device *pdev)
 }
 
 static const struct of_device_id aspeed_pcc_table[] = {
-	{ .compatible = "aspeed,ast2500-lpc-pcc" },
 	{ .compatible = "aspeed,ast2600-lpc-pcc" },
 	{ },
 };
