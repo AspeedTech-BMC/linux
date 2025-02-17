@@ -3,6 +3,7 @@
  * Copyright (C) ASPEED Technology Inc.
  */
 #include <linux/bitops.h>
+#include <linux/bitfield.h>
 #include <linux/interrupt.h>
 #include <linux/fs.h>
 #include <linux/kfifo.h>
@@ -107,10 +108,7 @@ struct aspeed_pcc_ctrl {
 	struct device *dev;
 	struct regmap *regmap;
 	int irq;
-	uint32_t rec_mode;
 	uint32_t port;
-	uint32_t port_xbits;
-	uint32_t port_hbits_select;
 	struct aspeed_pcc_dma dma;
 	struct kfifo fifo;
 	wait_queue_head_t wq;
@@ -229,12 +227,6 @@ static int aspeed_a2600_15(struct aspeed_pcc_ctrl *pcc, struct device *dev)
 		return -EPERM;
 	}
 
-	/* abort if port is not 4-bytes continuous range */
-	if (pcc->port_xbits != 0x3) {
-		dev_err(dev, "A2600-15 should be applied on 4-bytes continuous I/O address range\n");
-		return -EINVAL;
-	}
-
 	/* set SNPWADR of snoop device */
 	regmap_write(pcc->regmap, SNPWADR, pcc->port | ((pcc->port + 2) << 16));
 
@@ -256,30 +248,32 @@ static int aspeed_pcc_enable(struct aspeed_pcc_ctrl *pcc, struct device *dev)
 	if (rc)
 		return rc;
 
-	/* record mode */
+	/* record mode: Set 2-Byte mode. */
 	regmap_update_bits(pcc->regmap, PCCR0,
 			   PCCR0_MODE_SEL_MASK,
-			   pcc->rec_mode << PCCR0_MODE_SEL_SHIFT);
+			   PCC_REC_2B << PCCR0_MODE_SEL_SHIFT);
 
 	/* port address */
 	regmap_update_bits(pcc->regmap, PCCR1,
 			   PCCR1_BASE_ADDR_MASK,
 			   pcc->port << PCCR1_BASE_ADDR_SHIFT);
 
-	/* port address high bits selection or parser control */
+	/* Set address high bits selection to 0b01 for address bit[5:4] */
 	regmap_update_bits(pcc->regmap, PCCR0,
 			   PCCR0_ADDR_SEL_MASK,
-			   pcc->port_hbits_select << PCCR0_ADDR_SEL_SHIFT);
+			   PCC_PORT_HBITS_SEL_45 << PCCR0_ADDR_SEL_SHIFT);
 
-	/* port address dont care bits */
+	/* Set LPC don't care address to 0x3 for port 80~83h */
 	regmap_update_bits(pcc->regmap, PCCR1,
 			   PCCR1_DONT_CARE_BITS_MASK,
-			   pcc->port_xbits << PCCR1_DONT_CARE_BITS_SHIFT);
+			   0x3 << PCCR1_DONT_CARE_BITS_SHIFT);
 
 	/* set DMA ring buffer size and enable interrupts */
 	regmap_write(pcc->regmap, PCCR4, pcc->dma.addr & 0xffffffff);
+#ifdef CONFIG_ARM64
 	regmap_update_bits(pcc->regmap, PCCR5, PCCR5_DMA_ADDRH_MASK,
 			   (pcc->dma.addr >> 32) << PCCR5_DMA_ADDRH_SHIFT);
+#endif
 	regmap_update_bits(pcc->regmap, PCCR5, PCCR5_DMA_LEN_MASK,
 			   (pcc->dma.size / 4) << PCCR5_DMA_LEN_SHIFT);
 	regmap_update_bits(pcc->regmap, PCCR0,
@@ -291,53 +285,45 @@ static int aspeed_pcc_enable(struct aspeed_pcc_ctrl *pcc, struct device *dev)
 	return 0;
 }
 
+static int aspeed_pcc_disable(struct aspeed_pcc_ctrl *pcc)
+{
+	/* Disable PCC and DMA Mode for safety */
+	regmap_update_bits(pcc->regmap, PCCR0, PCCR0_EN |  PCCR0_EN_DMA_MODE, 0);
+
+	/* Clear Rx FIFO. */
+	regmap_update_bits(pcc->regmap, PCCR0, PCCR0_CLR_RX_FIFO, 1);
+
+	/* Clear All interrupts status. */
+	regmap_write(pcc->regmap, PCCR2,
+		     PCCR2_INT_STATUS_RX_OVER | PCCR2_INT_STATUS_DMA_DONE |
+		     PCCR2_INT_STATUS_PATTERN_A | PCCR2_INT_STATUS_PATTERN_B);
+
+	return 0;
+}
+
 static int aspeed_pcc_probe(struct platform_device *pdev)
 {
 	int rc;
 	struct aspeed_pcc_ctrl *pcc;
-	struct device *dev = &pdev->dev;
+	struct device *dev;
 	uint32_t fifo_size = PAGE_SIZE;
+
+	dev = &pdev->dev;
 
 	pcc = devm_kzalloc(&pdev->dev, sizeof(*pcc), GFP_KERNEL);
 	if (!pcc)
 		return -ENOMEM;
 
-	pcc->dev = dev;
+	pcc->regmap = syscon_node_to_regmap(pdev->dev.parent->of_node);
+	if (IS_ERR(pcc->regmap)) {
+		dev_err(dev, "Couldn't get regmap\n");
+		return -ENODEV;
+	}
+
 	rc = of_property_read_u32(dev->of_node, "pcc-ports", &pcc->port);
 	if (rc) {
 		dev_err(dev, "no pcc ports configured\n");
 		return -ENODEV;
-	}
-
-	/* optional, by default: 0 -> 1-Byte mode */
-	of_property_read_u32(dev->of_node, "rec-mode", &pcc->rec_mode);
-	if (!is_valid_rec_mode(pcc->rec_mode)) {
-		dev_err(dev, "invalid record mode: %u\n",
-			pcc->rec_mode);
-		return -EINVAL;
-	}
-
-	/* optional, by default: 0 -> no don't care bits */
-	of_property_read_u32(dev->of_node, "port-addr-xbits", &pcc->port_xbits);
-
-	/*
-	 * optional, by default: 0 -> no high address bits
-	 *
-	 * Note that when record mode is set to 1-Byte, this
-	 * property is ignored and the corresponding HW bits
-	 * behave as read/write cycle parser control with the
-	 * value set to 0b11
-	 */
-	if (pcc->rec_mode) {
-		of_property_read_u32(dev->of_node, "port-addr-hbits-select",
-				     &pcc->port_hbits_select);
-		if (!is_valid_high_bits_select(pcc->port_hbits_select)) {
-			dev_err(dev, "invalid high address bits selection: %u\n",
-				pcc->port_hbits_select);
-			return -EINVAL;
-		}
-	} else {
-		pcc->port_hbits_select = 0x3;
 	}
 
 	rc = dma_set_mask_and_coherent(dev, DMA_BIT_MASK(64));
@@ -357,40 +343,29 @@ static int aspeed_pcc_probe(struct platform_device *pdev)
 	}
 
 	fifo_size = roundup(pcc->dma.size, PAGE_SIZE);
-
 	rc = kfifo_alloc(&pcc->fifo, fifo_size, GFP_KERNEL);
 	if (rc) {
 		dev_err(dev, "cannot allocate kFIFO\n");
 		return -ENOMEM;
 	}
 
-	pcc->regmap = syscon_node_to_regmap(pdev->dev.parent->of_node);
-	if (IS_ERR(pcc->regmap)) {
-		dev_err(dev, "cannot map register\n");
-		return -ENODEV;
+	/* Disable PCC to clean up DMA buffer before request IRQ. */
+	rc = aspeed_pcc_disable(pcc);
+	if (rc) {
+		dev_err(dev, "Couldn't disable PCC\n");
+		goto err_free_kfifo;
 	}
-
-	/* Disable PCC and DMA Mode for safety */
-	regmap_update_bits(pcc->regmap, PCCR0, PCCR0_EN |  PCCR0_EN_DMA_MODE, 0);
-
-	/* Clear Rx FIFO. */
-	regmap_update_bits(pcc->regmap, PCCR0, PCCR0_CLR_RX_FIFO, 1);
-
-	/* Clear All interrupts status. */
-	regmap_write(pcc->regmap, PCCR2,
-		     PCCR2_INT_STATUS_RX_OVER | PCCR2_INT_STATUS_DMA_DONE |
-		     PCCR2_INT_STATUS_PATTERN_A | PCCR2_INT_STATUS_PATTERN_B);
 
 	pcc->irq = platform_get_irq(pdev, 0);
 	if (pcc->irq < 0) {
-		dev_err(dev, "cannot get IRQ\n");
+		dev_err(dev, "Couldn't get IRQ\n");
 		rc = -ENODEV;
 		goto err_free_kfifo;
 	}
 
 	rc = devm_request_irq(dev, pcc->irq, aspeed_pcc_isr, 0, DEVICE_NAME, pcc);
 	if (rc < 0) {
-		dev_err(dev, "cannot request IRQ handler\n");
+		dev_err(dev, "Couldn't request IRQ %d\n", pcc->irq);
 		goto err_free_kfifo;
 	}
 
@@ -398,7 +373,7 @@ static int aspeed_pcc_probe(struct platform_device *pdev)
 
 	pcc->mdev_id = ida_alloc(&aspeed_pcc_ida, GFP_KERNEL);
 	if (pcc->mdev_id < 0) {
-		dev_err(dev, "cannot allocate ID\n");
+		dev_err(dev, "Couldn't allocate ID\n");
 		return pcc->mdev_id;
 	}
 
@@ -409,19 +384,17 @@ static int aspeed_pcc_probe(struct platform_device *pdev)
 	pcc->mdev.fops = &pcc_fops;
 	rc = misc_register(&pcc->mdev);
 	if (rc) {
-		dev_err(dev, "cannot register misc device\n");
+		dev_err(dev, "Couldn't register misc device\n");
 		goto err_free_kfifo;
 	}
 
 	rc = aspeed_pcc_enable(pcc, dev);
 	if (rc) {
-		dev_err(dev, "cannot enable PCC\n");
+		dev_err(dev, "Couldn't enable PCC\n");
 		goto err_dereg_mdev;
 	}
 
 	dev_set_drvdata(&pdev->dev, pcc);
-
-	dev_info(dev, "module loaded\n");
 
 	return 0;
 
