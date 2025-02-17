@@ -367,6 +367,7 @@
 
 		usb2ahp: usb2ahp {
 			compatible = "aspeed,ast2700-usb2ahp";
+			reg = <0x0 0x12061800 0x0 0x90>;
 			clocks = <&syscon0 SCU0_CLK_GATE_PORTAUSB2CLK>;
 			resets = <&syscon0 SCU0_RESET_PORTA_VHUB_EHCI>;
 			pinctrl-names = "default";
@@ -403,6 +404,7 @@
 
 		usb2bhp: usb2bhp {
 			compatible = "aspeed,ast2700-usb2bhp";
+			reg = <0x0 0x12063800 0x0 0x90>;
 			clocks = <&syscon0 SCU0_CLK_GATE_PORTBUSB2CLK>;
 			resets = <&syscon0 SCU0_RESET_PORTB_VHUB_EHCI>;
 			pinctrl-names = "default";
