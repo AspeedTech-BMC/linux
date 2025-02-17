@@ -110,7 +110,6 @@ struct aspeed_pcc_ctrl {
 	uint32_t port;
 	uint32_t port_xbits;
 	uint32_t port_hbits_select;
-	uint32_t dma_mode;
 	struct aspeed_pcc_dma dma;
 	struct kfifo fifo;
 	wait_queue_head_t wq;
@@ -199,9 +198,8 @@ static irqreturn_t aspeed_pcc_dma_isr(int irq, void *arg)
 
 static irqreturn_t aspeed_pcc_isr(int irq, void *arg)
 {
-	uint32_t sts, reg;
+	uint32_t sts;
 	struct aspeed_pcc_ctrl *pcc = (struct aspeed_pcc_ctrl *)arg;
-	struct kfifo *fifo = &pcc->fifo;
 
 	regmap_read(pcc->regmap, PCCR2, &sts);
 
@@ -210,23 +208,7 @@ static irqreturn_t aspeed_pcc_isr(int irq, void *arg)
 		     PCCR2_INT_STATUS_DMA_DONE)))
 		return IRQ_NONE;
 
-	if (pcc->dma_mode)
-		return aspeed_pcc_dma_isr(irq, arg);
-
-	while (sts & PCCR2_INT_STATUS_DATA_RDY) {
-		regmap_read(pcc->regmap, PCCR3, &reg);
-
-		if (kfifo_is_full(fifo))
-			kfifo_skip(fifo);
-
-		kfifo_put(fifo, reg & PCCR3_FIFO_DATA_MASK);
-
-		regmap_read(pcc->regmap, PCCR2, &sts);
-	}
-
-	wake_up_interruptible(&pcc->wq);
-
-	return IRQ_HANDLED;
+	return aspeed_pcc_dma_isr(irq, arg);
 }
 
 /*
@@ -300,22 +282,14 @@ static int aspeed_pcc_enable(struct aspeed_pcc_ctrl *pcc, struct device *dev)
 			   pcc->port_xbits << PCCR1_DONT_CARE_BITS_SHIFT);
 
 	/* set DMA ring buffer size and enable interrupts */
-	if (pcc->dma_mode) {
-		regmap_write(pcc->regmap, PCCR4, pcc->dma.addr & 0xffffffff);
-		regmap_update_bits(pcc->regmap, PCCR5, PCCR5_DMA_ADDRH_MASK,
-				   (pcc->dma.addr >> 32) << PCCR5_DMA_ADDRH_SHIFT);
-		regmap_update_bits(pcc->regmap, PCCR5, PCCR5_DMA_LEN_MASK,
-				   (pcc->dma.size / 4) << PCCR5_DMA_LEN_SHIFT);
-		regmap_update_bits(pcc->regmap, PCCR0,
-				   PCCR0_EN_DMA_INT | PCCR0_EN_DMA_MODE,
-				   PCCR0_EN_DMA_INT | PCCR0_EN_DMA_MODE);
-	} else {
-		regmap_update_bits(pcc->regmap, PCCR0, PCCR0_RX_TRIG_LVL_MASK,
-				   PCC_FIFO_THR_4_EIGHTH << PCCR0_RX_TRIG_LVL_SHIFT);
-		regmap_update_bits(pcc->regmap, PCCR0,
-				   PCCR0_EN_RX_TMOUT_INT | PCCR0_EN_RX_AVAIL_INT,
-				   PCCR0_EN_RX_TMOUT_INT | PCCR0_EN_RX_AVAIL_INT);
-	}
+	regmap_write(pcc->regmap, PCCR4, pcc->dma.addr & 0xffffffff);
+	regmap_update_bits(pcc->regmap, PCCR5, PCCR5_DMA_ADDRH_MASK,
+			   (pcc->dma.addr >> 32) << PCCR5_DMA_ADDRH_SHIFT);
+	regmap_update_bits(pcc->regmap, PCCR5, PCCR5_DMA_LEN_MASK,
+			   (pcc->dma.size / 4) << PCCR5_DMA_LEN_SHIFT);
+	regmap_update_bits(pcc->regmap, PCCR0,
+			   PCCR0_EN_DMA_INT | PCCR0_EN_DMA_MODE,
+			   PCCR0_EN_DMA_INT | PCCR0_EN_DMA_MODE);
 
 	regmap_update_bits(pcc->regmap, PCCR0, PCCR0_EN, PCCR0_EN);
 
@@ -382,20 +356,17 @@ static int aspeed_pcc_probe(struct platform_device *pdev)
 		return rc;
 	}
 
-	pcc->dma_mode = of_property_read_bool(dev->of_node, "dma-mode");
-	if (pcc->dma_mode) {
-		pcc->dma.size = PCC_DMA_BUFSZ;
-		pcc->dma.virt = dmam_alloc_coherent(dev,
-						    pcc->dma.size,
-						    &pcc->dma.addr,
-						    GFP_KERNEL);
-		if (!pcc->dma.virt) {
-			dev_err(dev, "cannot allocate DMA buffer\n");
-			return -ENOMEM;
-		}
-
-		fifo_size = roundup(pcc->dma.size, PAGE_SIZE);
+	pcc->dma.size = PCC_DMA_BUFSZ;
+	pcc->dma.virt = dmam_alloc_coherent(dev,
+					    pcc->dma.size,
+					    &pcc->dma.addr,
+					    GFP_KERNEL);
+	if (!pcc->dma.virt) {
+		dev_err(dev, "cannot allocate DMA buffer\n");
+		return -ENOMEM;
 	}
+
+	fifo_size = roundup(pcc->dma.size, PAGE_SIZE);
 
 	rc = kfifo_alloc(&pcc->fifo, fifo_size, GFP_KERNEL);
 	if (rc) {
