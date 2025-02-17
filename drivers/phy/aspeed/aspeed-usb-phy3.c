@@ -20,9 +20,9 @@
 #define PHY3P08_DEFAULT		0x5E406825	/* PHY PCS Protocol Setting #3 default value */
 #define PHY3P0C_DEFAULT		0x00000001	/* PHY PCS Protocol Setting #4 default value */
 
-#define DWC_CRTL_NUM	2
+#define DWC_CRTL_NUM	3
 
-#define USB_PHY3_INIT_DONE	BIT(15)	/* BIT15: USB3.1 Phy internal SRAM iniitalization done */
+#define USB_PHY3_INIT_DONE	BIT(15)	/* BIT15: USB3.1 Phy internal SRAM initialization done */
 #define USB_PHY3_SRAM_BYPASS	BIT(7)	/* USB3.1 Phy SRAM bypass */
 #define USB_PHY3_SRAM_EXT_LOAD	BIT(6)	/* USB3.1 Phy SRAM external load done */
 
@@ -52,6 +52,7 @@ struct aspeed_usb_phy3_model {
 };
 
 static struct usb_dwc3_ctrl ctrl_data[DWC_CRTL_NUM] = {
+	{0xc100, 0x00000006},	/* Set DWC3 GSBUSCFG0 for Bus Burst Type */
 	{0xc12c, 0x0c854802},	/* Set DWC3 GUCTL for ref_clk */
 	{0xc630, 0x0c800020},	/* Set DWC3 GLADJ for ref_clk */
 };
