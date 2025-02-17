@@ -604,7 +604,8 @@ static int aspeed_wdt_probe(struct platform_device *pdev)
 	}
 
 	if ((of_device_is_compatible(np, "aspeed,ast2500-wdt")) ||
-		(of_device_is_compatible(np, "aspeed,ast2600-wdt"))) {
+		(of_device_is_compatible(np, "aspeed,ast2600-wdt")) ||
+		(of_device_is_compatible(np, "aspeed,ast2700-wdt"))) {
 		u32 reset_mask[6];
 		size_t nrstmask = wdt->cfg->reset_mask_num;
 		u32 reg = readl(wdt->base + WDT_RESET_WIDTH);
