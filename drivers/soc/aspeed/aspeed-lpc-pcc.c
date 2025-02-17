@@ -22,6 +22,9 @@
 
 static DEFINE_IDA(aspeed_pcc_ida);
 
+#define HICR5	0x80
+#define HICR5_EN_SNP0W			BIT(0)
+#define HICR5_EN_SNP1W			BIT(2)
 #define HICR6	0x084
 #define   HICR6_EN2BMODE		BIT(19)
 #define SNPWADR	0x090
@@ -115,7 +118,6 @@ struct aspeed_pcc_ctrl {
 	wait_queue_head_t wq;
 	struct miscdevice mdev;
 	int mdev_id;
-	bool a2600_15;
 };
 
 static inline bool is_valid_rec_mode(uint32_t mode)
@@ -220,16 +222,13 @@ static irqreturn_t aspeed_pcc_isr(int irq, void *arg)
  */
 static int aspeed_a2600_15(struct aspeed_pcc_ctrl *pcc, struct device *dev)
 {
-	struct device_node *np;
-	u32 hicrb_en;
+	u32 hicr5_en, hicrb_en;
 
 	/* abort if snoop is enabled */
-	np = of_find_compatible_node(dev->parent->of_node, NULL, "aspeed,ast2600-lpc-snoop");
-	if (np) {
-		if (of_device_is_available(np)) {
-			dev_err(dev, "A2600-15 should be applied with snoop disabled\n");
-			return -EPERM;
-		}
+	regmap_read(pcc->regmap, HICR5, &hicr5_en);
+	if (hicr5_en & (HICR5_EN_SNP0W | HICR5_EN_SNP1W)) {
+		dev_err(dev, "A2600-15 should be applied with snoop disabled\n");
+		return -EPERM;
 	}
 
 	/* abort if port is not 4-bytes continuous range */
@@ -255,11 +254,9 @@ static int aspeed_pcc_enable(struct aspeed_pcc_ctrl *pcc, struct device *dev)
 {
 	int rc;
 
-	if (pcc->a2600_15) {
-		rc = aspeed_a2600_15(pcc, dev);
-		if (rc)
-			return rc;
-	}
+	rc = aspeed_a2600_15(pcc, dev);
+	if (rc)
+		return rc;
 
 	/* record mode */
 	regmap_update_bits(pcc->regmap, PCCR0,
@@ -344,11 +341,6 @@ static int aspeed_pcc_probe(struct platform_device *pdev)
 	} else {
 		pcc->port_hbits_select = 0x3;
 	}
-
-	/* AP note A2600-15 */
-	pcc->a2600_15 = of_property_read_bool(dev->of_node, "A2600-15");
-	if (pcc->a2600_15)
-		dev_info(dev, "A2600-15 AP note patch is selected\n");
 
 	rc = dma_set_mask_and_coherent(dev, DMA_BIT_MASK(64));
 	if (rc) {
