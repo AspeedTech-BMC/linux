@@ -1077,7 +1077,7 @@
 
 #endif
 
-#if 0
+#if 1
 &uphy3a {
 	status = "okay";
 };
@@ -1097,44 +1097,27 @@
 };
 #endif
 
-#if 0
-&vhuba1 {
-	status = "okay";
-};
-
-&vhubb1 {
-	status = "okay";
-};
-
-#endif
-
-#if 1
 &vhuba0 {
 	status = "okay";
+	pinctrl-0 = <&pinctrl_usb2ahpd0_default>;
 };
 
-&vhubb0 {
-	status = "okay";
-};
-#endif
-
-#if 0
 &usb3ahp {
 	status = "okay";
+	pinctrl-0 = <&pinctrl_usb3axhp_default &pinctrl_usb2axhp_default>;
 };
 
 &usb3bhp {
 	status = "okay";
 };
 
-&uphy2a {
-	status = "okay";
-};
-
 &uphy2b {
 	status = "okay";
 };
-#endif
+
+&vhubb1 {
+	status = "okay";
+};
 
 &vhubc {
 	status = "okay";
