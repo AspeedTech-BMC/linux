@@ -55,6 +55,7 @@ Hardware Monitoring Kernel Drivers
    coretemp
    corsair-cpro
    corsair-psu
+   crps
    da9052
    da9055
    dell-smm-hwmon
