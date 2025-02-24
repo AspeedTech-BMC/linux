@@ -84,7 +84,7 @@
 &adc0 {
 	aspeed,int-vref-microvolt = <2500000>;
 	status = "okay";
-
+	aspeed,battery-sensing;
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_adc7_default>;
 };
@@ -92,7 +92,7 @@
 &adc1 {
 	aspeed,int-vref-microvolt = <2500000>;
 	status = "okay";
-
+	aspeed,battery-sensing;
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_adc15_default>;
 };
@@ -400,6 +400,10 @@
 };
 
 &ltpi0 {
+	status = "okay";
+};
+
+&ltpi1 {
 	status = "okay";
 };
 
