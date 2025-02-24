@@ -107,8 +107,7 @@ void hci_connect_le_scan_cleanup(struct hci_conn *conn, u8 status)
 	 * where a timeout + cancel does indicate an actual failure.
 	 */
 	if (status && status != HCI_ERROR_UNKNOWN_CONN_ID)
-		mgmt_connect_failed(hdev, &conn->dst, conn->type,
-				    conn->dst_type, status);
+		mgmt_connect_failed(hdev, conn, status);
 
 	/* The connection attempt was doing scan for new RPA, and is
 	 * in scan phase. If params are not associated with any other
@@ -290,6 +289,9 @@ static int hci_enhanced_setup_sync(struct hci_dev *hdev, void *data)
 	const struct sco_param *param;
 
 	kfree(conn_handle);
+
+	if (!hci_conn_valid(hdev, conn))
+		return -ECANCELED;
 
 	bt_dev_dbg(hdev, "hcon %p", conn);
 
@@ -1052,8 +1054,9 @@ static void hci_conn_cleanup_child(struct hci_conn *conn, u8 reason)
 			hci_conn_failed(conn, reason);
 		break;
 	case ISO_LINK:
-		if (conn->state != BT_CONNECTED &&
-		    !test_bit(HCI_CONN_CREATE_CIS, &conn->flags))
+		if ((conn->state != BT_CONNECTED &&
+		    !test_bit(HCI_CONN_CREATE_CIS, &conn->flags)) ||
+		    test_bit(HCI_CONN_BIG_CREATED, &conn->flags))
 			hci_conn_failed(conn, reason);
 		break;
 	}
@@ -1233,8 +1236,7 @@ void hci_conn_failed(struct hci_conn *conn, u8 status)
 		hci_le_conn_failed(conn, status);
 		break;
 	case ACL_LINK:
-		mgmt_connect_failed(hdev, &conn->dst, conn->type,
-				    conn->dst_type, status);
+		mgmt_connect_failed(hdev, conn, status);
 		break;
 	}
 
@@ -2133,7 +2135,17 @@ struct hci_conn *hci_bind_bis(struct hci_dev *hdev, bdaddr_t *dst,
 			      __u8 base_len, __u8 *base)
 {
 	struct hci_conn *conn;
+	struct hci_conn *parent;
 	__u8 eir[HCI_MAX_PER_AD_LENGTH];
+	struct hci_link *link;
+
+	/* Look for any BIS that is open for rebinding */
+	conn = hci_conn_hash_lookup_big_state(hdev, qos->bcast.big, BT_OPEN);
+	if (conn) {
+		memcpy(qos, &conn->iso_qos, sizeof(*qos));
+		conn->state = BT_CONNECTED;
+		return conn;
+	}
 
 	if (base_len && base)
 		base_len = eir_append_service_data(eir, 0,  0x1851,
@@ -2160,6 +2172,16 @@ struct hci_conn *hci_bind_bis(struct hci_dev *hdev, bdaddr_t *dst,
 
 	conn->iso_qos = *qos;
 	conn->state = BT_BOUND;
+
+	/* Link BISes together */
+	parent = hci_conn_hash_lookup_big(hdev,
+					  conn->iso_qos.bcast.big);
+	if (parent && parent != conn) {
+		link = hci_conn_link(parent, conn);
+		hci_conn_drop(conn);
+		if (!link)
+			return ERR_PTR(-ENOLINK);
+	}
 
 	return conn;
 }
@@ -2190,6 +2212,9 @@ struct hci_conn *hci_connect_bis(struct hci_dev *hdev, bdaddr_t *dst,
 
 	conn = hci_bind_bis(hdev, dst, qos, base_len, base);
 	if (IS_ERR(conn))
+		return conn;
+
+	if (conn->state == BT_CONNECTED)
 		return conn;
 
 	data.big = qos->bcast.big;
@@ -2245,14 +2270,11 @@ struct hci_conn *hci_connect_cis(struct hci_dev *hdev, bdaddr_t *dst,
 	}
 
 	link = hci_conn_link(le, cis);
+	hci_conn_drop(cis);
 	if (!link) {
 		hci_conn_drop(le);
-		hci_conn_drop(cis);
 		return ERR_PTR(-ENOLINK);
 	}
-
-	/* Link takes the refcount */
-	hci_conn_drop(cis);
 
 	cis->state = BT_CONNECT;
 

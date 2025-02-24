@@ -224,14 +224,14 @@
 	/*Y0-Y7*/	"","","","","","","","",
 	/*Z0-Z7*/	"","","","","","","","";
 
-	i2c3_mux_oe_n {
+	i2c3-mux-oe-n-hog {
 		gpio-hog;
 		gpios = <ASPEED_GPIO(G, 6) GPIO_ACTIVE_LOW>;
 		output-high;
 		line-name = "I2C3_MUX_OE_N";
 	};
 
-	usb_power {
+	usb-power-hog {
 		gpio-hog;
 		gpios = <ASPEED_GPIO(O, 3) GPIO_ACTIVE_LOW>;
 		output-high;
@@ -1322,8 +1322,9 @@
 		#gpio-cells = <2>;
 
 		gpio-line-names =
-			"", "", "", "", "", "", "", "",
-			"", "", "", "", "", "", "power-config-full-load", "";
+			"", "", "", "", "", "", "P10_DCM0_PRES", "P10_DCM1_PRES",
+			"", "", "", "", "PRESENT_VRM_DCM0_N", "PRESENT_VRM_DCM1_N",
+			"power-config-full-load", "";
 	};
 
 	pca_pres2: pca9552@61 {
