@@ -36,6 +36,8 @@
 #define SCU_IO_OTP_TRAP2			0xa20
 #define SCU_IO_OTP_TRAP2_CLEAR			0xa24
 
+#define MAX_I2C_IN_LTPI				6
+
 struct aspeed_ltpi_priv {
 	struct device *dev;
 	void __iomem *regs;
@@ -43,6 +45,7 @@ struct aspeed_ltpi_priv {
 	struct clk *ltpi_phyclk;
 	struct reset_control *ltpi_rst;
 	struct regmap *scu;
+	u32 i2c_tunneling;
 };
 
 static irqreturn_t aspeed_ltpi_irq_handler(int irq, void *dev_id)
@@ -64,17 +67,15 @@ static irqreturn_t aspeed_ltpi_irq_handler(int irq, void *dev_id)
 
 static int aspeed_ltpi_init_mux(struct aspeed_ltpi_priv *priv)
 {
-	u32 reg;
-	bool link_partner_ast1700;
-
-	reg = readl(priv->regs + LTPI_LINK_MANAGE_ST);
-	link_partner_ast1700 = !!(reg & LTPI_LINK_PARTNER_FLAG);
+	u32 reg, i2c_en;
 
 	reg = readl(priv->regs + LTPI_AUTO_CAP_LOW);
-	if (link_partner_ast1700)
-		reg &= ~LTPI_I2C_IO_FRAME_EN;
-	else
-		reg |= LTPI_I2C_IO_FRAME_EN;
+
+	i2c_en = FIELD_GET(LTPI_I2C_IO_FRAME_EN, reg);
+	i2c_en &= priv->i2c_tunneling;
+
+	reg &= ~LTPI_I2C_IO_FRAME_EN;
+	reg |= FIELD_PREP(LTPI_I2C_IO_FRAME_EN, i2c_en);
 	writel(reg, priv->regs + LTPI_MANUAL_CAP_LOW);
 
 	reg = readl(priv->regs + LTPI_AUTO_CAP_HIGH);
@@ -131,6 +132,10 @@ static int aspeed_ltpi_probe(struct platform_device *pdev)
 		return PTR_ERR(priv->ltpi_rst);
 
 	reset_control_deassert(priv->ltpi_rst);
+
+	priv->i2c_tunneling = GENMASK(MAX_I2C_IN_LTPI - 1, 0);
+	if (!of_property_read_u32(np, "i2c-tunneling", &ret))
+		priv->i2c_tunneling = ret;
 
 	priv->scu = syscon_regmap_lookup_by_phandle(np, "aspeed,scu");
 	if (of_get_property(np, "remote-controller", NULL)) {
