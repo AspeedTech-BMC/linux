@@ -192,3 +192,9 @@
 &ltpi0_i2c15 {
 	status = "okay";
 };
+
+&uart3 {
+	/delete-property/ pinctrl-names;
+	/delete-property/ pinctrl-0;
+	status = "okay";
+};
