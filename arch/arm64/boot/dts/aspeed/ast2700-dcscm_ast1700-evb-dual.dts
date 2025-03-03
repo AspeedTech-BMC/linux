@@ -10,6 +10,7 @@
 };
 
 &ltpi1 {
+	i2c-tunneling = <0x0>;
 	status = "okay";
 };
 

@@ -9,6 +9,10 @@
 	model = "AST2700-DCSCM_AST1700-EVB";
 };
 
+&ltpi0 {
+	i2c-tunneling = <0x0>;
+};
+
 &ltpi0_i3c0 {
 	initial-role = "target";
 	pid = <0x000007ec 0x06000000>;
