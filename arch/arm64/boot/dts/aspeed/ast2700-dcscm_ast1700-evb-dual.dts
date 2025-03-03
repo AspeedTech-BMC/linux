@@ -122,6 +122,7 @@
 	status = "disabled";
 };
 
+#if 0  // The following I2C buses require enabling according to the ast2700-dcscm.dts.
 &i2c8 {
 	status = "disabled";
 };
@@ -133,6 +134,7 @@
 &i2c10 {
 	status = "disabled";
 };
+#endif
 
 &i2c11 {
 	status = "disabled";
