@@ -1753,8 +1753,7 @@ static void video_engine_init(struct AstRVAS *pAstRVAS)
 	// video engine
 	video_ctrl_init(pAstRVAS);
 	video_engine_rc4Reset(pAstRVAS);
-	if (pAstRVAS->config->version == 7)
-		set_direct_mode(pAstRVAS);
+	set_direct_mode(pAstRVAS);
 	video_set_Window(pAstRVAS);
 	enable_video_interrupt(pAstRVAS);
 }

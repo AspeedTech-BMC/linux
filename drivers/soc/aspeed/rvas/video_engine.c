@@ -657,16 +657,15 @@ void video_ctrl_init(struct AstRVAS *pAstRVAS)
 		/* Unlock VE registers */
 		video_write(pAstRVAS, VIDEO_PROTECT_UNLOCK, AST_VIDEO_PROTECT);
 		inputdelay = 0x1;
+		/* Clear the offset */
+		video_write(pAstRVAS, 0, AST_VIDEO_COMPRESS_PRO);
+		video_write(pAstRVAS, 0, AST_VIDEO_COMPRESS_READ);
 	}
 
 	/* disable interrupts */
 	video_write(pAstRVAS, 0, AST_VIDEO_INT_EN);
 	video_write(pAstRVAS, 0xffffffff, AST_VIDEO_INT_STS);
 	video_write(pAstRVAS, 0, AST_VIDEO_BCD_CTRL);
-
-	/* Clear the offset */
-	video_write(pAstRVAS, 0, AST_VIDEO_COMPRESS_PRO);
-	video_write(pAstRVAS, 0, AST_VIDEO_COMPRESS_READ);
 
 	/*write src addr and jped addr to register*/
 	pAstRVAS->sequence = 1;
