@@ -403,10 +403,6 @@
 	status = "okay";
 };
 
-&ltpi1 {
-	status = "okay";
-};
-
 /* The LTPI GPIO table is defined in Chapter 6 of the AST2700 LTPI Design Guide v10.pdf. */
 /* line 0:BMC_GPI0(LTPI0_INL16), 1:BMC_GPO0(LTPI0_ONL16), 2:BMC_GPI1(LTPI0_INL17), 3:BMC_GPO1(LTPI0_ONL17), etc... */
 /* BMC_GPI[63:0]   = LTPI0_INL[79:16], BMC_GPO[63:0]   = LTPI0_ONL[79:16] */
