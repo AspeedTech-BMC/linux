@@ -56,6 +56,18 @@ optee_core: optee-core@430080000 {
 	no-map;
 };
 
+uhci0_reserved: uhci0-reserved@431ba8000 {
+	reg = <0x4 0x31ba8000 0x0 0x4000>;
+	compatible = "shared-dma-pool";
+	no-map;
+};
+
+uhci1_reserved: uhci1-reserved@431bac000 {
+	reg = <0x4 0x31bac000 0x0 0x4000>;
+	compatible = "shared-dma-pool";
+	no-map;
+};
+
 vbios_base0: vbios-base0@431bb0000 {
 	reg = <0x4 0x31bb0000 0x0 0x10000>;
 	no-map;
