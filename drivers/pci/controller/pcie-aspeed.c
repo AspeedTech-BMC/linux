@@ -110,6 +110,7 @@
 #define H2X_CFGE_CTRL		0x38
 #define CFGE_TLP_FIRE			BIT(0)
 #define H2X_CFGE_RET_DATA	0x3C
+#define H2X_REMAP_PREF_ADDR	0x70
 #define H2X_REMAP_DIRECT_ADDR	0x78
 
 /* AST2700 PEHR */
@@ -1201,6 +1202,9 @@ static int aspeed_ast2700_setup(struct platform_device *pdev)
 	 * IO       : 0xa0000000
 	 */
 	writel(0x60000000 + (0x20000000 * pcie->domain), pcie->reg + H2X_REMAP_DIRECT_ADDR);
+
+	/* Prepare for 64-bit BAR pref */
+	writel(0x3, pcie->reg + H2X_REMAP_PREF_ADDR);
 
 	reset_control_deassert(pcie->perst);
 	mdelay(1000);
