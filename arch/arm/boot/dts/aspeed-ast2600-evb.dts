@@ -733,14 +733,14 @@
 
 &emmc_controller {
 	status = "okay";
-	timing-phase = <0x000f0097>;
+	mmc-hs200-1_8v;
 };
 
 &emmc {
 	status = "okay";
 
 	non-removable;
-	max-frequency = <100000000>;
+	max-frequency = <200000000>;
 	sdhci-drive-type = /bits/ 8 <3>;
 #if 1
 	bus-width = <4>;
@@ -753,7 +753,7 @@
 
 &sdc {
 	status = "okay";
-	timing-phase = <0x00c6375f>;
+	mmc-hs200-1_8v;
 };
 
 &sdhci0 {
@@ -765,6 +765,7 @@
 	/* SDR104/DDR50 bits in CAPA2 is not supported */
 	sdhci-caps-mask = <0x6 0x0>;
 	sdhci,wp-inverted;
+	sd-uhs-sdr104; /* enable sdr104 to execute tuning */
 };
 
 &sdhci1 {
@@ -775,6 +776,7 @@
 	sdhci-drive-type = /bits/ 8 <3>;
 	sdhci-caps-mask = <0x6 0x0>;
 	sdhci,wp-inverted;
+	sd-uhs-sdr104; /* enable sdr104 to execute tuning */
 };
 
 #if 0
