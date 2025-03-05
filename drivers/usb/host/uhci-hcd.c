@@ -42,6 +42,7 @@
 #include <linux/usb/hcd.h>
 #include <linux/bitops.h>
 #include <linux/dmi.h>
+#include <linux/of_reserved_mem.h>
 
 #include <linux/uaccess.h>
 #include <asm/io.h>
@@ -602,6 +603,12 @@ static int uhci_start(struct usb_hcd *hcd)
 					   uhci_debugfs_root, uhci,
 					   &uhci_debug_operations);
 #endif
+	if (uhci_is_aspeed(uhci)) {
+		retval = of_reserved_mem_device_init(uhci_dev(uhci));
+		if (retval) {
+			dev_info(uhci_dev(uhci), "Device does not have specific DMA pool\n");
+		}
+	}
 
 	uhci->frame = dma_alloc_coherent(uhci_dev(uhci),
 					 UHCI_NUMFRAMES * sizeof(*uhci->frame),
@@ -943,7 +950,7 @@ errbuf_failed:
 	return retval;
 }
 
-static void __exit uhci_hcd_cleanup(void) 
+static void __exit uhci_hcd_cleanup(void)
 {
 #ifdef PLATFORM_DRIVER
 	platform_driver_unregister(&PLATFORM_DRIVER);
