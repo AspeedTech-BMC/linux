@@ -36,6 +36,7 @@ struct aspeed_wdt_config {
 	u32 irq_mask;
 	struct aspeed_wdt_scu scu;
 	u32 reset_mask_num;
+	void (*wdt_writel)(u32 val, void __iomem *addr);
 };
 
 struct aspeed_wdt {
@@ -44,6 +45,9 @@ struct aspeed_wdt {
 	u32			ctrl;
 	const struct aspeed_wdt_config *cfg;
 };
+
+static void wdt_writel_normal(u32 val, void __iomem *addr);
+static void wdt_writel_delay(u32 val, void __iomem *addr);
 
 static const struct aspeed_wdt_config ast2400_config = {
 	.ext_pulse_width_mask = 0xff,
@@ -56,6 +60,7 @@ static const struct aspeed_wdt_config ast2400_config = {
 		.wdt_reset_mask_shift = 1,
 	},
 	.reset_mask_num = 1,
+	.wdt_writel = wdt_writel_normal,
 };
 
 static const struct aspeed_wdt_config ast2500_config = {
@@ -69,6 +74,7 @@ static const struct aspeed_wdt_config ast2500_config = {
 		.wdt_reset_mask_shift = 2,
 	},
 	.reset_mask_num = 1,
+	.wdt_writel = wdt_writel_normal,
 };
 
 static const struct aspeed_wdt_config ast2600_config = {
@@ -82,6 +88,7 @@ static const struct aspeed_wdt_config ast2600_config = {
 		.wdt_reset_mask_shift = 16,
 	},
 	.reset_mask_num = 2,
+	.wdt_writel = wdt_writel_normal,
 };
 
 static const struct aspeed_wdt_config ast2700a0_config = {
@@ -95,6 +102,7 @@ static const struct aspeed_wdt_config ast2700a0_config = {
 		.wdt_reset_mask_shift = 0,
 	},
 	.reset_mask_num = 5,
+	.wdt_writel = wdt_writel_delay,
 };
 
 static const struct aspeed_wdt_config ast2700_config = {
@@ -108,6 +116,7 @@ static const struct aspeed_wdt_config ast2700_config = {
 		.wdt_reset_mask_shift = 0,
 	},
 	.reset_mask_num = 5,
+	.wdt_writel = wdt_writel_delay,
 };
 
 static const struct of_device_id aspeed_wdt_of_table[] = {
@@ -181,6 +190,17 @@ MODULE_DEVICE_TABLE(of, aspeed_wdt_of_table);
 #define WDT_DEFAULT_TIMEOUT	30
 #define WDT_RATE_1MHZ		1000000
 
+static void wdt_writel_normal(u32 val, void __iomem *addr)
+{
+	writel(val, addr);
+}
+
+static void wdt_writel_delay(u32 val, void __iomem *addr)
+{
+	writel(val, addr);
+	udelay(5);
+}
+
 static struct aspeed_wdt *to_aspeed_wdt(struct watchdog_device *wdd)
 {
 	return container_of(wdd, struct aspeed_wdt, wdd);
@@ -190,10 +210,10 @@ static void aspeed_wdt_enable(struct aspeed_wdt *wdt, int count)
 {
 	wdt->ctrl |= WDT_CTRL_ENABLE;
 
-	writel(0, wdt->base + WDT_CTRL);
-	writel(count, wdt->base + WDT_RELOAD_VALUE);
-	writel(WDT_RESTART_MAGIC, wdt->base + WDT_RESTART);
-	writel(wdt->ctrl, wdt->base + WDT_CTRL);
+	wdt->cfg->wdt_writel(0, wdt->base + WDT_CTRL);
+	wdt->cfg->wdt_writel(count, wdt->base + WDT_RELOAD_VALUE);
+	wdt->cfg->wdt_writel(WDT_RESTART_MAGIC, wdt->base + WDT_RESTART);
+	wdt->cfg->wdt_writel(wdt->ctrl, wdt->base + WDT_CTRL);
 }
 
 static int aspeed_wdt_start(struct watchdog_device *wdd)
@@ -210,7 +230,7 @@ static int aspeed_wdt_stop(struct watchdog_device *wdd)
 	struct aspeed_wdt *wdt = to_aspeed_wdt(wdd);
 
 	wdt->ctrl &= ~WDT_CTRL_ENABLE;
-	writel(wdt->ctrl, wdt->base + WDT_CTRL);
+	wdt->cfg->wdt_writel(wdt->ctrl, wdt->base + WDT_CTRL);
 
 	return 0;
 }
@@ -219,7 +239,7 @@ static int aspeed_wdt_ping(struct watchdog_device *wdd)
 {
 	struct aspeed_wdt *wdt = to_aspeed_wdt(wdd);
 
-	writel(WDT_RESTART_MAGIC, wdt->base + WDT_RESTART);
+	wdt->cfg->wdt_writel(WDT_RESTART_MAGIC, wdt->base + WDT_RESTART);
 
 	return 0;
 }
@@ -234,8 +254,8 @@ static int aspeed_wdt_set_timeout(struct watchdog_device *wdd,
 
 	actual = min(timeout, wdd->max_hw_heartbeat_ms / 1000);
 
-	writel(actual * WDT_RATE_1MHZ, wdt->base + WDT_RELOAD_VALUE);
-	writel(WDT_RESTART_MAGIC, wdt->base + WDT_RESTART);
+	wdt->cfg->wdt_writel(actual * WDT_RATE_1MHZ, wdt->base + WDT_RELOAD_VALUE);
+	wdt->cfg->wdt_writel(WDT_RESTART_MAGIC, wdt->base + WDT_RESTART);
 
 	return 0;
 }
@@ -255,7 +275,7 @@ static int aspeed_wdt_set_pretimeout(struct watchdog_device *wdd,
 	else
 		wdt->ctrl &= ~WDT_CTRL_WDT_INTR;
 
-	writel(wdt->ctrl, wdt->base + WDT_CTRL);
+	wdt->cfg->wdt_writel(wdt->ctrl, wdt->base + WDT_CTRL);
 
 	return 0;
 }
@@ -410,7 +430,7 @@ static irqreturn_t aspeed_wdt_irq(int irq, void *arg)
 
 	if (status & WDT_TIMEOUT_STATUS_IRQ) {
 		watchdog_notify_pretimeout(wdd);
-		writel(0x1, wdt->base + WDT_CLEAR_TIMEOUT_STATUS);
+		wdt->cfg->wdt_writel(0x1, wdt->base + WDT_CLEAR_TIMEOUT_STATUS);
 	}
 
 	return IRQ_HANDLED;
@@ -531,7 +551,7 @@ static int aspeed_wdt_probe(struct platform_device *pdev)
 		else
 			reg |= WDT_ACTIVE_LOW_MAGIC;
 
-		writel(reg, wdt->base + WDT_RESET_WIDTH);
+		wdt->cfg->wdt_writel(reg, wdt->base + WDT_RESET_WIDTH);
 
 		reg &= wdt->cfg->ext_pulse_width_mask;
 		if (of_property_read_bool(np, "aspeed,ext-push-pull"))
@@ -539,12 +559,14 @@ static int aspeed_wdt_probe(struct platform_device *pdev)
 		else
 			reg |= WDT_OPEN_DRAIN_MAGIC;
 
-		writel(reg, wdt->base + WDT_RESET_WIDTH);
+		wdt->cfg->wdt_writel(reg, wdt->base + WDT_RESET_WIDTH);
 
 		ret = of_property_read_u32_array(np, "aspeed,reset-mask", reset_mask, nrstmask);
 		if (!ret) {
-			for (i = 0; i < nrstmask; i++)
-				writel(reset_mask[i], wdt->base + WDT_RESET_MASK1 + i * 4);
+			for (i = 0; i < nrstmask; i++) {
+				wdt->cfg->wdt_writel(reset_mask[i],
+						     wdt->base + WDT_RESET_MASK1 + i * 4);
+			}
 		}
 	}
 
@@ -571,7 +593,7 @@ static int aspeed_wdt_probe(struct platform_device *pdev)
 		 *
 		 * This implies a value of 0 gives a 1us pulse.
 		 */
-		writel(duration - 1, wdt->base + WDT_RESET_WIDTH);
+		wdt->cfg->wdt_writel(duration - 1, wdt->base + WDT_RESET_WIDTH);
 	}
 
 	aspeed_wdt_update_bootstatus(pdev, wdt);
