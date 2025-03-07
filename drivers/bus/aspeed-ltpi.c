@@ -163,6 +163,7 @@ static int aspeed_ltpi_probe(struct platform_device *pdev)
 			return ret;
 		}
 
+		writel(LTPI_INTR_EN_OP_LINK_LOST, priv->regs + LTPI_INTR_STATUS);
 		writel(LTPI_INTR_EN_OP_LINK_LOST, priv->regs + LTPI_INTR_EN);
 	}
 
