@@ -307,16 +307,14 @@ static int aspeed_pcc_probe(struct platform_device *pdev)
 {
 	int rc;
 	struct aspeed_pcc_ctrl *pcc;
-	struct device *dev;
+	struct device *dev = &pdev->dev;
 	uint32_t fifo_size = PAGE_SIZE;
 
-	dev = &pdev->dev;
-
-	pcc = devm_kzalloc(&pdev->dev, sizeof(*pcc), GFP_KERNEL);
+	pcc = devm_kzalloc(dev, sizeof(*pcc), GFP_KERNEL);
 	if (!pcc)
 		return -ENOMEM;
 
-	pcc->regmap = syscon_node_to_regmap(pdev->dev.parent->of_node);
+	pcc->regmap = syscon_node_to_regmap(dev->parent->of_node);
 	if (IS_ERR(pcc->regmap)) {
 		dev_err(dev, "Couldn't get regmap\n");
 		return -ENODEV;
@@ -347,7 +345,6 @@ static int aspeed_pcc_probe(struct platform_device *pdev)
 	fifo_size = roundup(pcc->dma.size, PAGE_SIZE);
 	rc = kfifo_alloc(&pcc->fifo, fifo_size, GFP_KERNEL);
 	if (rc) {
-		dev_err(dev, "cannot allocate kFIFO\n");
 		return -ENOMEM;
 	}
 
@@ -360,8 +357,7 @@ static int aspeed_pcc_probe(struct platform_device *pdev)
 
 	pcc->irq = platform_get_irq(pdev, 0);
 	if (pcc->irq < 0) {
-		dev_err(dev, "Couldn't get IRQ\n");
-		rc = -ENODEV;
+		rc = pcc->irq;
 		goto err_free_kfifo;
 	}
 
@@ -396,7 +392,7 @@ static int aspeed_pcc_probe(struct platform_device *pdev)
 		goto err_dereg_mdev;
 	}
 
-	dev_set_drvdata(&pdev->dev, pcc);
+	dev_set_drvdata(dev, pcc);
 
 	return 0;
 
