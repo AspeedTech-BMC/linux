@@ -474,8 +474,6 @@ static void ast2700_i2c_slave_packet_dma_irq(struct ast2600_i2c_bus *i2c_bus, u3
 	}
 
 	if (AST2600_I2CS_ABNOR_STOP & sts) {
-		dev_err(i2c_bus->dev, "ABR stop slave isr case %x, sts %x\n", sts,
-			readl(i2c_bus->reg_base + MSIC_STATUS));
 		cmd = SLAVE_TRIGGER_CMD | AST2600_I2CS_RX_DMA_EN;
 		writel(AST2600_I2CS_SET_RX_DMA_LEN(I2C_SLAVE_MSG_BUF_SIZE),
 		       i2c_bus->reg_base + AST2600_I2CS_DMA_LEN);
@@ -525,7 +523,6 @@ static void ast2700_i2c_slave_packet_dma_irq(struct ast2600_i2c_bus *i2c_bus, u3
 		}
 		slave_rx_len = AST2600_I2C_GET_RX_DMA_LEN(readl(i2c_bus->reg_base +
 				      AST2600_I2CS_DMA_LEN_STS));
-		dev_dbg(i2c_bus->dev, "D-%d %x P\n", slave_rx_len, sirq_log);	//sirq == 0x15, pkt_done | rx-done | P
 		for (i = 0; i < slave_rx_len; i++) {
 			i2c_slave_event(i2c_bus->slave, I2C_SLAVE_WRITE_RECEIVED,
 					&i2c_bus->slave_dma_buf[i]);
