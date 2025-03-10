@@ -155,7 +155,9 @@ static ssize_t aspeed_pcc_file_read(struct file *file, char __user *buffer,
 static __poll_t aspeed_pcc_file_poll(struct file *file,
 				     struct poll_table_struct *pt)
 {
-	struct aspeed_pcc_ctrl *pcc = container_of(file->private_data, struct aspeed_pcc_ctrl, mdev);
+	struct aspeed_pcc_ctrl *pcc = container_of(file->private_data,
+					      struct aspeed_pcc_ctrl,
+					      mdev);
 
 	poll_wait(file, &pcc->wq, pt);
 
@@ -376,7 +378,7 @@ static int aspeed_pcc_probe(struct platform_device *pdev)
 	pcc->mdev_id = ida_alloc(&aspeed_pcc_ida, GFP_KERNEL);
 	if (pcc->mdev_id < 0) {
 		dev_err(dev, "Couldn't allocate ID\n");
-		return pcc->mdev_id;
+		goto err_free_kfifo;
 	}
 
 	pcc->mdev.parent = dev;
@@ -387,7 +389,7 @@ static int aspeed_pcc_probe(struct platform_device *pdev)
 	rc = misc_register(&pcc->mdev);
 	if (rc) {
 		dev_err(dev, "Couldn't register misc device\n");
-		goto err_free_kfifo;
+		goto err_free_ida;
 	}
 
 	rc = aspeed_pcc_enable(pcc, dev);
@@ -403,6 +405,9 @@ static int aspeed_pcc_probe(struct platform_device *pdev)
 err_dereg_mdev:
 	misc_deregister(&pcc->mdev);
 
+err_free_ida:
+	ida_free(&aspeed_pcc_ida, pcc->mdev_id);
+
 err_free_kfifo:
 	kfifo_free(&pcc->fifo);
 
@@ -415,6 +420,7 @@ static void aspeed_pcc_remove(struct platform_device *pdev)
 	struct aspeed_pcc_ctrl *pcc = dev_get_drvdata(dev);
 
 	kfifo_free(&pcc->fifo);
+	ida_free(&aspeed_pcc_ida, pcc->mdev_id);
 	misc_deregister(&pcc->mdev);
 }
 
