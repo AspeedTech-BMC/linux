@@ -784,7 +784,19 @@ static struct pci_driver aspeed_host_bmc_dev_driver = {
 	.remove		= aspeed_pci_host_bmc_device_remove,
 };
 
-module_pci_driver(aspeed_host_bmc_dev_driver);
+static int __init aspeed_host_bmc_device_init(void)
+{
+	return pci_register_driver(&aspeed_host_bmc_dev_driver);
+}
+
+static void aspeed_host_bmc_device_exit(void)
+{
+	/* unregister pci driver */
+	pci_unregister_driver(&aspeed_host_bmc_dev_driver);
+}
+
+late_initcall(aspeed_host_bmc_device_init);
+module_exit(aspeed_host_bmc_device_exit);
 
 MODULE_AUTHOR("Ryan Chen <ryan_chen@aspeedtech.com>");
 MODULE_DESCRIPTION("ASPEED Host BMC DEVICE Driver");
