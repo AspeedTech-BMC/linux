@@ -365,6 +365,7 @@
 			resets = <&ltpi0_syscon AST1700_RESET_LTPI>;
 			remote-controller;
 			aspeed,scu = <&ltpi0_syscon>;
+			i2c-tunneling = <0x0>;
 			status = "okay";
 		};
 
