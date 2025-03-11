@@ -123,6 +123,10 @@
 #define PORT_TYPE_ROOT			BIT(2)
 #define PEHR_MISC_70		0x70
 #define PEHR_MISC_78		0x78
+#define PEHR_MISC_344		0x344
+#define LINK_STATUS_GEN2		BIT(18)
+#define PEHR_MISC_358		0x358
+#define LINK_STATUS_GEN4		BIT(8)
 
 /* AST2700 SCU */
 #define SCU_60			0x60
@@ -1153,6 +1157,7 @@ static int aspeed_ast2700_setup(struct platform_device *pdev)
 	struct aspeed_pcie *pcie = platform_get_drvdata(pdev);
 	struct device *dev = pcie->dev;
 	u32 cfg_val;
+	bool link;
 
 	pcie->h2xrst = devm_reset_control_get(dev, "h2x");
 	if (IS_ERR(pcie->h2xrst))
@@ -1221,6 +1226,20 @@ static int aspeed_ast2700_setup(struct platform_device *pdev)
 	aspeed_msi_domain_info.flags |= MSI_FLAG_PCI_MSIX;
 	pcie->support_msi = true;
 
+	if (pcie->domain == 2) {
+		regmap_read(pcie->pciephy, PEHR_MISC_344, &cfg_val);
+		link = !!(cfg_val & LINK_STATUS_GEN2);
+	} else {
+		regmap_read(pcie->pciephy, PEHR_MISC_358, &cfg_val);
+		link = !!(cfg_val & LINK_STATUS_GEN4);
+	}
+
+	if (!link) {
+		dev_info(dev, "PCIe Link DOWN");
+		return -ENODEV;
+	}
+
+	dev_info(dev, "PCIe Link UP");
 	return 0;
 }
 
