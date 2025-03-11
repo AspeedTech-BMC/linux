@@ -33,7 +33,7 @@
 
 &ltpi0_i3c0 {
 	initial-role = "target";
-	pid = <0x000007ec 0x06000000>;
+	pid = <0x000007ec 0x06010000>;
 	dcr = /bits/ 8 <0xcc>;
 	status = "okay";
 };
@@ -45,7 +45,7 @@
 
 &ltpi0_i3c2 {
 	initial-role = "target";
-	pid = <0x000007ec 0x06000000>;
+	pid = <0x000007ec 0x06012000>;
 	dcr = /bits/ 8 <0xcc>;
 	status = "okay";
 };
@@ -57,7 +57,7 @@
 
 &ltpi0_i3c4 {
 	initial-role = "target";
-	pid = <0x000007ec 0x06000000>;
+	pid = <0x000007ec 0x06014000>;
 	dcr = /bits/ 8 <0xcc>;
 	status = "okay";
 };
@@ -69,7 +69,7 @@
 
 &ltpi0_i3c6 {
 	initial-role = "target";
-	pid = <0x000007ec 0x06000000>;
+	pid = <0x000007ec 0x06016000>;
 	dcr = /bits/ 8 <0xcc>;
 	status = "okay";
 };
@@ -81,7 +81,7 @@
 
 &ltpi0_i3c8 {
 	initial-role = "target";
-	pid = <0x000007ec 0x06000000>;
+	pid = <0x000007ec 0x06018000>;
 	dcr = /bits/ 8 <0xcc>;
 	status = "okay";
 };
@@ -93,7 +93,7 @@
 
 &ltpi0_i3c10 {
 	initial-role = "target";
-	pid = <0x000007ec 0x06000000>;
+	pid = <0x000007ec 0x0601A000>;
 	dcr = /bits/ 8 <0xcc>;
 	status = "okay";
 };
@@ -105,7 +105,7 @@
 
 &ltpi0_i3c12 {
 	initial-role = "target";
-	pid = <0x000007ec 0x06000000>;
+	pid = <0x000007ec 0x0601C000>;
 	dcr = /bits/ 8 <0xcc>;
 	status = "okay";
 };
@@ -117,7 +117,7 @@
 
 &ltpi0_i3c14 {
 	initial-role = "target";
-	pid = <0x000007ec 0x06000000>;
+	pid = <0x000007ec 0x0601E000>;
 	dcr = /bits/ 8 <0xcc>;
 	status = "okay";
 };
