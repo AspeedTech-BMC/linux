@@ -140,31 +140,18 @@
 	status = "disabled";
 };
 
-#if 0  // The following I2C buses require enabling according to the ast2700-dcscm.dts.
-&i2c8 {
-	status = "disabled";
-};
-
-&i2c9 {
-	status = "disabled";
-};
-
-&i2c10 {
-	status = "disabled";
-};
-#endif
+// The following I2C buses require enabling according to the ast2700-dcscm.dts.
+// i2c8 / i2c9 / i2c10
 
 &i2c11 {
 	status = "disabled";
 };
 
 &ltpi1_i2c0 {
-	/* SMB_PMBUS1_SCM */
 	status = "okay";
 };
 
 &ltpi1_i2c1 {
-	/* SMB_PMBUS2_SCM */
 	status = "okay";
 };
 
@@ -181,6 +168,46 @@
 };
 
 &ltpi1_i2c5 {
+	status = "okay";
+};
+
+&ltpi1_i2c6 {
+	status = "okay";
+};
+
+&ltpi1_i2c7 {
+	status = "okay";
+};
+
+&ltpi1_i2c8 {
+	status = "okay";
+};
+
+&ltpi1_i2c9 {
+	status = "okay";
+};
+
+&ltpi1_i2c10 {
+	status = "okay";
+};
+
+&ltpi1_i2c11 {
+	status = "okay";
+};
+
+&ltpi1_i2c12 {
+	status = "okay";
+};
+
+&ltpi1_i2c13 {
+	status = "okay";
+};
+
+&ltpi1_i2c14 {
+	status = "okay";
+};
+
+&ltpi1_i2c15 {
 	status = "okay";
 };
 
