@@ -289,7 +289,7 @@ static void aspeed_ltpi_gpio_irq_handler(struct irq_desc *desc)
 
 	chained_irq_enter(ic, desc);
 
-	banks = DIV_ROUND_UP(gpio->chip.ngpio >> 2, 32);
+	banks = DIV_ROUND_UP(gpio->chip.ngpio >> 1, 32);
 	for (i = 0; i < banks; i++) {
 		addr = gpio->base + LTPI_GPIO_IRQ_STS_OFFSET(i);
 
