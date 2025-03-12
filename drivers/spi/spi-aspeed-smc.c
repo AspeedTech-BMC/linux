@@ -220,6 +220,7 @@ static void aspeed_spi_start_user(struct aspeed_spi_chip *chip)
 
 	ctl &= ~CTRL_CE_STOP_ACTIVE;
 	writel(ctl, chip->ctl);
+	readl(chip->ctl);
 }
 
 static void aspeed_spi_stop_user(struct aspeed_spi_chip *chip)
