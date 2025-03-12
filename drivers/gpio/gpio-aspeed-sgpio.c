@@ -23,6 +23,7 @@
 #define SGPIO_G7_CTRL_REG_BASE 0x80
 #define SGPIO_G7_CTRL_REG_OFFSET(x) (SGPIO_G7_CTRL_REG_BASE + (x) * 0x4)
 #define SGPIO_G7_OUT_DATA BIT(0)
+#define SGPIO_G7_PARALLEL_OUT_DATA BIT(1)
 #define SGPIO_G7_IRQ_EN BIT(2)
 #define SGPIO_G7_IRQ_TYPE0 BIT(3)
 #define SGPIO_G7_IRQ_TYPE1 BIT(4)
@@ -34,6 +35,11 @@
 #define SGPIO_G7_IRQ_STS BIT(12)
 #define SGPIO_G7_IN_DATA BIT(13)
 #define SGPIO_G7_PARALLEL_IN_DATA BIT(14)
+#define SGPIO_G7_SERIAL_OUT_SEL GENMASK(17, 16)
+#define SGPIO_G7_PARALLEL_OUT_SEL GENMASK(19, 18)
+#define SELECT_FROM_CSR 0
+#define SELECT_FROM_PARALLEL_IN 1
+#define SELECT_FROM_SERIAL_IN 1
 
 static inline u32 field_get(u32 _mask, u32 _val)
 {
@@ -74,6 +80,7 @@ struct aspeed_sgpio {
 	void __iomem *base;
 	int irq;
 	int version;
+	const struct aspeed_sgpio_pdata *pdata;
 };
 
 struct aspeed_sgpio_bank {
@@ -217,8 +224,13 @@ static int aspeed_sgpio_get(struct gpio_chip *gc, unsigned int offset)
 	raw_spin_lock_irqsave(&gpio->lock, flags);
 
 	if (gpio->version == 7) {
-		reg = aspeed_sgpio_is_input(offset) ? SGPIO_G7_IN_DATA :
-					      SGPIO_G7_OUT_DATA;
+		if (gpio->pdata->slave)
+			reg = aspeed_sgpio_is_input(offset) ?
+				      SGPIO_G7_PARALLEL_IN_DATA :
+				      SGPIO_G7_PARALLEL_OUT_DATA;
+		else
+			reg = aspeed_sgpio_is_input(offset) ? SGPIO_G7_IN_DATA :
+							      SGPIO_G7_OUT_DATA;
 		rc = !!(field_get(reg, ioread32(addr)));
 	} else {
 		bank = to_bank(offset);
@@ -262,19 +274,27 @@ static int sgpio_g7_set_value(struct gpio_chip *gc, unsigned int offset,
 {
 	struct aspeed_sgpio *gpio = gpiochip_get_data(gc);
 	void __iomem *addr = gpio->base + SGPIO_G7_CTRL_REG_OFFSET(offset >> 1);
-	u32 reg = 0;
+	u32 reg = 0, out_data;
 
 	if (aspeed_sgpio_is_input(offset))
 		return -EINVAL;
 
-	// Ensure the serial out value control by the software.
-	ast_clr_bits(addr, SGPIO_G7_HW_BYPASS_EN | SGPIO_G7_HW_IN_SEL);
+	if (gpio->pdata->slave) {
+		// Ensure the parallel out value control by the software.
+		ast_write_bits(addr, SGPIO_G7_PARALLEL_OUT_SEL,
+			       SELECT_FROM_CSR);
+		out_data = SGPIO_G7_PARALLEL_OUT_DATA;
+	} else {
+		// Ensure the serial out value control by the software.
+		ast_write_bits(addr, SGPIO_G7_SERIAL_OUT_SEL, SELECT_FROM_CSR);
+		out_data = SGPIO_G7_OUT_DATA;
+	}
 	reg = ioread32(addr);
 
 	if (val)
-		reg |= SGPIO_G7_OUT_DATA;
+		reg |= out_data;
 	else
-		reg &= ~SGPIO_G7_OUT_DATA;
+		reg &= ~out_data;
 
 	iowrite32(reg, addr);
 
@@ -820,7 +840,6 @@ MODULE_DEVICE_TABLE(of, aspeed_sgpio_of_table);
 static int aspeed_sgpio_probe(struct platform_device *pdev)
 {
 	u32 nr_gpios, sgpio_freq, sgpio_clk_div, gpio_cnt_regval, pin_mask;
-	const struct aspeed_sgpio_pdata *pdata;
 	struct aspeed_sgpio *gpio;
 	unsigned long apb_freq;
 	void __iomem *addr;
@@ -836,12 +855,12 @@ static int aspeed_sgpio_probe(struct platform_device *pdev)
 
 	gpio->dev = &pdev->dev;
 
-	pdata = device_get_match_data(&pdev->dev);
-	if (!pdata)
+	gpio->pdata = device_get_match_data(&pdev->dev);
+	if (!gpio->pdata)
 		return -EINVAL;
 
-	pin_mask = pdata->pin_mask;
-	gpio->version = pdata->version;
+	pin_mask = gpio->pdata->pin_mask;
+	gpio->version = gpio->pdata->version;
 
 	rc = device_property_read_u32(&pdev->dev, "ngpios", &nr_gpios);
 	if (rc < 0) {
@@ -853,14 +872,14 @@ static int aspeed_sgpio_probe(struct platform_device *pdev)
 		return -EINVAL;
 	}
 
-	if (gpio->version == 7 && !pdata->slave)
+	if (gpio->version == 7 && !gpio->pdata->slave)
 		for (i = 0; i < nr_gpios; i++) {
 			addr = gpio->base + SGPIO_G7_CTRL_REG_OFFSET(i);
-			ast_clr_bits(addr, SGPIO_G7_HW_BYPASS_EN |
-						   SGPIO_G7_HW_IN_SEL);
+			ast_write_bits(addr, SGPIO_G7_SERIAL_OUT_SEL,
+				       SELECT_FROM_CSR);
 		}
 
-	if (!pdata->slave) {
+	if (!gpio->pdata->slave) {
 		rc = device_property_read_u32(&pdev->dev, "bus-frequency", &sgpio_freq);
 		if (rc < 0) {
 			dev_err(&pdev->dev, "Could not read bus-frequency property\n");
@@ -895,9 +914,9 @@ static int aspeed_sgpio_probe(struct platform_device *pdev)
 		gpio_cnt_regval = ((nr_gpios / 8) << ASPEED_SGPIO_PINS_SHIFT) & pin_mask;
 		iowrite32(FIELD_PREP(ASPEED_SGPIO_CLK_DIV_MASK, sgpio_clk_div) |
 				gpio_cnt_regval | ASPEED_SGPIO_ENABLE,
-			gpio->base + pdata->ctrl_reg);
+			gpio->base + gpio->pdata->ctrl_reg);
 	} else {
-		iowrite32(ASPEED_SGPIO_ENABLE, gpio->base + pdata->ctrl_reg);
+		iowrite32(ASPEED_SGPIO_ENABLE, gpio->base + gpio->pdata->ctrl_reg);
 	}
 
 	raw_spin_lock_init(&gpio->lock);
