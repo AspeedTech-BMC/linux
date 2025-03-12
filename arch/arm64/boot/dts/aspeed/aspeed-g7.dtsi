@@ -2353,7 +2353,7 @@
 			clocks = <&syscon1 SCU1_CLK_APB>;
 			interrupt-controller;
 			#interrupt-cells = <2>;
-			ngpios = <136>;
+			ngpios = <72>;
 			pinctrl-names = "default";
 			pinctrl-0 = <&pinctrl_sgps_default>;
 			status = "disabled";
