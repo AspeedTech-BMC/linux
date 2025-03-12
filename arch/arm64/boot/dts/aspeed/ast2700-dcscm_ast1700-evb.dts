@@ -17,6 +17,20 @@
 	};
 };
 
+&sgpios {
+	/delete-property/ gpio-line-names;
+};
+
+&ltpi0_gpio {
+	/delete-property/ gpio-line-names;
+	/delete-node/ gpio_17;
+	/delete-node/ gpio_19;
+	/delete-node/ gpio_25;
+	/delete-node/ gpio_53;
+	/delete-node/ gpio_61;
+	/delete-node/ gpio_63;
+};
+
 &ltpi0_adc0 {
 	aspeed,int-vref-microvolt = <2500000>;
 	status = "okay";
