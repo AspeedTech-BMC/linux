@@ -80,6 +80,7 @@
 		rvas1 = &rvas1;
 		xdma0 = &xdma0;
 		xdma1 = &xdma1;
+		xdma2 = &xdma2;
 	};
 
 	cpus {
@@ -2510,6 +2511,18 @@
 				bar = <0x6c>;
 				status = "disabled";
 			};
+		};
+
+		xdma2: xdma@14c19000 {
+			compatible = "aspeed,ast2700-xdma1";
+			reg = <0x0 0x14c19000 0x0 0x100>;
+			clocks = <&syscon1 SCU1_CLK_GATE_PCICLK>;
+			resets = <&syscon1 SCU1_RESET_XDMA>;
+			reset-names = "device";
+			interrupts-extended = <&intc1_4 21>, <&scu_ic2 ASPEED_AST2700_SCU_IC2_PCIE_PERST_LO_TO_HI>;
+			aspeed,pcie-device = "bmc";
+			aspeed,scu = <&syscon1>;
+			status = "disabled";
 		};
 	};
 };
