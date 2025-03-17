@@ -942,44 +942,62 @@
 		function = "CANBUS";
 		groups = "CANBUS";
 	};
+	pinctrl_di2c0_default: di2c0_default {
+		function = "I2C0";
+		groups = "DI2C0";
+	};
 
+	pinctrl_di2c1_default: di2c1_default {
+		function = "I2C1";
+		groups = "DI2C1";
+	};
+
+	pinctrl_di2c2_default: di2c2_default {
+		function = "I2C2";
+		groups = "DI2C2";
+	};
+
+	pinctrl_di2c3_default: di2c3_default {
+		function = "I2C3";
+		groups = "DI2C3";
+	};
 	pinctrl_di2c8_default: di2c8_default {
-		function = "DI2C8";
+		function = "I2C8";
 		groups = "DI2C8";
 	};
 
 	pinctrl_di2c9_default: di2c9_default {
-		function = "DI2C9";
+		function = "I2C9";
 		groups = "DI2C9";
 	};
 
 	pinctrl_di2c10_default: di2c10_default {
-		function = "DI2C10";
+		function = "I2C10";
 		groups = "DI2C10";
 	};
 
 	pinctrl_di2c11_default: di2c11_default {
-		function = "DI2C11";
+		function = "I2C11";
 		groups = "DI2C11";
 	};
 
 	pinctrl_di2c12_default: id2c12_default {
-		function = "DI2C12";
+		function = "I2C12";
 		groups = "DI2C12";
 	};
 
 	pinctrl_di2c13_default: di2c13_default {
-		function = "DI2C13";
+		function = "I2C13";
 		groups = "DI2C13";
 	};
 
 	pinctrl_di2c14_default: di2c14_default {
-		function = "DI2C14";
+		function = "I2C14";
 		groups = "DI2C14";
 	};
 
 	pinctrl_di2c15_default: di2c15_default {
-		function = "DI2C15";
+		function = "I2C15";
 		groups = "DI2C15";
 	};
 
