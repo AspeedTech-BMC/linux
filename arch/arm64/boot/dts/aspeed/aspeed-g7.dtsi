@@ -2254,24 +2254,24 @@
 		};
 
 		uart13: serial@14c33c00 {
-			compatible = "ns16550a";
+			compatible = "aspeed,ast2700-uart";
 			reg = <0x0 0x14c33c00 0x0 0x100>;
 			reg-shift = <2>;
 			reg-io-width = <4>;
 			interrupts-extended = <&intc1_0 23>;
-			clock-frequency = <59076923>;
+			clocks = <&syscon1 SCU1_CLK_UART13>;
 			no-loopback-test;
 			pinctrl-names = "default";
 			status = "disabled";
 		};
 
 		uart14: serial@14c33d00 {
-			compatible = "ns16550a";
+			compatible = "aspeed,ast2700-uart";
 			reg = <0x0 0x14c33d00 0x0 0x100>;
 			reg-shift = <2>;
 			reg-io-width = <4>;
 			interrupts-extended = <&intc1_1 23>;
-			clock-frequency = <59076923>;
+			clocks = <&syscon1 SCU1_CLK_UART14>;
 			no-loopback-test;
 			pinctrl-names = "default";
 			status = "disabled";
