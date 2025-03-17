@@ -397,6 +397,7 @@
 		resets = <&ltpi1_syscon AST1700_RESET_I2C>;
 		interrupts-extended = <&ltpi1_intc1_0 0>;
 		clock-frequency = <100000>;
+		debounce-level = <2>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&pinctrl_ltpi1_i2c0_default>;
 		status = "disabled";
@@ -414,6 +415,7 @@
 		resets = <&ltpi1_syscon AST1700_RESET_I2C>;
 		interrupts-extended = <&ltpi1_intc1_0 1>;
 		clock-frequency = <100000>;
+		debounce-level = <2>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&pinctrl_ltpi1_i2c1_default>;
 		status = "disabled";
@@ -431,6 +433,7 @@
 		resets = <&ltpi1_syscon AST1700_RESET_I2C>;
 		interrupts-extended = <&ltpi1_intc1_0 2>;
 		clock-frequency = <100000>;
+		debounce-level = <2>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&pinctrl_ltpi1_i2c2_default>;
 		status = "disabled";
@@ -448,6 +451,7 @@
 		resets = <&ltpi1_syscon AST1700_RESET_I2C>;
 		interrupts-extended = <&ltpi1_intc1_0 3>;
 		clock-frequency = <100000>;
+		debounce-level = <2>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&pinctrl_ltpi1_i2c3_default>;
 		status = "disabled";
@@ -464,6 +468,7 @@
 		clocks = <&ltpi1_syscon AST1700_CLK_APB>;
 		resets = <&ltpi1_syscon AST1700_RESET_I2C>;
 		clock-frequency = <100000>;
+		debounce-level = <2>;
 		interrupts-extended = <&ltpi1_intc1_0 4>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&pinctrl_ltpi1_i2c4_default>;
@@ -482,6 +487,7 @@
 		resets = <&ltpi1_syscon AST1700_RESET_I2C>;
 		interrupts-extended = <&ltpi1_intc1_0 5>;
 		clock-frequency = <100000>;
+		debounce-level = <2>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&pinctrl_ltpi1_i2c5_default>;
 		status = "disabled";
@@ -499,6 +505,7 @@
 		resets = <&ltpi1_syscon AST1700_RESET_I2C>;
 		interrupts-extended = <&ltpi1_intc1_0 6>;
 		clock-frequency = <100000>;
+		debounce-level = <2>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&pinctrl_ltpi1_i2c6_default>;
 		status = "disabled";
@@ -516,6 +523,7 @@
 		resets = <&ltpi1_syscon AST1700_RESET_I2C>;
 		interrupts-extended = <&ltpi1_intc1_0 7>;
 		clock-frequency = <100000>;
+		debounce-level = <2>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&pinctrl_ltpi1_i2c7_default>;
 		status = "disabled";
@@ -533,6 +541,7 @@
 		resets = <&ltpi1_syscon AST1700_RESET_I2C>;
 		interrupts-extended = <&ltpi1_intc1_0 8>;
 		clock-frequency = <100000>;
+		debounce-level = <2>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&pinctrl_ltpi1_i2c8_default>;
 		status = "disabled";
@@ -550,6 +559,7 @@
 		resets = <&ltpi1_syscon AST1700_RESET_I2C>;
 		interrupts-extended = <&ltpi1_intc1_0 9>;
 		clock-frequency = <100000>;
+		debounce-level = <2>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&pinctrl_ltpi1_i2c9_default>;
 		status = "disabled";
@@ -567,6 +577,7 @@
 		resets = <&ltpi1_syscon AST1700_RESET_I2C>;
 		interrupts-extended = <&ltpi1_intc1_0 10>;
 		clock-frequency = <100000>;
+		debounce-level = <2>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&pinctrl_ltpi1_i2c10_default>;
 		status = "disabled";
@@ -584,6 +595,7 @@
 		resets = <&ltpi1_syscon AST1700_RESET_I2C>;
 		interrupts-extended = <&ltpi1_intc1_0 11>;
 		clock-frequency = <100000>;
+		debounce-level = <2>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&pinctrl_ltpi1_i2c11_default>;
 		status = "disabled";
@@ -601,6 +613,7 @@
 		resets = <&ltpi1_syscon AST1700_RESET_I2C>;
 		interrupts-extended = <&ltpi1_intc1_0 12>;
 		clock-frequency = <100000>;
+		debounce-level = <2>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&pinctrl_ltpi1_i2c12_default>;
 		status = "disabled";
@@ -618,6 +631,7 @@
 		resets = <&ltpi1_syscon AST1700_RESET_I2C>;
 		interrupts-extended = <&ltpi1_intc1_0 13>;
 		clock-frequency = <100000>;
+		debounce-level = <2>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&pinctrl_ltpi1_i2c13_default>;
 		status = "disabled";
@@ -635,6 +649,7 @@
 		resets = <&ltpi1_syscon AST1700_RESET_I2C>;
 		interrupts-extended = <&ltpi1_intc1_0 14>;
 		clock-frequency = <100000>;
+		debounce-level = <2>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&pinctrl_ltpi1_i2c14_default>;
 		status = "disabled";
@@ -652,6 +667,7 @@
 		resets = <&ltpi1_syscon AST1700_RESET_I2C>;
 		interrupts-extended = <&ltpi1_intc1_0 15>;
 		clock-frequency = <100000>;
+		debounce-level = <2>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&pinctrl_ltpi1_i2c15_default>;
 		status = "disabled";
