@@ -56,6 +56,11 @@ optee_core: optee-core@430080000 {
 	no-map;
 };
 
+ipc_ssp_share: ipc-ssp-share@431080000 {
+	reg = <0x4 0x31080000 0x0 0x800000>;
+	no-map;
+};
+
 uhci0_reserved: uhci0-reserved@431ba8000 {
 	reg = <0x4 0x31ba8000 0x0 0x4000>;
 	compatible = "shared-dma-pool";
