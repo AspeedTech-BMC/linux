@@ -407,7 +407,7 @@ static u32 ast2700_select_i2c_clock(struct ast2600_i2c_bus *i2c_bus)
 	return data;
 }
 
-static u8 ast2600_i2c_recover_bus(struct ast2600_i2c_bus *i2c_bus)
+static int ast2600_i2c_recover_bus(struct ast2600_i2c_bus *i2c_bus)
 {
 	u32 state = readl(i2c_bus->reg_base + AST2600_I2CC_STS_AND_BUFF);
 	int ret = 0;
