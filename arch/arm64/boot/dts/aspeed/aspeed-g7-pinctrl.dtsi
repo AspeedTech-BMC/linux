@@ -938,6 +938,86 @@
 		groups = "I2C15";
 	};
 
+	pinctrl_salt0_default: salt0_default {
+		function = "SALT0";
+		groups = "SALT0";
+	};
+
+	pinctrl_salt1_default: salt1_default {
+		function = "SALT1";
+		groups = "SALT1";
+	};
+
+	pinctrl_salt2_default: salt2_default {
+		function = "SALT2";
+		groups = "SALT2";
+	};
+
+	pinctrl_salt3_default: salt3_default {
+		function = "SALT3";
+		groups = "SALT3";
+	};
+
+	pinctrl_salt4_default: salt4_default {
+		function = "SALT4";
+		groups = "SALT4";
+	};
+
+	pinctrl_salt5_default: salt5_default {
+		function = "SALT5";
+		groups = "SALT5";
+	};
+
+	pinctrl_salt6_default: salt6_default {
+		function = "SALT6";
+		groups = "SALT6";
+	};
+
+	pinctrl_salt7_default: salt7_default {
+		function = "SALT7";
+		groups = "SALT7";
+	};
+
+	pinctrl_salt8_default: salt8_default {
+		function = "SALT8";
+		groups = "SALT8";
+	};
+
+	pinctrl_salt9_default: salt9_default {
+		function = "SALT9";
+		groups = "SALT9";
+	};
+
+	pinctrl_salt10_default: salt10_default {
+		function = "SALT10";
+		groups = "SALT10";
+	};
+
+	pinctrl_salt11_default: salt11_default {
+		function = "SALT11";
+		groups = "SALT11";
+	};
+
+	pinctrl_salt12_default: salt12_default {
+		function = "SALT12";
+		groups = "SALT12";
+	};
+
+	pinctrl_salt13_default: salt13_default {
+		function = "SALT13";
+		groups = "SALT13";
+	};
+
+	pinctrl_salt14_default: salt14_default {
+		function = "SALT14";
+		groups = "SALT14";
+	};
+
+	pinctrl_salt15_default: salt15_default {
+		function = "SALT15";
+		groups = "SALT15";
+	};
+
 	pinctrl_can_default: can_default {
 		function = "CANBUS";
 		groups = "CANBUS";
