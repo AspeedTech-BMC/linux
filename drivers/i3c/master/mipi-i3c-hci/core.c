@@ -259,11 +259,11 @@ static void aspeed_i3c_of_populate_bus_timing(struct i3c_hci *hci, struct device
 						FIELD_PREP(PHY_I3C_OD_CTRL2_ACK_L, hcnt));
 
 	if (thd_dat) {
-		hcnt = DIV_ROUND_CLOSEST(thd_dat, core_period) - 1;
+		hcnt = DIV_ROUND_CLOSEST(thd_dat, core_period);
 		lcnt = hcnt;
 	} else {
-		hcnt = DIV_ROUND_CLOSEST(PHY_I3C_OD_DEFAULT_HD_DAT, core_period) - 1;
-		lcnt = DIV_ROUND_CLOSEST(PHY_I3C_OD_DEFAULT_AHD_DAT, core_period) - 1;
+		hcnt = DIV_ROUND_CLOSEST(PHY_I3C_OD_DEFAULT_HD_DAT, core_period);
+		lcnt = DIV_ROUND_CLOSEST(PHY_I3C_OD_DEFAULT_AHD_DAT, core_period);
 	}
 	ctrl2 = FIELD_PREP(PHY_I3C_SDR0_CTRL2_HD_PP, hcnt) |
 		FIELD_PREP(PHY_I3C_SDR0_CTRL2_TBIT_HD_PP, lcnt);
