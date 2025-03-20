@@ -4,6 +4,7 @@
 
 #include "aspeed-g7.dtsi"
 #include <dt-bindings/gpio/aspeed-gpio.h>
+#include <dt-bindings/net/ti-dp83867.h>
 
 #define PCIE0_EP 1	// 1: EP, 0: RC
 #define PCIE1_EP 1	// 1: EP, 0: RC
@@ -634,6 +635,9 @@
 	ethphy1: ethernet-phy@0 {
 		compatible = "ethernet-phy-ieee802.3-c22";
 		reg = <0>;
+		/* For DDR5 board */
+		ti,rx-internal-delay = <DP83867_RGMIIDCTL_2_00_NS>;
+		ti,tx-internal-delay = <DP83867_RGMIIDCTL_2_00_NS>;
 	};
 };
 
