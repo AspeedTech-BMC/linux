@@ -908,7 +908,7 @@
 			compatible = "aspeed,ast2700-jtag";
 			reg= <0x0 0x12c20000 0x0 0x40>;
 			interrupts = <GIC_SPI 27 IRQ_TYPE_LEVEL_HIGH>;
-			clocks = <&syscon0 SCU0_CLK_APB>;
+			clocks = <&syscon0 SCU0_CLK_AHB>;
 			resets = <&syscon0 SCU0_RESET_JTAG>;
 			pinctrl-0 = <&pinctrl_jtagm0_default>;
 			pinctrl-names = "default";
