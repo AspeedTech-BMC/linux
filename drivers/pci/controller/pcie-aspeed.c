@@ -617,6 +617,22 @@ out:
 	return PCIBIOS_SUCCESSFUL;
 }
 
+static bool aspeed_ast2700_get_link(struct aspeed_pcie *pcie)
+{
+	u32 reg;
+	bool link;
+
+	if (pcie->domain == 2) {
+		regmap_read(pcie->pciephy, PEHR_MISC_344, &reg);
+		link = !!(reg & LINK_STATUS_GEN2);
+	} else {
+		regmap_read(pcie->pciephy, PEHR_MISC_358, &reg);
+		link = !!(reg & LINK_STATUS_GEN4);
+	}
+
+	return link;
+}
+
 static int aspeed_ast2700_rd_conf(struct pci_bus *bus, unsigned int devfn,
 				  int where, int size, u32 *val)
 {
@@ -625,7 +641,7 @@ static int aspeed_ast2700_rd_conf(struct pci_bus *bus, unsigned int devfn,
 	u8 type;
 	int ret;
 
-	if (bus->number == 0 && devfn != 0) {
+	if ((bus->number == 0 && devfn != 0) || !aspeed_ast2700_get_link(pcie)) {
 		*val = 0xffffffff;
 		return PCIBIOS_SUCCESSFUL;
 	}
@@ -703,7 +719,7 @@ static int aspeed_ast2700_wr_conf(struct pci_bus *bus, unsigned int devfn,
 	u32 bdf_offset, status, type;
 	int ret;
 
-	if (bus->number == 0 && devfn != 0)
+	if ((bus->number == 0 && devfn != 0) || !aspeed_ast2700_get_link(pcie))
 		return PCIBIOS_SUCCESSFUL;
 
 	switch (size) {
@@ -1157,7 +1173,6 @@ static int aspeed_ast2700_setup(struct platform_device *pdev)
 	struct aspeed_pcie *pcie = platform_get_drvdata(pdev);
 	struct device *dev = pcie->dev;
 	u32 cfg_val;
-	bool link;
 
 	pcie->h2xrst = devm_reset_control_get(dev, "h2x");
 	if (IS_ERR(pcie->h2xrst))
@@ -1226,15 +1241,7 @@ static int aspeed_ast2700_setup(struct platform_device *pdev)
 	aspeed_msi_domain_info.flags |= MSI_FLAG_PCI_MSIX;
 	pcie->support_msi = true;
 
-	if (pcie->domain == 2) {
-		regmap_read(pcie->pciephy, PEHR_MISC_344, &cfg_val);
-		link = !!(cfg_val & LINK_STATUS_GEN2);
-	} else {
-		regmap_read(pcie->pciephy, PEHR_MISC_358, &cfg_val);
-		link = !!(cfg_val & LINK_STATUS_GEN4);
-	}
-
-	if (!link) {
+	if (!aspeed_ast2700_get_link(pcie)) {
 		dev_info(dev, "PCIe Link DOWN");
 		return -ENODEV;
 	}
