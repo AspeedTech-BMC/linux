@@ -1377,7 +1377,7 @@ static const struct aspeed_xdma_chip aspeed_ast2700_xdma0_chip = {
 
 static const struct aspeed_xdma_chip aspeed_ast2700_xdma1_chip = {
 	.control = XDMA_AST2700_CTRL_US_COMP | XDMA_AST2700_CTRL_DS_COMP |
-		XDMA_AST2700_CTRL_DS_DIRTY,
+		XDMA_AST2700_CTRL_DS_DIRTY | XDMA_AST2700_CTRL_DS_SIZE_256,
 	.scu_bmc_class = SCU_AST2700_PCIE1_BMC_CLASS_REV,
 	.scu_misc_ctrl = SCU_AST2600_MISC_CTRL,
 	.scu_pcie_conf = SCU_AST2700_PCIE1_CONF,
