@@ -22,6 +22,7 @@
 #include <linux/workqueue.h>
 #include <linux/gpio/consumer.h>
 #include <linux/bitfield.h>
+#include <linux/clk.h>
 
 /*	PCI Host Controller registers */
 #define ASPEED_PCIE_CLASS_CODE		0x04
@@ -181,6 +182,7 @@ struct aspeed_pcie {
 	struct gpio_desc *perst_owner;
 	struct delayed_work rst_dwork;
 	DECLARE_BITMAP(msi_irq_in_use, MAX_MSI_HOST_IRQS);
+	struct clk *clock;
 
 	const struct aspeed_pcie_rc_platform *platform;
 	bool support_msi;
@@ -1173,6 +1175,7 @@ static int aspeed_ast2700_setup(struct platform_device *pdev)
 	struct aspeed_pcie *pcie = platform_get_drvdata(pdev);
 	struct device *dev = pcie->dev;
 	u32 cfg_val;
+	int ret;
 
 	pcie->h2xrst = devm_reset_control_get(dev, "h2x");
 	if (IS_ERR(pcie->h2xrst))
@@ -1185,6 +1188,16 @@ static int aspeed_ast2700_setup(struct platform_device *pdev)
 	pcie->device = syscon_regmap_lookup_by_phandle(dev->of_node, "aspeed,device");
 	if (IS_ERR(pcie->device))
 		return dev_err_probe(dev, PTR_ERR(pcie->device), "failed to map device base\n");
+
+	pcie->clock = clk_get(dev, NULL);
+	if (IS_ERR(pcie->clock))
+		return dev_err_probe(dev, PTR_ERR(pcie->clock), "failed to request clock\n");
+
+	ret = clk_prepare_enable(pcie->clock);
+	if (ret) {
+		dev_err(dev, "Failed to enable the clock.\n");
+		goto out_clk_free;
+	}
 
 	reset_control_assert(pcie->perst);
 
@@ -1243,11 +1256,18 @@ static int aspeed_ast2700_setup(struct platform_device *pdev)
 
 	if (!aspeed_ast2700_get_link(pcie)) {
 		dev_info(dev, "PCIe Link DOWN");
-		return -ENODEV;
+		ret = -ENODEV;
+		goto out_dis_clk;
 	}
 
 	dev_info(dev, "PCIe Link UP");
 	return 0;
+out_dis_clk:
+	clk_disable_unprepare(pcie->clock);
+out_clk_free:
+	if (pcie->clock)
+		clk_put(pcie->clock);
+	return ret;
 }
 
 static int aspeed_pcie_probe(struct platform_device *pdev)
