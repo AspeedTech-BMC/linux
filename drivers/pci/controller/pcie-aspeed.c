@@ -1329,6 +1329,17 @@ static int aspeed_pcie_probe(struct platform_device *pdev)
 	return pci_host_probe(host);
 }
 
+static void aspeed_pcie_remove(struct platform_device *pdev)
+{
+	struct aspeed_pcie *pcie = platform_get_drvdata(pdev);
+
+	pci_stop_root_bus(pcie->host->bus);
+	pci_remove_root_bus(pcie->host->bus);
+	irq_domain_remove(pcie->irq_domain);
+	irq_domain_remove(pcie->msi_domain);
+	irq_domain_remove(pcie->dev_domain);
+}
+
 static struct aspeed_pcie_rc_platform pcie_rc_ast2600 = {
 	.setup = aspeed_ast2600_setup,
 	.reg_intx_en = 0x04,
@@ -1358,6 +1369,7 @@ static struct platform_driver aspeed_pcie_driver = {
 		.of_match_table = aspeed_pcie_of_match,
 	},
 	.probe = aspeed_pcie_probe,
+	.remove_new = aspeed_pcie_remove,
 };
 
 module_platform_driver(aspeed_pcie_driver);
