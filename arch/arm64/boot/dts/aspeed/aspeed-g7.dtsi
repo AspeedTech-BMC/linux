@@ -828,6 +828,7 @@
 			reset-names = "h2x", "perst";
 			status = "disabled";
 
+			clocks = <&syscon0 SCU0_CLK_GATE_BCLK>;
 			pinctrl-0 = <&pinctrl_pcierc0_perst_default>;
 			pinctrl-names = "default";
 
@@ -864,6 +865,7 @@
 			reset-names = "h2x", "perst";
 			status = "disabled";
 
+			clocks = <&syscon0 SCU0_CLK_GATE_BCLK>;
 			pinctrl-0 = <&pinctrl_pcierc1_perst_default>;
 			pinctrl-names = "default";
 
@@ -2421,6 +2423,7 @@
 			reset-names = "h2x", "perst";
 			status = "disabled";
 
+			clocks = <&syscon1 SCU1_CLK_GATE_PCICLK>;
 			pinctrl-0 = <&pinctrl_pcierc2_perst_default>;
 			pinctrl-names = "default";
 
