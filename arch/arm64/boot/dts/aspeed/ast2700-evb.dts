@@ -8,6 +8,7 @@
 
 #define PCIE0_EP 1	// 1: EP, 0: RC
 #define PCIE1_EP 1	// 1: EP, 0: RC
+#define PCIE2_RC 1	// 1: RC, 0: SGMII
 
 / {
 	model = "AST2700-EVB";
@@ -661,7 +662,11 @@
 	pinctrl-0 = <&pinctrl_rgmii1_default &pinctrl_rgmii1_driving>;
 };
 
-#if 0
+#if PCIE2_RC
+&pcie2 {
+	status = "okay";
+};
+#else
 &mdio2 {
 	status = "okay";
 	#address-cells = <1>;
@@ -682,10 +687,6 @@
 
 	phy-mode = "sgmii";
 	phy-handle = <&ethphy2>;
-};
-
-&pcie2 {
-	status = "okay";
 };
 #endif
 
