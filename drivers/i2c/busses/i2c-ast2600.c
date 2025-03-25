@@ -401,6 +401,7 @@ static u32 ast2700_select_i2c_clock(struct ast2600_i2c_bus *i2c_bus)
 		i2c_bus->timeout = min(i2c_bus->timeout, 255);
 		writel(MSIC_I2C_SET_TIMEOUT(i2c_bus->timeout, i2c_bus->timeout),
 		       i2c_bus->reg_base + MSIC_CONFIG_ACTIMING1);
+		/* timeout_base set as 1ms */
 		data |= AST2600_I2CC_TOUTBASECLK(AST2700_I2C_TIMEOUT_CLK);
 	}
 
@@ -1976,10 +1977,15 @@ static int ast2600_i2c_probe(struct platform_device *pdev)
 	/*
 	 * i2c timeout counter: use base clk4 1Mhz,
 	 * per unit: 1/(1000/1024) = 1024us
+	 * lower than 1024 us will be set 1 ms.
 	 */
 	ret = device_property_read_u32(dev, "i2c-scl-clk-low-timeout-us", &i2c_bus->timeout);
-	if (!ret)
+	if (!ret) {
 		i2c_bus->timeout /= 1024;
+
+		if (!i2c_bus->timeout)
+			i2c_bus->timeout = 1;
+	}
 
 	init_completion(&i2c_bus->cmd_complete);
 
