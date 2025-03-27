@@ -1619,9 +1619,7 @@ static void aspeed_video_set_resolution(struct aspeed_video *video)
 {
 	struct v4l2_bt_timings *act = &video->active_timings;
 	unsigned int size = act->width * ALIGN(act->height, 8);
-	bool is_sync_mode_ok =
-		(video->version != 7) ||
-		(video->version == 7 && video->hw_revision == 1 && video->id == 0);
+	bool is_sync_mode_ok = (video->version != 7);
 
 	/* Set capture/compression frame sizes */
 	aspeed_video_calc_compressed_size(video, size);
@@ -1803,7 +1801,7 @@ static void aspeed_video_init_regs(struct aspeed_video *video)
 	      FIELD_PREP(VE_CTRL_CAPTURE_FMT, VIDEO_CAP_FMT_YUV_FULL_SWING);
 	if (video->version == 7) {
 		if (video->input == VIDEO_INPUT_VGA)
-			val |= FIELD_PREP(VE_CTRL_CLK_DELAY, VIDEO_CLK_D1 + video->id);
+			val |= FIELD_PREP(VE_CTRL_CLK_DELAY, VIDEO_CLK_48MHz);
 		else if (video->input == VIDEO_INPUT_DVI)
 			val |= FIELD_PREP(VE_CTRL_CLK_DELAY, VIDEO_CLK_CRT2);
 		else
