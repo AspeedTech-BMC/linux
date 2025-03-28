@@ -295,4 +295,12 @@ config QCOM_IPCC
 	  acts as an interrupt controller for receiving interrupts from clients.
 	  Say Y here if you want to build this driver.
 
+config AST2700_MBOX
+	tristate "ASPEED AST2700 IPC driver"
+	depends on ARCH_ASPEED
+	help
+	  Say y here to enable support for the AST2700 IPC mailbox driver,
+	  providing an interface for invoking the inter-process communication
+	  signals from the application processor to other masters.
+
 endif
