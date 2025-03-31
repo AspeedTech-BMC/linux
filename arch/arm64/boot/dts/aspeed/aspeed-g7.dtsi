@@ -1112,6 +1112,24 @@
 			aspeed,scu = <&syscon0>;
 			status = "disabled";
 		};
+
+		mbox0: mbox@12c1c200 {
+			compatible = "aspeed,ast2700-mailbox";
+			reg = <0x0 0x12c1c200 0x0 0x200>;
+			interrupts = <GIC_SPI 103 IRQ_TYPE_LEVEL_HIGH>;
+			#mbox-cells = <1>;
+			mbox-name = "ssp";
+			status = "disabled";
+		};
+
+		mbox1: mbox@12c1c600 {
+			compatible = "aspeed,ast2700-mailbox";
+			reg = <0x0 0x12c1c600 0x0 0x200>;
+			interrupts = <GIC_SPI 107 IRQ_TYPE_LEVEL_HIGH>;
+			#mbox-cells = <1>;
+			mbox-name = "tsp";
+			status = "disabled";
+		};
 	};
 
 	soc1: soc@14000000 {
