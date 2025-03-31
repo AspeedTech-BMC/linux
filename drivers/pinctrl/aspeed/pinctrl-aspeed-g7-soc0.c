@@ -28,14 +28,18 @@
 #define SCU410 0x410 /* USB Multi-function Control Register  */
 #define SCU414 0x414 /* VGA Function Control Register  */
 
-#define SCU480 0x480 /* GPIO18D0 IO Control Register */
-#define SCU484 0x484 /* GPIO18D1 IO Control Register */
-#define SCU488 0x488 /* GPIO18D2 IO Control Register */
-#define SCU48C 0x48c /* GPIO18D3 IO Control Register */
-#define SCU490 0x490 /* GPIO18D4 IO Control Register */
-#define SCU494 0x494 /* GPIO18D5 IO Control Register */
-#define SCU498 0x498 /* GPIO18D6 IO Control Register */
-#define SCU49C 0x49c /* GPIO18D7 IO Control Register */
+#define SCU480 0x480 /* GPIO18A0 IO Control Register */
+#define SCU484 0x484 /* GPIO18A1 IO Control Register */
+#define SCU488 0x488 /* GPIO18A2 IO Control Register */
+#define SCU48C 0x48c /* GPIO18A3 IO Control Register */
+#define SCU490 0x490 /* GPIO18A4 IO Control Register */
+#define SCU494 0x494 /* GPIO18A5 IO Control Register */
+#define SCU498 0x498 /* GPIO18A6 IO Control Register */
+#define SCU49C 0x49c /* GPIO18A7 IO Control Register */
+#define SCU4A0 0x4A0 /* GPIO18B0 IO Control Register */
+#define SCU4A4 0x4A4 /* GPIO18B1 IO Control Register */
+#define SCU4A8 0x4A8 /* GPIO18B2 IO Control Register */
+#define SCU4AC 0x4AC /* GPIO18B3 IO Control Register */
 
 enum {
 	AC14,
@@ -417,6 +421,43 @@ static struct pinctrl_desc aspeed_g7_soc0_pinctrl_desc = {
 	.owner = THIS_MODULE,
 };
 
+static struct aspeed_pin_config aspeed_g7_configs[] = {
+	/* GPIO18A */
+	{ PIN_CONFIG_DRIVE_STRENGTH, { AC14, AC14 }, SCU480, GENMASK(3, 0) },
+	{ PIN_CONFIG_DRIVE_STRENGTH, { AE15, AE15 }, SCU484, GENMASK(3, 0) },
+	{ PIN_CONFIG_DRIVE_STRENGTH, { AD14, AD14 }, SCU488, GENMASK(3, 0) },
+	{ PIN_CONFIG_DRIVE_STRENGTH, { AE14, AE14 }, SCU48C, GENMASK(3, 0) },
+	{ PIN_CONFIG_DRIVE_STRENGTH, { AF14, AF14 }, SCU490, GENMASK(3, 0) },
+	{ PIN_CONFIG_DRIVE_STRENGTH, { AB13, AB13 }, SCU494, GENMASK(3, 0) },
+	{ PIN_CONFIG_DRIVE_STRENGTH, { AB14, AB14 }, SCU498, GENMASK(3, 0) },
+	{ PIN_CONFIG_DRIVE_STRENGTH, { AF15, AF15 }, SCU49C, GENMASK(3, 0) },
+	/* GPIO18B */
+	{ PIN_CONFIG_DRIVE_STRENGTH, { AF13, AF13 }, SCU4A0, GENMASK(3, 0) },
+	{ PIN_CONFIG_DRIVE_STRENGTH, { AC13, AC13 }, SCU4A4, GENMASK(3, 0) },
+	{ PIN_CONFIG_DRIVE_STRENGTH, { AD13, AD13 }, SCU4A8, GENMASK(3, 0) },
+	{ PIN_CONFIG_DRIVE_STRENGTH, { AE13, AE13 }, SCU4AC, GENMASK(3, 0) },
+};
+
+static const struct aspeed_pin_config_map aspeed_g7_pin_config_map[] = {
+	{ PIN_CONFIG_DRIVE_STRENGTH, 0, 0, GENMASK(3, 0) },
+	{ PIN_CONFIG_DRIVE_STRENGTH, 1, 1, GENMASK(3, 0) },
+	{ PIN_CONFIG_DRIVE_STRENGTH, 2, 2, GENMASK(3, 0) },
+	{ PIN_CONFIG_DRIVE_STRENGTH, 3, 3, GENMASK(3, 0) },
+	{ PIN_CONFIG_DRIVE_STRENGTH, 4, 4, GENMASK(3, 0) },
+	{ PIN_CONFIG_DRIVE_STRENGTH, 5, 5, GENMASK(3, 0) },
+	{ PIN_CONFIG_DRIVE_STRENGTH, 6, 6, GENMASK(3, 0) },
+	{ PIN_CONFIG_DRIVE_STRENGTH, 7, 7, GENMASK(3, 0) },
+	{ PIN_CONFIG_DRIVE_STRENGTH, 8, 8, GENMASK(3, 0) },
+	{ PIN_CONFIG_DRIVE_STRENGTH, 9, 9, GENMASK(3, 0) },
+	{ PIN_CONFIG_DRIVE_STRENGTH, 10, 10, GENMASK(3, 0) },
+	{ PIN_CONFIG_DRIVE_STRENGTH, 11, 11, GENMASK(3, 0) },
+	{ PIN_CONFIG_DRIVE_STRENGTH, 12, 12, GENMASK(3, 0) },
+	{ PIN_CONFIG_DRIVE_STRENGTH, 13, 13, GENMASK(3, 0) },
+	{ PIN_CONFIG_DRIVE_STRENGTH, 14, 14, GENMASK(3, 0) },
+	{ PIN_CONFIG_DRIVE_STRENGTH, 15, 15, GENMASK(3, 0) },
+
+};
+
 static struct aspeed_pinctrl_data aspeed_g7_pinctrl_data = {
 	.pins = aspeed_g7_soc0_pins,
 	.npins = ARRAY_SIZE(aspeed_g7_soc0_pins),
@@ -428,6 +469,10 @@ static struct aspeed_pinctrl_data aspeed_g7_pinctrl_data = {
 		.configs_g7 = pin_cfg,
 		.nconfigs_g7 = ARRAY_SIZE(pin_cfg),
 	},
+	.configs = aspeed_g7_configs,
+	.nconfigs = ARRAY_SIZE(aspeed_g7_configs),
+	.confmaps = aspeed_g7_pin_config_map,
+	.nconfmaps = ARRAY_SIZE(aspeed_g7_pin_config_map),
 };
 
 static int aspeed_g7_soc0_pinctrl_probe(struct platform_device *pdev)
