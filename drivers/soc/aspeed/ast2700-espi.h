@@ -8,6 +8,11 @@
 #include <linux/bits.h>
 #include "aspeed-espi-comm.h"
 
+/* SCU regiseters */
+#define SCU1_DDR			0x0c8
+#define   SCU1_DDR_DIS_ESPI0_AHB	BIT(0)
+#define   SCU1_DDR_DIS_ESPI1_AHB	BIT(1)
+
 /* global registers */
 #define ESPI_CTRL			0x000
 #define ESPI_STS			0x004
