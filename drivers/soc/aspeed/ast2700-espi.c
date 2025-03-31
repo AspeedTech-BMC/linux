@@ -13,12 +13,14 @@
 #include <linux/of_address.h>
 #include <linux/interrupt.h>
 #include <linux/platform_device.h>
+#include <linux/mfd/syscon.h>
 #include <linux/miscdevice.h>
 #include <linux/dma-mapping.h>
 #include <linux/uaccess.h>
 #include <linux/vmalloc.h>
 #include <linux/poll.h>
 #include <linux/delay.h>
+#include <linux/regmap.h>
 
 #include "ast2700-espi.h"
 
@@ -2052,6 +2054,7 @@ static int ast2700_espi_probe(struct platform_device *pdev)
 	struct ast2700_espi *espi;
 	struct resource *res;
 	struct device *dev;
+	struct regmap *scu1;
 	uint32_t reg;
 	int rc;
 
@@ -2068,6 +2071,15 @@ static int ast2700_espi_probe(struct platform_device *pdev)
 		dev_err(dev, "cannot set 64-bits DMA mask\n");
 		return rc;
 	}
+
+	scu1 = syscon_regmap_lookup_by_phandle(dev->of_node, "syscon");
+	if (IS_ERR(scu1)) {
+		dev_err(dev, "failed to find SCU1 regmap\n");
+		return PTR_ERR(scu1);
+	}
+	rc = regmap_update_bits(scu1, SCU1_DDR,
+				SCU1_DDR_DIS_ESPI0_AHB | SCU1_DDR_DIS_ESPI1_AHB,
+				0);
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	if (!res) {

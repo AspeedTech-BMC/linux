@@ -1552,6 +1552,7 @@
 			interrupts-extended = <&intc1_0 10>, <&intc1_0 16>;
 			clocks = <&syscon1 SCU1_CLK_GATE_ESPI0CLK>;
 			resets = <&syscon1 SCU1_RESET_ESPI0>;
+			syscon = <&syscon1>;
 			pinctrl-names = "default";
 			pinctrl-0 = <&pinctrl_espi0_default>;
 			status = "disabled";
@@ -1563,6 +1564,7 @@
 			interrupts-extended = <&intc1_1 10>, <&intc1_1 16>;
 			clocks = <&syscon1 SCU1_CLK_GATE_ESPI1CLK>;
 			resets = <&syscon1 SCU1_RESET_ESPI1>;
+			syscon = <&syscon1>;
 			pinctrl-names = "default";
 			pinctrl-0 = <&pinctrl_espi1_default>;
 			status = "disabled";
