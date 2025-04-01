@@ -186,6 +186,7 @@ static int ast2700_mbox_probe(struct platform_device *pdev)
 	mb->mbox.ops = &ast2700_mbox_chan_ops;
 	mb->mbox.txdone_irq = false;
 	mb->mbox.txdone_poll = true;
+	mb->mbox.txpoll_period = 5;
 
 	irq = platform_get_irq(pdev, 0);
 	if (irq < 0)
