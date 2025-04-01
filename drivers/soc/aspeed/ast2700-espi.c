@@ -652,6 +652,33 @@ static void ast2700_espi_perif_isr(struct ast2700_espi *espi)
 	}
 }
 
+static void ast2700_espi_perif_sw_reset(struct ast2700_espi *espi)
+{
+	struct device *dev;
+	uint32_t reg;
+
+	dev = espi->dev;
+
+	reg = readl(espi->regs + ESPI_CH0_CTRL);
+	reg &= ~(ESPI_CH0_CTRL_NP_TX_RST
+		 | ESPI_CH0_CTRL_NP_RX_RST
+		 | ESPI_CH0_CTRL_PC_TX_RST
+		 | ESPI_CH0_CTRL_PC_RX_RST
+		 | ESPI_CH0_CTRL_NP_TX_DMA_EN
+		 | ESPI_CH0_CTRL_PC_TX_DMA_EN
+		 | ESPI_CH0_CTRL_PC_RX_DMA_EN
+		 | ESPI_CH0_CTRL_SW_RDY);
+	writel(reg, espi->regs + ESPI_CH0_CTRL);
+
+	udelay(1);
+
+	reg |= (ESPI_CH0_CTRL_NP_TX_RST
+		| ESPI_CH0_CTRL_NP_RX_RST
+		| ESPI_CH0_CTRL_PC_TX_RST
+		| ESPI_CH0_CTRL_PC_RX_RST);
+	writel(reg, espi->regs + ESPI_CH0_CTRL);
+}
+
 static void ast2700_espi_perif_reset(struct ast2700_espi *espi)
 {
 	struct ast2700_espi_perif *perif;
@@ -683,22 +710,10 @@ static void ast2700_espi_perif_reset(struct ast2700_espi *espi)
 
 	reg = readl(espi->regs + ESPI_CH0_CTRL);
 	reg |= (ESPI_CH0_CTRL_MCYC_RD_DIS | ESPI_CH0_CTRL_MCYC_WR_DIS);
-	reg &= ~(ESPI_CH0_CTRL_NP_TX_RST
-		 | ESPI_CH0_CTRL_NP_RX_RST
-		 | ESPI_CH0_CTRL_PC_TX_RST
-		 | ESPI_CH0_CTRL_PC_RX_RST
-		 | ESPI_CH0_CTRL_NP_TX_DMA_EN
+	reg &= ~(ESPI_CH0_CTRL_NP_TX_DMA_EN
 		 | ESPI_CH0_CTRL_PC_TX_DMA_EN
 		 | ESPI_CH0_CTRL_PC_RX_DMA_EN
 		 | ESPI_CH0_CTRL_SW_RDY);
-	writel(reg, espi->regs + ESPI_CH0_CTRL);
-
-	udelay(1);
-
-	reg |= (ESPI_CH0_CTRL_NP_TX_RST
-		| ESPI_CH0_CTRL_NP_RX_RST
-		| ESPI_CH0_CTRL_PC_TX_RST
-		| ESPI_CH0_CTRL_PC_RX_RST);
 	writel(reg, espi->regs + ESPI_CH0_CTRL);
 
 	if (perif->mmbi.enable) {
@@ -2039,6 +2054,7 @@ static irqreturn_t ast2700_espi_isr(int irq, void *arg)
 		ast2700_espi_flash_isr(espi);
 
 	if (sts & ESPI_INT_STS_RST_DEASSERT) {
+		ast2700_espi_perif_sw_reset(espi);
 		ast2700_espi_perif_reset(espi);
 		ast2700_espi_vw_reset(espi);
 		ast2700_espi_oob_reset(espi);
