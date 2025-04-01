@@ -233,14 +233,14 @@ static ssize_t hdrcap_show(struct device *dev,
 		if (!hdrcap_strings[mode])
 			continue;
 
-		ret = sysfs_emit(buf + offset, offset ? " %s" : "%s", hdrcap_strings[mode]);
+		ret = sysfs_emit_at(buf, offset, offset ? " %s" : "%s", hdrcap_strings[mode]);
 		if (ret < 0)
 			goto out;
 
 		offset += ret;
 	}
 
-	ret = sysfs_emit(buf + offset, "\n");
+	ret = sysfs_emit_at(buf, offset, "\n");
 	if (ret < 0)
 		goto out;
 
