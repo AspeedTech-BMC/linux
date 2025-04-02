@@ -548,9 +548,19 @@
 		groups = "RMII0";
 	};
 
+	pinctrl_rmii0_rclko_default: rmii0_rclko_default {
+		function = "RMII0RCLKO";
+		groups = "RMII0RCLKO";
+	};
+
 	pinctrl_rmii1_default: rmii1_default {
 		function = "RMII1";
 		groups = "RMII1";
+	};
+
+	pinctrl_rmii1_rclko_default: rmii1_rclko_default {
+		function = "RMII1RCLKO";
+		groups = "RMII1RCLKO";
 	};
 
 	pinctrl_sgmii_default: sgmii_default {
