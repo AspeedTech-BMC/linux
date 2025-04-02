@@ -19,6 +19,9 @@
 	use-ncsi;
 
 	pinctrl-names = "default";
+	/* If you want to use RMII0 RCLKO as internal clock for RMII,
+	 * add &pinctrl_rmii0_rclko_default in pinctrl-0.
+	 */
 	pinctrl-0 = <&pinctrl_rmii0_default>;
 };
 
@@ -29,5 +32,8 @@
 	use-ncsi;
 
 	pinctrl-names = "default";
+	/* If you want to use RMII1 RCLKO as internal clock for RMII,
+	 * add &pinctrl_rmii1_rclko_default in pinctrl-0.
+	 */
 	pinctrl-0 = <&pinctrl_rmii1_default>;
 };
