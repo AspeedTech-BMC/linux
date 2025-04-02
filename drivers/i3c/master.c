@@ -3522,6 +3522,12 @@ int i3c_target_register(struct i3c_master_controller *master, struct device *par
 	master->dev.coherent_dma_mask = parent->coherent_dma_mask;
 	master->dev.dma_parms = parent->dma_parms;
 
+	master->wq = alloc_workqueue("%s", 0, 0, dev_name(parent));
+	if (!master->wq) {
+		ret = -ENOMEM;
+		goto err_put_device;
+	}
+
 	ret = device_add(&master->dev);
 	if (ret)
 		goto err_put_device;
