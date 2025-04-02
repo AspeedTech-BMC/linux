@@ -479,10 +479,10 @@ static bool hci_dma_dequeue_xfer(struct i3c_hci *hci,
 				 struct hci_xfer *xfer_list, int n)
 {
 	struct hci_rings_data *rings = hci->io_data;
-	struct hci_rh_data *rh = &rings->headers[xfer_list[0].ring_number];
+	struct hci_rh_data *rh = &rings->headers[xfer_list ? xfer_list[0].ring_number : 0];
 	unsigned int i;
 	bool did_unqueue = false;
-	u32 ring_ctrl_val;
+	u32 ring_ctrl_val, op1_val, done_ptr;
 
 	ring_ctrl_val = rh_reg_read(RING_CONTROL);
 	/* stop the ring */
@@ -525,6 +525,16 @@ static bool hci_dma_dequeue_xfer(struct i3c_hci *hci,
 			did_unqueue = true;
 		}
 	}
+
+	/* update the software dequeue pointer to the enqueue pointer */
+	spin_lock(&rh->lock);
+	op1_val = rh_reg_read(RING_OPERATION1);
+	op1_val &= ~RING_OP1_CR_ENQ_PTR;
+	done_ptr = FIELD_GET(RING_OP1_CR_SW_DEQ_PTR, op1_val);
+	op1_val |= FIELD_PREP(RING_OP1_CR_ENQ_PTR, done_ptr);
+	DBG("Write RING_OPERATION1 = %x", op1_val);
+	rh_reg_write(RING_OPERATION1, op1_val);
+	spin_unlock(&rh->lock);
 
 	/* restart the ring */
 	rh_reg_write(RING_CONTROL, RING_CTRL_ENABLE | RING_CTRL_RUN_STOP);
@@ -875,11 +885,6 @@ static bool hci_dma_irq_handler(struct i3c_hci *hci, unsigned int mask)
 			hci_dma_process_ibi(hci, rh);
 		if (status & (INTR_TRANSFER_COMPLETION | INTR_TRANSFER_ERR)) {
 			hci_dma_xfer_done(hci, rh);
-			if (unlikely(status & INTR_TRANSFER_ERR)) {
-				dev_warn(&hci->master.dev,
-					 "ring %d: Transfer Error\n", i);
-				mipi_i3c_hci_resume(hci);
-			}
 		}
 		if (status & INTR_RING_OP)
 			complete(&rh->op_done);
@@ -889,6 +894,14 @@ static bool hci_dma_irq_handler(struct i3c_hci *hci, unsigned int mask)
 
 			dev_notice_ratelimited(&hci->master.dev,
 				"ring %d: Transfer Aborted\n", i);
+#ifdef CONFIG_ARCH_ASPEED
+			/*
+			 * Aspeed i3c controller will reuse the PIO fifo in DMA mode,
+			 * so we need to reset the PIO fifo when the transfer is aborted.
+			 */
+			mipi_i3c_hci_pio_ibi_reset(hci);
+			mipi_i3c_hci_pio_reset(hci);
+#endif
 			mipi_i3c_hci_resume(hci);
 			ring_status = rh_reg_read(RING_STATUS);
 			if (!(ring_status & RING_STATUS_RUNNING) &&

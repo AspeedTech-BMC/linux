@@ -417,6 +417,12 @@ void mipi_i3c_hci_pio_reset(struct i3c_hci *hci)
 		  RX_FIFO_RST | TX_FIFO_RST | RESP_QUEUE_RST | CMD_QUEUE_RST);
 }
 
+/* located here rather than pio.c because needed bits are in core reg space */
+void mipi_i3c_hci_pio_ibi_reset(struct i3c_hci *hci)
+{
+	reg_write(RESET_CONTROL, IBI_QUEUE_RST);
+}
+
 /* located here rather than dct.c because needed bits are in core reg space */
 void mipi_i3c_hci_dct_index_reset(struct i3c_hci *hci)
 {
@@ -426,7 +432,7 @@ void mipi_i3c_hci_dct_index_reset(struct i3c_hci *hci)
 static int i3c_hci_enable_hotjoin(struct i3c_master_controller *m)
 {
 	struct i3c_hci *hci = to_i3c_hci(m);
-	int ret;
+	int ret = 0;
 
 	if (hci->io->request_hj)
 		ret = hci->io->request_hj(hci);
@@ -1214,7 +1220,10 @@ static irqreturn_t i3c_hci_irq_handler(int irq, void *dev_id)
 		val &= ~INTR_HC_RESET_CANCEL;
 	}
 	if (val & INTR_HC_INTERNAL_ERR) {
-		dev_err(&hci->master.dev, "Host Controller Internal Error\n");
+		/* Disable the signal enable to avoid the interrupt storm */
+		reg_write(INTR_SIGNAL_ENABLE, 0x0);
+		reg_write(INTR_STATUS, INTR_HC_INTERNAL_ERR);
+		queue_work(hci->master.wq, &hci->halt_rst_work);
 		val &= ~INTR_HC_INTERNAL_ERR;
 	}
 	if (val)
@@ -1363,6 +1372,8 @@ static int i3c_hci_init(struct i3c_hci *hci)
 	reg_write(INTR_SIGNAL_ENABLE, 0x0);
 	reg_write(INTR_STATUS_ENABLE, 0xffffffff);
 #ifdef CONFIG_ARCH_ASPEED
+	/* Enable internal error interrupt to detect the i3c halt caused by the hardware error */
+	reg_write(INTR_SIGNAL_ENABLE, INTR_HC_INTERNAL_ERR);
 	ast_inhouse_write(ASPEED_I3C_INTR_SIGNAL_ENABLE, 0);
 	ast_inhouse_write(ASPEED_I3C_INTR_STATUS_ENABLE, 0xffffffff);
 #endif
@@ -1467,6 +1478,15 @@ static void i3c_hci_hj_work(struct work_struct *work)
 	i3c_master_do_daa(&hci->master);
 }
 
+static void i3c_hci_halt_rst_work(struct work_struct *work)
+{
+	struct i3c_hci *hci;
+
+	hci = container_of(work, struct i3c_hci, halt_rst_work);
+	hci->io->dequeue_xfer(hci, NULL, 0);
+	reg_write(INTR_SIGNAL_ENABLE, INTR_HC_INTERNAL_ERR);
+}
+
 static int i3c_hci_probe(struct platform_device *pdev)
 {
 	struct i3c_hci *hci;
@@ -1521,6 +1541,7 @@ static int i3c_hci_probe(struct platform_device *pdev)
 		return ret;
 
 	INIT_WORK(&hci->hj_work, i3c_hci_hj_work);
+	INIT_WORK(&hci->halt_rst_work, i3c_hci_halt_rst_work);
 	ret = i3c_register(&hci->master, &pdev->dev, &i3c_hci_ops,
 			   &ast2700_i3c_target_ops, false);
 	if (ret)

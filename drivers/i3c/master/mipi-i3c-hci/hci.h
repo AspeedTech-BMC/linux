@@ -72,6 +72,7 @@ struct i3c_hci {
 	struct completion ibi_comp;
 	struct completion pending_r_comp;
 	struct work_struct hj_work;
+	struct work_struct halt_rst_work;
 
 	/* Used for handling private write */
 	struct {
@@ -165,6 +166,7 @@ struct i3c_hci_dev_data {
 /* global functions */
 void mipi_i3c_hci_resume(struct i3c_hci *hci);
 void mipi_i3c_hci_pio_reset(struct i3c_hci *hci);
+void mipi_i3c_hci_pio_ibi_reset(struct i3c_hci *hci);
 void mipi_i3c_hci_dct_index_reset(struct i3c_hci *hci);
 void amd_set_od_pp_timing(struct i3c_hci *hci);
 void amd_set_resp_buf_thld(struct i3c_hci *hci);
