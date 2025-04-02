@@ -643,7 +643,7 @@ static int aspeed_ast2700_rd_conf(struct pci_bus *bus, unsigned int devfn,
 	u8 type;
 	int ret;
 
-	if ((bus->number == 0 && devfn != 0) || !aspeed_ast2700_get_link(pcie)) {
+	if ((bus->number == 0 && devfn != 0)) {
 		*val = 0xffffffff;
 		return PCIBIOS_SUCCESSFUL;
 	}
@@ -654,6 +654,11 @@ static int aspeed_ast2700_rd_conf(struct pci_bus *bus, unsigned int devfn,
 		writel(CFGI_TLP_FIRE, pcie->reg + H2X_CFGI_CTRL);
 		*val = readl(pcie->reg + H2X_CFGI_RET_DATA);
 	} else {
+		if (!aspeed_ast2700_get_link(pcie)) {
+			*val = 0xffffffff;
+			return PCIBIOS_SUCCESSFUL;
+		}
+
 		bdf_offset = ((bus->number) << 24) | (PCI_SLOT(devfn) << 19) |
 			     (PCI_FUNC(devfn) << 16) | (where & ~3);
 
@@ -721,7 +726,7 @@ static int aspeed_ast2700_wr_conf(struct pci_bus *bus, unsigned int devfn,
 	u32 bdf_offset, status, type;
 	int ret;
 
-	if ((bus->number == 0 && devfn != 0) || !aspeed_ast2700_get_link(pcie))
+	if ((bus->number == 0 && devfn != 0))
 		return PCIBIOS_SUCCESSFUL;
 
 	switch (size) {
@@ -744,6 +749,9 @@ static int aspeed_ast2700_wr_conf(struct pci_bus *bus, unsigned int devfn,
 		writel(val, pcie->reg + H2X_CFGI_WR_DATA);
 		writel(CFGI_TLP_FIRE, pcie->reg + H2X_CFGI_CTRL);
 	} else {
+		if (!aspeed_ast2700_get_link(pcie))
+			return PCIBIOS_SUCCESSFUL;
+
 		bdf_offset = (bus->number << 24) | (PCI_SLOT(devfn) << 19) |
 			     (PCI_FUNC(devfn) << 16) | (where & ~3);
 		pcie->tx_tag %= 0xF;
@@ -1254,16 +1262,12 @@ static int aspeed_ast2700_setup(struct platform_device *pdev)
 	aspeed_msi_domain_info.flags |= MSI_FLAG_PCI_MSIX;
 	pcie->support_msi = true;
 
-	if (!aspeed_ast2700_get_link(pcie)) {
+	if (!aspeed_ast2700_get_link(pcie))
 		dev_info(dev, "PCIe Link DOWN");
-		ret = -ENODEV;
-		goto out_dis_clk;
-	}
+	else
+		dev_info(dev, "PCIe Link UP");
 
-	dev_info(dev, "PCIe Link UP");
 	return 0;
-out_dis_clk:
-	clk_disable_unprepare(pcie->clock);
 out_clk_free:
 	if (pcie->clock)
 		clk_put(pcie->clock);
