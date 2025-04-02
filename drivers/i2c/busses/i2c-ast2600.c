@@ -1952,26 +1952,28 @@ static int ast2600_i2c_probe(struct platform_device *pdev)
 	i2c_bus->slave_operate = 0;
 #endif
 	i2c_bus->dev = dev;
-	if (i2c_bus->version == AST2600)
-		i2c_bus->mode = BUFF_MODE;
-	else
-		i2c_bus->mode = DMA_MODE;
-
-	if (device_property_read_bool(dev, "aspeed,enable-byte"))
-		i2c_bus->mode = BYTE_MODE;
-
-	if (device_property_read_bool(dev, "aspeed,enable-buff"))
+	if (i2c_bus->version == AST2600) {
 		i2c_bus->mode = BUFF_MODE;
 
-	if (device_property_read_bool(dev, "aspeed,enable-dma"))
-		i2c_bus->mode = DMA_MODE;
-
-	if (i2c_bus->mode == BUFF_MODE) {
-		i2c_bus->buf_base = devm_platform_get_and_ioremap_resource(pdev, 1, &res);
-		if (IS_ERR(i2c_bus->buf_base))
+		/* The ast2600 could select dma/buff/byte mode */
+		if (device_property_read_bool(dev, "aspeed,enable-byte"))
 			i2c_bus->mode = BYTE_MODE;
-		else
-			i2c_bus->buf_size = resource_size(res) / 2;
+
+		if (device_property_read_bool(dev, "aspeed,enable-buff"))
+			i2c_bus->mode = BUFF_MODE;
+
+		if (device_property_read_bool(dev, "aspeed,enable-dma"))
+			i2c_bus->mode = DMA_MODE;
+
+		if (i2c_bus->mode == BUFF_MODE) {
+			i2c_bus->buf_base = devm_platform_get_and_ioremap_resource(pdev, 1, &res);
+			if (IS_ERR(i2c_bus->buf_base))
+				i2c_bus->mode = BYTE_MODE;
+			else
+				i2c_bus->buf_size = resource_size(res) / 2;
+		}
+	} else {
+		i2c_bus->mode = DMA_MODE;
 	}
 
 	/*
