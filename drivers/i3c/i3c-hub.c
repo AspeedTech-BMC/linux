@@ -979,7 +979,7 @@ static int i3c_hub_port_init_smbus_agent(struct i3c_hub *hub,
 	if (ret)
 		return -EIO;
 
-	ret = regmap_set_bits(hub->regmap, HUB_REG_TP_IBI_CONF, agent->port_mask);
+	ret = regmap_clear_bits(hub->regmap, HUB_REG_TP_IBI_CONF, agent->port_mask);
 	if (ret)
 		return -EIO;
 
@@ -1021,11 +1021,12 @@ static int i3c_hub_port_init_smbus_agent(struct i3c_hub *hub,
 
 	i2c_set_adapdata(&agent->i2c, agent);
 
+	port->agent = agent;
+	ret = regmap_set_bits(hub->regmap, HUB_REG_TP_IBI_CONF, agent->port_mask);
+
 	ret = i2c_add_adapter(&agent->i2c);
 	if (ret)
 		devm_kfree(&hub->i3cdev->dev, agent);
-
-	port->agent = agent;
 
 	return ret;
 }
