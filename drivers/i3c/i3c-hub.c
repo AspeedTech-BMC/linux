@@ -891,7 +891,7 @@ static int smbus_agent_sync_next_buf_idx(struct i3c_hub_smbus_agent *agent, u32 
 	struct i3c_hub_agent_tx_hdr hdr = { 0 };
 	u8 dev_addr = 0x70;
 	int page, stat_reg;
-	unsigned int stat;
+	unsigned int stat, rx_done;
 	int ret;
 	int i = 0;
 
@@ -914,15 +914,16 @@ static int smbus_agent_sync_next_buf_idx(struct i3c_hub_smbus_agent *agent, u32 
 	if (ret)
 		goto err_recover;
 
+	rx_done = HUB_REG_AGENT_CNTRL_STATUS_RX_BUF0 | HUB_REG_AGENT_CNTRL_STATUS_RX_BUF1;
 	do {
 		ret = regmap_read(hub->regmap, stat_reg, &stat);
 		if (ret)
 			goto err_recover;
-		if (stat & HUB_REG_AGENT_CNTRL_STATUS_FINISH)
+		if (stat & rx_done)
 			break;
 	} while (i++ < 100);
 
-	if (!(stat & HUB_REG_AGENT_CNTRL_STATUS_FINISH)) {
+	if (!(stat & rx_done)) {
 		dev_err(&hub->i3cdev->dev, "port[%d] agent loopback unfinished:%02X\n",
 			agent->port_nr, stat);
 		ret = EIO;
