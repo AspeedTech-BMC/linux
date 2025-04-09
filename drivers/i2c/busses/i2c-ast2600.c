@@ -1316,21 +1316,6 @@ static int ast2600_i2c_setup_dma_rx(u32 cmd, struct ast2600_i2c_bus *i2c_bus)
 		cmd |= MASTER_TRIGGER_LAST_STOP;
 	}
 
-	if (i2c_bus->version == AST2600) {
-		writel(AST2600_I2CM_SET_RX_DMA_LEN(xfer_len - 1),
-		       i2c_bus->reg_base + AST2600_I2CM_DMA_LEN);
-	} else {
-		writel(AST2700_I2CM_SET_RX_DMA_LEN(xfer_len - 1),
-		       i2c_bus->reg_base + AST2600_I2CM_DMA_LEN);
-		writel(upper_32_bits(i2c_bus->master_dma_addr +
-		       i2c_bus->master_xfer_cnt),
-		       i2c_bus->reg_base + AST2600_I2CM_RX_DMA_H);
-	}
-
-	writel(lower_32_bits(i2c_bus->master_dma_addr +
-	       i2c_bus->master_xfer_cnt),
-	       i2c_bus->reg_base + AST2600_I2CM_RX_DMA);
-
 	if (cmd & AST2600_I2CM_START_CMD) {
 		cmd |= AST2600_I2CM_PKT_ADDR(msg->addr);
 		i2c_bus->master_safe_buf = i2c_get_dma_safe_msg_buf(msg, 1);
@@ -1351,6 +1336,21 @@ static int ast2600_i2c_setup_dma_rx(u32 cmd, struct ast2600_i2c_bus *i2c_bus)
 			return -ENOMEM;
 		}
 	}
+
+	if (i2c_bus->version == AST2600) {
+		writel(AST2600_I2CM_SET_RX_DMA_LEN(xfer_len - 1),
+		       i2c_bus->reg_base + AST2600_I2CM_DMA_LEN);
+	} else {
+		writel(AST2700_I2CM_SET_RX_DMA_LEN(xfer_len - 1),
+		       i2c_bus->reg_base + AST2600_I2CM_DMA_LEN);
+		writel(upper_32_bits(i2c_bus->master_dma_addr +
+		       i2c_bus->master_xfer_cnt),
+		       i2c_bus->reg_base + AST2600_I2CM_RX_DMA_H);
+	}
+
+	writel(lower_32_bits(i2c_bus->master_dma_addr +
+	       i2c_bus->master_xfer_cnt),
+	       i2c_bus->reg_base + AST2600_I2CM_RX_DMA);
 
 	writel(cmd, i2c_bus->reg_base + AST2600_I2CM_CMD_STS);
 
