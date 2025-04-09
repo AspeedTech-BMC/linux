@@ -154,9 +154,6 @@
 
 /* 0x1C : I2CM Master DMA Transfer Length Register	 */
 #define AST2600_I2CM_DMA_LEN		0x1C
-/* Master Tx Rx support length 1 ~ 65536 */
-#define AST2700_I2CM_SET_RX_DMA_LEN(x)	(((x) & GENMASK(15, 0)) << 16)
-#define AST2700_I2CM_SET_TX_DMA_LEN(x)	((x) & GENMASK(15, 0))
 /* Master Tx Rx support length 1 ~ 4096 */
 #define AST2600_I2CM_SET_RX_DMA_LEN(x)	((((x) & GENMASK(11, 0)) << 16) | BIT(31))
 #define AST2600_I2CM_SET_TX_DMA_LEN(x)	(((x) & GENMASK(11, 0)) | BIT(15))
@@ -1193,19 +1190,12 @@ static int ast2600_i2c_setup_dma_tx(u32 cmd, struct ast2600_i2c_bus *i2c_bus)
 
 	if (xfer_len) {
 		cmd |= AST2600_I2CM_TX_DMA_EN | AST2600_I2CM_TX_CMD;
-
-		if (i2c_bus->version == AST2600) {
-			writel(AST2600_I2CM_SET_TX_DMA_LEN(xfer_len - 1),
-			       i2c_bus->reg_base + AST2600_I2CM_DMA_LEN);
-		} else {
-			writel(AST2700_I2CM_SET_TX_DMA_LEN(xfer_len - 1),
-			       i2c_bus->reg_base + AST2600_I2CM_DMA_LEN);
-			writel(upper_32_bits(i2c_bus->master_dma_addr),
-			       i2c_bus->reg_base + AST2600_I2CM_TX_DMA_H);
-		}
-
+		writel(AST2600_I2CM_SET_TX_DMA_LEN(xfer_len - 1),
+		       i2c_bus->reg_base + AST2600_I2CM_DMA_LEN);
 		writel(lower_32_bits(i2c_bus->master_dma_addr),
 		       i2c_bus->reg_base + AST2600_I2CM_TX_DMA);
+		writel(upper_32_bits(i2c_bus->master_dma_addr),
+		       i2c_bus->reg_base + AST2600_I2CM_TX_DMA_H);
 	}
 
 	writel(cmd, i2c_bus->reg_base + AST2600_I2CM_CMD_STS);
@@ -1316,6 +1306,9 @@ static int ast2600_i2c_setup_dma_rx(u32 cmd, struct ast2600_i2c_bus *i2c_bus)
 		cmd |= MASTER_TRIGGER_LAST_STOP;
 	}
 
+	writel(AST2600_I2CM_SET_RX_DMA_LEN(xfer_len - 1),
+	       i2c_bus->reg_base + AST2600_I2CM_DMA_LEN);
+
 	if (cmd & AST2600_I2CM_START_CMD) {
 		cmd |= AST2600_I2CM_PKT_ADDR(msg->addr);
 		i2c_bus->master_safe_buf = i2c_get_dma_safe_msg_buf(msg, 1);
@@ -1337,20 +1330,12 @@ static int ast2600_i2c_setup_dma_rx(u32 cmd, struct ast2600_i2c_bus *i2c_bus)
 		}
 	}
 
-	if (i2c_bus->version == AST2600) {
-		writel(AST2600_I2CM_SET_RX_DMA_LEN(xfer_len - 1),
-		       i2c_bus->reg_base + AST2600_I2CM_DMA_LEN);
-	} else {
-		writel(AST2700_I2CM_SET_RX_DMA_LEN(xfer_len - 1),
-		       i2c_bus->reg_base + AST2600_I2CM_DMA_LEN);
-		writel(upper_32_bits(i2c_bus->master_dma_addr +
-		       i2c_bus->master_xfer_cnt),
-		       i2c_bus->reg_base + AST2600_I2CM_RX_DMA_H);
-	}
-
 	writel(lower_32_bits(i2c_bus->master_dma_addr +
 	       i2c_bus->master_xfer_cnt),
 	       i2c_bus->reg_base + AST2600_I2CM_RX_DMA);
+	writel(upper_32_bits(i2c_bus->master_dma_addr +
+	       i2c_bus->master_xfer_cnt),
+	       i2c_bus->reg_base + AST2600_I2CM_RX_DMA_H);
 
 	writel(cmd, i2c_bus->reg_base + AST2600_I2CM_CMD_STS);
 
