@@ -22,8 +22,6 @@
 #include <linux/dma-mapping.h>
 #include <linux/miscdevice.h>
 
-static DEFINE_IDA(bmc_device_ida);
-
 #define SCU_TRIGGER_MSI
 
 /* AST2600 SCU */
@@ -399,8 +397,7 @@ static int aspeed_ast2700_init(struct platform_device *pdev)
 {
 	struct aspeed_bmc_device *bmc_device = platform_get_drvdata(pdev);
 	struct device *dev = &pdev->dev;
-	u32 pcie_config_ctl = SCU_PCIE_CONF_BMC_DEV_EN_IRQ |
-			      SCU_PCIE_CONF_BMC_DEV_EN_MMIO | SCU_PCIE_CONF_BMC_DEV_EN;
+	u32 pcie_config_ctl;
 	u32 scu_id;
 	int i;
 
@@ -428,31 +425,30 @@ static int aspeed_ast2700_init(struct platform_device *pdev)
 		return PTR_ERR(bmc_device->scu);
 	}
 
-	if (bmc_device->pcie2lpc)
-		pcie_config_ctl |= SCU_PCIE_CONF_BMC_DEV_EN_E2L |
-				   SCU_PCIE_CONF_BMC_DEV_EN_LPC_DECODE;
-
-	regmap_update_bits(bmc_device->config, 0x10, pcie_config_ctl, pcie_config_ctl);
+	if (bmc_device->pcie2lpc) {
+		pcie_config_ctl = SCU_PCIE_CONF_BMC_DEV_EN_E2L |
+				  SCU_PCIE_CONF_BMC_DEV_EN_LPC_DECODE;
+		regmap_update_bits(bmc_device->config, 0x10, pcie_config_ctl, pcie_config_ctl);
+	}
 
 	/* update class code to others as it is a MFD device */
 	regmap_write(bmc_device->device, 0x18, 0xff000027);
 
-	//MSI
+	/* MSI */
 	regmap_update_bits(bmc_device->device, 0x74, GENMASK(7, 4), BIT(7) | (5 << 4));
-
-	//EnPCIaMSI_EnPCIaIntA_EnPCIaMst_EnPCIaDev
-	//Disable MSI[bit25] in ast2700A0 int only
+	/* EnPCIaMSI:BIT(25), EnPCIaIntA:BIT(17), EnPCIaMst:BIT(9), EnPCIaDev:BIT(1) */
 	regmap_read(bmc_device->scu, SCU0_REVISION_ID, &scu_id);
 	if (scu_id & REVISION_ID)
 		regmap_update_bits(bmc_device->device, 0x70,
 				   BIT(25) | BIT(17) | BIT(9) | BIT(1),
 				   BIT(25) | BIT(17) | BIT(9) | BIT(1));
 	else
+		/* Disable MSI[bit25] in ast2700A0 int only */
 		regmap_update_bits(bmc_device->device, 0x70,
 				   BIT(17) | BIT(9) | BIT(1),
 				   BIT(25) | BIT(17) | BIT(9) | BIT(1));
 
-	//bar size check for 4k align
+	/* bar size check for 4k align */
 	for (i = 1; i < 16; i++) {
 		if ((bmc_device->bmc_mem_size / 4096) == (1 << (i - 1)))
 			break;
@@ -469,21 +465,14 @@ static int aspeed_ast2700_init(struct platform_device *pdev)
 	 */
 	regmap_write(bmc_device->device, 0x1c, ((bmc_device->bmc_mem_phy) >> 4) | i);
 
-	/*
-	 * BAR assign in e2m
-	 * e2m0:12c21000
-	 * 108:host2bmc-0 for pcie0
-	 * 128:host2bmc-1 for pcie0
-	 * e2m1:12c22000
-	 * 108:host2bmc-0 for pcie1
-	 * 128:host2bmc-1 for pcie1
-	 */
-	if (bmc_device->id)
-		regmap_write(bmc_device->e2m, 0x128, ((bmc_device->bmc_mem_phy) >> 4) | i);
-	else
+	if (bmc_device->id == 0)
+		/* Node 0 Bar 0 */
 		regmap_write(bmc_device->e2m, 0x108, ((bmc_device->bmc_mem_phy) >> 4) | i);
+	else
+		/* Node 1 Bar 0 */
+		regmap_write(bmc_device->e2m, 0x128, ((bmc_device->bmc_mem_phy) >> 4) | i);
 
-	//Setting BMC to Host Q register
+	/* Setting BMC to Host Q register */
 	writel(BMC2HOST_Q2_FULL_UNMASK | BMC2HOST_Q1_FULL_UNMASK | BMC2HOST_ENABLE_INTB,
 	       bmc_device->reg_base + ASPEED_BMC_BMC2HOST_STS);
 	writel(HOST2BMC_Q2_FULL_UNMASK | HOST2BMC_Q1_FULL_UNMASK | HOST2BMC_ENABLE_INTB,
@@ -591,9 +580,9 @@ static int aspeed_bmc_device_probe(struct platform_device *pdev)
 
 	bmc_device->platform = md;
 
-	bmc_device->id = ida_simple_get(&bmc_device_ida, 0, 0, GFP_KERNEL);
+	bmc_device->id = of_alias_get_id(dev->of_node, "bmc_dev");
 	if (bmc_device->id < 0)
-		goto out_region;
+		bmc_device->id = 0;
 
 	bmc_device->dev = dev;
 	bmc_device->reg_base = devm_platform_ioremap_resource(pdev, 0);
