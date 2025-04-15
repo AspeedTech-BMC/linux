@@ -711,16 +711,12 @@ static int aspeed_ast2700_pcie_mmbi_init(struct platform_device *pdev)
 		dev_err(dev, "Failed to get e2m resource\n");
 		return -EINVAL;
 	}
-	if (res.start == 0x14c1d000) {
+	if (res.start == 0x14c1d000)
 		mmbi->id = 2;
-		mmbi->e2m_h2b_int = 0;
-	} else if (res.start == 0x12c22000) {
+	else if (res.start == 0x12c22000)
 		mmbi->id = 1;
-		mmbi->e2m_h2b_int = -4;
-	} else {
+	else
 		mmbi->id = 0; /* 0x12c21000 */
-		mmbi->e2m_h2b_int = 0;
-	}
 
 	mmbi->device = syscon_regmap_lookup_by_phandle(dev->of_node->parent, "aspeed,device");
 	if (IS_ERR(mmbi->device)) {
