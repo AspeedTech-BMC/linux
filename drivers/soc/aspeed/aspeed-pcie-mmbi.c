@@ -626,7 +626,7 @@ static void mmbi_desc_init(struct aspeed_mmbi_channel *chan)
 	desc.bt_desc.bmc_int_v = chan->bmc_int_value;
 
 	/* Per MMBI protoco spec, Set it to "#MMBI$" */
-	strscpy(desc.signature, MMBI_SIGNATURE, sizeof(desc.signature));
+	memcpy(desc.signature, MMBI_SIGNATURE, sizeof(desc.signature));
 
 	memcpy_toio(chan->desc_vmem, &desc, sizeof(desc));
 }
