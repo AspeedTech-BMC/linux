@@ -317,15 +317,13 @@ static int aspeed_pcc_probe(struct platform_device *pdev)
 		return -ENOMEM;
 
 	pcc->regmap = syscon_node_to_regmap(dev->parent->of_node);
-	if (IS_ERR(pcc->regmap)) {
-		dev_err(dev, "Couldn't get regmap\n");
-		return -ENODEV;
-	}
+	if (IS_ERR(pcc->regmap))
+		return dev_err_probe(dev, PTR_ERR(pcc->regmap), "Couldn't get regmap\n");
 
 	rc = of_property_read_u32(dev->of_node, "pcc-ports", &pcc->port);
 	if (rc) {
 		dev_err(dev, "no pcc ports configured\n");
-		return -ENODEV;
+		return rc;
 	}
 
 	rc = dma_set_mask_and_coherent(dev, DMA_BIT_MASK(64));
@@ -346,9 +344,8 @@ static int aspeed_pcc_probe(struct platform_device *pdev)
 
 	fifo_size = roundup(pcc->dma.size, PAGE_SIZE);
 	rc = kfifo_alloc(&pcc->fifo, fifo_size, GFP_KERNEL);
-	if (rc) {
-		return -ENOMEM;
-	}
+	if (rc)
+		return rc;
 
 	/* Disable PCC to clean up DMA buffer before request IRQ. */
 	rc = aspeed_pcc_disable(pcc);
