@@ -1209,7 +1209,6 @@ static int aspeed_ast2700_setup(struct platform_device *pdev)
 
 	reset_control_assert(pcie->perst);
 
-	regmap_write(pcie->pciephy, PEHR_VID_DID, 0x11501a02);
 	regmap_write(pcie->pciephy, PEHR_MISC_70, 0xa00c0);
 	regmap_write(pcie->pciephy, PEHR_MISC_78, 0x80030);
 	regmap_write(pcie->pciephy, PEHR_MISC_58, LOCAL_SCALE_SUP);
