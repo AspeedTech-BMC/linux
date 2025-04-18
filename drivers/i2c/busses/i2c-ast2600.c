@@ -55,6 +55,7 @@
  */
 #define AST2600_I2CCG_DIV_CTRL 0xC6411208
 #define AST2700_I2CCG_DIV_CTRL 0xC6220904
+#define AST2700_MIN_AC_TIMING 12000
 
 /* 0x00 : I2CC Master/Slave Function Control Register  */
 #define AST2600_I2CC_FUN_CTRL		0x00
@@ -382,6 +383,12 @@ static u32 ast2700_select_i2c_clock(struct ast2600_i2c_bus *i2c_bus)
 	u32 scl_high;
 	u32 data;
 	u8  divid_term = 0;
+
+	/* The i2c minmum ac-timing is 12KHz */
+	if (i2c_bus->timing_info.bus_freq_hz < AST2700_MIN_AC_TIMING) {
+		dev_err(i2c_bus->dev, "The frequency could not be lower than 12KHz.\n");
+		i2c_bus->timing_info.bus_freq_hz = AST2700_MIN_AC_TIMING;
+	}
 
 	regmap_read(i2c_bus->global_regs, AST2600_I2CG_CLK_DIV_CTRL, &clk_div_reg);
 
@@ -2064,7 +2071,7 @@ static int ast2600_i2c_probe(struct platform_device *pdev)
 	if (ret)
 		return ret;
 
-	dev_info(dev, "%s [%d]: adapter [%d khz] mode [%d] version [%d]\n",
+	dev_info(dev, "%s [%d]: adapter [%d KHz] mode [%d] version [%d]\n",
 		 dev->of_node->name, i2c_bus->adap.nr, i2c_bus->timing_info.bus_freq_hz / 1000,
 		 i2c_bus->mode, i2c_bus->version);
 
