@@ -53,7 +53,8 @@
  * I2CG10[7:0] base clk1 for Fast-mode Plus (1Mhz) min tBuf 0.5us
  * 0x08 : 1Mhz		: 20Mhz						  : 0.8us
  */
-#define I2CCG_DIV_CTRL 0xC6411208
+#define AST2600_I2CCG_DIV_CTRL 0xC6411208
+#define AST2700_I2CCG_DIV_CTRL 0xC6220904
 
 /* 0x00 : I2CC Master/Slave Function Control Register  */
 #define AST2600_I2CC_FUN_CTRL		0x00
@@ -376,16 +377,36 @@ static u32 ast2700_select_i2c_clock(struct ast2600_i2c_bus *i2c_bus)
 	unsigned long base_clk;
 	int baseclk_idx = 0;
 	int divisor = 0;
+	u32 clk_div_reg;
 	u32 scl_low;
 	u32 scl_high;
 	u32 data;
+	u8  divid_term = 0;
 
-	for (int i = 0; i < 0x100; i++) {
-		base_clk = (i2c_bus->apb_clk) / (i + 1);
+	regmap_read(i2c_bus->global_regs, AST2600_I2CG_CLK_DIV_CTRL, &clk_div_reg);
+
+	/* Find the most used ac-timing */
+	for (int i = 0; i < 3; i++) {
+		divid_term = ((clk_div_reg >> (i << 3)) & GENMASK(7, 0));
+		base_clk = (i2c_bus->apb_clk) / (divid_term + 1);
+
 		if ((base_clk / i2c_bus->timing_info.bus_freq_hz) <= 32) {
-			baseclk_idx = i;
+			baseclk_idx = divid_term;
 			divisor = DIV_ROUND_UP(base_clk, i2c_bus->timing_info.bus_freq_hz);
 			break;
+		}
+	}
+
+	/* Can't find a ac-timing then search a fitting one */
+	if (baseclk_idx == 0) {
+		for (int i = 0; i < 0x100; i++) {
+			base_clk = (i2c_bus->apb_clk) / (i + 1);
+
+			if ((base_clk / i2c_bus->timing_info.bus_freq_hz) <= 32) {
+				baseclk_idx = i;
+				divisor = DIV_ROUND_UP(base_clk, i2c_bus->timing_info.bus_freq_hz);
+				break;
+			}
 		}
 	}
 
@@ -1942,7 +1963,10 @@ static int ast2600_i2c_probe(struct platform_device *pdev)
 	regmap_read(i2c_bus->global_regs, AST2600_I2CG_CTRL, &global_ctrl);
 	if ((global_ctrl & AST2600_GLOBAL_INIT) != AST2600_GLOBAL_INIT) {
 		regmap_write(i2c_bus->global_regs, AST2600_I2CG_CTRL, AST2600_GLOBAL_INIT);
-		regmap_write(i2c_bus->global_regs, AST2600_I2CG_CLK_DIV_CTRL, I2CCG_DIV_CTRL);
+		if (i2c_bus->version == AST2600)
+			regmap_write(i2c_bus->global_regs, AST2600_I2CG_CLK_DIV_CTRL, AST2600_I2CCG_DIV_CTRL);
+		else
+			regmap_write(i2c_bus->global_regs, AST2600_I2CG_CLK_DIV_CTRL, AST2700_I2CCG_DIV_CTRL);
 	}
 
 #if IS_ENABLED(CONFIG_I2C_SLAVE)
