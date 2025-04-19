@@ -1489,21 +1489,6 @@ static int i3c_hub_debugfs_init(struct i3c_hub *hub, const char *hub_id)
 				   &hub->tp_groups[i].io_strength_ohms);
 	}
 
-	/* for target ports*/
-	for (i = 0; i < hub->devinfo->n_ports; ++i) {
-		sprintf(file_name, "targe-port-%d", i);
-		tp_dir = debugfs_create_dir(file_name, dt_conf_dir);
-		if (IS_ERR(target_grp_dir))
-			goto err_remove;
-
-		debugfs_create_u32("mode", 0400, tp_dir, &hub->ports[i].mode);
-		debugfs_create_bool("io-internal-pullups-disble", 0400, tp_dir,
-				    &hub->ports[i].pullups_disable);
-		if (hub->ports[i].mode == PORT_MODE_I3C)
-			debugfs_create_bool("idle-disconnect", 0400, tp_dir,
-					    &hub->ports[i].bridge->idle_disconnect);
-	}
-
 	entry = debugfs_create_dir("reg", hub->debug_dir);
 	if (IS_ERR(entry))
 		goto err_remove;
@@ -1521,6 +1506,43 @@ static int i3c_hub_debugfs_init(struct i3c_hub *hub, const char *hub_id)
 err_remove:
 	debugfs_remove_recursive(hub->debug_dir);
 	return PTR_ERR(entry);
+}
+
+static int i3c_hub_target_port_debugfs_init(struct i3c_hub *hub)
+{
+	char file_name[32];
+	struct dentry *dt_conf_dir;
+	struct dentry *tp_dir;
+	int i;
+
+	dt_conf_dir = debugfs_lookup("dt-conf", hub->debug_dir);
+	if (!dt_conf_dir) {
+		dev_err(&hub->i3cdev->dev, "Failed to find dt-conf dir\n");
+		return -ENODEV;
+	}
+
+	for (i = 0; i < hub->devinfo->n_ports; ++i) {
+		sprintf(file_name, "targe-port-%d", i);
+		tp_dir = debugfs_create_dir(file_name, dt_conf_dir);
+		if (IS_ERR(tp_dir))
+			goto err_remove;
+
+		debugfs_create_u32("mode", 0400, tp_dir, &hub->ports[i].mode);
+		debugfs_create_bool("io-internal-pullups-disble", 0400, tp_dir,
+				    &hub->ports[i].pullups_disable);
+		if (hub->ports[i].mode == PORT_MODE_I3C)
+			debugfs_create_bool("idle-disconnect", 0400, tp_dir,
+					    &hub->ports[i].bridge->idle_disconnect);
+		else if (hub->ports[i].mode == PORT_MODE_AGENT)
+			debugfs_create_u32("clock-frequency", 0400, tp_dir,
+					   &hub->ports[i].agent->clk_freq);
+	}
+
+	return 0;
+
+err_remove:
+	debugfs_remove_recursive(tp_dir);
+	return PTR_ERR(tp_dir);
 }
 
 static int i3c_hub_set_cp_ldo(struct i3c_hub *hub, u32 cp, u32 ldo_volt)
@@ -2185,6 +2207,8 @@ static void i3c_hub_delayed_work(struct work_struct *work)
 			dev_err(dev, "ports init failed\n");
 	}
 	i3c_hub_protect_register(hub);
+
+	i3c_hub_target_port_debugfs_init(hub);
 
 	mutex_unlock(&hub_lock);
 }
