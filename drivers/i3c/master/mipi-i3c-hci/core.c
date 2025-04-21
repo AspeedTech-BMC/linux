@@ -240,6 +240,9 @@ static void aspeed_i3c_of_populate_bus_timing(struct i3c_hci *hci, struct device
 	ast_phy_write(PHY_I3C_SDR0_CTRL1, ctrl1);
 	ast_phy_write(PHY_I3C_DDR_CTRL1, ctrl1);
 
+	/* The push-pull high count is used as both tCAS and tCBP. */
+	ast_phy_write(PHY_I3C_OD_CTRL0, FIELD_PREP(PHY_I3C_OD_CTRL0_CAS, hcnt) |
+						FIELD_PREP(PHY_I3C_OD_CTRL0_CBP, hcnt));
 	/*
 	 * The SR_P hold time uses the default value, and the SR_P low count is
 	 * the same as the push-pull low count.
@@ -277,10 +280,6 @@ static void aspeed_i3c_of_populate_bus_timing(struct i3c_hci *hci, struct device
 	ast_phy_write(PHY_I3C_OD_CTRL3, FIELD_PREP(PHY_I3C_OD_CTRL3_HD_DAT, hcnt) |
 						FIELD_PREP(PHY_I3C_OD_CTRL3_AHD_DAT, lcnt));
 
-	hcnt = DIV_ROUND_CLOSEST(PHY_I3C_OD_DEFAULT_CAS_NS, core_period) - 1;
-	lcnt = DIV_ROUND_CLOSEST(PHY_I3C_OD_DEFAULT_CBP_NS, core_period) - 1;
-	ast_phy_write(PHY_I3C_OD_CTRL0, FIELD_PREP(PHY_I3C_OD_CTRL0_CAS, hcnt) |
-						FIELD_PREP(PHY_I3C_OD_CTRL0_CBP, lcnt));
 	if (internal_pu)
 		ast_phy_write(PHY_SW_FORCE_CTRL,
 			      PHY_SW_FORCE_CTRL_SCL_PU_EN | PHY_SW_FORCE_CTRL_SDA_PU_EN |
