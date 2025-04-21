@@ -546,7 +546,7 @@
 	gpio_143 {
 		gpio-hog;
 		gpios = <143 GPIO_ACTIVE_HIGH>;
-		output-high;
+		output-low;
 		line-name = "SURPRISE_RESET";
 	};
 };

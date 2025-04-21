@@ -479,7 +479,7 @@
 	gpio_63 {
 		gpio-hog;
 		gpios = <63 GPIO_ACTIVE_HIGH>;
-		output-high;
+		output-low;
 		line-name = "SURPRISE_RESET";
 	};
 };
