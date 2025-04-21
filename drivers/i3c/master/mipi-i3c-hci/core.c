@@ -183,7 +183,7 @@ static void aspeed_i3c_of_populate_bus_timing(struct i3c_hci *hci, struct device
 	u16 hcnt, lcnt, total_cnt, min_tbit_cnt;
 	unsigned long core_rate, core_period;
 	u32 val, pp_high = 0, pp_low = 0, od_high = 0, od_low = 0, thd_dat = 0, internal_pu = 0;
-	u32 ctrl0, ctrl1, ctrl2;
+	u32 ctrl0, ctrl1, ctrl2, sr_p_prepare_ctrl;
 	u32 sdr_ctrl0_reg = aspeed_i3c_get_sdr_phy_reg(hci);
 
 	core_rate = clk_get_rate(hci->clk);
@@ -239,6 +239,15 @@ static void aspeed_i3c_of_populate_bus_timing(struct i3c_hci *hci, struct device
 	ast_phy_write(sdr_ctrl0_reg + PHY_I3C_CTRL1_OFFSET, ctrl1);
 	ast_phy_write(PHY_I3C_SDR0_CTRL1, ctrl1);
 	ast_phy_write(PHY_I3C_DDR_CTRL1, ctrl1);
+
+	/*
+	 * The SR_P hold time uses the default value, and the SR_P low count is
+	 * the same as the push-pull low count.
+	 */
+	hcnt = DIV_ROUND_CLOSEST(PHY_I3C_SR_P_DEFAULT_HD_NS, core_period);
+	sr_p_prepare_ctrl = FIELD_PREP(PHY_I3C_SR_P_PREPARE_CTRL_HD, hcnt) |
+			    FIELD_PREP(PHY_I3C_SR_P_PREPARE_CTRL_SCL_L, lcnt);
+	ast_phy_write(PHY_I3C_SR_P_PREPARE_CTRL, sr_p_prepare_ctrl);
 
 	if (od_high && od_low) {
 		hcnt = DIV_ROUND_CLOSEST(od_high, core_period) - 1;
