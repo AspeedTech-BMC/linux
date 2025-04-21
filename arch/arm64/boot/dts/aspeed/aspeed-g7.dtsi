@@ -637,7 +637,7 @@
 			status = "disabled";
 		};
 
-		gpio1: gpio@12c11000 {
+		gpio0: gpio@12c11000 {
 			#gpio-cells = <2>;
 			gpio-controller;
 			compatible = "aspeed,ast2700-gpio";
@@ -1600,7 +1600,7 @@
 			status = "disabled";
 		};
 
-		gpio0: gpio@14c0b000 {
+		gpio1: gpio@14c0b000 {
 			#gpio-cells = <2>;
 			gpio-controller;
 			compatible = "aspeed,ast2700-gpio";
