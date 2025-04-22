@@ -885,6 +885,11 @@ static bool hci_dma_irq_handler(struct i3c_hci *hci, unsigned int mask)
 			hci_dma_process_ibi(hci, rh);
 		if (status & (INTR_TRANSFER_COMPLETION | INTR_TRANSFER_ERR)) {
 			hci_dma_xfer_done(hci, rh);
+			if (unlikely(status & INTR_TRANSFER_ERR)) {
+				dev_warn(&hci->master.dev,
+					 "ring %d: Transfer Error\n", i);
+				mipi_i3c_hci_resume(hci);
+			}
 		}
 		if (status & INTR_RING_OP)
 			complete(&rh->op_done);
