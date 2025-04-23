@@ -2040,11 +2040,20 @@ static int ftgmac100_probe(struct platform_device *pdev)
 	}
 
 	if (priv->sgmii) {
-		/* The default is Nway on SGMII. */
-		err = phy_init(priv->sgmii);
-		if (err) {
-			dev_err(priv->dev, "Failed to init sgmii phy\n");
-			goto err_register_netdev;
+		/* If using fixed link in dts, sgmii need to be forced */
+		if (of_phy_is_fixed_link(np)) {
+			err = phy_set_speed(priv->sgmii, netdev->phydev->speed);
+			if (err) {
+				dev_err(priv->dev, "Failed to force sgmii speed\n");
+				goto err_register_netdev;
+			}
+		} else {
+			/* The phy_init is used to configure Nway */
+			err = phy_init(priv->sgmii);
+			if (err) {
+				dev_err(priv->dev, "Failed to configure sgmii Nway\n");
+				goto err_register_netdev;
+			}
 		}
 	}
 
