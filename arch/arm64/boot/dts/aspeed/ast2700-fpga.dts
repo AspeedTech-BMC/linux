@@ -11,7 +11,7 @@
 #define PCIE2_RC 1	// 1: RC, 0: SGMII
 
 / {
-	model = "AST2700-EVB";
+	model = "AST2700-FPGA";
 	compatible = "aspeed,ast2700-evb", "aspeed,ast2700";
 
 	chosen {
