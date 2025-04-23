@@ -68,7 +68,7 @@ static irqreturn_t ast2700_mbox_irq(int irq, void *p)
 		if (!(status & RX_IRQ(n)))
 			continue;
 
-		for (data_reg = mb->regs + IPCR_RX_DATA,
+		for (data_reg = mb->regs + IPCR_RX_DATA + mb->drv_data->msg_size * n,
 		     word_data = chan->con_priv,
 		     num_words = (mb->drv_data->msg_size / sizeof(u32));
 		     num_words; num_words--, data_reg += sizeof(u32), word_data++)
@@ -101,7 +101,7 @@ static int ast2700_mbox_send_data(struct mbox_chan *chan, void *data)
 		return -EBUSY;
 	}
 
-	for (data_reg = mb->regs + IPCR_TX_DATA,
+	for (data_reg = mb->regs + IPCR_TX_DATA + mb->drv_data->msg_size * idx,
 	     num_words = (mb->drv_data->msg_size / sizeof(u32)),
 	     word_data = (u32 *)data;
 	     num_words; num_words--, data_reg += sizeof(u32), word_data++)
