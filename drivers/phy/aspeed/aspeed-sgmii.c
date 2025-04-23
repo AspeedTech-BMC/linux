@@ -11,6 +11,7 @@
 #include <linux/ethtool.h>
 
 #define SGMII_CFG			0x00
+#define SGMII_PHY_CFG1			0x18
 #define SGMII_PHY_PIPE_CTL		0x20
 #define SGMII_FIFO_DELAY_THREHOLD	0x28
 #define SGMII_MODE			0x30
@@ -83,8 +84,47 @@ static int aspeed_sgmii_phy_exit(struct phy *phy)
 	return 0;
 }
 
+static int aspeed_sgmii_phy_set_speed(struct phy *phy, int speed)
+{
+	struct aspeed_sgmii *sgmii = phy_get_drvdata(phy);
+	u32 reg;
+
+	reg = PLDA_CLK_SEL_INTERNAL_25M | FIELD_PREP(PLDA_CLK_FREQ_MULTI, 0x2b);
+	regmap_write(sgmii->plda_regmap, PLDA_CLK, reg);
+
+	switch (speed) {
+	case SPEED_10:
+		reg = SGMII_CFG_SPEED_10M;
+		break;
+	case SPEED_100:
+		reg = SGMII_CFG_SPEED_100M;
+		break;
+	case SPEED_1000:
+		reg = SGMII_CFG_SPEED_1G;
+		break;
+	default:
+		return -EINVAL;
+	}
+
+	writel(0, sgmii->regs + SGMII_MODE);
+
+	writel((reg >> 2), sgmii->regs + SGMII_PHY_CFG1);
+
+	writel(0, sgmii->regs + SGMII_CFG);
+	writel(SGMII_CFG_SW_RESET | SGMII_CFG_PWR_DOWN, sgmii->regs + SGMII_CFG);
+	writel(reg, sgmii->regs + SGMII_CFG);
+
+	writel(0x0a, sgmii->regs + SGMII_FIFO_DELAY_THREHOLD);
+	writel(SGMII_PCTL_TX_DEEMPH_3_5DB, sgmii->regs + SGMII_PHY_PIPE_CTL);
+
+	writel(SGMII_MODE_ENABLE | SGMII_MODE_USE_LOCAL_CONFIG, sgmii->regs + SGMII_MODE);
+
+	return 0;
+}
+
 static const struct phy_ops aspeed_sgmii_phyops = {
 	.init		= aspeed_sgmii_phy_init,
+	.set_speed	= aspeed_sgmii_phy_set_speed,
 	.exit		= aspeed_sgmii_phy_exit,
 	.owner		= THIS_MODULE,
 };
