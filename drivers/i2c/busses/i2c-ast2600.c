@@ -545,7 +545,6 @@ static void ast2700_i2c_slave_packet_dma_irq(struct ast2600_i2c_bus *i2c_bus, u3
 		AST2600_I2CS_SLAVE_MATCH | AST2600_I2CS_RX_DONE | AST2600_I2CS_STOP:
 		writel(AST2600_I2CS_SLAVE_MATCH, i2c_bus->reg_base + AST2600_I2CS_ISR);
 		isr = readl(i2c_bus->reg_base + AST2600_I2CS_ISR);
-
 		sirq_log = readl(i2c_bus->reg_base + AST2700_I2CC_SIRQ_LOG);
 		if (!i2c_bus->slave)
 			ast2700_i2c_get_slave(i2c_bus, sirq_log >> SLAVE_ADDR_SHIFT);
@@ -560,7 +559,6 @@ static void ast2700_i2c_slave_packet_dma_irq(struct ast2600_i2c_bus *i2c_bus, u3
 		}
 		i2c_slave_event(i2c_bus->slave, I2C_SLAVE_STOP, &value);
 		i2c_bus->slave = NULL;
-
 		sirq_log = readl(i2c_bus->reg_base + AST2700_I2CC_SIRQ_LOG);
 		if (!i2c_bus->slave)
 			ast2700_i2c_get_slave(i2c_bus, sirq_log >> SLAVE_ADDR_SHIFT);
@@ -863,9 +861,8 @@ static void ast2600_i2c_slave_packet_dma_irq(struct ast2600_i2c_bus *i2c_bus, u3
 		return;
 	}
 
-	sts &= ~(AST2600_I2CS_PKT_DONE | AST2600_I2CS_PKT_ERROR);
-
 	i2c_bus->slave = i2c_bus->multi_slave[AST2600_I2CS_GET_SLAVE(sts)];
+	sts &= ~(AST2600_I2CS_PKT_DONE | AST2600_I2CS_PKT_ERROR | AST2600_I2CS_ADDR_INDICATE_MASK);
 
 	switch (sts) {
 	case AST2600_I2CS_SLAVE_MATCH | AST2600_I2CS_WAIT_RX_DMA:
@@ -1006,9 +1003,8 @@ static void ast2600_i2c_slave_packet_buff_irq(struct ast2600_i2c_bus *i2c_bus, u
 		return;
 	}
 
-	sts &= ~(AST2600_I2CS_PKT_DONE | AST2600_I2CS_PKT_ERROR);
-
 	i2c_bus->slave = i2c_bus->multi_slave[AST2600_I2CS_GET_SLAVE(sts)];
+	sts &= ~(AST2600_I2CS_PKT_DONE | AST2600_I2CS_PKT_ERROR | AST2600_I2CS_ADDR_INDICATE_MASK);
 
 	if (sts & AST2600_I2CS_SLAVE_MATCH)
 		i2c_bus->slave_operate = 1;
@@ -1193,6 +1189,7 @@ static void ast2600_i2c_slave_byte_irq(struct ast2600_i2c_bus *i2c_bus, u32 sts)
 	u8 value;
 
 	i2c_bus->slave = i2c_bus->multi_slave[AST2600_I2CS_GET_SLAVE(sts)];
+	sts &= ~(AST2600_I2CS_ADDR_INDICATE_MASK);
 
 	switch (sts) {
 	case AST2600_I2CS_SLAVE_MATCH | AST2600_I2CS_RX_DONE | AST2600_I2CS_WAIT_RX_DMA:
@@ -1243,7 +1240,7 @@ static int ast2600_i2c_slave_irq(struct ast2600_i2c_bus *i2c_bus)
 	if (readl(i2c_bus->reg_base + AST2600_I2CM_ISR) & AST2600_I2CM_PKT_DONE)
 		return 0;
 
-	isr &= ~(AST2600_I2CS_ADDR_INDICATE_MASK);
+	isr &= ~(AST2600_I2CS_ADDR_MASK);
 
 	if (AST2600_I2CS_PKT_DONE & isr) {
 		if (i2c_bus->mode == DMA_MODE) {
