@@ -225,7 +225,7 @@ static void aspeed_spi_start_user(struct aspeed_spi_chip *chip)
 
 static void aspeed_spi_stop_user(struct aspeed_spi_chip *chip)
 {
-	u32 ctl = chip->ctl_val[ASPEED_SPI_READ] |
+	u32 ctl = chip->ctl_val[ASPEED_SPI_BASE] |
 		CTRL_IO_MODE_USER | CTRL_CE_STOP_ACTIVE;
 
 	writel(ctl, chip->ctl);
