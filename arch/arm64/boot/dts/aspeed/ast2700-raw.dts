@@ -1,0 +1,220 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
+
+/dts-v1/;
+
+#include "ast2700-evb.dts"
+
+&fmc {
+	status = "okay";
+	pinctrl-0 = <&pinctrl_fwspi_quad_default>;
+	pinctrl-names = "default";
+
+	flash@0 {
+		status = "okay";
+		m25p,fast-read;
+		label = "bmc";
+		spi-max-frequency = <50000000>;
+		spi-tx-bus-width = <2>;
+		spi-rx-bus-width = <2>;
+#include "aspeed-evb-flash-layout-128.dtsi"
+	};
+
+	flash@1 {
+		status = "okay";
+		m25p,fast-read;
+		label = "fmc0:1";
+		spi-max-frequency = <50000000>;
+		spi-tx-bus-width = <2>;
+		spi-rx-bus-width = <2>;
+	};
+
+	flash@2 {
+		status = "disabled";
+		m25p,fast-read;
+		label = "fmc0:2";
+		spi-max-frequency = <50000000>;
+		spi-tx-bus-width = <2>;
+		spi-rx-bus-width = <2>;
+	};
+};
+
+&spi0 {
+	status = "okay";
+	pinctrl-0 = <&pinctrl_spi0_default &pinctrl_spi0_cs1_default>;
+	pinctrl-names = "default";
+
+	flash@0 {
+		status = "okay";
+		m25p,fast-read;
+		label = "spi0:0";
+		spi-max-frequency = <50000000>;
+		spi-tx-bus-width = <2>;
+		spi-rx-bus-width = <2>;
+	};
+
+	flash@1 {
+		status = "disabled";
+		m25p,fast-read;
+		label = "spi0:1";
+		spi-max-frequency = <50000000>;
+		spi-tx-bus-width = <2>;
+		spi-rx-bus-width = <2>;
+	};
+};
+
+&spi1 {
+	status = "okay";
+	pinctrl-0 = <&pinctrl_spi1_default &pinctrl_spi1_cs1_default>;
+	pinctrl-names = "default";
+
+	flash@0 {
+		status = "okay";
+		m25p,fast-read;
+		label = "spi1:0";
+		spi-max-frequency = <50000000>;
+		spi-tx-bus-width = <2>;
+		spi-rx-bus-width = <2>;
+	};
+
+	flash@1 {
+		status = "disabled";
+		m25p,fast-read;
+		label = "spi1:1";
+		spi-max-frequency = <50000000>;
+		spi-tx-bus-width = <2>;
+		spi-rx-bus-width = <2>;
+	};
+};
+
+&spi2 {
+	status = "disabled";
+};
+
+&emmc_controller {
+	status = "disabled";
+};
+
+&emmc {
+	status = "disabled";
+};
+
+&ufs_controller {
+	status = "disabled";
+};
+
+&ufs {
+	status = "disabled";
+};
+
+&video0 {
+	status = "disabled";
+};
+
+&video1 {
+	status = "disabled";
+};
+
+&disp_intf {
+	status = "disabled";
+};
+
+#if PCIE0_EP
+&bmc_dev0 {
+	status = "disabled";
+};
+
+&xdma0 {
+	status = "disabled";
+};
+
+&pcie_vuart0 {
+	status = "disabled";
+};
+
+&pcie_vuart1 {
+	status = "disabled";
+};
+
+&pcie_lpc0_kcs0 {
+	status = "disabled";
+};
+
+&pcie_lpc0_kcs1 {
+	status = "disabled";
+};
+
+&pcie_lpc0_kcs2 {
+	status = "disabled";
+};
+
+&pcie_lpc0_kcs3 {
+	status = "disabled";
+};
+
+&pcie_lpc0_ibt {
+	status = "disabled";
+};
+
+&pcie0_mmbi0 {
+	status = "disabled";
+};
+#else
+&pcie0 {
+	status = "disabled";
+};
+#endif
+
+#if PCIE1_EP
+&bmc_dev1 {
+	status = "disabled";
+};
+
+&xdma1 {
+	status = "disabled";
+};
+
+&pcie_vuart2 {
+	status = "disabled";
+};
+
+&pcie_vuart3 {
+	status = "disabled";
+};
+
+&pcie_lpc1_kcs0 {
+	status = "disabled";
+};
+
+&pcie_lpc1_kcs1 {
+	status = "disabled";
+};
+
+&pcie_lpc1_kcs2 {
+	status = "disabled";
+};
+
+&pcie_lpc1_kcs3 {
+	status = "disabled";
+};
+
+&pcie_lpc1_ibt {
+	status = "disabled";
+};
+
+&pcie1_mmbi4 {
+	status = "disabled";
+};
+#else
+&pcie1 {
+	status = "disabled";
+};
+#endif
+
+&sdio_controller {
+	status = "disabled";
+};
+
+&sdhci {
+	status = "disabled";
+};
+
