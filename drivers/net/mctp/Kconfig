@@ -42,6 +42,16 @@ config MCTP_TRANSPORT_I3C
 	  A MCTP protocol network device is created for each I3C bus
 	  having a "mctp-controller" devicetree property.
 
+config MCTP_TRANSPORT_PCIE_VDM
+	tristate "MCTP PCIe VDM transport"
+	depends on NET
+	depends on PCI
+	select MCTP_FLOWS
+	help
+	  Provides a driver to access MCTP devices over PCIe VDM transport,
+	  from DMTF specification DSP0238.
+
+
 endmenu
 
 endif
