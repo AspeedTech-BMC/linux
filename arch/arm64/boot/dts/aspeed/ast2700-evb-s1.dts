@@ -7,6 +7,76 @@
 	model = "AST2700-EVB Test S1 Test";
 };
 
+&mdio0 {
+	status = "okay";
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	ethphy0: ethernet-phy@0 {
+		compatible = "ethernet-phy-ieee802.3-c22";
+		reg = <0>;
+	};
+};
+
+&mdio1 {
+	status = "okay";
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	ethphy1: ethernet-phy@0 {
+		compatible = "ethernet-phy-ieee802.3-c22";
+		reg = <0>;
+		/* For DDR5 board */
+		ti,rx-internal-delay = <DP83867_RGMIIDCTL_2_00_NS>;
+		ti,tx-internal-delay = <DP83867_RGMIIDCTL_2_00_NS>;
+	};
+};
+
+&mac0 {
+	status = "okay";
+
+	phy-mode = "rgmii-id";
+	phy-handle = <&ethphy0>;
+
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_rgmii0_default &pinctrl_rgmii0_driving>;
+};
+
+&mac1 {
+	status = "okay";
+
+	phy-mode = "rgmii-id";
+	phy-handle = <&ethphy1>;
+
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_rgmii1_default &pinctrl_rgmii1_driving>;
+};
+
+&pcie0 {
+	status = "okay";
+};
+
+&pcie1 {
+	status = "okay";
+};
+
+&pcie2 {
+	status = "okay";
+};
+
+&syscon1 {
+	mac0-clk-delay = <0x18 0x16
+			  0x10 0x10
+			  0x10 0x10>;
+	mac1-clk-delay = <0x18 0x17
+			  0x10 0x10
+			  0x10 0x10>;
+	assigned-clocks = <&syscon1 SCU1_CLK_MACHCLK>,
+			  <&syscon1 SCU1_CLK_RGMII>,
+			  <&syscon1 SCU1_CLK_RMII>;
+	assigned-clock-rates = <200000000>, <125000000>, <50000000>;
+};
+
 &espi1 {
 	status = "okay";
 	perif-dma-mode;
