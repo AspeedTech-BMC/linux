@@ -1190,6 +1190,23 @@ static void ast2600_i2c_slave_byte_irq(struct ast2600_i2c_bus *i2c_bus, u32 sts)
 	u8 byte_data;
 	u8 value;
 
+	/* Handle i2c slave timeout condition */
+	if (AST2600_I2CS_INACTIVE_TO & sts) {
+		/* Reset time out counter */
+		u32 ac_timing = readl(i2c_bus->reg_base + AST2600_I2CC_AC_TIMING) &
+				AST2600_I2CC_AC_TIMING_MASK;
+
+		writel(ac_timing, i2c_bus->reg_base + AST2600_I2CC_AC_TIMING);
+		ac_timing |= AST2600_I2CC_TTIMEOUT(i2c_bus->timeout);
+		writel(ac_timing, i2c_bus->reg_base + AST2600_I2CC_AC_TIMING);
+		/* Clear irq and re-send slave trigger command */
+		writel(cmd, i2c_bus->reg_base + AST2600_I2CS_CMD_STS);
+		writel(sts, i2c_bus->reg_base + AST2600_I2CS_ISR);
+		readl(i2c_bus->reg_base + AST2600_I2CS_ISR);
+		i2c_slave_event(i2c_bus->slave, I2C_SLAVE_STOP, &value);
+		return;
+	}
+
 	i2c_bus->slave = i2c_bus->multi_slave[AST2600_I2CS_GET_SLAVE(sts)];
 	sts &= ~(AST2600_I2CS_ADDR_INDICATE_MASK);
 
