@@ -660,6 +660,8 @@ static void ast2700_i2c_slave_packet_dma_irq(struct ast2600_i2c_bus *i2c_bus, u3
 		sirq_log = readl(i2c_bus->reg_base + AST2700_I2CC_SIRQ_LOG);
 		/* workaround new slave match */
 		if (sirq_log & SADDR_HIT) {
+			if (!i2c_bus->slave)
+				ast2700_i2c_get_slave(i2c_bus, sirq_log >> SLAVE_ADDR_SHIFT);
 			i2c_slave_event(i2c_bus->slave, I2C_SLAVE_WRITE_REQUESTED,
 					&i2c_bus->slave_dma_buf[0]);
 			sirq_log = readl(i2c_bus->reg_base + AST2700_I2CC_SIRQ_LOG);
