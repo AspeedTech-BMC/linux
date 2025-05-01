@@ -21,6 +21,94 @@
 	flash-dma-mode;
 };
 
+&bmc_dev0 {
+	status = "disabled";
+};
+
+&xdma0 {
+	status = "disabled";
+};
+
+&pcie_vuart0 {
+	status = "disabled";
+};
+
+&pcie_vuart1 {
+	status = "disabled";
+};
+
+&pcie_lpc0_kcs0 {
+	status = "disabled";
+};
+
+&pcie_lpc0_kcs1 {
+	status = "disabled";
+};
+
+&pcie_lpc0_kcs2 {
+	status = "disabled";
+};
+
+&pcie_lpc0_kcs3 {
+	status = "disabled";
+};
+
+&pcie_lpc0_ibt {
+	status = "disabled";
+};
+
+&pcie0_mmbi0 {
+	status = "disabled";
+};
+
+&pcie0 {
+	status = "okay";
+};
+
+&bmc_dev1 {
+	status = "disabled";
+};
+
+&xdma1 {
+	status = "disabled";
+};
+
+&pcie_vuart2 {
+	status = "disabled";
+};
+
+&pcie_vuart3 {
+	status = "disabled";
+};
+
+&pcie_lpc1_kcs0 {
+	status = "disabled";
+};
+
+&pcie_lpc1_kcs1 {
+	status = "disabled";
+};
+
+&pcie_lpc1_kcs2 {
+	status = "disabled";
+};
+
+&pcie_lpc1_kcs3 {
+	status = "disabled";
+};
+
+&pcie_lpc1_ibt {
+	status = "disabled";
+};
+
+&pcie1_mmbi4 {
+	status = "disabled";
+};
+
+&pcie1 {
+	status = "okay";
+};
+
 &sdio_controller {
 	status = "disabled";
 };
