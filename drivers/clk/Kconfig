@@ -283,6 +283,12 @@ config COMMON_CLK_AST1700
 	help
 	  This driver supports the AST1700 clocks on the Aspeed BMC platforms.
 
+config COMMON_CLK_AST1800
+        bool "Clock driver for AST1800"
+        depends on ARCH_ASPEED || COMPILE_TEST
+        help
+          This driver supports the AST1700 clocks on the Aspeed BMC platforms.
+
 config COMMON_CLK_S2MPS11
 	tristate "Clock driver for S2MPS1X/S5M8767 MFD"
 	depends on MFD_SEC_CORE || COMPILE_TEST
