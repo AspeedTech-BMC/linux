@@ -21,6 +21,32 @@
 	flash-dma-mode;
 };
 
+&pcie2 {
+	status = "disabled";
+};
+
+&mdio2 {
+	status = "okay";
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	ethphy2: ethernet-phy@0 {
+		compatible = "ethernet-phy-ieee802.3-c22";
+		reg = <0>;
+	};
+};
+
+&sgmii {
+	status = "okay";
+};
+
+&mac2 {
+	status = "okay";
+
+	phy-mode = "sgmii";
+	phy-handle = <&ethphy2>;
+};
+
 &sdio_controller {
 	status = "disabled";
 };
