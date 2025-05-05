@@ -78,6 +78,7 @@
 /* 0x04 : I2CC Master/Slave Clock and AC Timing Control Register #1 */
 #define AST2600_I2CC_AC_TIMING		0x04
 #define AST2600_I2CC_TTIMEOUT(x)			(((x) & GENMASK(4, 0)) << 24)
+#define AST2700_I2CC_TTIMEOUT(x)			(((x) & GENMASK(5, 0)) << 24)
 #define AST2600_I2CC_TCKHIGHMIN(x)			(((x) & GENMASK(3, 0)) << 20)
 #define AST2600_I2CC_TCKHIGH(x)			(((x) & GENMASK(3, 0)) << 16)
 #define AST2600_I2CC_TCKLOW(x)			(((x) & GENMASK(3, 0)) << 12)
@@ -513,6 +514,13 @@ static void ast2700_i2c_slave_packet_dma_irq(struct ast2600_i2c_bus *i2c_bus, u3
 	sts = isr & ~(AST2600_I2CS_SLAVE_PENDING | AST2600_I2CS_ADDR_NAK_MASK);
 	/* Handle i2c slave timeout condition */
 	if (AST2600_I2CS_INACTIVE_TO & sts) {
+		/* Reset time out counter */
+		u32 ac_timing = readl(i2c_bus->reg_base + AST2600_I2CC_AC_TIMING) &
+				AST2600_I2CC_AC_TIMING_MASK;
+
+		writel(ac_timing, i2c_bus->reg_base + AST2600_I2CC_AC_TIMING);
+		ac_timing |= AST2700_I2CC_TTIMEOUT(i2c_bus->timeout);
+		writel(ac_timing, i2c_bus->reg_base + AST2600_I2CC_AC_TIMING);
 		cmd = SLAVE_TRIGGER_CMD | AST2600_I2CS_RX_DMA_EN;
 		writel(AST2600_I2CS_SET_RX_DMA_LEN(I2C_SLAVE_MSG_BUF_SIZE),
 		       i2c_bus->reg_base + AST2600_I2CS_DMA_LEN);
