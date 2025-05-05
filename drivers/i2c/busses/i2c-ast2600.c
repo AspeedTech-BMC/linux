@@ -526,10 +526,16 @@ static void ast2700_i2c_slave_packet_dma_irq(struct ast2600_i2c_bus *i2c_bus, u3
 		       i2c_bus->reg_base + AST2600_I2CS_DMA_LEN);
 		writel(cmd, i2c_bus->reg_base + AST2600_I2CS_CMD_STS);
 		/* clear sirq log */
-		while (readl(i2c_bus->reg_base + AST2700_I2CC_SIRQ_LOG))
-			;
+		while (readl(i2c_bus->reg_base + AST2700_I2CC_SIRQ_LOG)) {
+			/* assign the slave client*/
+			if (sirq_log & SADDR_HIT) {
+				if (!i2c_bus->slave)
+					ast2700_i2c_get_slave(i2c_bus, sirq_log >> SLAVE_ADDR_SHIFT);
+			}
+		};
 		writel(isr, i2c_bus->reg_base + AST2600_I2CS_ISR);
 		i2c_slave_event(i2c_bus->slave, I2C_SLAVE_STOP, &value);
+		i2c_bus->slave = NULL;
 		return;
 	}
 
@@ -860,6 +866,9 @@ static void ast2600_i2c_slave_packet_dma_irq(struct ast2600_i2c_bus *i2c_bus, u3
 
 	sts &= ~(AST2600_I2CS_SLAVE_PENDING | AST2600_I2CS_SADDR_PENDING
 	| AST2600_I2CS_ADDR_NAK_MASK);
+
+	i2c_bus->slave = i2c_bus->multi_slave[AST2600_I2CS_GET_SLAVE(sts)];
+
 	/* Handle i2c slave timeout condition */
 	if (AST2600_I2CS_INACTIVE_TO & sts) {
 		/* Reset time out counter */
@@ -878,7 +887,6 @@ static void ast2600_i2c_slave_packet_dma_irq(struct ast2600_i2c_bus *i2c_bus, u3
 		return;
 	}
 
-	i2c_bus->slave = i2c_bus->multi_slave[AST2600_I2CS_GET_SLAVE(sts)];
 	sts &= ~(AST2600_I2CS_PKT_DONE | AST2600_I2CS_PKT_ERROR | AST2600_I2CS_ADDR_INDICATE_MASK);
 
 	switch (sts) {
@@ -1003,6 +1011,8 @@ static void ast2600_i2c_slave_packet_buff_irq(struct ast2600_i2c_bus *i2c_bus, u
 		complete(&i2c_bus->cmd_complete);
 	}
 
+	i2c_bus->slave = i2c_bus->multi_slave[AST2600_I2CS_GET_SLAVE(sts)];
+
 	/* Handle i2c slave timeout condition */
 	if (AST2600_I2CS_INACTIVE_TO & sts) {
 		/* Reset time out counter */
@@ -1020,7 +1030,6 @@ static void ast2600_i2c_slave_packet_buff_irq(struct ast2600_i2c_bus *i2c_bus, u
 		return;
 	}
 
-	i2c_bus->slave = i2c_bus->multi_slave[AST2600_I2CS_GET_SLAVE(sts)];
 	sts &= ~(AST2600_I2CS_PKT_DONE | AST2600_I2CS_PKT_ERROR | AST2600_I2CS_ADDR_INDICATE_MASK);
 
 	if (sts & AST2600_I2CS_SLAVE_MATCH)
@@ -1205,6 +1214,8 @@ static void ast2600_i2c_slave_byte_irq(struct ast2600_i2c_bus *i2c_bus, u32 sts)
 	u8 byte_data;
 	u8 value;
 
+	i2c_bus->slave = i2c_bus->multi_slave[AST2600_I2CS_GET_SLAVE(sts)];
+
 	/* Handle i2c slave timeout condition */
 	if (AST2600_I2CS_INACTIVE_TO & sts) {
 		/* Reset time out counter */
@@ -1222,7 +1233,6 @@ static void ast2600_i2c_slave_byte_irq(struct ast2600_i2c_bus *i2c_bus, u32 sts)
 		return;
 	}
 
-	i2c_bus->slave = i2c_bus->multi_slave[AST2600_I2CS_GET_SLAVE(sts)];
 	sts &= ~(AST2600_I2CS_ADDR_INDICATE_MASK);
 
 	switch (sts) {
