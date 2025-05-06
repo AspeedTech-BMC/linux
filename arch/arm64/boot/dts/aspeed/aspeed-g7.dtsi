@@ -2379,6 +2379,15 @@
 			status = "disabled";
 		};
 
+		mbox2: mbox@14c39200 {
+			compatible = "aspeed,ast2700-mailbox";
+			reg = <0x0 0x14c39200 0x0 0x200>;
+			interrupts-extended = <&intc1_5 17>;
+			#mbox-cells = <1>;
+			mbox-name = "bootmcu";
+			status = "disabled";
+		};
+
 		sgpios: sgpios@14c3c000 {
 			#gpio-cells = <2>;
 			gpio-controller;
