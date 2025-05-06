@@ -1522,7 +1522,7 @@ static int i3c_hub_target_port_debugfs_init(struct i3c_hub *hub)
 	}
 
 	for (i = 0; i < hub->devinfo->n_ports; ++i) {
-		sprintf(file_name, "targe-port-%d", i);
+		sprintf(file_name, "target-port-%d", i);
 		tp_dir = debugfs_create_dir(file_name, dt_conf_dir);
 		if (IS_ERR(tp_dir))
 			goto err_remove;
