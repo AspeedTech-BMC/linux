@@ -1,0 +1,229 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
+
+/dts-v1/;
+
+#include "ast2700-dcscm.dts"
+#include "aspeed-ltpi1800.dtsi"
+
+/ {
+	model = "AST2700-DCSCM_AST1700-EVB";
+
+	ltpi0-iio-hwmon {
+		compatible = "iio-hwmon";
+		io-channels = <&ltpi0_adc0 0>, <&ltpi0_adc0 1>, <&ltpi0_adc0 2>, <&ltpi0_adc0 3>,
+				<&ltpi0_adc0 4>, <&ltpi0_adc0 5>, <&ltpi0_adc0 6>, <&ltpi0_adc0 7>;
+	};
+};
+
+&sgpios {
+	/delete-property/ gpio-line-names;
+};
+
+&ltpi0_gpio {
+	/delete-property/ gpio-line-names;
+	/delete-node/ gpio_17;
+	/delete-node/ gpio_19;
+	/delete-node/ gpio_25;
+	/delete-node/ gpio_53;
+	/delete-node/ gpio_61;
+	/delete-node/ gpio_63;
+};
+
+&ltpi0_adc0 {
+	aspeed,int-vref-microvolt = <2500000>;
+	status = "okay";
+};
+
+&ltpi0 {
+	i2c-tunneling = <0x0>;
+};
+
+&ltpi0_i3c0 {
+	initial-role = "target";
+	pid = <0x000007ec 0x06010000>;
+	dcr = /bits/ 8 <0xcc>;
+	status = "okay";
+};
+
+&ltpi0_i3c1 {
+	initial-role = "primary";
+	status = "okay";
+};
+
+&ltpi0_i3c2 {
+	initial-role = "target";
+	pid = <0x000007ec 0x06012000>;
+	dcr = /bits/ 8 <0xcc>;
+	status = "okay";
+};
+
+&ltpi0_i3c3 {
+	initial-role = "primary";
+	status = "okay";
+};
+
+&ltpi0_i3c4 {
+	initial-role = "target";
+	pid = <0x000007ec 0x06014000>;
+	dcr = /bits/ 8 <0xcc>;
+	status = "okay";
+};
+
+&ltpi0_i3c5 {
+	initial-role = "primary";
+	status = "okay";
+};
+
+&ltpi0_i3c6 {
+	initial-role = "target";
+	pid = <0x000007ec 0x06016000>;
+	dcr = /bits/ 8 <0xcc>;
+	status = "okay";
+};
+
+&ltpi0_i3c7 {
+	initial-role = "primary";
+	status = "okay";
+};
+
+&ltpi0_i3c8 {
+	initial-role = "target";
+	pid = <0x000007ec 0x06018000>;
+	dcr = /bits/ 8 <0xcc>;
+	status = "okay";
+};
+
+&ltpi0_i3c9 {
+	initial-role = "primary";
+	status = "okay";
+};
+
+&ltpi0_i3c10 {
+	initial-role = "target";
+	pid = <0x000007ec 0x0601A000>;
+	dcr = /bits/ 8 <0xcc>;
+	status = "okay";
+};
+
+&ltpi0_i3c11 {
+	initial-role = "primary";
+	status = "okay";
+};
+
+&ltpi0_i3c12 {
+	initial-role = "target";
+	pid = <0x000007ec 0x0601C000>;
+	dcr = /bits/ 8 <0xcc>;
+	status = "okay";
+};
+
+&ltpi0_i3c13 {
+	initial-role = "primary";
+	status = "okay";
+};
+
+&ltpi0_i3c14 {
+	initial-role = "target";
+	pid = <0x000007ec 0x0601E000>;
+	dcr = /bits/ 8 <0xcc>;
+	status = "okay";
+};
+
+&ltpi0_i3c15 {
+	initial-role = "primary";
+	status = "okay";
+};
+
+&i2c0 {
+	status = "disabled";
+};
+
+&i2c1 {
+	status = "disabled";
+};
+
+&i2c2 {
+	status = "disabled";
+};
+
+&i2c3 {
+	status = "disabled";
+};
+
+&i2c4 {
+	status = "disabled";
+};
+
+&i2c5 {
+	status = "disabled";
+};
+
+&ltpi0_i2c0 {
+	status = "okay";
+};
+
+&ltpi0_i2c1 {
+	status = "okay";
+};
+
+&ltpi0_i2c2 {
+	status = "okay";
+};
+
+&ltpi0_i2c3 {
+	status = "okay";
+};
+
+&ltpi0_i2c4 {
+	status = "okay";
+};
+
+&ltpi0_i2c5 {
+	status = "okay";
+};
+
+&ltpi0_i2c6 {
+	status = "okay";
+};
+
+&ltpi0_i2c7 {
+	status = "okay";
+};
+
+&ltpi0_i2c8 {
+	status = "okay";
+};
+
+&ltpi0_i2c9 {
+	status = "okay";
+};
+
+&ltpi0_i2c10 {
+	status = "okay";
+};
+
+&ltpi0_i2c11 {
+	status = "okay";
+};
+
+&ltpi0_i2c12 {
+	status = "okay";
+};
+
+&ltpi0_i2c13 {
+	status = "okay";
+};
+
+&ltpi0_i2c14 {
+	status = "okay";
+};
+
+&ltpi0_i2c15 {
+	status = "okay";
+};
+
+&uart3 {
+	/delete-property/ pinctrl-names;
+	/delete-property/ pinctrl-0;
+	status = "okay";
+};
