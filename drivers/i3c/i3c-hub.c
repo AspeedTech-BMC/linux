@@ -2,6 +2,7 @@
 /* Copyright (C) 2021 - 2023 Intel Corporation.*/
 
 #include "asm-generic/int-ll64.h"
+#include "linux/delay.h"
 #include "linux/dev_printk.h"
 #include "linux/device.h"
 #include "linux/i2c.h"
@@ -327,6 +328,7 @@ struct i3c_hub_target_port {
 	u32 port_mask;
 
 	bool pullups_disable;
+	u32 device_scan_delay;
 
 	struct i3c_hub_smbus_agent *agent;
 	struct i3c_hub_bridge *bridge;
@@ -1401,6 +1403,9 @@ static int i3c_hub_port_init_i3c_bridge(struct i3c_hub *hub,
 
 	hub->i3cdev->dev.of_node = port->of_node;
 
+	if (port->device_scan_delay)
+		msleep(port->device_scan_delay);
+
 	ret = i3c_hub_bridge_register(bridge, i3cdev_to_dev(hub->i3cdev));
 	if (ret) {
 		dev_warn(&hub->i3cdev->dev,
@@ -2110,6 +2115,9 @@ static void i3c_hub_populate_target_ports(struct i3c_hub *hub)
 		port = &hub->ports[addr];
 		port->of_node = np;
 		port->mode = mode;
+
+		if (mode == PORT_MODE_I3C)
+			of_property_read_u32(np, "device-scan-delay-ms", &port->device_scan_delay);
 	}
 }
 
