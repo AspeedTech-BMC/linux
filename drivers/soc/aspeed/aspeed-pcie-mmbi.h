@@ -134,6 +134,8 @@ struct aspeed_mmbi_channel {
 
 	/* MCTP */
 	struct net_device *ndev;
+
+	struct work_struct work;
 };
 
 #endif
