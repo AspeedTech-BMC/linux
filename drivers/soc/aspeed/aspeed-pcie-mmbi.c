@@ -72,7 +72,6 @@ struct aspeed_pcie_mmbi {
 };
 
 static void mmbi_desc_init(struct aspeed_mmbi_channel *chan);
-static int wake_up_device(struct aspeed_mmbi_channel *chan);
 
 static u8 mmbi_get_bmc_up(struct aspeed_mmbi_channel *chan)
 {
@@ -173,6 +172,21 @@ static void mmbi_clear_hrws(struct aspeed_mmbi_channel *chan)
 	memset_io(chan->hrws_vmem, 0, sizeof(struct host_rws));
 }
 
+static void get_b2h_avail_buf_len(struct aspeed_mmbi_channel *chan, ssize_t *avail_buf_len)
+{
+	struct device *dev = chan->dev;
+	u32 b2h_rp, b2h_wp;
+
+	b2h_rp = GET_B2H_READ_POINTER(chan);
+	b2h_wp = GET_B2H_WRITE_POINTER(chan);
+	dev_dbg(dev, "MMBI B2H - b2h_rp: 0x%0x, b2h_wp: 0x%0x\n", b2h_rp, b2h_wp);
+
+	if (b2h_wp >= b2h_rp)
+		*avail_buf_len = chan->b2h_cb_size - b2h_wp + b2h_rp;
+	else
+		*avail_buf_len = b2h_rp - b2h_wp;
+}
+
 static u8 mmbi_get_state(struct aspeed_mmbi_channel *chan)
 {
 	u8 state = 0;
@@ -185,10 +199,60 @@ static u8 mmbi_get_state(struct aspeed_mmbi_channel *chan)
 	return state;
 }
 
+static int get_mmbi_header(struct aspeed_mmbi_channel *chan, u32 *data_length,
+			   u8 *type, u32 *unread_data_len, u8 *padding)
+{
+	u32 h2b_wp, h2b_rp, b2h_wp, b2h_rp;
+	struct device *dev = chan->dev;
+	struct mmbi_header header;
+
+	h2b_wp = GET_H2B_WRITE_POINTER(chan);
+	h2b_rp = GET_H2B_READ_POINTER(chan);
+	b2h_wp = GET_B2H_WRITE_POINTER(chan);
+	b2h_rp = GET_B2H_READ_POINTER(chan);
+	dev_dbg(dev, "MMBI HRWS - h2b_wp: 0x%0x, b2h_rp: 0x%0x\n", h2b_wp,
+		b2h_rp);
+	dev_dbg(dev, "MMBI HROS - b2h_wp: 0x%0x, h2b_rp: 0x%0x\n", b2h_wp,
+		h2b_rp);
+
+	if (h2b_wp >= h2b_rp)
+		*unread_data_len = h2b_wp - h2b_rp;
+	else
+		*unread_data_len = chan->h2b_cb_size - h2b_rp + h2b_wp;
+
+	if (*unread_data_len < sizeof(struct mmbi_header)) {
+		dev_dbg(dev, "No data to read(%d - %d)\n", h2b_wp, h2b_rp);
+		return -EAGAIN;
+	}
+
+	dev_dbg(dev, "READ MMBI header from: 0x%lx\n",
+		(ssize_t)(chan->h2b_cb_vmem + h2b_rp));
+
+	/* Extract MMBI protocol - protocol type and length */
+	if ((h2b_rp + sizeof(header)) <= chan->h2b_cb_size) {
+		memcpy_fromio(&header, chan->h2b_cb_vmem + h2b_rp,
+			      sizeof(header));
+	} else {
+		ssize_t chunk_len = chan->h2b_cb_size - h2b_rp;
+
+		memcpy_fromio(&header, chan->h2b_cb_vmem + h2b_rp, chunk_len);
+		memcpy_fromio(((u8 *)&header) + chunk_len, chan->h2b_cb_vmem,
+			      sizeof(header) - chunk_len);
+	}
+
+	*data_length = (header.pkt_len << 2) - sizeof(header) - header.pkt_pad;
+	*padding = header.pkt_pad;
+	*type = header.pkt_type;
+
+	return 0;
+}
+
 static int mmbi_state_check(struct aspeed_mmbi_channel *chan)
 {
 	enum mmbi_state current_state = mmbi_get_state(chan);
 	struct device *dev = chan->dev;
+	u32 req_data_len, unread_data_len;
+	u8 type, padding;
 
 	switch (current_state) {
 	case INIT_MISMATCH:
@@ -232,7 +296,8 @@ static int mmbi_state_check(struct aspeed_mmbi_channel *chan)
 		return 1;
 	case RESET_ACKED:
 		/* Receive all packet from Host */
-		while (wake_up_device(chan) && mmbi_get_state(chan) == RESET_ACKED)
+		while (get_mmbi_header(chan, &req_data_len, &type, &unread_data_len, &padding) == 0 &&
+		       mmbi_get_state(chan) == RESET_ACKED)
 			;
 		/* Change state to TRANS_TO_INIT */
 		mmbi_set_bmc_up(chan, 0);
@@ -285,86 +350,6 @@ static void update_host_ros(struct aspeed_mmbi_channel *chan, unsigned int w_len
 		raise_b2h_interrupt(chan);
 }
 
-static int get_mmbi_header(struct aspeed_mmbi_channel *chan, u32 *data_length, u8 *type,
-			   u32 *unread_data_len, u8 *padding)
-{
-	u32 h2b_wp, h2b_rp, b2h_wp, b2h_rp;
-	struct device *dev = chan->dev;
-	struct mmbi_header header;
-
-	h2b_wp = GET_H2B_WRITE_POINTER(chan);
-	h2b_rp = GET_H2B_READ_POINTER(chan);
-	b2h_wp = GET_B2H_WRITE_POINTER(chan);
-	b2h_rp = GET_B2H_READ_POINTER(chan);
-	dev_dbg(dev, "MMBI HRWS - h2b_wp: 0x%0x, b2h_rp: 0x%0x\n", h2b_wp, b2h_rp);
-	dev_dbg(dev, "MMBI HROS - b2h_wp: 0x%0x, h2b_rp: 0x%0x\n", b2h_wp, h2b_rp);
-
-	if (h2b_wp >= h2b_rp)
-		*unread_data_len = h2b_wp - h2b_rp;
-	else
-		*unread_data_len = chan->h2b_cb_size - h2b_rp + h2b_wp;
-
-	if (*unread_data_len < sizeof(struct mmbi_header)) {
-		dev_dbg(dev, "No data to read(%d - %d)\n", h2b_wp, h2b_rp);
-		return -EAGAIN;
-	}
-
-	dev_dbg(dev, "READ MMBI header from: 0x%lx\n", (ssize_t)(chan->h2b_cb_vmem + h2b_rp));
-
-	/* Extract MMBI protocol - protocol type and length */
-	if ((h2b_rp + sizeof(header)) <= chan->h2b_cb_size) {
-		memcpy_fromio(&header, chan->h2b_cb_vmem + h2b_rp, sizeof(header));
-	} else {
-		ssize_t chunk_len = chan->h2b_cb_size - h2b_rp;
-
-		memcpy_fromio(&header, chan->h2b_cb_vmem + h2b_rp, chunk_len);
-		memcpy_fromio(((u8 *)&header) + chunk_len, chan->h2b_cb_vmem,
-			      sizeof(header) - chunk_len);
-	}
-
-	*data_length = (header.pkt_len << 2) - sizeof(header) - header.pkt_pad;
-	*padding = header.pkt_pad;
-	*type = header.pkt_type;
-
-	return 0;
-}
-
-static void mctp_mmbi_rx(struct aspeed_mmbi_channel *chan);
-static int wake_up_device(struct aspeed_mmbi_channel *chan)
-{
-	u32 req_data_len, unread_data_len;
-	u8 type, padding;
-
-	if (get_mmbi_header(chan, &req_data_len, &type, &unread_data_len, &padding) != 0)
-		return 0;
-
-	dev_dbg(chan->dev, "%s: Length: 0x%0x, Protocol Type: %d\n", __func__, req_data_len, type);
-
-	if (type == MMBI_PROTOCOL_MCTP) {
-		mctp_mmbi_rx(chan);
-		return 1;
-	}
-
-	update_host_ros(chan, 0, req_data_len + sizeof(struct mmbi_header));
-
-	return 0;
-}
-
-static void get_b2h_avail_buf_len(struct aspeed_mmbi_channel *chan, ssize_t *avail_buf_len)
-{
-	struct device *dev = chan->dev;
-	u32 b2h_rp, b2h_wp;
-
-	b2h_rp = GET_B2H_READ_POINTER(chan);
-	b2h_wp = GET_B2H_WRITE_POINTER(chan);
-	dev_dbg(dev, "MMBI B2H - b2h_rp: 0x%0x, b2h_wp: 0x%0x\n", b2h_rp, b2h_wp);
-
-	if (b2h_wp >= b2h_rp)
-		*avail_buf_len = chan->b2h_cb_size - b2h_wp + b2h_rp;
-	else
-		*avail_buf_len = b2h_rp - b2h_wp;
-}
-
 static int aspeed_mmbi_write(struct aspeed_mmbi_channel *chan, char *buffer, size_t len,
 			     protocol_type type)
 {
@@ -396,10 +381,8 @@ static int aspeed_mmbi_write(struct aspeed_mmbi_channel *chan, char *buffer, siz
 	total_len += padding;
 
 	/* Empty space should be more than write request data size */
-	if (avail_buf_len <= sizeof(header) || (total_len > (avail_buf_len - sizeof(header)))) {
-		dev_err(dev, "Not enough space(%ld) in B2H buffer\n", avail_buf_len);
+	if (avail_buf_len <= sizeof(header) || (total_len > (avail_buf_len - sizeof(header))))
 		return -ENOSPC;
-	}
 
 	/* Fill multi-protocol header */
 	header.pkt_type = type;
@@ -508,8 +491,6 @@ static void mctp_mmbi_rx(struct aspeed_mmbi_channel *chan)
 	} else {
 		ndev->stats.rx_dropped++;
 	}
-
-	wake_up_device(chan);
 }
 
 static netdev_tx_t mctp_mmbi_tx(struct sk_buff *skb, struct net_device *ndev)
@@ -523,8 +504,10 @@ static netdev_tx_t mctp_mmbi_tx(struct sk_buff *skb, struct net_device *ndev)
 	}
 
 	ret = aspeed_mmbi_write(&mctp->mmbi->chan, skb->data, skb->len, MMBI_PROTOCOL_MCTP);
-	if (ret)
+	if (ret) {
+		netif_stop_queue(ndev);
 		return NETDEV_TX_BUSY;
+	}
 
 	ndev->stats.tx_packets++;
 	ndev->stats.tx_bytes += skb->len;
@@ -586,15 +569,51 @@ free_netdev:
 	return ret;
 }
 
+static void aspeed_mmbi_work_func(struct work_struct *workq)
+{
+	struct aspeed_mmbi_channel *chan = container_of(workq, struct aspeed_mmbi_channel, work);
+	u32 weight = 256, req_data_len, unread_data_len;
+	u8 type, padding;
+	int i;
+
+	for (i = 0; i < weight; i++) {
+		if (get_mmbi_header(chan, &req_data_len, &type, &unread_data_len, &padding) != 0)
+			return;
+
+		dev_dbg(chan->dev, "%s: Length: 0x%0x, Protocol Type: %d\n",
+			__func__, req_data_len, type);
+
+		if (type == MMBI_PROTOCOL_MCTP)
+			mctp_mmbi_rx(chan);
+		else
+			/* Discard data and advance the hrws */
+			update_host_ros(chan, 0, req_data_len + sizeof(struct mmbi_header) + padding);
+
+		raise_b2h_interrupt(chan);
+	}
+
+	if (get_mmbi_header(chan, &req_data_len, &type, &unread_data_len, &padding) != 0)
+		queue_work(system_wq, &chan->work);
+}
+
 static irqreturn_t aspeed_pcie_mmbi_isr(int irq, void *dev_id)
 {
 	struct aspeed_pcie_mmbi *mmbi = dev_id;
 	struct aspeed_mmbi_channel *chan = &mmbi->chan;
+	ssize_t avail_buf_len;
+
+	get_b2h_avail_buf_len(chan, &avail_buf_len);
+	if (avail_buf_len > MCTP_MMBI_MTU_MAX) {
+		if (netif_queue_stopped(chan->ndev)) {
+			dev_dbg(chan->dev, "Wake up mctp net device\n");
+			netif_wake_queue(chan->ndev);
+		}
+	}
 
 	if (mmbi_state_check(chan))
 		return IRQ_HANDLED;
 
-	wake_up_device(chan);
+	queue_work(system_wq, &chan->work);
 
 	return IRQ_HANDLED;
 }
@@ -805,6 +824,8 @@ static int aspeed_ast2700_pcie_mmbi_init(struct platform_device *pdev)
 		return ret;
 	}
 
+	INIT_WORK(&chan->work, aspeed_mmbi_work_func);
+
 	return 0;
 }
 
@@ -918,6 +939,7 @@ static int aspeed_pcie_mmbi_remove(struct platform_device *pdev)
 {
 	struct aspeed_pcie_mmbi *mmbi = platform_get_drvdata(pdev);
 
+	cancel_work_sync(&mmbi->chan.work);
 	unregister_netdev(mmbi->chan.ndev);
 	devm_free_irq(&pdev->dev, mmbi->irq, mmbi);
 	iounmap(mmbi->mem_virt);
