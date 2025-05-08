@@ -153,11 +153,10 @@ static int ftgmac100_reset_mac(struct ftgmac100 *priv, u32 maccr)
 static int ftgmac100_reset_and_config_mac(struct ftgmac100 *priv)
 {
 	u32 maccr = 0;
+	int err;
 
 	/* RMII needs SCU reset to clear status */
 	if (priv->netdev->phydev->interface == PHY_INTERFACE_MODE_RMII) {
-		int err;
-
 		err = reset_control_assert(priv->rst);
 		if (err) {
 			dev_err(priv->dev, "Failed to reset mac (%d)\n", err);
@@ -187,6 +186,14 @@ static int ftgmac100_reset_and_config_mac(struct ftgmac100 *priv)
 		netdev_err(priv->netdev, "Unknown speed %d !\n",
 			   priv->cur_speed);
 		break;
+	}
+
+	if (priv->sgmii && priv->cur_speed != 0) {
+		err = phy_set_speed(priv->sgmii, priv->cur_speed);
+		if (err) {
+			dev_err(priv->dev, "Failed to set sgmii speed\n");
+			return err;
+		}
 	}
 
 	/* (Re)initialize the queue pointers */
