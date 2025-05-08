@@ -6,7 +6,7 @@
 #include "aspeed-ltpi1800.dtsi"
 
 / {
-	model = "AST2700-DCSCM_AST1700-EVB";
+	model = "AST2700-DCSCM_AST1800-EVB";
 
 	ltpi0-iio-hwmon {
 		compatible = "iio-hwmon";
