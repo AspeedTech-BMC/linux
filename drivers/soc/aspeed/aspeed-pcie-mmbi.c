@@ -593,7 +593,7 @@ static void aspeed_mmbi_work_func(struct work_struct *workq)
 	}
 
 	if (get_mmbi_header(chan, &req_data_len, &type, &unread_data_len, &padding) != 0)
-		queue_work(system_wq, &chan->work);
+		queue_work(system_unbound_wq, &chan->work);
 }
 
 static irqreturn_t aspeed_pcie_mmbi_isr(int irq, void *dev_id)
@@ -613,7 +613,7 @@ static irqreturn_t aspeed_pcie_mmbi_isr(int irq, void *dev_id)
 	if (mmbi_state_check(chan))
 		return IRQ_HANDLED;
 
-	queue_work(system_wq, &chan->work);
+	queue_work(system_unbound_wq, &chan->work);
 
 	return IRQ_HANDLED;
 }
