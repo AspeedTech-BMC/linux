@@ -89,16 +89,7 @@ static int AST1800_clk_is_enabled(struct clk_hw *hw)
 {
 	struct clk_gate *gate = to_clk_gate(hw);
 	u32 clk = BIT(gate->bit_idx % 32);
-	u32 reg_offset;
-
-	if (gate->bit_idx < 32)
-		reg_offset = 0x50;
-	else if (gate->bit_idx < 64)
-		reg_offset = 0x54;
-	else
-		reg_offset = 0x58;
-
-	u32 reg = readl(gate->reg + reg_offset);
+	u32 reg = readl(gate->reg);
 
 	return !(reg & clk);
 }
@@ -107,19 +98,10 @@ static int AST1800_clk_enable(struct clk_hw *hw)
 {
 	struct clk_gate *gate = to_clk_gate(hw);
 	u32 clk = BIT(gate->bit_idx % 32);
-	u32 reg;
-
-	if (gate->bit_idx < 32)
-		reg = 0x50;
-	else if (gate->bit_idx < 64)
-		reg = 0x54;
-	else
-		reg = 0x58;
-
-	u32 val = readl(gate->reg + reg);
+	u32 val = readl(gate->reg);
 
 	if (val & clk)
-		writel(val & ~clk, gate->reg + reg);
+		writel(val & ~clk, gate->reg);
 
 	return 0;
 }
@@ -128,19 +110,10 @@ static void AST1800_clk_disable(struct clk_hw *hw)
 {
 	struct clk_gate *gate = to_clk_gate(hw);
 	u32 clk = BIT(gate->bit_idx % 32);
-	u32 reg;
-
-	if (gate->bit_idx < 32)
-		reg = 0x50;
-	else if (gate->bit_idx < 64)
-		reg = 0x54;
-	else
-		reg = 0x58;
-
-	u32 val = readl(gate->reg + reg);
+	u32 val = readl(gate->reg);
 
 	if (!(val & clk))
-		writel(val | clk, gate->reg + reg);
+		writel(val | clk, gate->reg);
 }
 
 static const struct clk_ops AST1800_clk_gate_ops = {
@@ -402,97 +375,97 @@ static int AST1800_clk_init(struct device_node *ast1800_node)
 		AST1800_clk_hw_register_gate(NULL, CREATE_CLK_NAME(id, "i3c0clk-gate"),
 					     CREATE_CLK_NAME(id, "i3cclk"),
 					     0, clk_base + AST1800_CLK_STOP2,
-					     16, 0, &ast1800_clk_lock);
+					     0, 0, &ast1800_clk_lock);
 
 	clks[AST1800_CLK_GATE_I3C1] =
 		AST1800_clk_hw_register_gate(NULL, CREATE_CLK_NAME(id, "i3c1clk-gate"),
 					     CREATE_CLK_NAME(id, "i3cclk"),
 					     0, clk_base + AST1800_CLK_STOP2,
-					     17, 0, &ast1800_clk_lock);
+					     1, 0, &ast1800_clk_lock);
 
 	clks[AST1800_CLK_GATE_I3C2] =
 		AST1800_clk_hw_register_gate(NULL, CREATE_CLK_NAME(id, "i3c2clk-gate"),
 					     CREATE_CLK_NAME(id, "i3cclk"),
 					     0, clk_base + AST1800_CLK_STOP2,
-					     18, 0, &ast1800_clk_lock);
+					     2, 0, &ast1800_clk_lock);
 
 	clks[AST1800_CLK_GATE_I3C3] =
 		AST1800_clk_hw_register_gate(NULL, CREATE_CLK_NAME(id, "i3c3clk-gate"),
 					     CREATE_CLK_NAME(id, "i3cclk"),
 					     0, clk_base + AST1800_CLK_STOP2,
-					     19, 0, &ast1800_clk_lock);
+					     3, 0, &ast1800_clk_lock);
 
 	clks[AST1800_CLK_GATE_I3C4] =
 		AST1800_clk_hw_register_gate(NULL, CREATE_CLK_NAME(id, "i3c4clk-gate"),
 					     CREATE_CLK_NAME(id, "i3cclk"),
 					     0, clk_base + AST1800_CLK_STOP2,
-					     20, 0, &ast1800_clk_lock);
+					     4, 0, &ast1800_clk_lock);
 
 	clks[AST1800_CLK_GATE_I3C5] =
 		AST1800_clk_hw_register_gate(NULL, CREATE_CLK_NAME(id, "i3c5clk-gate"),
 					     CREATE_CLK_NAME(id, "i3cclk"),
 					     0, clk_base + AST1800_CLK_STOP2,
-					     21, 0, &ast1800_clk_lock);
+					     5, 0, &ast1800_clk_lock);
 
 	clks[AST1800_CLK_GATE_I3C6] =
 		AST1800_clk_hw_register_gate(NULL, CREATE_CLK_NAME(id, "i3c6clk-gate"),
 					     CREATE_CLK_NAME(id, "i3cclk"),
 					     0, clk_base + AST1800_CLK_STOP2,
-					     22, 0, &ast1800_clk_lock);
+					     6, 0, &ast1800_clk_lock);
 
 	clks[AST1800_CLK_GATE_I3C7] =
 		AST1800_clk_hw_register_gate(NULL, CREATE_CLK_NAME(id, "i3c7clk-gate"),
 					     CREATE_CLK_NAME(id, "i3cclk"),
 					     0, clk_base + AST1800_CLK_STOP2,
-					     23, 0, &ast1800_clk_lock);
+					     7, 0, &ast1800_clk_lock);
 
 	clks[AST1800_CLK_GATE_I3C8] =
 		AST1800_clk_hw_register_gate(NULL, CREATE_CLK_NAME(id, "i3c8clk-gate"),
 					     CREATE_CLK_NAME(id, "i3cclk"),
 					     0, clk_base + AST1800_CLK_STOP2,
-					     24, 0, &ast1800_clk_lock);
+					     8, 0, &ast1800_clk_lock);
 
 	clks[AST1800_CLK_GATE_I3C9] =
 		AST1800_clk_hw_register_gate(NULL, CREATE_CLK_NAME(id, "i3c9clk-gate"),
 					     CREATE_CLK_NAME(id, "i3cclk"),
 					     0, clk_base + AST1800_CLK_STOP2,
-					     25, 0, &ast1800_clk_lock);
+					     9, 0, &ast1800_clk_lock);
 
 	clks[AST1800_CLK_GATE_I3C10] =
 		AST1800_clk_hw_register_gate(NULL, CREATE_CLK_NAME(id, "i3c10clk-gate"),
 					     CREATE_CLK_NAME(id, "i3cclk"),
 					     0, clk_base + AST1800_CLK_STOP2,
-					     26, 0, &ast1800_clk_lock);
+					     10, 0, &ast1800_clk_lock);
 
 	clks[AST1800_CLK_GATE_I3C11] =
 		AST1800_clk_hw_register_gate(NULL, CREATE_CLK_NAME(id, "i3c11clk-gate"),
 					     CREATE_CLK_NAME(id, "i3cclk"),
 					     0, clk_base + AST1800_CLK_STOP2,
-					     27, 0, &ast1800_clk_lock);
+					     11, 0, &ast1800_clk_lock);
 
 	clks[AST1800_CLK_GATE_I3C12] =
 		AST1800_clk_hw_register_gate(NULL, CREATE_CLK_NAME(id, "i3c12clk-gate"),
 					     CREATE_CLK_NAME(id, "i3cclk"),
 					     0, clk_base + AST1800_CLK_STOP2,
-					     28, 0, &ast1800_clk_lock);
+					     12, 0, &ast1800_clk_lock);
 
 	clks[AST1800_CLK_GATE_I3C13] =
 		AST1800_clk_hw_register_gate(NULL, CREATE_CLK_NAME(id, "i3c13clk-gate"),
 					     CREATE_CLK_NAME(id, "i3cclk"),
 					     0, clk_base + AST1800_CLK_STOP2,
-					     29, 0, &ast1800_clk_lock);
+					     13, 0, &ast1800_clk_lock);
 
 	clks[AST1800_CLK_GATE_I3C14] =
 		AST1800_clk_hw_register_gate(NULL, CREATE_CLK_NAME(id, "i3c14clk-gate"),
 					     CREATE_CLK_NAME(id, "i3cclk"),
 					     0, clk_base + AST1800_CLK_STOP2,
-					     30, 0, &ast1800_clk_lock);
+					     14, 0, &ast1800_clk_lock);
 
 	clks[AST1800_CLK_GATE_I3C15] =
 		AST1800_clk_hw_register_gate(NULL, CREATE_CLK_NAME(id, "i3c15clk-gate"),
 					     CREATE_CLK_NAME(id, "i3cclk"),
 					     0, clk_base + AST1800_CLK_STOP2,
-					     31, 0, &ast1800_clk_lock);
+					     15, 0, &ast1800_clk_lock);
 
 	of_clk_add_hw_provider(ast1800_node, of_clk_hw_onecell_get, clk_data);
 
