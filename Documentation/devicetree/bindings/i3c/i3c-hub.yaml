@@ -111,6 +111,13 @@ patternProperties:
           Select the clock frequency of SMBus Agent Tx function.
         enum: [100000, 200000, 400000, 1000000]
 
+      device-scan-delay-ms:
+        description: |
+          The delay time in milliseconds between target port being enabled and
+          the device scan prodeucre.
+          This attribute is only applicable when the target port is configed as
+          i3c mode.
+
     additionalProperties: false
 
 required:
@@ -221,6 +228,8 @@ examples:
         target-port@0 {
           compatible = "i3c-hub-i3c";
           reg = <0>;
+
+          device-scan-delay-ms = <2>;
         };
 
         target-port@1 {
