@@ -1207,6 +1207,10 @@ static int aspeed_ast2700_setup(struct platform_device *pdev)
 		goto out_clk_free;
 	}
 
+	pcie->perst_rc_out =
+		devm_gpiod_get_optional(pcie->dev, "perst-rc-out",
+					GPIOD_OUT_LOW |
+					GPIOD_FLAGS_BIT_NONEXCLUSIVE);
 	reset_control_assert(pcie->perst);
 
 	regmap_write(pcie->pciephy, PEHR_MISC_70, 0xa00c0);
@@ -1247,6 +1251,8 @@ static int aspeed_ast2700_setup(struct platform_device *pdev)
 	writel(0x3, pcie->reg + H2X_REMAP_PREF_ADDR);
 
 	reset_control_deassert(pcie->perst);
+	if (pcie->perst_rc_out)
+		gpiod_set_value(pcie->perst_rc_out, 1);
 	mdelay(1000);
 
 	/* Clear INTx isr */
