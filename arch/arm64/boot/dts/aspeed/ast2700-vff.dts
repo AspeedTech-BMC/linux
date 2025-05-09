@@ -107,16 +107,7 @@
 };
 
 &mac1 {
-	status = "okay";
-
-	phy-mode = "rmii";
-	use-ncsi;
-
-	pinctrl-names = "default";
-	/* If you want to use RMII1 RCLKO as internal clock for RMII,
-	 * add &pinctrl_rmii1_rclko_default in pinctrl-0.
-	 */
-	pinctrl-0 = <&pinctrl_rmii1_default>;
+	status = "disabled";
 };
 
 &syscon1 {
@@ -155,4 +146,50 @@
 	status = "okay";
 	phy-mode = "sgmii";
 	phy-handle = <&ethphy2>;
+};
+
+/* Disable Node 1 EP function */
+&bmc_dev1 {
+	status = "disabled";
+};
+
+&xdma1 {
+	status = "disabled";
+};
+
+&pcie_vuart2 {
+	status = "disabled";
+};
+
+&pcie_vuart3 {
+	status = "disabled";
+};
+
+&pcie_lpc1_kcs0 {
+	status = "disabled";
+};
+
+&pcie_lpc1_kcs1 {
+	status = "disabled";
+};
+
+&pcie_lpc1_kcs2 {
+	status = "disabled";
+};
+
+&pcie_lpc1_kcs3 {
+	status = "disabled";
+};
+
+&pcie_lpc1_ibt {
+	status = "disabled";
+};
+
+&pcie1_mmbi4 {
+	status = "disabled";
+};
+
+&pcie1 {
+	status = "okay";
+	perst-rc-out-gpio = <&gpio1 ASPEED_GPIO(T, 7) GPIO_ACTIVE_HIGH>;
 };
