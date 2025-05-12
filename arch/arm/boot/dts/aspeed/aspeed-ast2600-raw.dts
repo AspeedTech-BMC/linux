@@ -139,10 +139,6 @@
 	status = "disabled";
 };
 
-&pciecfg {
-	status = "disabled";
-};
-
 &pcie1 {
 	status = "disabled";
 };

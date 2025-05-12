@@ -793,10 +793,6 @@
 };
 #endif
 
-&pciecfg {
-	status = "okay";
-};
-
 &pcie1 {
 	status = "okay";
 };
