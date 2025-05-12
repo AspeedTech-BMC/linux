@@ -353,7 +353,8 @@ static void aspeed_spi_transfer_tx(struct aspeed_spi_host *host, const u8 *tx_bu
 	for (i = 0; i < len; i++) {
 		writeb(tx_buf[i], dst);
 
-		if (rx_buf && (host->flag & SPI_FULL_DUPLEX)) {
+		if (rx_buf && ((host->flag & SPI_FULL_DUPLEX) ||
+			       tx_buf == rx_buf)) {
 			rx_buf[i] = readb(host->ctrl_reg + SPI_FULL_DUPLEX_RX_REG);
 			*full_duplex_rx = true;
 		}
