@@ -194,15 +194,14 @@
 	perst-rc-out-gpio = <&gpio1 ASPEED_GPIO(T, 7) GPIO_ACTIVE_HIGH>;
 };
 
-&tpm0 {
-	status = "disabled";
-};
-
 &spi2 {
 	compatible = "aspeed,ast2700-spi-txrx";
 	pinctrl-0 = <&pinctrl_spi2_default &pinctrl_spi2_cs1_default>;
 	pinctrl-names = "default";
 	status = "okay";
+
+	/delete-property/ spi-aspeed-full-duplex;
+	/delete-node/ tpmdev@0;
 
 	flash@0 {
 		status = "okay";
@@ -213,7 +212,7 @@
 		spi-max-frequency = <25000000>;
 	};
 
-	tpm1: tpmdev@1 {
+	tpmdev@1 {
 		status = "okay";
 		reg = <1>;
 		compatible = "tcg,tpm_tis-spi";
