@@ -88,6 +88,21 @@
 	status = "disabled";
 };
 
+/* Add internal-pullup for i3c4 and i3c5 */
+&i3c4 {
+	internal-pullup = <2>;
+	initial-role = "target";
+	pid = <0x000007ec 0x06014000>;
+	dcr = /bits/ 8 <0xcc>;
+	status = "okay";
+};
+
+&i3c5 {
+	internal-pullup = <2>;
+	initial-role = "primary";
+	status = "okay";
+};
+
 /* AST2700 VFF DCSCM use MAC0 and MAC1 for NCSI */
 &sgpios {
 	status = "disabled";
