@@ -31,10 +31,34 @@ static DEFINE_IDA(ast1800_clk_ida);
 static DEFINE_SPINLOCK(ast1800_clk_lock);
 
 static const struct clk_div_table ast1800_clk_div_table[] = {
-	{ 0x0, 5 },
-	{ 0x1, 10 },
-	{ 0x2, 20 },
-	{ 0x3, 40 },
+	{ 0x0, 40 },
+	{ 0x1, 20 },
+	{ 0x2, 10 },
+	{ 0x3, 5 },
+};
+
+static const struct clk_div_table ast1800_efpga_clk_div_table[] = {
+	{ 0x0, 1 },
+	{ 0x1, 1 },
+	{ 0x2, 2 },
+	{ 0x3, 3 },
+	{ 0x4, 4 },
+	{ 0x5, 5 },
+	{ 0x6, 6 },
+	{ 0x7, 7 },
+	{ 0x8, 8 },
+	{ 0x9, 9 },
+	{ 0xa, 10 },
+	{ 0xb, 11 },
+	{ 0xc, 12 },
+	{ 0xd, 13 },
+	{ 0xe, 14 },
+	{ 0xf, 15 },
+	{ 0x10, 16 },
+	{ 0x11, 17 },
+	{ 0x12, 18 },
+	{ 0x13, 19 },
+	{ 0 }
 };
 
 static struct clk_hw *AST1800_calc_uclk(const char *name, u32 val)
@@ -201,6 +225,192 @@ static const struct reset_control_ops ast1800_reset_ops = {
 	.status = ast1800_reset_status,
 };
 
+static const char *const fpga0_sel0[] = {
+	"ast1800_0-hpll_div200",
+	"ast1800_0-hpll_div100",
+	"ast1800_0-hpll_div50",
+	"ast1800_0-hpll_div40",
+	"ast1800_0-hpll_div25",
+	"ast1800_0-hpll_div20",
+	"ast1800_0-hpll_efpga0",
+	"ast1800_0-epll_efpga0",
+};
+
+static const char *const fpga0_sel1[] = {
+	"ast1800_1-hpll_div200",
+	"ast1800_1-hpll_div100",
+	"ast1800_1-hpll_div50",
+	"ast1800_1-hpll_div40",
+	"ast1800_1-hpll_div25",
+	"ast1800_1-hpll_div20",
+	"ast1800_1-hpll_efpga0",
+	"ast1800_1-epll_efpga0",
+};
+
+static const char *const fpga1_sel0[] = {
+	"ast1800_0-hpll_div200",
+	"ast1800_0-hpll_div100",
+	"ast1800_0-hpll_div50",
+	"ast1800_0-hpll_div40",
+	"ast1800_0-hpll_div25",
+	"ast1800_0-hpll_div20",
+	"ast1800_0-hpll_efpga1",
+	"ast1800_0-epll_efpga1",
+};
+
+static const char *const fpga1_sel1[] = {
+	"ast1800_1-hpll_div200",
+	"ast1800_1-hpll_div100",
+	"ast1800_1-hpll_div50",
+	"ast1800_1-hpll_div40",
+	"ast1800_1-hpll_div25",
+	"ast1800_1-hpll_div20",
+	"ast1800_1-hpll_efpga1",
+	"ast1800_1-epll_efpga1",
+};
+
+static const char *const fpga2_sel0[] = {
+	"ast1800_0-hpll_div200",
+	"ast1800_0-hpll_div100",
+	"ast1800_0-hpll_div50",
+	"ast1800_0-hpll_div40",
+	"ast1800_0-hpll_div25",
+	"ast1800_0-hpll_div20",
+	"ast1800_0-hpll_efpga2",
+	"ast1800_0-epll_efpga2",
+};
+
+static const char *const fpga2_sel1[] = {
+	"ast1800_1-hpll_div200",
+	"ast1800_1-hpll_div100",
+	"ast1800_1-hpll_div50",
+	"ast1800_1-hpll_div40",
+	"ast1800_1-hpll_div25",
+	"ast1800_1-hpll_div20",
+	"ast1800_1-hpll_efpga2",
+	"ast1800_1-epll_efpga2",
+};
+
+static const char *const fpga3_sel0[] = {
+	"ast1800_0-hpll_div200",
+	"ast1800_0-hpll_div100",
+	"ast1800_0-hpll_div50",
+	"ast1800_0-hpll_div40",
+	"ast1800_0-hpll_div25",
+	"ast1800_0-hpll_div20",
+	"ast1800_0-hpll_efpga3",
+	"ast1800_0-epll_efpga3",
+};
+
+static const char *const fpga3_sel1[] = {
+	"ast1800_1-hpll_div200",
+	"ast1800_1-hpll_div100",
+	"ast1800_1-hpll_div50",
+	"ast1800_1-hpll_div40",
+	"ast1800_1-hpll_div25",
+	"ast1800_1-hpll_div20",
+	"ast1800_1-hpll_efpga3",
+	"ast1800_1-epll_efpga3",
+};
+
+static const char *const fpga4_sel0[] = {
+	"ast1800_0-hpll_div200",
+	"ast1800_0-hpll_div100",
+	"ast1800_0-hpll_div50",
+	"ast1800_0-hpll_div40",
+	"ast1800_0-hpll_div25",
+	"ast1800_0-hpll_div20",
+	"ast1800_0-hpll_efpga4",
+	"ast1800_0-epll_efpga4",
+};
+
+static const char *const fpga4_sel1[] = {
+	"ast1800_1-hpll_div200",
+	"ast1800_1-hpll_div100",
+	"ast1800_1-hpll_div50",
+	"ast1800_1-hpll_div40",
+	"ast1800_1-hpll_div25",
+	"ast1800_1-hpll_div20",
+	"ast1800_1-hpll_efpga4",
+	"ast1800_1-epll_efpga4",
+};
+
+static const char *const fpga5_sel0[] = {
+	"ast1800_0-hpll_div200",
+	"ast1800_0-hpll_div100",
+	"ast1800_0-hpll_div50",
+	"ast1800_0-hpll_div40",
+	"ast1800_0-hpll_div25",
+	"ast1800_0-hpll_div20",
+	"ast1800_0-hpll_efpga5",
+	"ast1800_0-epll_efpga5",
+};
+
+static const char *const fpga5_sel1[] = {
+	"ast1800_1-hpll_div200",
+	"ast1800_1-hpll_div100",
+	"ast1800_1-hpll_div50",
+	"ast1800_1-hpll_div40",
+	"ast1800_1-hpll_div25",
+	"ast1800_1-hpll_div20",
+	"ast1800_1-hpll_efpga5",
+	"ast1800_1-epll_efpga5",
+};
+
+static const char *const fpga6_sel0[] = {
+	"ast1800_0-hpll_div200",
+	"ast1800_0-hpll_div100",
+	"ast1800_0-hpll_div50",
+	"ast1800_0-hpll_div40",
+	"ast1800_0-hpll_div25",
+	"ast1800_0-hpll_div20",
+	"ast1800_0-hpll_efpga6",
+	"ast1800_0-epll_efpga6",
+};
+
+static const char *const fpga6_sel1[] = {
+	"ast1800_1-hpll_div200",
+	"ast1800_1-hpll_div100",
+	"ast1800_1-hpll_div50",
+	"ast1800_1-hpll_div40",
+	"ast1800_1-hpll_div25",
+	"ast1800_1-hpll_div20",
+	"ast1800_1-hpll_efpga6",
+	"ast1800_1-epll_efpga6",
+};
+
+static const char *const fpga7_sel0[] = {
+	"ast1800_0-hpll_div200",
+	"ast1800_0-hpll_div100",
+	"ast1800_0-hpll_div50",
+	"ast1800_0-hpll_div40",
+	"ast1800_0-hpll_div25",
+	"ast1800_0-hpll_div20",
+	"ast1800_0-hpll_efpga7",
+	"ast1800_0-epll_efpga7",
+};
+
+static const char *const fpga7_sel1[] = {
+	"ast1800_1-hpll_div200",
+	"ast1800_1-hpll_div100",
+	"ast1800_1-hpll_div50",
+	"ast1800_1-hpll_div40",
+	"ast1800_1-hpll_div25",
+	"ast1800_1-hpll_div20",
+	"ast1800_1-hpll_efpga7",
+	"ast1800_1-epll_efpga7",
+};
+
+static const char *const uart_sel0[] = {
+	"ast1800_0-uxclk",
+	"ast1800_0-huxclk",
+};
+
+static const char *const uart_sel1[] = {
+	"ast1800_1-uxclk",
+	"ast1800_1-huxclk",
+};
+
 static const char *const uxclk_sel0[] = {
 	"ast1800_0-hpll_div5",
 	"ast1800_0-hpll_div4",
@@ -237,12 +447,12 @@ static const char *const spiclk_sel1[] = {
 
 static const char *const i3cclk_sel0[] = {
 	"ast1800_0-hpll_div4",
-	"ast1800_0-lpll",
+	"ast1800_0-lpll_div2",
 };
 
 static const char *const i3cclk_sel1[] = {
 	"ast1800_1-hpll_div4",
-	"ast1800_1-lpll",
+	"ast1800_1-lpll_div2",
 };
 
 #define CREATE_CLK_NAME(id, suffix) kasprintf(GFP_KERNEL, "ast1800_%d-%s", id, suffix)
@@ -306,16 +516,7 @@ static int AST1800_clk_init(struct device_node *ast1800_node)
 	clks[AST1800_CLK_HPLL] = AST1800_calc_pll(CREATE_CLK_NAME(id, "hpll"),
 						  CREATE_CLK_NAME(id, "clkin"), val);
 
-	/* EPLL 960Mhz */
-	val = readl(clk_base + AST1800_EPLL_PARAM);
-	clks[AST1800_CLK_EPLL] = AST1800_calc_pll(CREATE_CLK_NAME(id, "epll"),
-						  CREATE_CLK_NAME(id, "clkin"), val);
-
-	/* LPLL 1000Mhz */
-	val = readl(clk_base + AST1800_LPLL_PARAM);
-	clks[AST1800_CLK_LPLL] = AST1800_calc_pll(CREATE_CLK_NAME(id, "lpll"),
-						  CREATE_CLK_NAME(id, "clkin"), val);
-
+	/* HPLL/2 huclk */
 	clks[AST1800_CLK_HPLL_DIV2] =
 		clk_hw_register_fixed_factor(NULL, CREATE_CLK_NAME(id, "hpll_div2"),
 					     CREATE_CLK_NAME(id, "hpll"), 0, 1, 2);
@@ -327,6 +528,173 @@ static int AST1800_clk_init(struct device_node *ast1800_node)
 	clks[AST1800_CLK_HPLL_DIV5] =
 		clk_hw_register_fixed_factor(NULL, CREATE_CLK_NAME(id, "hpll_div5"),
 					     CREATE_CLK_NAME(id, "hpll"), 0, 1, 5);
+
+	clks[AST1800_CLK_HPLL_DIV8] =
+		clk_hw_register_fixed_factor(NULL, CREATE_CLK_NAME(id, "hpll_div8"),
+					     CREATE_CLK_NAME(id, "hpll"), 0, 1, 8);
+
+	clks[AST1800_CLK_HPLL_DIV10] =
+		clk_hw_register_fixed_factor(NULL, CREATE_CLK_NAME(id, "hpll_div10"),
+					     CREATE_CLK_NAME(id, "hpll"), 0, 1, 10);
+
+	clks[AST1800_CLK_HPLL_DIV20] =
+		clk_hw_register_fixed_factor(NULL, CREATE_CLK_NAME(id, "hpll_div20"),
+					     CREATE_CLK_NAME(id, "hpll"), 0, 1, 10);
+
+	clks[AST1800_CLK_HPLL_DIV25] =
+		clk_hw_register_fixed_factor(NULL, CREATE_CLK_NAME(id, "hpll_div25"),
+					     CREATE_CLK_NAME(id, "hpll"), 0, 1, 10);
+
+	clks[AST1800_CLK_HPLL_DIV50] =
+		clk_hw_register_fixed_factor(NULL, CREATE_CLK_NAME(id, "hpll_div50"),
+					     CREATE_CLK_NAME(id, "hpll"), 0, 1, 10);
+
+	clks[AST1800_CLK_HPLL_DIV100] =
+		clk_hw_register_fixed_factor(NULL, CREATE_CLK_NAME(id, "hpll_div100"),
+					     CREATE_CLK_NAME(id, "hpll"), 0, 1, 10);
+
+	clks[AST1800_CLK_HPLL_DIV200] =
+		clk_hw_register_fixed_factor(NULL, CREATE_CLK_NAME(id, "hpll_div200"),
+					     CREATE_CLK_NAME(id, "hpll"), 0, 1, 10);
+
+	clks[AST1800_CLK_HPLL_DIV1000] =
+		clk_hw_register_fixed_factor(NULL, CREATE_CLK_NAME(id, "hpll_div1000"),
+					     CREATE_CLK_NAME(id, "hpll"), 0, 1, 10);
+
+	clks[AST1800_CLK_HPLL_EFPGA0] =
+		clk_hw_register_divider_table(NULL, CREATE_CLK_NAME(id, "hpll_div10"),
+					      CREATE_CLK_NAME(id, "hpll_efpga0"),
+					      0, clk_base + 0x98,
+					      0, 8, 0, ast1800_efpga_clk_div_table,
+					      &ast1800_clk_lock);
+
+	clks[AST1800_CLK_HPLL_EFPGA1] =
+		clk_hw_register_divider_table(NULL, CREATE_CLK_NAME(id, "hpll_div10"),
+					      CREATE_CLK_NAME(id, "hpll_efpga1"),
+					      0, clk_base + 0x98,
+					      8, 8, 0, ast1800_efpga_clk_div_table,
+					      &ast1800_clk_lock);
+
+	clks[AST1800_CLK_HPLL_EFPGA2] =
+		clk_hw_register_divider_table(NULL, CREATE_CLK_NAME(id, "hpll_div10"),
+					      CREATE_CLK_NAME(id, "hpll_efpga2"),
+					      0, clk_base + 0x98,
+					      16, 8, 0, ast1800_efpga_clk_div_table,
+					      &ast1800_clk_lock);
+
+	clks[AST1800_CLK_HPLL_EFPGA3] =
+		clk_hw_register_divider_table(NULL, CREATE_CLK_NAME(id, "hpll_div10"),
+					      CREATE_CLK_NAME(id, "hpll_efpga3"),
+					      0, clk_base + 0x98,
+					      24, 8, 0, ast1800_efpga_clk_div_table,
+					      &ast1800_clk_lock);
+
+	clks[AST1800_CLK_HPLL_EFPGA4] =
+		clk_hw_register_divider_table(NULL, CREATE_CLK_NAME(id, "hpll_div10"),
+					      CREATE_CLK_NAME(id, "hpll_efpga4"),
+					      0, clk_base + 0x94,
+					      0, 8, 0, ast1800_efpga_clk_div_table,
+					      &ast1800_clk_lock);
+
+	clks[AST1800_CLK_HPLL_EFPGA5] =
+		clk_hw_register_divider_table(NULL, CREATE_CLK_NAME(id, "hpll_div10"),
+					      CREATE_CLK_NAME(id, "hpll_efpga5"),
+					      0, clk_base + 0x94,
+					      8, 8, 0, ast1800_efpga_clk_div_table,
+					      &ast1800_clk_lock);
+
+	clks[AST1800_CLK_HPLL_EFPGA6] =
+		clk_hw_register_divider_table(NULL, CREATE_CLK_NAME(id, "hpll_div10"),
+					      CREATE_CLK_NAME(id, "hpll_efpga6"),
+					      0, clk_base + 0x94,
+					      16, 8, 0, ast1800_efpga_clk_div_table,
+					      &ast1800_clk_lock);
+
+	clks[AST1800_CLK_HPLL_EFPGA7] =
+		clk_hw_register_divider_table(NULL, CREATE_CLK_NAME(id, "hpll_div10"),
+					      CREATE_CLK_NAME(id, "hpll_efpga7"),
+					      0, clk_base + 0x94,
+					      24, 8, 0, ast1800_efpga_clk_div_table,
+					      &ast1800_clk_lock);
+
+	/* EPLL 960Mhz */
+	val = readl(clk_base + AST1800_EPLL_PARAM);
+	clks[AST1800_CLK_EPLL] = AST1800_calc_pll(CREATE_CLK_NAME(id, "epll"),
+						  CREATE_CLK_NAME(id, "clkin"), val);
+
+	// huxclk
+	clks[AST1800_CLK_EPLL_DIV4] =
+		clk_hw_register_fixed_factor(NULL, CREATE_CLK_NAME(id, "epll_div4"),
+					     CREATE_CLK_NAME(id, "epll"), 0, 1, 4);
+
+	clks[AST1800_CLK_EPLL_DIV8] =
+		clk_hw_register_fixed_factor(NULL, CREATE_CLK_NAME(id, "epll_div8"),
+					     CREATE_CLK_NAME(id, "epll"), 0, 1, 8);
+
+	clks[AST1800_CLK_EPLL_EFPGA0] =
+		clk_hw_register_divider_table(NULL, CREATE_CLK_NAME(id, "epll_div8"),
+					      CREATE_CLK_NAME(id, "epll_efpga0"),
+					      0, clk_base + 0x98,
+					      0, 8, 0, ast1800_efpga_clk_div_table,
+					      &ast1800_clk_lock);
+
+	clks[AST1800_CLK_EPLL_EFPGA1] =
+		clk_hw_register_divider_table(NULL, CREATE_CLK_NAME(id, "epll_div8"),
+					      CREATE_CLK_NAME(id, "epll_efpga1"),
+					      0, clk_base + 0x98,
+					      8, 8, 0, ast1800_efpga_clk_div_table,
+					      &ast1800_clk_lock);
+
+	clks[AST1800_CLK_EPLL_EFPGA2] =
+		clk_hw_register_divider_table(NULL, CREATE_CLK_NAME(id, "epll_div8"),
+					      CREATE_CLK_NAME(id, "epll_efpga2"),
+					      0, clk_base + 0x98,
+					      16, 8, 0, ast1800_efpga_clk_div_table,
+					      &ast1800_clk_lock);
+
+	clks[AST1800_CLK_EPLL_EFPGA3] =
+		clk_hw_register_divider_table(NULL, CREATE_CLK_NAME(id, "epll_div8"),
+					      CREATE_CLK_NAME(id, "epll_efpga3"),
+					      0, clk_base + 0x98,
+					      24, 8, 0, ast1800_efpga_clk_div_table,
+					      &ast1800_clk_lock);
+
+	clks[AST1800_CLK_EPLL_EFPGA4] =
+		clk_hw_register_divider_table(NULL, CREATE_CLK_NAME(id, "epll_div8"),
+					      CREATE_CLK_NAME(id, "epll_efpga4"),
+					      0, clk_base + 0x9c,
+					      0, 8, 0, ast1800_efpga_clk_div_table,
+					      &ast1800_clk_lock);
+
+	clks[AST1800_CLK_EPLL_EFPGA5] =
+		clk_hw_register_divider_table(NULL, CREATE_CLK_NAME(id, "epll_div8"),
+					      CREATE_CLK_NAME(id, "epll_efpga5"),
+					      0, clk_base + 0x9c,
+					      8, 8, 0, ast1800_efpga_clk_div_table,
+					      &ast1800_clk_lock);
+
+	clks[AST1800_CLK_EPLL_EFPGA6] =
+		clk_hw_register_divider_table(NULL, CREATE_CLK_NAME(id, "epll_div8"),
+					      CREATE_CLK_NAME(id, "epll_efpga6"),
+					      0, clk_base + 0x9c,
+					      16, 8, 0, ast1800_efpga_clk_div_table,
+					      &ast1800_clk_lock);
+
+	clks[AST1800_CLK_EPLL_EFPGA7] =
+		clk_hw_register_divider_table(NULL, CREATE_CLK_NAME(id, "epll_div8"),
+					      CREATE_CLK_NAME(id, "epll_efpga7"),
+					      0, clk_base + 0x9c,
+					      24, 8, 0, ast1800_efpga_clk_div_table,
+					      &ast1800_clk_lock);
+
+	/* LPLL 1200Mhz */
+	val = readl(clk_base + AST1800_LPLL_PARAM);
+	clks[AST1800_CLK_LPLL] = AST1800_calc_pll(CREATE_CLK_NAME(id, "lpll"),
+						  CREATE_CLK_NAME(id, "clkin"), val);
+
+	clks[AST1800_CLK_LPLL_DIV4] =
+		clk_hw_register_fixed_factor(NULL, CREATE_CLK_NAME(id, "lpll_div4"),
+					     CREATE_CLK_NAME(id, "lpll"), 0, 1, 4);
 
 	/* uxclk mux selection */
 	clks[AST1800_CLK_UXCLK] =
@@ -350,19 +718,24 @@ static int AST1800_clk_init(struct device_node *ast1800_node)
 	val = readl(clk_base + AST1800_HUXCLK_CTRL);
 	clks[AST1800_CLK_HUARTX] = AST1800_calc_huclk(CREATE_CLK_NAME(id, "huartxclk"), val);
 
+	clks[AST1800_CLK_UART] =
+		clk_hw_register_mux(NULL, CREATE_CLK_NAME(id, "uart"),
+				    (id == 0) ? uart_sel0 : uart_sel1,
+				    (id == 0) ? ARRAY_SIZE(uart_sel0) : ARRAY_SIZE(uart_sel1),
+				    0, clk_base + AST1800_CLK_SEL,
+				    7, 1, 0, &ast1800_clk_lock);
+
 	/* AHB CLK = 200Mhz */
 	clks[AST1800_CLK_AHB] =
 		clk_hw_register_divider_table(NULL, CREATE_CLK_NAME(id, "ahb"),
-					      CREATE_CLK_NAME(id, "hpll"),
+					      CREATE_CLK_NAME(id, "hpll_div5"),
 					      0, clk_base + AST1800_CLK_SEL,
 					      0, 2, 0, ast1800_clk_div_table, &ast1800_clk_lock);
 
 	/* APB CLK = 100Mhz */
 	clks[AST1800_CLK_APB] =
-		clk_hw_register_divider_table(NULL, CREATE_CLK_NAME(id, "apb"),
-					      CREATE_CLK_NAME(id, "hpll"),
-					      0, clk_base + AST1800_CLK_SEL,
-					      0, 2, 0, ast1800_clk_div_table, &ast1800_clk_lock);
+		clk_hw_register_fixed_factor(NULL, CREATE_CLK_NAME(id, "apb"),
+					     CREATE_CLK_NAME(id, "ahb"), 0, 1, 2);
 
 	clks[AST1800_CLK_I3C] =
 		clk_hw_register_mux(NULL, CREATE_CLK_NAME(id, "i3cclk"),
@@ -466,6 +839,13 @@ static int AST1800_clk_init(struct device_node *ast1800_node)
 					     CREATE_CLK_NAME(id, "i3cclk"),
 					     0, clk_base + AST1800_CLK_STOP2,
 					     15, 0, &ast1800_clk_lock);
+
+	clks[AST1800_CLK_EFPGA7] =
+		clk_hw_register_mux(NULL, CREATE_CLK_NAME(id, "fpga7"),
+				    (id == 0) ? uart_sel0 : uart_sel1,
+				    (id == 0) ? ARRAY_SIZE(uart_sel0) : ARRAY_SIZE(uart_sel1),
+				    0, clk_base + AST1800_CLK_SEL,
+				    7, 1, 0, &ast1800_clk_lock);
 
 	of_clk_add_hw_provider(ast1800_node, of_clk_hw_onecell_get, clk_data);
 
