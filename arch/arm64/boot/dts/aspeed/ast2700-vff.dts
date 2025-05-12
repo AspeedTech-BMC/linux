@@ -209,6 +209,10 @@
 	perst-rc-out-gpio = <&gpio1 ASPEED_GPIO(T, 7) GPIO_ACTIVE_HIGH>;
 };
 
+&spi1 {
+	status = "disabled";
+};
+
 &spi2 {
 	compatible = "aspeed,ast2700-spi-txrx";
 	pinctrl-0 = <&pinctrl_spi2_default &pinctrl_spi2_cs1_default>;
