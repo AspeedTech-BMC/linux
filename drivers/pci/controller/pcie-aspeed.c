@@ -1106,7 +1106,6 @@ static int aspeed_ast2600_setup(struct platform_device *pdev)
 		dev_err(&pdev->dev, "can't get pcie phy reset\n");
 		return PTR_ERR(pcie->perst);
 	}
-	reset_control_assert(pcie->perst);
 
 	pcie->ahbc = syscon_regmap_lookup_by_compatible("aspeed,aspeed-ahbc");
 	if (IS_ERR(pcie->ahbc))
