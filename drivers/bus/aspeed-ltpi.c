@@ -115,17 +115,22 @@ static int aspeed_ltpi_probe(struct platform_device *pdev)
 	if (IS_ERR(priv->regs))
 		return PTR_ERR(priv->regs);
 
-	priv->ltpi_clk = devm_clk_get(&pdev->dev, "ahb");
-	if (IS_ERR(priv->ltpi_clk))
-		return PTR_ERR(priv->ltpi_clk);
+	priv->ltpi_clk = devm_clk_get(&pdev->dev, "ltpi");
+	if (IS_ERR(priv->ltpi_clk)) {
+		priv->ltpi_clk = devm_clk_get(&pdev->dev, "ahb");
+		if (IS_ERR(priv->ltpi_clk))
+			return PTR_ERR(priv->ltpi_clk);
 
-	clk_prepare_enable(priv->ltpi_clk);
+		clk_prepare_enable(priv->ltpi_clk);
 
-	priv->ltpi_phyclk = devm_clk_get(&pdev->dev, "phy");
-	if (IS_ERR(priv->ltpi_phyclk))
-		return PTR_ERR(priv->ltpi_phyclk);
+		priv->ltpi_phyclk = devm_clk_get(&pdev->dev, "phy");
+		if (IS_ERR(priv->ltpi_phyclk))
+			return PTR_ERR(priv->ltpi_phyclk);
 
-	clk_prepare_enable(priv->ltpi_phyclk);
+		clk_prepare_enable(priv->ltpi_phyclk);
+	} else {
+		priv->ltpi_phyclk = NULL;
+	}
 
 	priv->ltpi_rst = devm_reset_control_get_optional_shared(&pdev->dev, NULL);
 	if (IS_ERR(priv->ltpi_rst))
