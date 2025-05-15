@@ -60,7 +60,7 @@ static void aspeed_sgmii_set_nway(struct phy *phy)
 	reg = SGMII_CFG_AN_ENABLE;
 	writel(reg, sgmii->regs + SGMII_CFG);
 
-	writel(0x0a, sgmii->regs + SGMII_FIFO_DELAY_THREHOLD);
+	writel(0x0c, sgmii->regs + SGMII_FIFO_DELAY_THREHOLD);
 
 	writel(SGMII_PCTL_TX_DEEMPH_3_5DB, sgmii->regs + SGMII_PHY_PIPE_CTL);
 	reg = SGMII_MODE_ENABLE;
@@ -114,7 +114,7 @@ static int aspeed_sgmii_phy_set_speed(struct phy *phy, int speed)
 	writel(SGMII_CFG_SW_RESET | SGMII_CFG_PWR_DOWN, sgmii->regs + SGMII_CFG);
 	writel(reg, sgmii->regs + SGMII_CFG);
 
-	writel(0x0a, sgmii->regs + SGMII_FIFO_DELAY_THREHOLD);
+	writel(0x0c, sgmii->regs + SGMII_FIFO_DELAY_THREHOLD);
 	writel(SGMII_PCTL_TX_DEEMPH_3_5DB, sgmii->regs + SGMII_PHY_PIPE_CTL);
 
 	writel(SGMII_MODE_ENABLE | SGMII_MODE_USE_LOCAL_CONFIG, sgmii->regs + SGMII_MODE);
