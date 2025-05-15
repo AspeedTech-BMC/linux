@@ -534,8 +534,10 @@ static void ast2700_i2c_slave_packet_dma_irq(struct ast2600_i2c_bus *i2c_bus, u3
 			}
 		};
 		writel(isr, i2c_bus->reg_base + AST2600_I2CS_ISR);
-		i2c_slave_event(i2c_bus->slave, I2C_SLAVE_STOP, &value);
-		i2c_bus->slave = NULL;
+		if (i2c_bus->slave) {
+			i2c_slave_event(i2c_bus->slave, I2C_SLAVE_STOP, &value);
+			i2c_bus->slave = NULL;
+		}
 		return;
 	}
 
