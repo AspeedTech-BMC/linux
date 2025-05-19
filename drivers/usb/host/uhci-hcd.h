@@ -389,6 +389,8 @@ struct uhci_hcd {
 
 	struct dma_pool *qh_pool;
 	struct dma_pool *td_pool;
+	struct dma_pool *bounce_pool;
+	struct list_head bounce_blacklist;
 
 	struct uhci_td *term_td;	/* Terminating TD, see UHCI bug */
 	struct uhci_qh *skelqh[UHCI_NUM_SKELQH];	/* Skeleton QHs */
@@ -485,7 +487,7 @@ struct urb_priv {
 
 	struct uhci_qh *qh;		/* QH for this URB */
 	struct list_head td_list;
-
+	struct list_head bounce_list;
 	unsigned fsbr:1;		/* URB wants FSBR */
 };
 
@@ -719,5 +721,7 @@ static inline u32 hc32_to_cpu(const struct uhci_hcd *uhci, const __hc32 x)
 	return le32_to_cpu(x);
 }
 #endif
+
+void uhci_bounce_pool_destroy(struct uhci_hcd *uhci);
 
 #endif
