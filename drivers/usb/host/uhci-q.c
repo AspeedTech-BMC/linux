@@ -17,7 +17,98 @@
  * (C) Copyright 2004-2007 Alan Stern, stern@rowland.harvard.edu
  */
 
+/* ASPEED UHCI: Forbidden DMA region (0x3F8 - 0x3FF) */
+#define FORBIDDEN_START	  0x3F8
+#define FORBIDDEN_END	  0x3FF
+/* ASPEED UHCI: Number of allowed retries */
+#define BOUNCE_RETRIES 3
 
+/* Bounce buffer tracking info (per segment) */
+/**
+ * struct uhci_bounce_info - Bounce buffer descriptor for a TD segment
+ * @safe_buf: Pointer to allocated buffer from dma_pool
+ * @safe_dma: DMA address of safe_buf
+ * @len:      Valid length of this segment
+ * @list:     Link in urb_priv bounce_list
+ */
+struct uhci_bounce_info {
+	void *safe_buf;
+	dma_addr_t safe_dma;
+	unsigned int len;
+	struct list_head list;
+};
+
+/**
+ * uhci_alloc_safe_dma_buffer - Allocate bounce buffer using DMA pool
+ * @uhci: UHCI controller
+ * @len: Required data length (must be <= BOUNCE_BUF_SIZE)
+ *
+ * Return: Pointer to newly allocated uhci_bounce_info, or NULL on failure
+ */
+static struct uhci_bounce_info *uhci_alloc_safe_dma_buffer(struct uhci_hcd *uhci, size_t len)
+{
+	struct uhci_bounce_info *bi;
+	dma_addr_t dma;
+	void *buf;
+
+	if (len > BOUNCE_BUF_SIZE)
+		return NULL;
+
+	buf = dma_pool_alloc(uhci->bounce_pool, GFP_ATOMIC, &dma);
+	if (!buf) {
+		dev_err(uhci_dev(uhci), "%s: dma_pool_alloc failed\n", __func__);
+		return NULL;
+	}
+
+	bi = kzalloc(sizeof(*bi), GFP_ATOMIC);
+	if (!bi) {
+		dma_pool_free(uhci->bounce_pool, buf, dma);
+		return NULL;
+	}
+
+	bi->safe_buf = buf;
+	bi->safe_dma = dma;
+	INIT_LIST_HEAD(&bi->list);
+	return bi;
+}
+
+/**
+ * uhci_free_safe_dma_buffer - Free bounce buffer and metadata
+ * @uhci: UHCI controller
+ * @bi: Bounce descriptor to free
+ */
+static void uhci_free_safe_dma_buffer(struct uhci_hcd *uhci, struct uhci_bounce_info *bi)
+{
+	dma_pool_free(uhci->bounce_pool, bi->safe_buf, bi->safe_dma);
+	kfree(bi);
+}
+
+/* Complete all bounce buffer segments: free memory */
+static void uhci_complete_bounce_buffers(struct uhci_hcd *uhci, struct urb_priv *urbp)
+{
+	struct uhci_bounce_info *bi, *tmp;
+
+	list_for_each_entry_safe(bi, tmp, &urbp->bounce_list, list) {
+		dev_dbg(uhci_dev(uhci), "Free bounce TD at DMA: %pad len %u\n",
+			&bi->safe_dma, bi->len);
+		uhci_free_safe_dma_buffer(uhci, bi);
+	}
+}
+
+/**
+ * uhci_bounce_pool_destroy - Destroy UHCI bounce buffer DMA pool
+ */
+void uhci_bounce_pool_destroy(struct uhci_hcd *uhci)
+{
+	struct uhci_bounce_info *bi, *tmp;
+
+	list_for_each_entry_safe(bi, tmp, &uhci->bounce_blacklist, list) {
+		list_del(&bi->list);
+		uhci_free_safe_dma_buffer(uhci, bi);
+	}
+
+	dma_pool_destroy(uhci->bounce_pool);
+}
 /*
  * Technically, updating td->status here is a race, but it's not really a
  * problem. The worst that can happen is that we set the IOC bit again
@@ -733,6 +824,7 @@ static inline struct urb_priv *uhci_alloc_urb_priv(struct uhci_hcd *uhci,
 
 	INIT_LIST_HEAD(&urbp->node);
 	INIT_LIST_HEAD(&urbp->td_list);
+	INIT_LIST_HEAD(&urbp->bounce_list);
 
 	return urbp;
 }
@@ -750,6 +842,8 @@ static void uhci_free_urb_priv(struct uhci_hcd *uhci,
 		uhci_remove_td_from_urbp(td);
 		uhci_free_td(uhci, td);
 	}
+
+	uhci_complete_bounce_buffers(uhci, urbp);
 
 	kmem_cache_free(uhci_up_cachep, urbp);
 }
@@ -920,12 +1014,14 @@ static int uhci_submit_common(struct uhci_hcd *uhci, struct urb *urb,
 	int maxsze = usb_endpoint_maxp(&qh->hep->desc);
 	int len = urb->transfer_buffer_length;
 	int this_sg_len;
+	void *urb_buf = urb->transfer_buffer;
 	dma_addr_t data;
 	__hc32 *plink;
 	struct urb_priv *urbp = urb->hcpriv;
 	unsigned int toggle;
 	struct scatterlist  *sg;
 	int i;
+	bool aspeed_out_xfer = usb_pipeout(urb->pipe) && uhci_is_aspeed(uhci);
 
 	if (len < 0)
 		return -EINVAL;
@@ -963,6 +1059,8 @@ static int uhci_submit_common(struct uhci_hcd *uhci, struct urb *urb,
 	td = qh->dummy_td;
 	for (;;) {	/* Allow zero length packets */
 		int pktsze = maxsze;
+		unsigned int offset = data & 0x3FF;
+		unsigned int end, safe_offset, safe_end;
 
 		if (len <= pktsze) {		/* The last packet */
 			pktsze = len;
@@ -977,15 +1075,81 @@ static int uhci_submit_common(struct uhci_hcd *uhci, struct urb *urb,
 			*plink = LINK_TO_TD(uhci, td);
 		}
 		uhci_add_td_to_urbp(td, urbp);
-		uhci_fill_td(uhci, td, status,
-				destination | uhci_explen(pktsze) |
-					(toggle << TD_TOKEN_TOGGLE_SHIFT),
-				data);
+
+		/* ASPEED OUT Transfer HW restriction:
+		 *  Avoid any access that overlaps forbidden region [0x3F8 - 0x3FF].
+		 *  Driver bounces any TD that ends in or beyond forbidden range.
+		 */
+		end = offset + pktsze - 1;
+
+		if (aspeed_out_xfer && end >= FORBIDDEN_START) {
+			int retry = 0;
+			struct uhci_bounce_info *bi = NULL;
+
+			while (retry++ < BOUNCE_RETRIES) {
+				bi = uhci_alloc_safe_dma_buffer(uhci, pktsze);
+				if (!bi) {
+					dev_err(uhci_dev(uhci), "Allocate bounce buffer failed\n");
+					goto nomem;
+				}
+
+				safe_offset = bi->safe_dma & 0x3FF;
+				safe_end = safe_offset + pktsze - 1;
+
+				if (safe_end < FORBIDDEN_START)
+					break;
+
+				dev_dbg(uhci_dev(uhci), "(%d) Retry to allocate bounce (Forbidden DMA: %pad len: %u)\n",
+					retry, &bi->safe_dma, pktsze);
+				/* Save to black list for cleanup at uhci driver removal */
+				list_add_tail(&bi->list, &uhci->bounce_blacklist);
+				bi = NULL;
+			}
+			if (!bi) {
+				dev_err(uhci_dev(uhci), "Allocate safe bounce buffer failed after retry %d times\n", BOUNCE_RETRIES);
+				goto nomem;
+			}
+
+			/*
+			 * Copy data into bounce buffer segment:
+			 * - If URB uses scatter-gather (SG), use sg_pcopy_to_buffer to copy the correct portion
+			 * - If URB uses a linear buffer, use memcpy
+			 * - If neither is available, report error
+			 */
+			if (urb->sg && urb->num_mapped_sgs > 0) {
+				if (sg_pcopy_to_buffer(urb->sg, urb->num_mapped_sgs,
+						       bi->safe_buf, pktsze,
+						       urb->transfer_buffer_length - len) != pktsze) {
+					dev_err(uhci_dev(uhci), "sg_pcopy_to_buffer to safe bounce buffer failed\n");
+					return -EIO;
+				}
+			} else if (urb->transfer_buffer) {
+				memcpy(bi->safe_buf, urb_buf, pktsze);
+			} else {
+				dev_err(uhci_dev(uhci), "Cannot copy to bounce buffer: no data source\n");
+				return -EINVAL;
+			}
+
+			uhci_fill_td(uhci, td, status,
+				     destination | uhci_explen(pktsze) |
+				     (toggle << TD_TOKEN_TOGGLE_SHIFT),
+				     bi->safe_dma);
+			bi->len = pktsze;
+			list_add_tail(&bi->list, &urbp->bounce_list);
+			dev_dbg(uhci_dev(uhci), "Bounce TD at DMA safe: %pad len %u offset 0x%x\n",
+				&bi->safe_dma, pktsze, offset);
+		} else {
+			uhci_fill_td(uhci, td, status,
+				     destination | uhci_explen(pktsze) |
+				     (toggle << TD_TOKEN_TOGGLE_SHIFT),
+				     data);
+		}
 		plink = &td->link;
 		status |= TD_CTRL_ACTIVE;
 
 		toggle ^= 1;
 		data += pktsze;
+		urb_buf += pktsze;
 		this_sg_len -= pktsze;
 		len -= maxsze;
 		if (this_sg_len <= 0) {
