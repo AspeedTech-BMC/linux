@@ -547,10 +547,18 @@ static void ast2700_i2c_slave_packet_dma_irq(struct ast2600_i2c_bus *i2c_bus, u3
 		       i2c_bus->reg_base + AST2600_I2CS_DMA_LEN);
 		writel(cmd, i2c_bus->reg_base + AST2600_I2CS_CMD_STS);
 		/* clear sirq log */
-		while (readl(i2c_bus->reg_base + AST2700_I2CC_SIRQ_LOG))
-			;
+		while (readl(i2c_bus->reg_base + AST2700_I2CC_SIRQ_LOG)) {
+			/* assign the slave client*/
+			if (sirq_log & SADDR_HIT) {
+				if (!i2c_bus->slave)
+					ast2700_i2c_get_slave(i2c_bus, sirq_log >> SLAVE_ADDR_SHIFT);
+			}
+		};
 		writel(isr, i2c_bus->reg_base + AST2600_I2CS_ISR);
-		i2c_slave_event(i2c_bus->slave, I2C_SLAVE_STOP, &value);
+		if (i2c_bus->slave) {
+			i2c_slave_event(i2c_bus->slave, I2C_SLAVE_STOP, &value);
+			i2c_bus->slave = NULL;
+		}
 		return;
 	}
 
