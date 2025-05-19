@@ -74,12 +74,6 @@
 			reg = <0xb1020000 0x100000>;
 			no-map;
 		};
-
-		uhci_reserved: uhci_reserved@b1120000 {
-			reg = <0xb1120000 0x4000>;
-			compatible = "shared-dma-pool";
-			no-map;
-		};
 	};
 
 	vcc_sdhci0: regulator-vcc-sdhci0 {
@@ -703,7 +697,6 @@
 
 &uhci {
 	status = "okay";
-	memory-region = <&uhci_reserved>;
 };
 
 &vhub {
