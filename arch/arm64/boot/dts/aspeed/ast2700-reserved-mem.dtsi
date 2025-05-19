@@ -61,14 +61,14 @@ ipc_ssp_share: ipc-ssp-share@431080000 {
 	no-map;
 };
 
-uhci0_reserved: uhci0-reserved@431ba8000 {
-	reg = <0x4 0x31ba8000 0x0 0x4000>;
+uhci0_reserved: uhci0-reserved@431b30000 {
+	reg = <0x4 0x31b30000 0x0 0x40000>;
 	compatible = "shared-dma-pool";
 	no-map;
 };
 
-uhci1_reserved: uhci1-reserved@431bac000 {
-	reg = <0x4 0x31bac000 0x0 0x4000>;
+uhci1_reserved: uhci1-reserved@431b70000 {
+	reg = <0x4 0x31b70000 0x0 0x40000>;
 	compatible = "shared-dma-pool";
 	no-map;
 };
