@@ -88,6 +88,10 @@ static char *errbuf;
 
 #define ERRBUF_LEN    (32 * 1024)
 
+/* Aspeed SoC needs some DMA bounce buffers for workaround */
+#define BOUNCE_BUF_SIZE   64      /* Bounce buffer size */
+#define BOUNCE_BUF_ALIGN  64      /* Alignment within page */
+
 static struct kmem_cache *uhci_up_cachep;	/* urb_priv */
 
 static void suspend_rh(struct uhci_hcd *uhci, enum uhci_rh_state new_state);
@@ -549,6 +553,9 @@ static void release_uhci(struct uhci_hcd *uhci)
 
 	dma_pool_destroy(uhci->td_pool);
 
+	if (uhci_is_aspeed(uhci))
+		uhci_bounce_pool_destroy(uhci);
+
 	kfree(uhci->frame_cpu);
 
 	dma_free_coherent(uhci_dev(uhci),
@@ -614,6 +621,17 @@ static int uhci_start(struct usb_hcd *hcd)
 			GFP_KERNEL);
 	if (!uhci->frame_cpu)
 		goto err_alloc_frame_cpu;
+
+	if (uhci_is_aspeed(uhci)) {
+		uhci->bounce_pool = dma_pool_create("uhci_bounce", uhci_dev(uhci),
+						    BOUNCE_BUF_SIZE,
+						    BOUNCE_BUF_ALIGN, 0);
+		if (!uhci->bounce_pool) {
+			dev_err(uhci_dev(uhci), "unable to create bounce dma_pool\n");
+			goto err_create_bounce_pool;
+		}
+		INIT_LIST_HEAD(&uhci->bounce_blacklist);
+	}
 
 	uhci->td_pool = dma_pool_create("uhci_td", uhci_dev(uhci),
 			sizeof(struct uhci_td), 16, 0);
@@ -699,6 +717,10 @@ err_create_qh_pool:
 	dma_pool_destroy(uhci->td_pool);
 
 err_create_td_pool:
+	if (uhci_is_aspeed(uhci))
+		uhci_bounce_pool_destroy(uhci);
+
+err_create_bounce_pool:
 	kfree(uhci->frame_cpu);
 
 err_alloc_frame_cpu:
