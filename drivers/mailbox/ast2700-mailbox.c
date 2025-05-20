@@ -117,8 +117,9 @@ static int ast2700_mbox_startup(struct mbox_chan *chan)
 {
 	struct ast2700_mbox *mb = dev_get_drvdata(chan->mbox->dev);
 	int idx = ch_num(chan);
+	void __iomem *reg = mb->regs + IPCR_RX_ENABLE;
 
-	writel_relaxed(BIT(idx), mb->regs + IPCR_RX_ENABLE);
+	writel_relaxed(readl_relaxed(reg) | BIT(idx), reg);
 
 	return 0;
 }
@@ -127,8 +128,9 @@ static void ast2700_mbox_shutdown(struct mbox_chan *chan)
 {
 	struct ast2700_mbox *mb = dev_get_drvdata(chan->mbox->dev);
 	int idx = ch_num(chan);
+	void __iomem *reg = mb->regs + IPCR_RX_ENABLE;
 
-	writel_relaxed(~BIT(idx), mb->regs + IPCR_RX_ENABLE);
+	writel_relaxed(readl_relaxed(reg) & ~BIT(idx), reg);
 }
 
 static bool ast2700_mbox_last_tx_done(struct mbox_chan *chan)
