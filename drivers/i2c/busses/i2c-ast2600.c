@@ -124,6 +124,7 @@
 #define AST2600_I2CM_SDA_DL_TO			BIT(14)
 #define AST2600_I2CM_BUS_RECOVER			BIT(13)
 #define AST2600_I2CM_SMBUS_ALT			BIT(12)
+#define AST2700_I2CM_ABNORMAL_ACTION	BIT(8)
 
 #define AST2600_I2CM_SCL_LOW_TO			BIT(6)
 #define AST2600_I2CM_ABNORMAL			BIT(5)
@@ -1577,6 +1578,18 @@ static int ast2600_i2c_do_start(struct ast2600_i2c_bus *i2c_bus)
 	return 0;
 }
 
+static int ast2700_i2c_irq_err_to_errno(u32 irq_status)
+{
+	if (irq_status & AST2700_I2CM_ABNORMAL_ACTION)
+		return -EAGAIN;
+	if (irq_status & (AST2600_I2CM_SDA_DL_TO | AST2600_I2CM_SCL_LOW_TO))
+		return -EBUSY;
+	if (irq_status & (AST2600_I2CM_ABNORMAL))
+		return -EPROTO;
+
+	return 0;
+}
+
 static int ast2600_i2c_irq_err_to_errno(u32 irq_status)
 {
 	if (irq_status & AST2600_I2CM_ARBIT_LOSS)
@@ -1788,14 +1801,21 @@ static int ast2600_i2c_master_irq(struct ast2600_i2c_bus *i2c_bus)
 		}
 	}
 
-	i2c_bus->cmd_err = ast2600_i2c_irq_err_to_errno(sts);
-	if (i2c_bus->cmd_err) {
-		if (i2c_bus->version == AST2700)
+	/* handle master abnormal condition */
+	if (i2c_bus->version == AST2700) {
+		i2c_bus->cmd_err = ast2700_i2c_irq_err_to_errno(sts);
+		if (i2c_bus->cmd_err) {
 			writel(sts, i2c_bus->reg_base + AST2600_I2CM_ISR);
-		else
+			complete(&i2c_bus->cmd_complete);
+			return 1;
+		}
+	} else {
+		i2c_bus->cmd_err = ast2600_i2c_irq_err_to_errno(sts);
+		if (i2c_bus->cmd_err) {
 			writel(AST2600_I2CM_PKT_DONE, i2c_bus->reg_base + AST2600_I2CM_ISR);
-		complete(&i2c_bus->cmd_complete);
-		return 1;
+			complete(&i2c_bus->cmd_complete);
+			return 1;
+		}
 	}
 
 	if (AST2600_I2CM_PKT_DONE & sts) {
