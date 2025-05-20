@@ -1129,7 +1129,6 @@
 			interrupts = <GIC_SPI 103 IRQ_TYPE_LEVEL_HIGH>;
 			#mbox-cells = <1>;
 			mbox-name = "ssp";
-			status = "disabled";
 		};
 
 		mbox1: mbox@12c1c600 {
@@ -1138,7 +1137,6 @@
 			interrupts = <GIC_SPI 107 IRQ_TYPE_LEVEL_HIGH>;
 			#mbox-cells = <1>;
 			mbox-name = "tsp";
-			status = "disabled";
 		};
 	};
 
@@ -2385,7 +2383,6 @@
 			interrupts-extended = <&intc1_5 17>;
 			#mbox-cells = <1>;
 			mbox-name = "bootmcu";
-			status = "disabled";
 		};
 
 		sgpios: sgpios@14c3c000 {
