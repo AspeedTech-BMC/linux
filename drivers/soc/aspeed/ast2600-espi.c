@@ -1009,6 +1009,12 @@ static void ast2600_espi_vw_isr(struct ast2600_espi *espi)
 	if (sts & ESPI_INT_STS_VW_GPIO) {
 		vw->gpio.val = readl(espi->regs + ESPI_VW_GPIO_VAL);
 		writel(ESPI_INT_STS_VW_GPIO, espi->regs + ESPI_INT_STS);
+	} else if (sts & ESPI_INT_STS_VW_SYSEVT) {
+		/* Handle system event */
+		writel(ESPI_INT_STS_VW_SYSEVT, espi->regs + ESPI_INT_STS);
+	} else if (sts & (ESPI_INT_STS_VW_SYSEVT1)) {
+		/* Handle system event1 */
+		writel(ESPI_INT_STS_VW_SYSEVT1, espi->regs + ESPI_INT_STS);
 	}
 }
 
@@ -1033,6 +1039,17 @@ static void ast2600_espi_vw_reset(struct ast2600_espi *espi)
 	      | ((vw->gpio.hw_mode) ? 0 : ESPI_CTRL_VW_GPIO_SW)
 	      | ESPI_CTRL_VW_SW_RDY;
 	writel(reg, espi->regs + ESPI_CTRL);
+
+	writel(0x0, espi->regs + ESPI_VW_SYSEVT_INT_T0);
+	writel(0x0, espi->regs + ESPI_VW_SYSEVT_INT_T1);
+
+	reg = readl(espi->regs + ESPI_INT_EN);
+	reg |= ESPI_INT_EN_RST_DEASSERT;
+	writel(reg, espi->regs + ESPI_INT_EN);
+
+	writel(0xffffffff, espi->regs + ESPI_VW_SYSEVT_INT_EN);
+	writel(0x1, espi->regs + ESPI_VW_SYSEVT1_INT_EN);
+	writel(0x1, espi->regs + ESPI_VW_SYSEVT1_INT_T0);
 }
 
 static int ast2600_espi_vw_probe(struct ast2600_espi *espi)
