@@ -1,20 +1,15 @@
 // SPDX-License-Identifier: GPL-2.0
-/*
- * Implements DMTF specification
- * "DSP0238 Management Component Transport Protocol (MCTP) PCIe VDM Transport
- * Binding"
- *  https://www.dmtf.org/sites/default/files/standards/documents/DSP0238_1.2.0.pdf
- *
- * Copyright (c) 2023 Code Construct
- */
 
 #include "linux/dynamic_debug.h"
 #include "linux/if_ether.h"
+#include "linux/list.h"
+#include "linux/hashtable.h"
 #include "linux/mutex.h"
 #include "linux/pci.h"
 #include "linux/printk.h"
 #include "linux/skbuff.h"
 #include "linux/stddef.h"
+#include "linux/types.h"
 #include <linux/module.h>
 #include <linux/netdevice.h>
 #include <linux/platform_device.h>
@@ -29,12 +24,6 @@
 #include <linux/aspeed-mctp.h>
 #include <net/mctp.h>
 #include <net/mctpdevice.h>
-
-#define LEN_MASK_HI GENMASK(9, 8)
-#define LEN_MASK_LO GENMASK(7, 0)
-#define PCI_VDM_HDR_LEN_MASK_LO GENMASK(31, 24)
-#define PCI_VDM_HDR_LEN_MASK_HI GENMASK(17, 16)
-#define PCIE_VDM_HDR_REQUESTER_BDF_MASK GENMASK(31, 16)
 
 /* 64byte MCTP payload + 16 byte PCIe binding header */
 #define MCTP_PCIE_VDM_MIN_MTU (64 + 16)
@@ -52,11 +41,15 @@
 #define MCTP_PCIE_VDM_MSG_CODE 0x7F
 #define MCTP_PCIE_VDM_VENDOR_ID 0x1AB4
 /* MCTP message type */
-#define MCTP_PCIE_VMD_MSG_TYPE 0x7E
+#define MCTP_MSG_TYPE_MASK GENMASK(6, 0)
+#define MCTP_PCIE_VDM_MSG_TYPE 0x7E
 #define MCTP_CONTROL_MSG_TYPE 0x00
 
 #define MCTP_CTRL_MSG_RQDI_REQ 0x80
 #define MCTP_CTRL_MSG_RQDI_RSP 0x00
+
+#define MCTP_CTRL_MSG_RQDI_REQ_DATA_OFFSET 3
+#define MCTP_CTRL_MSG_RQDI_RSP_DATA_OFFSET 4
 
 #define MCTP_PCIE_SWAP_NET_ENDIAN(arr, len)       \
 	do {                                      \
@@ -81,13 +74,15 @@ enum mctp_pcie_vdm_route_type {
 };
 
 enum mctp_ctrl_command_code {
+	MCTP_CTRL_CMD_SET_ENDPOINT_ID = 0x01,
+	MCTP_CTRL_CMD_GET_ENDPOINT_ID = 0x02,
 	MCTP_CTRL_CMD_PREPARE_ENDPOINT_DISCOVERY = 0x0B,
 	MCTP_CTRL_CMD_ENDPOINT_DISCOVERY = 0x0C,
 	MCTP_CTRL_CMD_DISCOVERY_NOTIFY = 0x0D
 };
 
 struct mctp_ctrl_msg_hdr {
-	u8 rq_dgram_inst;
+	u8 ctrl_msg_class;
 	u8 command_code;
 };
 
@@ -99,6 +94,13 @@ struct mctp_pcie_vdm_hdr {
 	u16 pci_req_id;
 	u16 pci_vendor_id;
 	u16 pci_target_id;
+};
+
+struct mctp_pcie_vdm_route_info {
+	u8 eid;
+	u8 dirty;
+	u16 bdf_addr;
+	struct hlist_node hnode;
 };
 
 struct mctp_pcie_vdm_dev {
@@ -116,6 +118,8 @@ struct mctp_pcie_vdm_dev {
 	wait_queue_head_t rx_wait;
 	bool receive_data;
 	struct list_head list;
+	/* each network may have at most 256 EIDs */
+	DECLARE_HASHTABLE(route_table, 8);
 };
 
 /* mutex for vdm_devs add/delete */
@@ -150,6 +154,100 @@ static void mctp_pcie_vdm_display_skb_buff_data(struct sk_buff *skb)
 		i++;
 	}
 	pr_debug("%s\n", buf);
+}
+
+static void mctp_pcie_vdm_update_route_table(struct mctp_pcie_vdm_dev *vdm_dev,
+					     u8 eid, u16 bdf)
+{
+	if (eid == 0x00 || eid == 0xFF)
+		return;
+
+	bool exist = false;
+	struct mctp_pcie_vdm_route_info *route;
+
+	hash_for_each_possible(vdm_dev->route_table, route, hnode, eid) {
+		pr_debug("%s: route table eid %d maps to %d", __func__, route->eid, route->bdf_addr);
+		if (route->eid == eid) {
+			exist = true;
+			route->bdf_addr = bdf;
+			break;
+		}
+	}
+
+	if (!exist) {
+		route = kmalloc(sizeof(*route), GFP_KERNEL);
+		route->bdf_addr = bdf;
+		route->eid = eid;
+		route->dirty = 0;
+
+		hash_add(vdm_dev->route_table, &route->hnode, route->eid);
+		pr_debug("%s: not found, add map eid %d to bdf 0x%x", __func__, eid, bdf);
+	}
+}
+
+static void mctp_pcie_vdm_ctrl_msg_handler(struct mctp_pcie_vdm_dev *vdm_dev,
+					   u8 *packet)
+{
+	u8 message_type =
+		FIELD_GET(MCTP_MSG_TYPE_MASK, packet[MCTP_PCIE_VDM_HDR_SIZE]);
+
+	if (message_type != MCTP_CONTROL_MSG_TYPE)
+		return;
+
+	struct mctp_ctrl_msg_hdr *ctrl_hdr =
+		(struct mctp_ctrl_msg_hdr *)(&packet[MCTP_PCIE_VDM_HDR_SIZE]);
+
+	/* host endian expected */
+	struct mctp_pcie_vdm_hdr *hdr = (struct mctp_pcie_vdm_hdr *)packet;
+
+	switch (ctrl_hdr->command_code) {
+	case MCTP_CTRL_CMD_SET_ENDPOINT_ID:
+		if (ctrl_hdr->ctrl_msg_class == MCTP_CTRL_MSG_RQDI_REQ) {
+			/* EID placed at byte2 of SET EID REQ DATA */
+			u8 dst_eid =
+				packet[MCTP_PCIE_VDM_HDR_SIZE +
+				       MCTP_CTRL_MSG_RQDI_REQ_DATA_OFFSET + 1];
+			u16 dst_bdf = hdr->pci_target_id;
+
+			mctp_pcie_vdm_update_route_table(vdm_dev, dst_eid,
+							 dst_bdf);
+		}
+		break;
+	case MCTP_CTRL_CMD_GET_ENDPOINT_ID:
+		if (ctrl_hdr->ctrl_msg_class == MCTP_CTRL_MSG_RQDI_RSP) {
+			/* EID placed at byte2 of GET EID RSP DATA */
+			u8 target_eid =
+				packet[MCTP_PCIE_VDM_HDR_SIZE +
+				       MCTP_CTRL_MSG_RQDI_RSP_DATA_OFFSET + 1];
+			u16 src_bdf = hdr->pci_req_id;
+
+			mctp_pcie_vdm_update_route_table(vdm_dev, target_eid,
+							 src_bdf);
+		}
+		break;
+	case MCTP_CTRL_CMD_DISCOVERY_NOTIFY:
+		hdr->pci_target_id = 0x0000;
+		/* default use MCTP_PCIE_VDM_ROUTE_BY_ID, so no need to handle RSP class */
+		if (ctrl_hdr->ctrl_msg_class == MCTP_CTRL_MSG_RQDI_REQ) {
+			hdr->route_type = MCTP_PCIE_VDM_TYPE_MSG |
+					  MCTP_PCIE_VDM_ROUTE_TO_RC;
+		}
+		break;
+	case MCTP_CTRL_CMD_PREPARE_ENDPOINT_DISCOVERY:
+	case MCTP_CTRL_CMD_ENDPOINT_DISCOVERY:
+		if (ctrl_hdr->ctrl_msg_class == MCTP_CTRL_MSG_RQDI_REQ) {
+			hdr->route_type = MCTP_PCIE_VDM_TYPE_MSG |
+					  MCTP_PCIE_VDM_BROADCAST_FROM_RC;
+			hdr->pci_target_id = 0xFFFF;
+		} else if (ctrl_hdr->ctrl_msg_class == MCTP_CTRL_MSG_RQDI_RSP) {
+			hdr->route_type = MCTP_PCIE_VDM_TYPE_MSG |
+					  MCTP_PCIE_VDM_ROUTE_TO_RC;
+		}
+		break;
+	default:
+		/* Unknown command code or not supported currently */
+		break;
+	}
 }
 
 static netdev_tx_t mctp_pcie_vdm_start_xmit(struct sk_buff *skb,
@@ -188,38 +286,31 @@ static void mctp_pcie_vdm_xmit(struct mctp_pcie_vdm_dev *vdm_dev,
 	struct mctp_pcie_vdm_hdr *hdr = (struct mctp_pcie_vdm_hdr *)skb->data;
 
 	u8 *hdr_byte = (u8 *)hdr;
-	u8 message_type = hdr_byte[MCTP_PCIE_VDM_HDR_SIZE];
 	u16 payload_len_dw =
 		(ALIGN(skb->len, sizeof(u32)) - MCTP_PCIE_VDM_HDR_SIZE) /
 		sizeof(u32);
-	struct mctp_ctrl_msg_hdr *ctrl_hdr =
-		(struct mctp_ctrl_msg_hdr
-			 *)(&hdr_byte[MCTP_PCIE_VDM_HDR_SIZE + 1]);
+	u8 message_type =
+		FIELD_GET(MCTP_MSG_TYPE_MASK, hdr_byte[MCTP_PCIE_VDM_HDR_SIZE]);
 
-	/* mctp control request message  */
 	if (message_type == MCTP_CONTROL_MSG_TYPE) {
-		switch (ctrl_hdr->command_code) {
-		case MCTP_CTRL_CMD_DISCOVERY_NOTIFY:
-			hdr->route_type = MCTP_PCIE_VDM_TYPE_MSG |
-					  MCTP_PCIE_VDM_ROUTE_TO_RC;
-			hdr->pci_target_id = 0x0000;
-			break;
-		case MCTP_CTRL_CMD_PREPARE_ENDPOINT_DISCOVERY:
-		case MCTP_CTRL_CMD_ENDPOINT_DISCOVERY:
-			if (ctrl_hdr->rq_dgram_inst & MCTP_CTRL_MSG_RQDI_REQ) {
-				hdr->route_type =
-					MCTP_PCIE_VDM_TYPE_MSG |
-					MCTP_PCIE_VDM_BROADCAST_FROM_RC;
-				hdr->pci_target_id = 0xFFFF;
-			} else if (ctrl_hdr->rq_dgram_inst ==
-				   MCTP_CTRL_MSG_RQDI_RSP) {
-				hdr->route_type = MCTP_PCIE_VDM_TYPE_MSG |
-						  MCTP_PCIE_VDM_ROUTE_TO_RC;
+		mctp_pcie_vdm_ctrl_msg_handler(vdm_dev, hdr_byte);
+	} else {
+		if (hdr->route_type == (MCTP_PCIE_VDM_TYPE_MSG | MCTP_PCIE_VDM_ROUTE_BY_ID)) {
+			struct mctp_pcie_vdm_route_info *route;
+			bool exist = false;
+			u16 bdf = 0x00;
+			u8 dst_eid = FIELD_GET(GENMASK(15, 8), *((u32 *)skb->data + sizeof(struct mctp_pcie_vdm_hdr) / sizeof(u32)));
+
+			hash_for_each_possible(vdm_dev->route_table, route, hnode, dst_eid) {
+				if (route->eid == dst_eid) {
+					exist = true;
+					bdf = route->bdf_addr;
+					hdr->pci_target_id = bdf;
+					break;
+				}
 			}
-			break;
-		default:
-			/* Unknown command code */
-			break;
+			if (exist)
+				pr_debug("%s fill bdf 0x%x to eid %d", __func__, bdf, dst_eid);
 		}
 	}
 
@@ -242,7 +333,7 @@ static void mctp_pcie_vdm_xmit(struct mctp_pcie_vdm_dev *vdm_dev,
 		return;
 	}
 
-	memcpy(&packet->data.hdr, skb->data, MCTP_PCIE_VDM_HDR_SIZE);
+	memcpy((u8 *)&packet->data.hdr, skb->data, MCTP_PCIE_VDM_HDR_SIZE);
 	MCTP_PCIE_SWAP_NET_ENDIAN(packet->data.hdr,
 				  sizeof(struct mctp_pcie_vdm_hdr) /
 					  sizeof(u32));
@@ -340,6 +431,8 @@ static int mctp_pcie_vdm_rx_thread(void *data)
 		u16 len;
 		int net_status;
 
+		mctp_pcie_vdm_ctrl_msg_handler(vdm_dev, (u8 *)&packet->data);
+
 		stats = &vdm_dev->ndev->stats;
 		len = vdm_hdr->length * sizeof(u32) - vdm_hdr->tag_pad_len;
 		len += MCTP_PCIE_VDM_HDR_SIZE;
@@ -372,6 +465,14 @@ static int mctp_pcie_vdm_rx_thread(void *data)
 			stats->rx_dropped++;
 		}
 
+		if (vdm_hdr->route_type ==
+		    (MCTP_PCIE_VDM_TYPE_MSG | MCTP_PCIE_VDM_ROUTE_BY_ID)) {
+			u16 bdf = vdm_hdr->pci_req_id;
+			u8 src_eid = FIELD_GET(GENMASK(23, 16), packet->data.hdr[3]);
+
+			mctp_pcie_vdm_update_route_table(vdm_dev, src_eid, bdf);
+		}
+
 		aspeed_mctp_packet_free(packet);
 	}
 	pr_debug("%s stopping\n", __func__);
@@ -395,6 +496,8 @@ static int mctp_pcie_vdm_add_mctp_dev(struct mctp_pcie_vdm_dev *vdm_dev,
 	spin_lock_init(&vdm_dev->rx_lock);
 	init_waitqueue_head(&vdm_dev->tx_wait);
 	init_waitqueue_head(&vdm_dev->rx_wait);
+	hash_init(vdm_dev->route_table);
+	INIT_LIST_HEAD(&vdm_dev->list);
 	vdm_dev->rx_thread = kthread_run(mctp_pcie_vdm_rx_thread, vdm_dev,
 					 "mctp_pcie_vdm_rx_thread");
 	vdm_dev->tx_thread = kthread_run(mctp_pcie_vdm_tx_thread, vdm_dev,
@@ -419,6 +522,17 @@ static void mctp_pcie_vdm_uninit(struct net_device *ndev)
 		aspeed_mctp_flush_rx_queue(client);
 		aspeed_mctp_delete_client(client);
 		vdm_dev->client = NULL;
+	}
+	pr_debug("%s: uninitializing vdm_dev %s\n", __func__,
+		 vdm_dev->ndev->name);
+
+	struct mctp_pcie_vdm_route_info *route;
+	struct hlist_node *tmp;
+	int bkt;
+
+	hash_for_each_safe(vdm_dev->route_table, bkt, tmp, route, hnode) {
+		hash_del(&route->hnode);
+		kfree(route);
 	}
 
 	if (vdm_dev->rx_thread) {
