@@ -1119,12 +1119,6 @@ static int aspeed_ast2600_setup(struct platform_device *pdev)
 			return PTR_ERR(pcie->cfg);
 	}
 
-	//workaround : Send vender define message for avoid when PCIE RESET send unknown message out
-	regmap_write(pcie->cfg, 0x10, 0x34000000);
-	regmap_write(pcie->cfg, 0x14, 0x0000007f);
-	regmap_write(pcie->cfg, 0x18, 0x00001a03);
-	regmap_write(pcie->cfg, 0x1c, 0x00000000);
-
 	regmap_write(pcie->ahbc, 0x00, AHBC_UNLOCK);
 	regmap_update_bits(pcie->ahbc, 0x8C, BIT(5), BIT(5));
 	regmap_write(pcie->ahbc, 0x00, 0x1);
