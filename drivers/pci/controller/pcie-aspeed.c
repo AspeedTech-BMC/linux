@@ -72,6 +72,7 @@
 #define PCIE_RX_LINEAR			BIT(8)
 #define PCIE_RX_MSI_SEL			BIT(7)
 #define PCIE_RX_MSI_EN			BIT(6)
+#define PCIE_UNLOCK_RX_BUFF		BIT(4)
 #define PCIE_Wait_RX_TLP_CLR		BIT(2)
 #define PCIE_RC_RX_ENABLE		BIT(1)
 #define PCIE_RC_ENABLE			BIT(0)
@@ -148,7 +149,7 @@ struct aspeed_pcie_rc_platform {
 struct aspeed_pcie {
 	struct pci_host_bridge *host;
 	struct device *dev;
-	void __iomem *reg;	//rc slot base
+	void __iomem *reg;
 	struct regmap *ahbc;
 	struct regmap *device;
 	int domain;
@@ -156,16 +157,14 @@ struct aspeed_pcie {
 	u32 msi_address;
 	int irq;
 	u8 tx_tag;
-	struct regmap *cfg;	//pciecfg
-	struct regmap *pciephy; //pcie_phy
+	struct regmap *cfg;
+	struct regmap *pciephy;
 	struct reset_control *h2xrst;
 	struct reset_control *perst;
-	/* INTx */
-	struct irq_domain *irq_domain;	//irq_domain
-	// msi
-	struct irq_domain *dev_domain;	//inner_domain
+	struct irq_domain *irq_domain;
+	struct irq_domain *dev_domain;
 	struct irq_domain *msi_domain;
-	struct mutex lock;  /* protect bitmap variable */
+	struct mutex lock;
 	int hotplug_event;
 	struct gpio_desc *perst_ep_in;
 	struct gpio_desc *perst_rc_out;
@@ -318,13 +317,13 @@ static int aspeed_ast2600_rd_conf(struct pci_bus *bus, unsigned int devfn,
 	u32 link_sts = 0;
 	int ret;
 
-	//H2X80[4] (unlock) is write-only.
-	//Driver may set H2X80[4]=1 before triggering next TX config.
-	writel(BIT(4) | readl(pcie->reg), pcie->reg);
+	/* Driver may set unlock RX buffere before triggering next TX config */
+	writel(PCIE_UNLOCK_RX_BUFF | readl(pcie->reg + H2X_DEV_CTRL),
+	       pcie->reg + H2X_DEV_CTRL);
 
 	switch (pcie->domain) {
 	case 0:
-		if (!bus->number) {
+		if (bus->number == 0) {
 			switch (PCI_SLOT(devfn)) {
 			case 0:
 			case 4:
@@ -488,9 +487,9 @@ static int aspeed_ast2600_wr_conf(struct pci_bus *bus, unsigned int devfn,
 	}
 #endif
 
-	//H2X80[4] (unlock) is write-only.
-	//Driver may set H2X80[4]=1 before triggering next TX config.
-	writel(BIT(4) | readl(pcie->reg), pcie->reg);
+	/* Driver may set unlock RX buffere before triggering next TX config */
+	writel(PCIE_UNLOCK_RX_BUFF | readl(pcie->reg + H2X_DEV_CTRL),
+	       pcie->reg + H2X_DEV_CTRL);
 
 	switch (size) {
 	case 1:
@@ -1044,76 +1043,61 @@ static irqreturn_t pcie_rst_irq_handler(int irq, void *dev_id)
 static int aspeed_ast2600_setup(struct platform_device *pdev)
 {
 	struct aspeed_pcie *pcie = platform_get_drvdata(pdev);
-	struct device_node *cfg_node;
-	int err;
+	struct device *dev = pcie->dev;
+	int ret;
 
-	pcie->perst_rc_out =
-		devm_gpiod_get_optional(pcie->dev, "perst-rc-out",
-					GPIOD_OUT_LOW |
-					GPIOD_FLAGS_BIT_NONEXCLUSIVE);
-
-	pcie->perst = devm_reset_control_get_exclusive(pcie->dev, NULL);
-	if (IS_ERR(pcie->perst)) {
-		dev_err(&pdev->dev, "can't get pcie phy reset\n");
-		return PTR_ERR(pcie->perst);
-	}
-
-	pcie->ahbc = syscon_regmap_lookup_by_compatible("aspeed,aspeed-ahbc");
+	pcie->ahbc = syscon_regmap_lookup_by_phandle(dev->of_node, "ahbc");
 	if (IS_ERR(pcie->ahbc))
-		return IS_ERR(pcie->ahbc);
+		return dev_err_probe(dev, PTR_ERR(pcie->ahbc), "failed to map ahbc base\n");
 
-	cfg_node = of_find_compatible_node(NULL, NULL, "aspeed,ast2600-pciecfg");
-	if (cfg_node) {
-		pcie->cfg = syscon_node_to_regmap(cfg_node);
-		if (IS_ERR(pcie->cfg))
-			return PTR_ERR(pcie->cfg);
+	pcie->cfg = syscon_regmap_lookup_by_phandle(dev->of_node, "pciecfg");
+	if (IS_ERR(pcie->cfg))
+		return dev_err_probe(dev, PTR_ERR(pcie->cfg), "failed to map pciecfg base\n");
+
+	pcie->perst_rc_out = devm_gpiod_get_optional(dev, "perst-rc-out",
+						     GPIOD_OUT_LOW | GPIOD_FLAGS_BIT_NONEXCLUSIVE);
+
+	reset_control_assert(pcie->h2xrst);
+	if (pcie->perst_rc_out) {
+		gpiod_set_value(pcie->perst_rc_out, 1);
+		gpiod_set_value(pcie->perst_rc_out, 0);
 	}
+	mdelay(5);
+	reset_control_deassert(pcie->h2xrst);
 
 	regmap_write(pcie->ahbc, AHBC_KEY, AHBC_UNLOCK);
-	regmap_update_bits(pcie->ahbc, AHBC_ADDR_MAPPING, PCIE_RC_MEMORY_EN,
-			   PCIE_RC_MEMORY_EN);
+	regmap_update_bits(pcie->ahbc, AHBC_ADDR_MAPPING, PCIE_RC_MEMORY_EN, PCIE_RC_MEMORY_EN);
 	regmap_write(pcie->ahbc, AHBC_KEY, 0x1);
 
-	//ahb to pcie rc
 	regmap_write(pcie->cfg, H2X_AHB_ADDR_CONFIG0, 0xe0006000);
 	regmap_write(pcie->cfg, H2X_AHB_ADDR_CONFIG1, 0);
 	regmap_write(pcie->cfg, H2X_AHB_ADDR_CONFIG2, ~0);
 
-	//PCIe Host Enable
+	/* PCIe Host Enable */
 	regmap_write(pcie->cfg, H2X_CTRL, H2X_BRIDGE_EN);
 
-	//080 can't config for msi
 	pcie->support_msi = (pcie->domain) ? false : true;
 
 	aspeed_pcie_port_init(pcie);
 
 	pcie->host->ops = &aspeed_ast2600_pcie_ops;
 
-	err = sysfs_create_file(&pdev->dev.kobj, &dev_attr_hotplug.attr);
-	if (err) {
-		dev_err(&pdev->dev, "unable to create sysfs interface\n");
-		return err;
-	}
+	ret = sysfs_create_file(&pdev->dev.kobj, &dev_attr_hotplug.attr);
+	if (ret)
+		return dev_err_probe(&pdev->dev, ret, "unable to create sysfs interface\n");
 
 	if (pcie->domain) {
-		pcie->perst_ep_in =
-			devm_gpiod_get_optional(pcie->dev, "perst-ep-in", GPIOD_IN);
+		pcie->perst_ep_in = devm_gpiod_get_optional(pcie->dev, "perst-ep-in", GPIOD_IN);
 		if (pcie->perst_ep_in) {
 			gpiod_set_debounce(pcie->perst_ep_in, 100);
-			irq_set_irq_type(gpiod_to_irq(pcie->perst_ep_in),
-					 IRQ_TYPE_EDGE_BOTH);
-			err = devm_request_irq(pcie->dev,
-					       gpiod_to_irq(pcie->perst_ep_in),
-					       pcie_rst_irq_handler,
-					       IRQF_SHARED, "PERST monitor",
+			irq_set_irq_type(gpiod_to_irq(pcie->perst_ep_in), IRQ_TYPE_EDGE_BOTH);
+			ret = devm_request_irq(pcie->dev, gpiod_to_irq(pcie->perst_ep_in),
+					       pcie_rst_irq_handler, IRQF_SHARED, "PERST monitor",
 					       pcie);
-			if (err) {
-				dev_err(pcie->dev,
-					"Failed to request gpio irq %d\n", err);
-				return err;
-			}
-			INIT_DELAYED_WORK(&pcie->rst_dwork,
-					  aspeed_pcie_reset_work);
+			if (ret)
+				return dev_err_probe(pcie->dev, ret,
+						     "Failed to request gpio irq\n");
+			INIT_DELAYED_WORK(&pcie->rst_dwork, aspeed_pcie_reset_work);
 		}
 		pcie->perst_owner =
 			devm_gpiod_get_optional(pcie->dev, "perst-owner", GPIOD_OUT_HIGH);
@@ -1129,14 +1113,6 @@ static int aspeed_ast2700_setup(struct platform_device *pdev)
 	u32 cfg_val;
 	int ret;
 
-	pcie->h2xrst = devm_reset_control_get(dev, "h2x");
-	if (IS_ERR(pcie->h2xrst))
-		return dev_err_probe(dev, PTR_ERR(pcie->h2xrst), "failed to get h2x reset\n");
-
-	pcie->perst = devm_reset_control_get(dev, "perst");
-	if (IS_ERR(pcie->perst))
-		return dev_err_probe(dev, PTR_ERR(pcie->perst), "failed to get perst reset\n");
-
 	pcie->device = syscon_regmap_lookup_by_phandle(dev->of_node, "aspeed,device");
 	if (IS_ERR(pcie->device))
 		return dev_err_probe(dev, PTR_ERR(pcie->device), "failed to map device base\n");
@@ -1147,12 +1123,12 @@ static int aspeed_ast2700_setup(struct platform_device *pdev)
 
 	ret = clk_prepare_enable(pcie->clock);
 	if (ret) {
-		dev_err(dev, "Failed to enable the clock.\n");
-		goto out_clk_free;
+		clk_put(pcie->clock);
+		return dev_err_probe(dev, ret, "Failed to enable the clock\n");
 	}
 
 	pcie->perst_rc_out =
-		devm_gpiod_get_optional(pcie->dev, "perst-rc-out",
+		devm_gpiod_get_optional(dev, "perst-rc-out",
 					GPIOD_OUT_LOW |
 					GPIOD_FLAGS_BIT_NONEXCLUSIVE);
 	reset_control_assert(pcie->perst);
@@ -1217,10 +1193,6 @@ static int aspeed_ast2700_setup(struct platform_device *pdev)
 		dev_info(dev, "PCIe Link UP");
 
 	return 0;
-out_clk_free:
-	if (pcie->clock)
-		clk_put(pcie->clock);
-	return ret;
 }
 
 static int aspeed_pcie_probe(struct platform_device *pdev)
@@ -1256,6 +1228,14 @@ static int aspeed_pcie_probe(struct platform_device *pdev)
 	if (IS_ERR(pcie->pciephy))
 		return dev_err_probe(dev, PTR_ERR(pcie->pciephy), "failed to map pciephy base\n");
 
+	pcie->h2xrst = devm_reset_control_get_exclusive(dev, "h2x");
+	if (IS_ERR(pcie->h2xrst))
+		return dev_err_probe(dev, PTR_ERR(pcie->h2xrst), "failed to get h2x reset\n");
+
+	pcie->perst = devm_reset_control_get_exclusive(dev, "perst");
+	if (IS_ERR(pcie->perst))
+		return dev_err_probe(dev, PTR_ERR(pcie->perst), "failed to get perst reset\n");
+
 	err = pcie->platform->setup(pdev);
 	if (err) {
 		dev_err(dev, "Setup PCIe RC failed\n");
@@ -1285,6 +1265,11 @@ static int aspeed_pcie_probe(struct platform_device *pdev)
 static void aspeed_pcie_remove(struct platform_device *pdev)
 {
 	struct aspeed_pcie *pcie = platform_get_drvdata(pdev);
+
+	if (pcie->clock) {
+		clk_disable_unprepare(pcie->clock);
+		clk_put(pcie->clock);
+	}
 
 	pci_stop_root_bus(pcie->host->bus);
 	pci_remove_root_bus(pcie->host->bus);
