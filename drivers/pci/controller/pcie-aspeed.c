@@ -151,30 +151,31 @@ struct aspeed_pcie {
 	struct device *dev;
 	void __iomem *reg;
 	struct regmap *ahbc;
-	struct regmap *device;
+	struct regmap *cfg;
+	struct regmap *pciephy;
+	struct clk *clock;
+	const struct aspeed_pcie_rc_platform *platform;
+	bool support_msi;
+
 	int domain;
-	char name[10];
 	u32 msi_address;
 	int irq;
 	u8 tx_tag;
-	struct regmap *cfg;
-	struct regmap *pciephy;
+
 	struct reset_control *h2xrst;
 	struct reset_control *perst;
+
 	struct irq_domain *irq_domain;
 	struct irq_domain *dev_domain;
 	struct irq_domain *msi_domain;
 	struct mutex lock;
+
 	int hotplug_event;
 	struct gpio_desc *perst_ep_in;
 	struct gpio_desc *perst_rc_out;
 	struct gpio_desc *perst_owner;
 	struct delayed_work rst_dwork;
 	DECLARE_BITMAP(msi_irq_in_use, MAX_MSI_HOST_IRQS);
-	struct clk *clock;
-
-	const struct aspeed_pcie_rc_platform *platform;
-	bool support_msi;
 };
 
 static void aspeed_pcie_intx_ack_irq(struct irq_data *d)
@@ -1062,13 +1063,6 @@ static int aspeed_ast2600_setup(struct platform_device *pdev)
 	if (IS_ERR(pcie->ahbc))
 		return dev_err_probe(dev, PTR_ERR(pcie->ahbc), "failed to map ahbc base\n");
 
-	pcie->cfg = syscon_regmap_lookup_by_phandle(dev->of_node, "pciecfg");
-	if (IS_ERR(pcie->cfg))
-		return dev_err_probe(dev, PTR_ERR(pcie->cfg), "failed to map pciecfg base\n");
-
-	pcie->perst_rc_out = devm_gpiod_get_optional(dev, "perst-rc-out",
-						     GPIOD_OUT_LOW | GPIOD_FLAGS_BIT_NONEXCLUSIVE);
-
 	reset_control_assert(pcie->h2xrst);
 	mdelay(5);
 	reset_control_deassert(pcie->h2xrst);
@@ -1121,10 +1115,6 @@ static int aspeed_ast2700_setup(struct platform_device *pdev)
 	u32 cfg_val;
 	int ret;
 
-	pcie->device = syscon_regmap_lookup_by_phandle(dev->of_node, "aspeed,device");
-	if (IS_ERR(pcie->device))
-		return dev_err_probe(dev, PTR_ERR(pcie->device), "failed to map device base\n");
-
 	pcie->clock = clk_get(dev, NULL);
 	if (IS_ERR(pcie->clock))
 		return dev_err_probe(dev, PTR_ERR(pcie->clock), "failed to request clock\n");
@@ -1135,22 +1125,20 @@ static int aspeed_ast2700_setup(struct platform_device *pdev)
 		return dev_err_probe(dev, ret, "Failed to enable the clock\n");
 	}
 
-	pcie->perst_rc_out = devm_gpiod_get_optional(dev, "perst-rc-out",
-						     GPIOD_OUT_LOW | GPIOD_FLAGS_BIT_NONEXCLUSIVE);
 	reset_control_assert(pcie->perst);
 
 	regmap_write(pcie->pciephy, PEHR_MISC_70, 0xa00c0);
 	regmap_write(pcie->pciephy, PEHR_MISC_78, 0x80030);
 	regmap_write(pcie->pciephy, PEHR_MISC_58, LOCAL_SCALE_SUP);
 
-	regmap_update_bits(pcie->device, SCU_60,
+	regmap_update_bits(pcie->cfg, SCU_60,
 			   RC_E2M_PATH_EN | RC_H2XS_PATH_EN | RC_H2XD_PATH_EN | RC_H2XX_PATH_EN |
 				   RC_UPSTREAM_MEM_EN,
 			   RC_E2M_PATH_EN | RC_H2XS_PATH_EN | RC_H2XD_PATH_EN | RC_H2XX_PATH_EN |
 				   RC_UPSTREAM_MEM_EN);
-	regmap_write(pcie->device, SCU_64, 0xff00ff00);
-	regmap_write(pcie->device, SCU_70, 0);
-	regmap_write(pcie->device, SCU_78, (pcie->domain == 1) ? BIT(31) : 0);
+	regmap_write(pcie->cfg, SCU_64, 0xff00ff00);
+	regmap_write(pcie->cfg, SCU_70, 0);
+	regmap_write(pcie->cfg, SCU_78, (pcie->domain == 1) ? BIT(31) : 0);
 
 	reset_control_assert(pcie->h2xrst);
 	mdelay(10);
@@ -1230,6 +1218,10 @@ static int aspeed_pcie_probe(struct platform_device *pdev)
 	of_property_read_u32(node, "msi_address", &pcie->msi_address);
 	of_property_read_u32(node, "linux,pci-domain", &pcie->domain);
 
+	pcie->cfg = syscon_regmap_lookup_by_phandle(dev->of_node, "pciecfg");
+	if (IS_ERR(pcie->cfg))
+		return dev_err_probe(dev, PTR_ERR(pcie->cfg), "failed to map pciecfg base\n");
+
 	pcie->pciephy = syscon_regmap_lookup_by_phandle(node, "pciephy");
 	if (IS_ERR(pcie->pciephy))
 		return dev_err_probe(dev, PTR_ERR(pcie->pciephy), "failed to map pciephy base\n");
@@ -1241,6 +1233,9 @@ static int aspeed_pcie_probe(struct platform_device *pdev)
 	pcie->perst = devm_reset_control_get_exclusive(dev, "perst");
 	if (IS_ERR(pcie->perst))
 		return dev_err_probe(dev, PTR_ERR(pcie->perst), "failed to get perst reset\n");
+
+	pcie->perst_rc_out = devm_gpiod_get_optional(dev, "perst-rc-out",
+						     GPIOD_OUT_LOW | GPIOD_FLAGS_BIT_NONEXCLUSIVE);
 
 	err = pcie->platform->setup(pdev);
 	if (err) {
