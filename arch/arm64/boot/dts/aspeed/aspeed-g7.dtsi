@@ -261,7 +261,7 @@
 			aspeed,vhub-generic-endpoints = <21>;
 			pinctrl-names = "default";
 			pinctrl-0 = <&pinctrl_usb2bxhpd1_default>;
-			aspeed,device = <&pcie_cfg0>;
+			aspeed,device = <&pcie_cfg1>;
 			aspeed,scu = <&syscon0>;
 			status = "disabled";
 		};
@@ -336,7 +336,7 @@
 			resets = <&syscon0 SCU0_RESET_PORTB_XHCI>;
 			pinctrl-names = "default";
 			pinctrl-0 = <&pinctrl_usb3bxhp_default>;
-			aspeed,device = <&pcie_cfg0>;
+			aspeed,device = <&pcie_cfg1>;
 			phys = <&uphy3b>;
 			phy-names = "usb3-phy";
 			status = "disabled";
@@ -389,7 +389,7 @@
 			aspeed,vhub-generic-endpoints = <21>;
 			pinctrl-names = "default";
 			pinctrl-0 = <&pinctrl_usb2bd0_default>;
-			aspeed,device = <&pcie_cfg0>;
+			aspeed,device = <&pcie_cfg1>;
 			aspeed,scu = <&syscon0>;
 			status = "disabled";
 		};
@@ -412,7 +412,7 @@
 			resets = <&syscon0 SCU0_RESET_PORTB_VHUB_EHCI>;
 			pinctrl-names = "default";
 			pinctrl-0 = <&pinctrl_usb2bhp_default>;
-			aspeed,device = <&pcie_cfg0>;
+			aspeed,device = <&pcie_cfg1>;
 			status = "disabled";
 		};
 
@@ -515,7 +515,7 @@
 			interrupts-extended = <&gic GIC_SPI 43 IRQ_TYPE_LEVEL_HIGH>,
 					      <&scu_ic1 ASPEED_AST2700_SCU_IC1_PCIE_RCRST_LO_TO_HI>;
 			aspeed,config = <&pcie_config1>;
-			aspeed,device = <&pcie_cfg0>;
+			aspeed,device = <&pcie_cfg1>;
 			aspeed,e2m = <&e2m_config1>;
 			aspeed,scu = <&syscon0>;
 			pcie2lpc;
@@ -880,7 +880,7 @@
 			msi_address = <0x000000F0>;
 
 			pciephy = <&pcie_phy1>;
-			pciecfg = <&pcie_cfg0>;
+			pciecfg = <&pcie_cfg1>;
 
 			interrupt-map-mask = <0 0 0 7>;
 			interrupt-map = <0 0 0 1 &pcie_intc1 0>,
@@ -989,7 +989,7 @@
 			ranges = <0x0 0x0 0 0x12c22000 0 0x300>;
 			#address-cells = <2>;
 			#size-cells = <2>;
-			aspeed,device = <&pcie_cfg0>;
+			aspeed,device = <&pcie_cfg1>;
 
 			e2m_ic1: interrupt-controller@14 {
 				#interrupt-cells = <1>;
