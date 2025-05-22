@@ -1113,17 +1113,6 @@ static int aspeed_ast2700_setup(struct platform_device *pdev)
 	struct aspeed_pcie *pcie = platform_get_drvdata(pdev);
 	struct device *dev = pcie->dev;
 	u32 cfg_val;
-	int ret;
-
-	pcie->clock = clk_get(dev, NULL);
-	if (IS_ERR(pcie->clock))
-		return dev_err_probe(dev, PTR_ERR(pcie->clock), "failed to request clock\n");
-
-	ret = clk_prepare_enable(pcie->clock);
-	if (ret) {
-		clk_put(pcie->clock);
-		return dev_err_probe(dev, ret, "Failed to enable the clock\n");
-	}
 
 	reset_control_assert(pcie->perst);
 
@@ -1196,7 +1185,7 @@ static int aspeed_pcie_probe(struct platform_device *pdev)
 	struct aspeed_pcie *pcie;
 	struct device_node *node = dev->of_node;
 	const void *md = of_device_get_match_data(dev);
-	int err;
+	int ret;
 
 	if (!md)
 		return -ENODEV;
@@ -1220,45 +1209,49 @@ static int aspeed_pcie_probe(struct platform_device *pdev)
 
 	pcie->cfg = syscon_regmap_lookup_by_phandle(dev->of_node, "pciecfg");
 	if (IS_ERR(pcie->cfg))
-		return dev_err_probe(dev, PTR_ERR(pcie->cfg), "failed to map pciecfg base\n");
+		return dev_err_probe(dev, PTR_ERR(pcie->cfg), "Failed to map pciecfg base\n");
 
 	pcie->pciephy = syscon_regmap_lookup_by_phandle(node, "pciephy");
 	if (IS_ERR(pcie->pciephy))
-		return dev_err_probe(dev, PTR_ERR(pcie->pciephy), "failed to map pciephy base\n");
+		return dev_err_probe(dev, PTR_ERR(pcie->pciephy), "Failed to map pciephy base\n");
 
 	pcie->h2xrst = devm_reset_control_get_exclusive(dev, "h2x");
 	if (IS_ERR(pcie->h2xrst))
-		return dev_err_probe(dev, PTR_ERR(pcie->h2xrst), "failed to get h2x reset\n");
+		return dev_err_probe(dev, PTR_ERR(pcie->h2xrst), "Failed to get h2x reset\n");
 
 	pcie->perst = devm_reset_control_get_exclusive(dev, "perst");
 	if (IS_ERR(pcie->perst))
-		return dev_err_probe(dev, PTR_ERR(pcie->perst), "failed to get perst reset\n");
+		return dev_err_probe(dev, PTR_ERR(pcie->perst), "Failed to get perst reset\n");
 
 	pcie->perst_rc_out = devm_gpiod_get_optional(dev, "perst-rc-out",
 						     GPIOD_OUT_LOW | GPIOD_FLAGS_BIT_NONEXCLUSIVE);
 
-	err = pcie->platform->setup(pdev);
-	if (err) {
-		dev_err(dev, "Setup PCIe RC failed\n");
-		return err;
-	}
+	ret = pcie->platform->setup(pdev);
+	if (ret)
+		return dev_err_probe(dev, ret, "Failed to setup PCIe RC\n");
 
 	host->sysdata = pcie;
 
-	pcie->irq = irq_of_parse_and_map(node, 0);
-	if (pcie->irq < 0) {
-		dev_err(dev, "Mapping IRQ failed\n");
-		return pcie->irq;
-	}
+	ret = aspeed_pcie_init_irq_domain(pcie);
+	if (ret)
+		return dev_err_probe(dev, ret, "Failed to initialize IntX/MSI domain\n");
 
-	err = aspeed_pcie_init_irq_domain(pcie);
-	if (err) {
-		dev_err(dev, "failed to init PCIe IRQ domain\n");
-		return err;
-	}
+	pcie->irq = irq_of_parse_and_map(node, 0);
+	if (!pcie->irq)
+		return dev_err_probe(dev, -EINVAL, "Failed to map IRQ\n");
 
 	irq_set_chained_handler_and_data(pcie->irq, aspeed_pcie_intr_handler,
 					 pcie);
+
+	pcie->clock = clk_get(dev, NULL);
+	if (IS_ERR(pcie->clock))
+		return dev_err_probe(dev, PTR_ERR(pcie->clock), "Failed to request clock\n");
+
+	ret = clk_prepare_enable(pcie->clock);
+	if (ret) {
+		clk_put(pcie->clock);
+		return dev_err_probe(dev, ret, "Failed to enable the clock\n");
+	}
 
 	return pci_host_probe(host);
 }
