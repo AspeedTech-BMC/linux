@@ -514,9 +514,9 @@
 				msi-controller;
 				msi_address = <0x1e770058>;
 
-				ahbc = <&ahbc>;
-				pciecfg = <&pcie_cfg>;
-				pciephy = <&pcie_phy0>;
+				aspeed,ahbc = <&ahbc>;
+				aspeed,pciecfg = <&pcie_cfg>;
+				aspeed,pciephy = <&pcie_phy0>;
 
 				interrupt-map-mask = <0 0 0 7>;
 				interrupt-map = <0 0 0 1 &pcie_intc0 0>,
@@ -557,9 +557,9 @@
 				msi-controller;
 				msi_address = <0x1e77005C>;
 
-				ahbc = <&ahbc>;
-				pciecfg = <&pcie_cfg>;
-				pciephy = <&pcie_phy1>;
+				aspeed,ahbc = <&ahbc>;
+				aspeed,pciecfg = <&pcie_cfg>;
+				aspeed,pciephy = <&pcie_phy1>;
 
 				interrupt-map-mask = <0 0 0 7>;
 				interrupt-map = <0 0 0 1 &pcie_intc1 0>,
