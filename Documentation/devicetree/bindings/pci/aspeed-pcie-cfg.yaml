@@ -1,0 +1,41 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/pci/aspeed-pcie-cfg.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: ASPEED PCIe Configuration
+
+maintainers:
+  - Jacky Chou <jacky_chou@aspeedtech.com>
+
+description: |
+  The ASPEED PCIe configuration syscon block provides a set of registers shared
+  by multiple PCIe-related devices within the SoC. This node represents the
+  common configuration space that allows these devices to coordinate and manage
+  shared PCIe settings, including address mapping, control, and status
+  registers. The syscon interface enables Linux drivers for various PCIe devices
+  to access  and modify these shared registers in a consistent and centralized
+  manner.
+
+properties:
+  compatible:
+    enum:
+      - aspeed,ast2600-pcie-cfg
+      - aspeed,ast2700-pcie-cfg
+
+  reg:
+    maxItems: 1
+
+required:
+  - compatible
+  - reg
+
+additionalProperties: false
+
+examples:
+  - |
+    pcie-cfg@1e770000 {
+      compatible = "aspeed,ast2600-pcie-cfg";
+      reg = <0x1e770000 0x80>;
+    };
