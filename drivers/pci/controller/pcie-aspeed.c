@@ -1059,7 +1059,7 @@ static int aspeed_ast2600_setup(struct platform_device *pdev)
 	struct device *dev = pcie->dev;
 	int ret;
 
-	pcie->ahbc = syscon_regmap_lookup_by_phandle(dev->of_node, "ahbc");
+	pcie->ahbc = syscon_regmap_lookup_by_phandle(dev->of_node, "aspeed,ahbc");
 	if (IS_ERR(pcie->ahbc))
 		return dev_err_probe(dev, PTR_ERR(pcie->ahbc), "failed to map ahbc base\n");
 
@@ -1207,11 +1207,11 @@ static int aspeed_pcie_probe(struct platform_device *pdev)
 	of_property_read_u32(node, "msi_address", &pcie->msi_address);
 	of_property_read_u32(node, "linux,pci-domain", &pcie->domain);
 
-	pcie->cfg = syscon_regmap_lookup_by_phandle(dev->of_node, "pciecfg");
+	pcie->cfg = syscon_regmap_lookup_by_phandle(dev->of_node, "aspeed,pciecfg");
 	if (IS_ERR(pcie->cfg))
 		return dev_err_probe(dev, PTR_ERR(pcie->cfg), "Failed to map pciecfg base\n");
 
-	pcie->pciephy = syscon_regmap_lookup_by_phandle(node, "pciephy");
+	pcie->pciephy = syscon_regmap_lookup_by_phandle(node, "aspeed,pciephy");
 	if (IS_ERR(pcie->pciephy))
 		return dev_err_probe(dev, PTR_ERR(pcie->pciephy), "Failed to map pciephy base\n");
 
