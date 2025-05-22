@@ -473,18 +473,18 @@
 				reg = <0x1e6e2530 0x8>;
 			};
 
-			pcie_phy0: pcie_phy@1e6ed000 {
+			pcie_phy0: pcie-phy@1e6ed000 {
 				compatible = "aspeed,ast2600-pcie-phy", "syscon";
 				reg = <0x1e6ed000 0x100>;
 			};
 
-			pcie_phy1: rc_bridge@1e6ed200 {
+			pcie_phy1: pcie-phy@1e6ed200 {
 				compatible = "aspeed,ast2600-pcie-phy", "syscon";
 				reg = <0x1e6ed200 0x100>;
 			};
 
-			pciecfg: pciecfg@1e770000 {
-				compatible = "syscon", "simple-mfd";
+			pcie_cfg: pcie-cfg@1e770000 {
+				compatible = "aspeed,ast2600-pcie-cfg", "syscon";
 				reg = <0x1e770000 0x80>;
 			};
 
@@ -497,8 +497,8 @@
 				#size-cells = <2>;
 				interrupts = <GIC_SPI 167 IRQ_TYPE_LEVEL_HIGH>;
 				bus-range = <0x00 0x7f>;
-				ranges = <0x01000000 0 0x00000000 0x00000000 0x0 0x08000   /* I/O */
-					0x02000000 0x0 0x60000000 0x60000000 0 0x10000000>; /* memory */
+				ranges = <0x01000000 0x0 0x00000000 0x00000000 0x0 0x00008000
+					  0x02000000 0x0 0x60000000 0x60000000 0x0 0x10000000>;
 
 				status = "disabled";
 
@@ -515,7 +515,7 @@
 				msi_address = <0x1e770058>;
 
 				ahbc = <&ahbc>;
-				pciecfg = <&pciecfg>;
+				pciecfg = <&pcie_cfg>;
 				pciephy = <&pcie_phy0>;
 
 				interrupt-map-mask = <0 0 0 7>;
@@ -540,8 +540,8 @@
 				interrupts = <GIC_SPI 168 IRQ_TYPE_LEVEL_HIGH>;
 				bus-range = <0x80 0xff>;
 
-				ranges = <0x01000000 0 0x00018000 0x00018000 0x0 0x08000
-					0x02000000 0x0 0x70000000 0x70000000 0 0x10000000>; /* memory */
+				ranges = <0x01000000 0x0 0x00018000 0x00018000 0x0 0x00008000
+					  0x02000000 0x0 0x70000000 0x70000000 0x0 0x10000000>;
 
 				status = "disabled";
 
@@ -558,7 +558,7 @@
 				msi_address = <0x1e77005C>;
 
 				ahbc = <&ahbc>;
-				pciecfg = <&pciecfg>;
+				pciecfg = <&pcie_cfg>;
 				pciephy = <&pcie_phy1>;
 
 				interrupt-map-mask = <0 0 0 7>;
