@@ -228,7 +228,7 @@
 			aspeed,vhub-generic-endpoints = <21>;
 			pinctrl-names = "default";
 			pinctrl-0 = <&pinctrl_usb2axhpd1_default>;
-			aspeed,device = <&pcie_device0>;
+			aspeed,device = <&pcie_cfg0>;
 			aspeed,scu = <&syscon0>;
 			status = "disabled";
 		};
@@ -261,7 +261,7 @@
 			aspeed,vhub-generic-endpoints = <21>;
 			pinctrl-names = "default";
 			pinctrl-0 = <&pinctrl_usb2bxhpd1_default>;
-			aspeed,device = <&pcie_device1>;
+			aspeed,device = <&pcie_cfg0>;
 			aspeed,scu = <&syscon0>;
 			status = "disabled";
 		};
@@ -297,7 +297,7 @@
 			resets = <&syscon0 SCU0_RESET_PORTA_XHCI>;
 			pinctrl-names = "default";
 			pinctrl-0 = <&pinctrl_usb3axhp_default>;
-			aspeed,device = <&pcie_device0>;
+			aspeed,device = <&pcie_cfg0>;
 			phys = <&uphy3a>;
 			phy-names = "usb3-phy";
 			status = "disabled";
@@ -336,7 +336,7 @@
 			resets = <&syscon0 SCU0_RESET_PORTB_XHCI>;
 			pinctrl-names = "default";
 			pinctrl-0 = <&pinctrl_usb3bxhp_default>;
-			aspeed,device = <&pcie_device1>;
+			aspeed,device = <&pcie_cfg0>;
 			phys = <&uphy3b>;
 			phy-names = "usb3-phy";
 			status = "disabled";
@@ -352,7 +352,7 @@
 			aspeed,vhub-generic-endpoints = <21>;
 			pinctrl-names = "default";
 			pinctrl-0 = <&pinctrl_usb2ad0_default>;
-			aspeed,device = <&pcie_device0>;
+			aspeed,device = <&pcie_cfg0>;
 			aspeed,scu = <&syscon0>;
 			status = "disabled";
 		};
@@ -375,7 +375,7 @@
 			resets = <&syscon0 SCU0_RESET_PORTA_VHUB_EHCI>;
 			pinctrl-names = "default";
 			pinctrl-0 = <&pinctrl_usb2ahp_default>;
-			aspeed,device = <&pcie_device0>;
+			aspeed,device = <&pcie_cfg0>;
 			status = "disabled";
 		};
 
@@ -389,7 +389,7 @@
 			aspeed,vhub-generic-endpoints = <21>;
 			pinctrl-names = "default";
 			pinctrl-0 = <&pinctrl_usb2bd0_default>;
-			aspeed,device = <&pcie_device1>;
+			aspeed,device = <&pcie_cfg0>;
 			aspeed,scu = <&syscon0>;
 			status = "disabled";
 		};
@@ -412,7 +412,7 @@
 			resets = <&syscon0 SCU0_RESET_PORTB_VHUB_EHCI>;
 			pinctrl-names = "default";
 			pinctrl-0 = <&pinctrl_usb2bhp_default>;
-			aspeed,device = <&pcie_device1>;
+			aspeed,device = <&pcie_cfg0>;
 			status = "disabled";
 		};
 
@@ -502,7 +502,7 @@
 			interrupts-extended = <&gic GIC_SPI 42 IRQ_TYPE_LEVEL_HIGH>,
 					      <&scu_ic0 ASPEED_AST2700_SCU_IC0_PCIE_PERST_LO_TO_HI>;
 			aspeed,config = <&pcie_config0>;
-			aspeed,device = <&pcie_device0>;
+			aspeed,device = <&pcie_cfg0>;
 			aspeed,e2m = <&e2m_config0>;
 			aspeed,scu = <&syscon0>;
 			pcie2lpc;
@@ -515,7 +515,7 @@
 			interrupts-extended = <&gic GIC_SPI 43 IRQ_TYPE_LEVEL_HIGH>,
 					      <&scu_ic1 ASPEED_AST2700_SCU_IC1_PCIE_RCRST_LO_TO_HI>;
 			aspeed,config = <&pcie_config1>;
-			aspeed,device = <&pcie_device1>;
+			aspeed,device = <&pcie_cfg0>;
 			aspeed,e2m = <&e2m_config1>;
 			aspeed,scu = <&syscon0>;
 			pcie2lpc;
@@ -568,13 +568,13 @@
 			reg = <0 0x12c029a0 0 0x40>;
 		};
 
-		pcie_device0: pcie-device@12c02a00 {
-			compatible = "syscon", "simple-mfd";
+		pcie_cfg0: pcie-cfg@12c02a00 {
+			compatible = "aspeed,ast2700-pcie-cfg", "syscon";
 			reg = <0 0x12c02a00 0 0x80>;
 		};
 
-		pcie_device1: pcie-device@12c02a80 {
-			compatible = "syscon", "simple-mfd";
+		pcie_cfg1: pcie-cfg@12c02a80 {
+			compatible = "aspeed,ast2700-pcie-cfg", "syscon";
 			reg = <0 0x12c02a80 0 0x80>;
 		};
 
@@ -840,7 +840,7 @@
 			msi_address = <0x000000F0>;
 
 			pciephy = <&pcie_phy0>;
-			pciecfg = <&pcie_device0>;
+			pciecfg = <&pcie_cfg0>;
 
 			interrupt-map-mask = <0 0 0 7>;
 			interrupt-map = <0 0 0 1 &pcie_intc0 0>,
@@ -880,7 +880,7 @@
 			msi_address = <0x000000F0>;
 
 			pciephy = <&pcie_phy1>;
-			pciecfg = <&pcie_device1>;
+			pciecfg = <&pcie_cfg0>;
 
 			interrupt-map-mask = <0 0 0 7>;
 			interrupt-map = <0 0 0 1 &pcie_intc1 0>,
@@ -931,7 +931,7 @@
 			ranges = <0 0 0 0x12c21000 0 0x300>;
 			#address-cells = <2>;
 			#size-cells = <2>;
-			aspeed,device = <&pcie_device0>;
+			aspeed,device = <&pcie_cfg0>;
 
 			e2m_ic0: interrupt-controller@14 {
 				#interrupt-cells = <1>;
@@ -989,7 +989,7 @@
 			ranges = <0x0 0x0 0 0x12c22000 0 0x300>;
 			#address-cells = <2>;
 			#size-cells = <2>;
-			aspeed,device = <&pcie_device1>;
+			aspeed,device = <&pcie_cfg0>;
 
 			e2m_ic1: interrupt-controller@14 {
 				#interrupt-cells = <1>;
@@ -2428,8 +2428,8 @@
 			status = "disabled";
 		};
 
-		pcie_device2: pcie-device@14c02a80 {
-			compatible = "syscon", "simple-mfd";
+		pcie_cfg2: pcie-cfg@14c02a80 {
+			compatible = "aspeed,ast2700-pcie-cfg", "syscon";
 			reg = <0 0x14c02a80 0 0x80>;
 		};
 
@@ -2475,7 +2475,7 @@
 			msi_address = <0x000000F0>;
 
 			pciephy = <&pcie_phy2>;
-			pciecfg = <&pcie_device2>;
+			pciecfg = <&pcie_cfg2>;
 
 			interrupt-map-mask = <0 0 0 7>;
 			interrupt-map = <0 0 0 1 &pcie_intc2 0>,
@@ -2495,7 +2495,7 @@
 			ranges = <0x0 0x0 0 0x14c1d000 0 0x300>;
 			#address-cells = <2>;
 			#size-cells = <2>;
-			aspeed,device = <&pcie_device2>;
+			aspeed,device = <&pcie_cfg2>;
 
 			pinctrl-0 = <&pinctrl_pcierc2_perst_default>;
 			pinctrl-names = "default";
