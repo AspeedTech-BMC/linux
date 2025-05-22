@@ -860,55 +860,67 @@ static struct msi_domain_info aspeed_msi_domain_info = {
 };
 #endif
 
+static void aspeed_pcie_irq_domain_free(struct aspeed_pcie *pcie)
+{
+	if (pcie->irq_domain) {
+		irq_domain_remove(pcie->irq_domain);
+		pcie->irq_domain = NULL;
+	}
+#ifdef CONFIG_PCI_MSI
+	if (pcie->msi_domain) {
+		irq_domain_remove(pcie->msi_domain);
+		pcie->msi_domain = NULL;
+	}
+
+	if (pcie->dev_domain) {
+		irq_domain_remove(pcie->dev_domain);
+		pcie->dev_domain = NULL;
+	}
+#endif
+}
+
 static int aspeed_pcie_init_irq_domain(struct aspeed_pcie *pcie)
 {
 	struct device *dev = pcie->dev;
 	struct device_node *node = dev->of_node;
 	struct device_node *pcie_intc_node;
-#ifdef CONFIG_PCI_MSI
-	struct fwnode_handle *fwnode = dev_fwnode(pcie->dev);
-	struct irq_domain *parent;
-#endif
+	int ret;
 
-	/* Setup INTx */
 	pcie_intc_node = of_get_next_child(node, NULL);
-	if (!pcie_intc_node) {
-		dev_err(dev, "No PCIe Intc node found\n");
-		return -ENODEV;
-	}
+	if (!pcie_intc_node)
+		return dev_err_probe(dev, -ENODEV, "No PCIe Intc node found\n");
 
 	pcie->irq_domain =
 		irq_domain_add_linear(pcie_intc_node, PCI_NUM_INTX, &aspeed_intx_domain_ops, pcie);
-
+	of_node_put(pcie_intc_node);
 	if (!pcie->irq_domain) {
-		dev_err(dev, "failed to get an INTx IRQ domain\n");
-		return -ENOMEM;
+		ret = dev_err_probe(dev, -ENOMEM, "failed to get an INTx IRQ domain\n");
+		goto err;
 	}
 
-	of_node_put(pcie_intc_node);
-
+#ifdef CONFIG_PCI_MSI
 	if (!pcie->support_msi)
 		return 0;
 
-#ifdef CONFIG_PCI_MSI
 	pcie->dev_domain =
 		irq_domain_add_linear(NULL, MAX_MSI_HOST_IRQS, &aspeed_msi_domain_ops, pcie);
 	if (!pcie->dev_domain) {
-		dev_err(pcie->dev, "failed to create IRQ domain\n");
-		return -ENOMEM;
+		ret = dev_err_probe(pcie->dev, -ENOMEM, "failed to create IRQ domain\n");
+		goto err;
 	}
 
-	pcie->msi_domain =
-		pci_msi_create_irq_domain(fwnode, &aspeed_msi_domain_info, pcie->dev_domain);
+	pcie->msi_domain = pci_msi_create_irq_domain(dev_fwnode(pcie->dev), &aspeed_msi_domain_info,
+						     pcie->dev_domain);
 	if (!pcie->msi_domain) {
-		dev_err(pcie->dev, "failed to create MSI domain\n");
-		irq_domain_remove(parent);
-		return -ENOMEM;
+		ret = dev_err_probe(pcie->dev, -ENOMEM, "failed to create MSI domain\n");
+		goto err;
 	}
 	aspeed_pcie_msi_enable(pcie);
 #endif
-
 	return 0;
+err:
+	aspeed_pcie_irq_domain_free(pcie);
+	return ret;
 }
 
 static void aspeed_pcie_port_init(struct aspeed_pcie *pcie)
@@ -1058,10 +1070,6 @@ static int aspeed_ast2600_setup(struct platform_device *pdev)
 						     GPIOD_OUT_LOW | GPIOD_FLAGS_BIT_NONEXCLUSIVE);
 
 	reset_control_assert(pcie->h2xrst);
-	if (pcie->perst_rc_out) {
-		gpiod_set_value(pcie->perst_rc_out, 1);
-		gpiod_set_value(pcie->perst_rc_out, 0);
-	}
 	mdelay(5);
 	reset_control_deassert(pcie->h2xrst);
 
@@ -1127,10 +1135,8 @@ static int aspeed_ast2700_setup(struct platform_device *pdev)
 		return dev_err_probe(dev, ret, "Failed to enable the clock\n");
 	}
 
-	pcie->perst_rc_out =
-		devm_gpiod_get_optional(dev, "perst-rc-out",
-					GPIOD_OUT_LOW |
-					GPIOD_FLAGS_BIT_NONEXCLUSIVE);
+	pcie->perst_rc_out = devm_gpiod_get_optional(dev, "perst-rc-out",
+						     GPIOD_OUT_LOW | GPIOD_FLAGS_BIT_NONEXCLUSIVE);
 	reset_control_assert(pcie->perst);
 
 	regmap_write(pcie->pciephy, PEHR_MISC_70, 0xa00c0);
@@ -1161,9 +1167,9 @@ static int aspeed_ast2700_setup(struct platform_device *pdev)
 	writel(H2X_BRIDGE_EN | H2X_BRIDGE_DIRECT_EN, pcie->reg + H2X_CTRL);
 
 	/* The BAR mapping:
-	 * CPU Node0: 0x60000000
-	 * CPU Node1: 0x80000000
-	 * IO       : 0xa0000000
+	 * CPU Node0(domain 0): 0x60000000
+	 * CPU Node1(domain 1): 0x80000000
+	 * IO       (domain 2): 0xa0000000
 	 */
 	writel(0x60000000 + (0x20000000 * pcie->domain), pcie->reg + H2X_REMAP_DIRECT_ADDR);
 
@@ -1273,9 +1279,7 @@ static void aspeed_pcie_remove(struct platform_device *pdev)
 
 	pci_stop_root_bus(pcie->host->bus);
 	pci_remove_root_bus(pcie->host->bus);
-	irq_domain_remove(pcie->irq_domain);
-	irq_domain_remove(pcie->msi_domain);
-	irq_domain_remove(pcie->dev_domain);
+	aspeed_pcie_irq_domain_free(pcie);
 }
 
 static struct aspeed_pcie_rc_platform pcie_rc_ast2600 = {
