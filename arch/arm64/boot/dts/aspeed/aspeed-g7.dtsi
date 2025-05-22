@@ -81,8 +81,8 @@
 		xdma0 = &xdma0;
 		xdma1 = &xdma1;
 		xdma2 = &xdma2;
-		bmc_dev0 = &bmc_dev0;
-		bmc_dev1 = &bmc_dev1;
+		bmcdev0 = &bmc_dev0;
+		bmcdev1 = &bmc_dev1;
 	};
 
 	cpus {

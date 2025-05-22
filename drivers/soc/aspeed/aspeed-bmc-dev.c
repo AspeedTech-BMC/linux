@@ -580,7 +580,7 @@ static int aspeed_bmc_device_probe(struct platform_device *pdev)
 
 	bmc_device->platform = md;
 
-	bmc_device->id = of_alias_get_id(dev->of_node, "bmc_dev");
+	bmc_device->id = of_alias_get_id(dev->of_node, "bmcdev");
 	if (bmc_device->id < 0)
 		bmc_device->id = 0;
 
