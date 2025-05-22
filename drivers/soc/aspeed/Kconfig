@@ -172,6 +172,13 @@ config ASPEED_DISP_INTF
 config ASPEED_PCIE_MMBI
 	tristate "ASPEED PCIE MMBI"
 
+config ASPEED_MBOX
+	bool "Enable support for the ASPEED MBOX driver"
+	depends on ARCH_ASPEED
+	help
+	  Enable support for the ASPEED MBOX driver. This driver
+	  provides a mailbox client to the ASPEED BMC SoC IPC.
+
 source "drivers/soc/aspeed/rvas/Kconfig"
 
 endmenu
