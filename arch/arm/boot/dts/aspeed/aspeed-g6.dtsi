@@ -150,7 +150,7 @@
 		};
 
 		ahbc: ahbc@1e600000 {
-			compatible = "syscon", "simple-mfd";
+			compatible = "aspeed,ast2600-ahbc", "syscon";
 			reg = < 0x1e600000 0x100>;
 		};
 
