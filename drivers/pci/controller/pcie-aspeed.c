@@ -76,13 +76,10 @@
 #define PCIE_Wait_RX_TLP_CLR		BIT(2)
 #define PCIE_RC_RX_ENABLE		BIT(1)
 #define PCIE_RC_ENABLE			BIT(0)
-#define H2X_DEV_INT_EN		0x04
 #define H2X_DEV_STS		0x08
 #define PCIE_RC_RX_DONE_ISR		BIT(4)
 #define H2X_DEV_RX_DESC_DATA	0x0C
 #define H2X_DEV_RX_DESC1	0x14
-#define H2X_DEV_MSI_STS0	0x28
-#define H2X_DEV_MSI_STS1	0x2C
 #define H2X_DEV_TX_TAG		0x3C
 
 /* AST2700 H2X */
@@ -159,7 +156,6 @@ struct aspeed_pcie {
 
 	int domain;
 	u32 msi_address;
-	int irq;
 	u8 tx_tag;
 
 	struct reset_control *h2xrst;
@@ -223,17 +219,14 @@ static const struct irq_domain_ops aspeed_intx_domain_ops = {
 	.map = aspeed_pcie_intx_map,
 };
 
-static void aspeed_pcie_intr_handler(struct irq_desc *desc)
+static irqreturn_t aspeed_pcie_intr_handler(int irq, void *dev_id)
 {
-	struct aspeed_pcie *pcie = irq_desc_get_handler_data(desc);
-	struct irq_chip *irqchip = irq_desc_get_chip(desc);
+	struct aspeed_pcie *pcie = dev_id;
 	const struct aspeed_pcie_rc_platform *platform = pcie->platform;
 	unsigned long status;
 	unsigned long intx;
 	u32 bit;
 	int i;
-
-	chained_irq_enter(irqchip, desc);
 
 	intx = readl(pcie->reg + platform->reg_intx_sts) & 0xf;
 	if (intx) {
@@ -255,7 +248,8 @@ static void aspeed_pcie_intr_handler(struct irq_desc *desc)
 			}
 		}
 	}
-	chained_irq_exit(irqchip, desc);
+
+	return IRQ_HANDLED;
 }
 
 void aspeed_pcie_set_slot_power_limit(struct aspeed_pcie *pcie)
@@ -267,15 +261,7 @@ void aspeed_pcie_set_slot_power_limit(struct aspeed_pcie *pcie)
 
 	pcie->tx_tag %= 0x7;
 	regmap_write(pcie->cfg, H2X_TX_DESC0, 0x74000001);
-	switch (pcie->domain) {
-	case 0:
-		regmap_write(pcie->cfg, H2X_TX_DESC1, 0x00400050 | (pcie->tx_tag << 8));
-		break;
-	case 1:
-		regmap_write(pcie->cfg, H2X_TX_DESC1, 0x00200050 | (pcie->tx_tag << 8));
-		break;
-	}
-
+	regmap_write(pcie->cfg, H2X_TX_DESC1, 0x00200050 | (pcie->tx_tag << 8));
 	regmap_write(pcie->cfg, H2X_TX_DESC2, 0);
 	regmap_write(pcie->cfg, H2X_TX_DESC3, 0);
 	regmap_write(pcie->cfg, H2X_TX_DESC_DATA, 0x1a);
@@ -321,18 +307,9 @@ static int aspeed_ast2600_rd_conf(struct pci_bus *bus, unsigned int devfn,
 	writel(PCIE_UNLOCK_RX_BUFF | readl(pcie->reg + H2X_DEV_CTRL),
 	       pcie->reg + H2X_DEV_CTRL);
 
-	switch (pcie->domain) {
-	case 0:
-		if (bus->number == 0 && slot != 0 && slot != 4)
-			return PCIBIOS_DEVICE_NOT_FOUND;
-		type = (bus->number != 0);
-		break;
-	case 1:
-		if (bus->number == 128 && slot != 0 && slot != 8)
-			return PCIBIOS_DEVICE_NOT_FOUND;
-		type = (bus->number > 128);
-		break;
-	}
+	if (bus->number == 128 && slot != 0 && slot != 8)
+		return PCIBIOS_DEVICE_NOT_FOUND;
+	type = (bus->number > 128);
 
 	if (type) {
 		regmap_read(pcie->pciephy, PEHR_LINK, &link_sts);
@@ -368,10 +345,6 @@ static int aspeed_ast2600_rd_conf(struct pci_bus *bus, unsigned int devfn,
 	regmap_read(pcie->cfg, H2X_STS, &cfg_val);
 	switch (cfg_val & PCIE_STATUS_OF_TX) {
 	case PCIE_RC_L_TX_COMPLETE:
-		if (pcie->domain != 0)
-			dev_err(pcie->dev, "[%d] : tx complete no correct\n",
-				pcie->domain);
-		fallthrough;
 	case PCIE_RC_H_TX_COMPLETE:
 		ret = readl_poll_timeout(pcie->reg + H2X_DEV_STS, isr,
 					 (isr & PCIE_RC_RX_DONE_ISR), 0, 50);
@@ -412,20 +385,9 @@ static int aspeed_ast2600_rd_conf(struct pci_bus *bus, unsigned int devfn,
 	}
 
 #ifdef CONFIG_HOTPLUG_PCI
-	switch (pcie->domain) {
-	case 0:
-		if (where == 0x9a && bus->number == 0x0 &&
-		    (PCI_SLOT(devfn) == 0x4) && (PCI_FUNC(devfn) == 0x0) &&
-		    pcie->hotplug_event)
-			*val |= PCI_EXP_SLTSTA_ABP;
-		break;
-	case 1:
-		if (where == 0x9a && bus->number == 128 &&
-		    (PCI_SLOT(devfn) == 0x8) && (PCI_FUNC(devfn) == 0x0) &&
-		    pcie->hotplug_event)
-			*val |= PCI_EXP_SLTSTA_ABP;
-		break;
-	}
+	if (where == 0x9a && bus->number == 128 && (PCI_SLOT(devfn) == 0x8) &&
+	    (PCI_FUNC(devfn) == 0x0) && pcie->hotplug_event)
+		*val |= PCI_EXP_SLTSTA_ABP;
 #endif
 	ret = PCIBIOS_SUCCESSFUL;
 out:
@@ -446,23 +408,11 @@ static int aspeed_ast2600_wr_conf(struct pci_bus *bus, unsigned int devfn,
 	int ret;
 
 #ifdef CONFIG_HOTPLUG_PCI
-	switch (pcie->domain) {
-	case 0:
-		if (where == 0x9a && bus->number == 0x0 &&
-		    (PCI_SLOT(devfn) == 0x4) && (PCI_FUNC(devfn) == 0x0) &&
-		    pcie->hotplug_event && (val & PCI_EXP_SLTSTA_ABP)) {
-			pcie->hotplug_event = 0;
-			return PCIBIOS_SUCCESSFUL;
-		}
-		break;
-	case 1:
-		if (where == 0x9a && bus->number == 128 &&
-		    (PCI_SLOT(devfn) == 0x8) && (PCI_FUNC(devfn) == 0x0) &&
-		    pcie->hotplug_event && (val & PCI_EXP_SLTSTA_ABP)) {
-			pcie->hotplug_event = 0;
-			return PCIBIOS_SUCCESSFUL;
-		}
-		break;
+	if (where == 0x9a && bus->number == 128 && (PCI_SLOT(devfn) == 0x8) &&
+	    (PCI_FUNC(devfn) == 0x0) && pcie->hotplug_event &&
+	    (val & PCI_EXP_SLTSTA_ABP)) {
+		pcie->hotplug_event = 0;
+		return PCIBIOS_SUCCESSFUL;
 	}
 #endif
 
@@ -484,14 +434,7 @@ static int aspeed_ast2600_wr_conf(struct pci_bus *bus, unsigned int devfn,
 		break;
 	}
 
-	switch (pcie->domain) {
-	case 0:
-		type = (bus->number != 0);
-		break;
-	case 1:
-		type = (bus->number > 128);
-		break;
-	}
+	type = (bus->number > 128);
 
 	bdf_offset = (bus->number << 24) | (PCI_SLOT(devfn) << 19) |
 		     (PCI_FUNC(devfn) << 16) | (where & ~3);
@@ -900,20 +843,13 @@ static void aspeed_pcie_port_init(struct aspeed_pcie *pcie)
 	reset_control_deassert(pcie->perst);
 	mdelay(500);
 
-	writel(0, pcie->reg + H2X_DEV_INT_EN);
-	writel(~0, pcie->reg + H2X_DEV_MSI_STS0);
-	writel(~0, pcie->reg + H2X_DEV_MSI_STS1);
+	writel(0, pcie->reg + pcie->platform->reg_intx_sts);
+	writel(~0, pcie->reg + pcie->platform->reg_msi_sts);
+	writel(~0, pcie->reg + pcie->platform->reg_msi_sts + 0x04);
 
-	if (pcie->domain)
-		writel(PCIE_RX_DMA_EN | PCIE_RX_LINEAR | PCIE_RX_MSI_SEL |
-			       PCIE_RX_MSI_EN | PCIE_Wait_RX_TLP_CLR |
-			       PCIE_RC_RX_ENABLE | PCIE_RC_ENABLE,
-		       pcie->reg + H2X_DEV_CTRL);
-	else
-		writel(PCIE_RX_DMA_EN | PCIE_RX_LINEAR | PCIE_RX_MSI_EN |
-			       PCIE_Wait_RX_TLP_CLR | PCIE_RC_RX_ENABLE |
-			       PCIE_RC_ENABLE,
-		       pcie->reg + H2X_DEV_CTRL);
+	writel(PCIE_RX_DMA_EN | PCIE_RX_LINEAR | PCIE_RX_MSI_SEL | PCIE_RX_MSI_EN |
+	       PCIE_Wait_RX_TLP_CLR | PCIE_RC_RX_ENABLE | PCIE_RC_ENABLE,
+	       pcie->reg + H2X_DEV_CTRL);
 
 	writel(0x28, pcie->reg + H2X_DEV_TX_TAG);
 
@@ -1028,7 +964,7 @@ static int aspeed_ast2600_setup(struct platform_device *pdev)
 
 	regmap_write(pcie->cfg, H2X_CTRL, H2X_BRIDGE_EN);
 
-	pcie->support_msi = (pcie->domain) ? false : true;
+	pcie->support_msi = false;
 
 	aspeed_pcie_port_init(pcie);
 
@@ -1038,22 +974,18 @@ static int aspeed_ast2600_setup(struct platform_device *pdev)
 	if (ret)
 		return dev_err_probe(&pdev->dev, ret, "unable to create sysfs interface\n");
 
-	if (pcie->domain) {
-		pcie->perst_ep_in = devm_gpiod_get_optional(pcie->dev, "perst-ep-in", GPIOD_IN);
-		if (pcie->perst_ep_in) {
-			gpiod_set_debounce(pcie->perst_ep_in, 100);
-			irq_set_irq_type(gpiod_to_irq(pcie->perst_ep_in), IRQ_TYPE_EDGE_BOTH);
-			ret = devm_request_irq(pcie->dev, gpiod_to_irq(pcie->perst_ep_in),
-					       pcie_rst_irq_handler, IRQF_SHARED, "PERST monitor",
-					       pcie);
-			if (ret)
-				return dev_err_probe(pcie->dev, ret,
-						     "Failed to request gpio irq\n");
-			INIT_DELAYED_WORK(&pcie->rst_dwork, aspeed_pcie_reset_work);
-		}
-		pcie->perst_owner =
-			devm_gpiod_get_optional(pcie->dev, "perst-owner", GPIOD_OUT_HIGH);
+	pcie->perst_ep_in = devm_gpiod_get_optional(pcie->dev, "perst-ep-in", GPIOD_IN);
+	if (pcie->perst_ep_in) {
+		gpiod_set_debounce(pcie->perst_ep_in, 100);
+		irq_set_irq_type(gpiod_to_irq(pcie->perst_ep_in), IRQ_TYPE_EDGE_BOTH);
+		ret = devm_request_irq(pcie->dev, gpiod_to_irq(pcie->perst_ep_in),
+				       pcie_rst_irq_handler, IRQF_SHARED, "PERST monitor", pcie);
+		if (ret)
+			return dev_err_probe(pcie->dev, ret, "Failed to request gpio irq\n");
+		INIT_DELAYED_WORK(&pcie->rst_dwork, aspeed_pcie_reset_work);
 	}
+	pcie->perst_owner =
+		devm_gpiod_get_optional(pcie->dev, "perst-owner", GPIOD_OUT_HIGH);
 
 	return 0;
 }
@@ -1130,7 +1062,7 @@ static int aspeed_pcie_probe(struct platform_device *pdev)
 	struct aspeed_pcie *pcie;
 	struct device_node *node = dev->of_node;
 	const void *md = of_device_get_match_data(dev);
-	int ret;
+	int irq, ret;
 
 	if (!md)
 		return -ENODEV;
@@ -1181,12 +1113,14 @@ static int aspeed_pcie_probe(struct platform_device *pdev)
 	if (ret)
 		return dev_err_probe(dev, ret, "Failed to initialize IntX/MSI domain\n");
 
-	pcie->irq = irq_of_parse_and_map(node, 0);
-	if (!pcie->irq)
-		return dev_err_probe(dev, -EINVAL, "Failed to map IRQ\n");
+	irq = platform_get_irq(pdev, 0);
+	if (irq < 0)
+		return dev_err_probe(dev, irq, "Failed to get IRQ\n");
 
-	irq_set_chained_handler_and_data(pcie->irq, aspeed_pcie_intr_handler,
-					 pcie);
+	ret = devm_request_irq(dev, irq, aspeed_pcie_intr_handler, IRQF_SHARED,
+			       dev_name(dev), pcie);
+	if (ret)
+		return dev_err_probe(dev, ret, "Failed to request IRQ\n");
 
 	pcie->clock = clk_get(dev, NULL);
 	if (IS_ERR(pcie->clock))
