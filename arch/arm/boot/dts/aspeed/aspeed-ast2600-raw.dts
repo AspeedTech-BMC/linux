@@ -139,7 +139,7 @@
 	status = "disabled";
 };
 
-&pcie1 {
+&pcie0 {
 	status = "disabled";
 };
 

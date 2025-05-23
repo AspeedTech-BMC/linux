@@ -488,53 +488,11 @@
 				reg = <0x1e770000 0x80>;
 			};
 
-			pcie0: pcie@1e770080 {
-				compatible = "aspeed,ast2600-pcie";
-				device_type = "pci";
-				reg = <0x1e770080 0x40>;
-				linux,pci-domain = <0>;
-				#address-cells = <3>;
-				#size-cells = <2>;
-				interrupts = <GIC_SPI 167 IRQ_TYPE_LEVEL_HIGH>;
-				bus-range = <0x00 0x7f>;
-				ranges = <0x01000000 0x0 0x00000000 0x00000000 0x0 0x00008000
-					  0x02000000 0x0 0x60000000 0x60000000 0x0 0x10000000>;
-
-				status = "disabled";
-
-				resets = <&syscon ASPEED_RESET_H2X>,
-					 <&syscon ASPEED_RESET_PCIE_DEV_O>;
-				reset-names = "h2x", "perst";
-				clocks = <&syscon ASPEED_CLK_GATE_BCLK>;
-				pinctrl-names = "default";
-				pinctrl-0 = <&pinctrl_pcierc0_default>;
-
-				#interrupt-cells = <1>;
-				msi-parent = <&pcie0>;
-				msi-controller;
-				msi_address = <0x1e770058>;
-
-				aspeed,ahbc = <&ahbc>;
-				aspeed,pciecfg = <&pcie_cfg>;
-				aspeed,pciephy = <&pcie_phy0>;
-
-				interrupt-map-mask = <0 0 0 7>;
-				interrupt-map = <0 0 0 1 &pcie_intc0 0>,
-						<0 0 0 2 &pcie_intc0 1>,
-						<0 0 0 3 &pcie_intc0 2>,
-						<0 0 0 4 &pcie_intc0 3>;
-				pcie_intc0: interrupt-controller {
-					interrupt-controller;
-					#address-cells = <0>;
-					#interrupt-cells = <1>;
-				};
-			};
-
-			pcie1: pcie@1e7700C0 {
+			pcie0: pcie@1e7700C0 {
 				compatible = "aspeed,ast2600-pcie";
 				device_type = "pci";
 				reg = <0x1e7700C0 0x40>;
-				linux,pci-domain = <1>;
+				linux,pci-domain = <0>;
 				#address-cells = <3>;
 				#size-cells = <2>;
 				interrupts = <GIC_SPI 168 IRQ_TYPE_LEVEL_HIGH>;
@@ -553,7 +511,7 @@
 				pinctrl-0 = <&pinctrl_pcierc1_default>;
 
 				#interrupt-cells = <1>;
-				msi-parent = <&pcie1>;
+				msi-parent = <&pcie0>;
 				msi-controller;
 				msi_address = <0x1e77005C>;
 
@@ -562,11 +520,11 @@
 				aspeed,pciephy = <&pcie_phy1>;
 
 				interrupt-map-mask = <0 0 0 7>;
-				interrupt-map = <0 0 0 1 &pcie_intc1 0>,
-						<0 0 0 2 &pcie_intc1 1>,
-						<0 0 0 3 &pcie_intc1 2>,
-						<0 0 0 4 &pcie_intc1 3>;
-				pcie_intc1: interrupt-controller {
+				interrupt-map = <0 0 0 1 &pcie_intc0 0>,
+						<0 0 0 2 &pcie_intc0 1>,
+						<0 0 0 3 &pcie_intc0 2>,
+						<0 0 0 4 &pcie_intc0 3>;
+				pcie_intc0: interrupt-controller {
 					interrupt-controller;
 					#address-cells = <0>;
 					#interrupt-cells = <1>;

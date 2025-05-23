@@ -678,7 +678,7 @@
 	};
 };
 
-&pcie1 {
+&pcie0 {
 	status = "okay";
 };
 
