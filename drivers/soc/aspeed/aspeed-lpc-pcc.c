@@ -421,6 +421,7 @@ static int aspeed_pcc_remove(struct platform_device *pdev)
 
 static const struct of_device_id aspeed_pcc_table[] = {
 	{ .compatible = "aspeed,ast2600-lpc-pcc" },
+	{ },
 };
 
 static struct platform_driver aspeed_pcc_driver = {
