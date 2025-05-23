@@ -219,7 +219,6 @@ static int aspeed_pcie_intx_map(struct irq_domain *domain, unsigned int irq,
 	return 0;
 }
 
-/* INTx IRQ Domain operations */
 static const struct irq_domain_ops aspeed_intx_domain_ops = {
 	.map = aspeed_pcie_intx_map,
 };
@@ -313,7 +312,7 @@ static int aspeed_ast2600_rd_conf(struct pci_bus *bus, unsigned int devfn,
 {
 	struct aspeed_pcie *pcie = bus->sysdata;
 	u32 bdf_offset;
-	int rx_done_fail = 0;
+	int rx_done_fail = 0, slot = PCI_SLOT(devfn);
 	u32 cfg_val, isr, type = 0;
 	u32 link_sts = 0;
 	int ret;
@@ -324,47 +323,21 @@ static int aspeed_ast2600_rd_conf(struct pci_bus *bus, unsigned int devfn,
 
 	switch (pcie->domain) {
 	case 0:
-		if (bus->number == 0) {
-			switch (PCI_SLOT(devfn)) {
-			case 0:
-			case 4:
-				break;
-			default:
-				*val = 0xffffffff;
-				return PCIBIOS_SUCCESSFUL;
-			}
-		}
-
-		if (bus->number)
-			type = 1;
-		else
-			type = 0;
+		if (bus->number == 0 && slot != 0 && slot != 4)
+			return PCIBIOS_DEVICE_NOT_FOUND;
+		type = (bus->number != 0);
 		break;
 	case 1:
-		if (bus->number == 128) {
-			switch (PCI_SLOT(devfn)) {
-			case 0:
-			case 8:
-				break;
-			default:
-				*val = 0xffffffff;
-				return PCIBIOS_SUCCESSFUL;
-			}
-		}
-
-		if (bus->number > 128)
-			type = 1;
-		else
-			type = 0;
+		if (bus->number == 128 && slot != 0 && slot != 8)
+			return PCIBIOS_DEVICE_NOT_FOUND;
+		type = (bus->number > 128);
 		break;
 	}
 
 	if (type) {
 		regmap_read(pcie->pciephy, PEHR_LINK, &link_sts);
-		if (!(link_sts & PCIE_LINK_STS)) {
-			*val = 0xffffffff;
-			return PCIBIOS_SUCCESSFUL;
-		}
+		if (!(link_sts & PCIE_LINK_STS))
+			return PCIBIOS_DEVICE_NOT_FOUND;
 	}
 
 	bdf_offset = ((bus->number) << 24) | (PCI_SLOT(devfn) << 19) |
@@ -382,9 +355,10 @@ static int aspeed_ast2600_rd_conf(struct pci_bus *bus, unsigned int devfn,
 	ret = regmap_read_poll_timeout(pcie->cfg, H2X_STS, cfg_val,
 				       (cfg_val & PCIE_TX_IDLE), 0, 50);
 	if (ret) {
-		dev_err(pcie->dev, "[%d] : tx idle timeout [%x]\n",
-			pcie->domain, cfg_val);
-		*val = 0xffffffff;
+		dev_err(pcie->dev,
+			"[%X:%02X:%02X.%02X]CR tx timeout sts: 0x%08x\n",
+			pcie->domain, bus->number, PCI_SLOT(devfn),
+			PCI_FUNC(devfn), cfg_val);
 		goto out;
 	}
 
@@ -402,23 +376,25 @@ static int aspeed_ast2600_rd_conf(struct pci_bus *bus, unsigned int devfn,
 		ret = readl_poll_timeout(pcie->reg + H2X_DEV_STS, isr,
 					 (isr & PCIE_RC_RX_DONE_ISR), 0, 50);
 		if (ret) {
-			dev_err(pcie->dev, "[%d] : rx done timeout\n",
-				pcie->domain);
+			dev_err(pcie->dev,
+				"[%X:%02X:%02X.%02X]CR rx timeoutsts: 0x%08x\n",
+				pcie->domain, bus->number, PCI_SLOT(devfn),
+				PCI_FUNC(devfn), isr);
 			rx_done_fail = 1;
-			*val = 0xffffffff;
+			*val = ~0;
 		}
 		if (!rx_done_fail) {
 			if (readl(pcie->reg + H2X_DEV_RX_DESC1) & BIT(13))
-				*val = 0xffffffff;
+				*val = ~0;
 			else
 				*val = readl(pcie->reg + H2X_DEV_RX_DESC_DATA);
 		}
 
-		writel(BIT(4) | readl(pcie->reg), pcie->reg);
-		writel(readl(pcie->reg + H2X_DEV_STS), pcie->reg + H2X_DEV_STS);
+		writel(PCIE_UNLOCK_RX_BUFF | readl(pcie->reg + H2X_DEV_CTRL),
+		       pcie->reg + H2X_DEV_CTRL);
 		break;
 	case PCIE_STATUS_OF_TX:
-		*val = 0xffffffff;
+		*val = ~0;
 		break;
 	default:
 		regmap_read(pcie->cfg, H2X_DEV_RX_DESC_DATA, &cfg_val);
@@ -451,9 +427,11 @@ static int aspeed_ast2600_rd_conf(struct pci_bus *bus, unsigned int devfn,
 		break;
 	}
 #endif
+	ret = PCIBIOS_SUCCESSFUL;
 out:
+	writel(readl(pcie->reg + H2X_DEV_STS), pcie->reg + H2X_DEV_STS);
 	pcie->tx_tag++;
-	return PCIBIOS_SUCCESSFUL;
+	return ret;
 }
 
 static int aspeed_ast2600_wr_conf(struct pci_bus *bus, unsigned int devfn,
@@ -494,31 +472,11 @@ static int aspeed_ast2600_wr_conf(struct pci_bus *bus, unsigned int devfn,
 
 	switch (size) {
 	case 1:
-		switch (where % 4) {
-		case 0:
-			byte_en = 0x1;
-			break;
-		case 1:
-			byte_en = 0x2;
-			break;
-		case 2:
-			byte_en = 0x4;
-			break;
-		case 3:
-			byte_en = 0x8;
-			break;
-		}
+		byte_en = 1 << (where % 4);
 		val = (val & 0xff) << shift;
 		break;
 	case 2:
-		switch ((where >> 1) % 2) {
-		case 0:
-			byte_en = 0x3;
-			break;
-		case 1:
-			byte_en = 0xc;
-			break;
-		}
+		byte_en = 0x3 << (2 * ((where >> 1) % 2));
 		val = (val & 0xffff) << shift;
 		break;
 	default:
@@ -528,16 +486,10 @@ static int aspeed_ast2600_wr_conf(struct pci_bus *bus, unsigned int devfn,
 
 	switch (pcie->domain) {
 	case 0:
-		if (bus->number)
-			type = 1;
-		else
-			type = 0;
+		type = (bus->number != 0);
 		break;
 	case 1:
-		if (bus->number > 128)
-			type = 1;
-		else
-			type = 0;
+		type = (bus->number > 128);
 		break;
 	}
 
@@ -557,8 +509,11 @@ static int aspeed_ast2600_wr_conf(struct pci_bus *bus, unsigned int devfn,
 	ret = regmap_read_poll_timeout(pcie->cfg, H2X_STS, cfg_val,
 				       (cfg_val & PCIE_TX_IDLE), 0, 50);
 	if (ret) {
-		dev_err(pcie->dev, "[%d] : tx idle timeout [%x]\n",
-			pcie->domain, cfg_val);
+		dev_err(pcie->dev,
+			"[%X:%02X:%02X.%02X]CT tx timeout sts: 0x%08x\n",
+			pcie->domain, bus->number, PCI_SLOT(devfn),
+			PCI_FUNC(devfn), cfg_val);
+		ret = PCIBIOS_SET_FAILED;
 		goto out;
 	}
 
@@ -571,16 +526,21 @@ static int aspeed_ast2600_wr_conf(struct pci_bus *bus, unsigned int devfn,
 	case PCIE_RC_H_TX_COMPLETE:
 		ret = readl_poll_timeout(pcie->reg + H2X_DEV_STS, isr,
 					 (isr & PCIE_RC_RX_DONE_ISR), 0, 50);
-		if (ret)
-			dev_err(pcie->dev, "[%d] : tx timeout\n", pcie->domain);
-
-		writel(readl(pcie->reg + H2X_DEV_STS), pcie->reg + H2X_DEV_STS);
+		if (ret) {
+			dev_err(pcie->dev,
+				"[%X:%02X:%02X.%02X]CT rx timeout sts: 0x%08x\n",
+				pcie->domain, bus->number, PCI_SLOT(devfn),
+				PCI_FUNC(devfn), isr);
+			ret = PCIBIOS_SET_FAILED;
+			goto out;
+		}
 		break;
 	}
-
+	ret = PCIBIOS_SUCCESSFUL;
 out:
+	writel(readl(pcie->reg + H2X_DEV_STS), pcie->reg + H2X_DEV_STS);
 	pcie->tx_tag++;
-	return PCIBIOS_SUCCESSFUL;
+	return ret;
 }
 
 static bool aspeed_ast2700_get_link(struct aspeed_pcie *pcie)
@@ -607,10 +567,8 @@ static int aspeed_ast2700_rd_conf(struct pci_bus *bus, unsigned int devfn,
 	u8 type;
 	int ret;
 
-	if ((bus->number == 0 && devfn != 0)) {
-		*val = 0xffffffff;
-		return PCIBIOS_SUCCESSFUL;
-	}
+	if ((bus->number == 0 && devfn != 0))
+		return PCIBIOS_DEVICE_NOT_FOUND;
 
 	if (bus->number == 0) {
 		/* Internal access to bridge */
@@ -618,10 +576,8 @@ static int aspeed_ast2700_rd_conf(struct pci_bus *bus, unsigned int devfn,
 		writel(CFGI_TLP_FIRE, pcie->reg + H2X_CFGI_CTRL);
 		*val = readl(pcie->reg + H2X_CFGI_RET_DATA);
 	} else {
-		if (!aspeed_ast2700_get_link(pcie)) {
-			*val = 0xffffffff;
-			return PCIBIOS_SUCCESSFUL;
-		}
+		if (!aspeed_ast2700_get_link(pcie))
+			return PCIBIOS_DEVICE_NOT_FOUND;
 
 		bdf_offset = ((bus->number) << 24) | (PCI_SLOT(devfn) << 19) |
 			     (PCI_FUNC(devfn) << 16) | (where & ~3);
@@ -630,16 +586,12 @@ static int aspeed_ast2700_rd_conf(struct pci_bus *bus, unsigned int devfn,
 
 		type = (bus->number == 1) ? PCI_HEADER_TYPE_NORMAL : PCI_HEADER_TYPE_BRIDGE;
 
-		/* Prepare TLP */
 		writel(CRG_READ_FMTTYPE(type) | CRG_PAYLOAD_SIZE, pcie->reg + H2X_CFGE_TLP_1ST);
 		writel(0x40100F | (pcie->tx_tag << 8), pcie->reg + H2X_CFGE_TLP_NEXT);
 		writel(bdf_offset, pcie->reg + H2X_CFGE_TLP_NEXT);
-		/* Clear tx & rx status */
 		writel(CFGE_TX_IDLE | CFGE_RX_BUSY, pcie->reg + H2X_CFGE_INT_STS);
-		/* Issue command */
 		writel(CFGE_TLP_FIRE, pcie->reg + H2X_CFGE_CTRL);
 
-		/* Check TX */
 		ret = readl_poll_timeout(pcie->reg + H2X_CFGE_INT_STS, status,
 					 (status & CFGE_TX_IDLE), 0, 50);
 		if (ret) {
@@ -647,11 +599,9 @@ static int aspeed_ast2700_rd_conf(struct pci_bus *bus, unsigned int devfn,
 				"[%X:%02X:%02X.%02X]CR tx timeout sts: 0x%08x\n",
 				pcie->domain, bus->number, PCI_SLOT(devfn),
 				PCI_FUNC(devfn), status);
-			*val = 0xffffffff;
 			goto out;
 		}
 
-		/* Check RX */
 		ret = readl_poll_timeout(pcie->reg + H2X_CFGE_INT_STS, status,
 					 (status & CFGE_RX_BUSY), 0, 50000);
 		if (ret) {
@@ -659,7 +609,6 @@ static int aspeed_ast2700_rd_conf(struct pci_bus *bus, unsigned int devfn,
 				"[%X:%02X:%02X.%02X]CR rx timeoutsts: 0x%08x\n",
 				pcie->domain, bus->number, PCI_SLOT(devfn),
 				PCI_FUNC(devfn), status);
-			*val = 0xffffffff;
 			goto out;
 		}
 		*val = readl(pcie->reg + H2X_CFGE_RET_DATA);
@@ -674,11 +623,14 @@ static int aspeed_ast2700_rd_conf(struct pci_bus *bus, unsigned int devfn,
 		break;
 	}
 
-out:
-	/* Clear status */
 	writel(status, pcie->reg + H2X_CFGE_INT_STS);
 	pcie->tx_tag++;
 	return PCIBIOS_SUCCESSFUL;
+out:
+	*val = ~0;
+	writel(status, pcie->reg + H2X_CFGE_INT_STS);
+	pcie->tx_tag++;
+	return PCIBIOS_SET_FAILED;
 }
 
 static int aspeed_ast2700_wr_conf(struct pci_bus *bus, unsigned int devfn,
@@ -691,7 +643,7 @@ static int aspeed_ast2700_wr_conf(struct pci_bus *bus, unsigned int devfn,
 	int ret;
 
 	if ((bus->number == 0 && devfn != 0))
-		return PCIBIOS_SUCCESSFUL;
+		return PCIBIOS_DEVICE_NOT_FOUND;
 
 	switch (size) {
 	case 1:
@@ -699,7 +651,7 @@ static int aspeed_ast2700_wr_conf(struct pci_bus *bus, unsigned int devfn,
 		val = (val & 0xff) << shift;
 		break;
 	case 2:
-		byte_en = (((where >> 1) % 2) == 0) ? 0x3 : 0xc;
+		byte_en = 0x3 << (2 * ((where >> 1) % 2));
 		val = (val & 0xffff) << shift;
 		break;
 	default:
@@ -714,7 +666,7 @@ static int aspeed_ast2700_wr_conf(struct pci_bus *bus, unsigned int devfn,
 		writel(CFGI_TLP_FIRE, pcie->reg + H2X_CFGI_CTRL);
 	} else {
 		if (!aspeed_ast2700_get_link(pcie))
-			return PCIBIOS_SUCCESSFUL;
+			return PCIBIOS_SET_FAILED;
 
 		bdf_offset = (bus->number << 24) | (PCI_SLOT(devfn) << 19) |
 			     (PCI_FUNC(devfn) << 16) | (where & ~3);
@@ -722,44 +674,44 @@ static int aspeed_ast2700_wr_conf(struct pci_bus *bus, unsigned int devfn,
 
 		type = (bus->number == 1) ? PCI_HEADER_TYPE_NORMAL : PCI_HEADER_TYPE_BRIDGE;
 
-		/* Prepare TLP */
 		writel(CRG_WRITE_FMTTYPE(type) | CRG_PAYLOAD_SIZE, pcie->reg + H2X_CFGE_TLP_1ST);
 		writel(0x401000 | (pcie->tx_tag << 8) | byte_en, pcie->reg + H2X_CFGE_TLP_NEXT);
 		writel(bdf_offset, pcie->reg + H2X_CFGE_TLP_NEXT);
 		writel(val, pcie->reg + H2X_CFGE_TLP_NEXT);
-		/* Clear tx & rx status */
 		writel(CFGE_TX_IDLE | CFGE_RX_BUSY, pcie->reg + H2X_CFGE_INT_STS);
-		/* Issue command */
 		writel(CFGE_TLP_FIRE, pcie->reg + H2X_CFGE_CTRL);
 
-		/* Check TX */
 		ret = readl_poll_timeout(pcie->reg + H2X_CFGE_INT_STS, status,
 					 (status & CFGE_TX_IDLE), 0, 50);
-		if (ret)
+		if (ret) {
 			dev_err(pcie->dev,
 				"[%X:%02X:%02X.%02X]CT tx timeout sts: 0x%08x\n",
 				pcie->domain, bus->number, PCI_SLOT(devfn),
 				PCI_FUNC(devfn), status);
+			ret = PCIBIOS_SET_FAILED;
+			goto out;
+		}
 
-		/* Check RX */
 		ret = readl_poll_timeout(pcie->reg + H2X_CFGE_INT_STS, status,
 					 (status & CFGE_RX_BUSY), 0, 50000);
-		if (ret)
+		if (ret) {
 			dev_err(pcie->dev,
 				"[%X:%02X:%02X.%02X]CT rx timeout sts: 0x%08x\n",
 				pcie->domain, bus->number, PCI_SLOT(devfn),
 				PCI_FUNC(devfn), status);
+			ret = PCIBIOS_SET_FAILED;
+			goto out;
+		}
 
 		(void)readl(pcie->reg + H2X_CFGE_RET_DATA);
 	}
-
-	/* Clear status */
+	ret = PCIBIOS_SUCCESSFUL;
+out:
 	writel(status, pcie->reg + H2X_CFGE_INT_STS);
 	pcie->tx_tag++;
-	return PCIBIOS_SUCCESSFUL;
+	return ret;
 }
 
-/* PCIe operations */
 static struct pci_ops aspeed_ast2600_pcie_ops = {
 	.read = aspeed_ast2600_rd_conf,
 	.write = aspeed_ast2600_wr_conf,
@@ -837,8 +789,8 @@ static void aspeed_irq_msi_domain_free(struct irq_domain *domain,
 
 static void aspeed_pcie_msi_enable(struct aspeed_pcie *pcie)
 {
-	writel(0xffffffff, pcie->reg + pcie->platform->reg_msi_en);
-	writel(0xffffffff, pcie->reg + pcie->platform->reg_msi_en + 0x04);
+	writel(~0, pcie->reg + pcie->platform->reg_msi_en);
+	writel(~0, pcie->reg + pcie->platform->reg_msi_en + 0x04);
 }
 
 static const struct irq_domain_ops aspeed_msi_domain_ops = {
@@ -940,7 +892,6 @@ static void aspeed_pcie_port_init(struct aspeed_pcie *pcie)
 #else
 	regmap_write(pcie->pciephy, PEHR_GLOBAL, ROOT_COMPLEX_ID(0x3));
 #endif
-	/* Toggle the gpio to reset the devices on RC bus */
 	if (pcie->perst_rc_out) {
 		mdelay(100);
 		gpiod_set_value(pcie->perst_rc_out, 1);
@@ -949,9 +900,9 @@ static void aspeed_pcie_port_init(struct aspeed_pcie *pcie)
 	reset_control_deassert(pcie->perst);
 	mdelay(500);
 
-	writel(0x0, pcie->reg + H2X_DEV_INT_EN);
-	writel(0xFFFFFFFF, pcie->reg + H2X_DEV_MSI_STS0);
-	writel(0xFFFFFFFF, pcie->reg + H2X_DEV_MSI_STS1);
+	writel(0, pcie->reg + H2X_DEV_INT_EN);
+	writel(~0, pcie->reg + H2X_DEV_MSI_STS0);
+	writel(~0, pcie->reg + H2X_DEV_MSI_STS1);
 
 	if (pcie->domain)
 		writel(PCIE_RX_DMA_EN | PCIE_RX_LINEAR | PCIE_RX_MSI_SEL |
@@ -1075,7 +1026,6 @@ static int aspeed_ast2600_setup(struct platform_device *pdev)
 	regmap_write(pcie->cfg, H2X_AHB_ADDR_CONFIG1, 0);
 	regmap_write(pcie->cfg, H2X_AHB_ADDR_CONFIG2, ~0);
 
-	/* PCIe Host Enable */
 	regmap_write(pcie->cfg, H2X_CTRL, H2X_BRIDGE_EN);
 
 	pcie->support_msi = (pcie->domain) ? false : true;
@@ -1134,12 +1084,10 @@ static int aspeed_ast2700_setup(struct platform_device *pdev)
 	reset_control_deassert(pcie->h2xrst);
 
 	regmap_write(pcie->pciephy, PEHR_MISC_5C, 0x40000000);
-	/* Configure to Root port */
 	regmap_read(pcie->pciephy, PEHR_MISC_60, &cfg_val);
 	regmap_write(pcie->pciephy, PEHR_MISC_60,
 		     (cfg_val & ~PORT_TPYE) | FIELD_PREP(PORT_TPYE, PORT_TYPE_ROOT));
 
-	/* PCIe Host Enable */
 	writel(0, pcie->reg + H2X_CTRL);
 	writel(H2X_BRIDGE_EN | H2X_BRIDGE_DIRECT_EN, pcie->reg + H2X_CTRL);
 
@@ -1158,10 +1106,7 @@ static int aspeed_ast2700_setup(struct platform_device *pdev)
 		gpiod_set_value(pcie->perst_rc_out, 1);
 	mdelay(1000);
 
-	/* Clear INTx isr */
 	writel(0, pcie->reg + pcie->platform->reg_intx_sts);
-
-	/* Clear MSI/MSI-X isr */
 	writel(~0, pcie->reg + pcie->platform->reg_msi_sts);
 	writel(~0, pcie->reg + pcie->platform->reg_msi_sts + 0x04);
 
