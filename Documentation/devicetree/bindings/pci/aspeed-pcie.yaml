@@ -116,11 +116,11 @@ examples:
       #address-cells = <1>;
       #size-cells = <1>;
 
-      pcie1: pcie@1e7700C0 {
+      pcie0: pcie@1e7700C0 {
         compatible = "aspeed,ast2600-pcie";
         device_type = "pci";
         reg = <0x1e7700C0 0x40>;
-        linux,pci-domain = <1>;
+        linux,pci-domain = <0>;
         #address-cells = <3>;
         #size-cells = <2>;
         interrupts = <GIC_SPI 168 IRQ_TYPE_LEVEL_HIGH>;
@@ -137,7 +137,7 @@ examples:
         pinctrl-0 = <&pinctrl_pcierc1_default>;
 
         #interrupt-cells = <1>;
-        msi-parent = <&pcie1>;
+        msi-parent = <&pcie0>;
         msi-controller;
         msi_address = <0x1e77005C>;
 
@@ -146,11 +146,11 @@ examples:
         aspeed,pciephy = <&pcie_phy1>;
 
         interrupt-map-mask = <0 0 0 7>;
-        interrupt-map = <0 0 0 1 &pcie_intc1 0>,
-                        <0 0 0 2 &pcie_intc1 1>,
-                        <0 0 0 3 &pcie_intc1 2>,
-                        <0 0 0 4 &pcie_intc1 3>;
-        pcie_intc1: interrupt-controller {
+        interrupt-map = <0 0 0 1 &pcie_intc0 0>,
+                        <0 0 0 2 &pcie_intc0 1>,
+                        <0 0 0 3 &pcie_intc0 2>,
+                        <0 0 0 4 &pcie_intc0 3>;
+        pcie_intc0: interrupt-controller {
           interrupt-controller;
           #address-cells = <0>;
           #interrupt-cells = <1>;
