@@ -729,12 +729,6 @@ static void aspeed_irq_msi_domain_free(struct irq_domain *domain,
 	mutex_unlock(&pcie->lock);
 }
 
-static void aspeed_pcie_msi_enable(struct aspeed_pcie *pcie)
-{
-	writel(~0, pcie->reg + pcie->platform->reg_msi_en);
-	writel(~0, pcie->reg + pcie->platform->reg_msi_en + 0x04);
-}
-
 static const struct irq_domain_ops aspeed_msi_domain_ops = {
 	.alloc = aspeed_irq_msi_domain_alloc,
 	.free = aspeed_irq_msi_domain_free,
@@ -793,6 +787,9 @@ static int aspeed_pcie_init_irq_domain(struct aspeed_pcie *pcie)
 		goto err;
 	}
 
+	writel(0, pcie->reg + pcie->platform->reg_intx_en);
+	writel(~0, pcie->reg + pcie->platform->reg_intx_sts);
+
 #ifdef CONFIG_PCI_MSI
 	pcie->dev_domain =
 		irq_domain_add_linear(NULL, MAX_MSI_HOST_IRQS, &aspeed_msi_domain_ops, pcie);
@@ -807,7 +804,11 @@ static int aspeed_pcie_init_irq_domain(struct aspeed_pcie *pcie)
 		ret = dev_err_probe(pcie->dev, -ENOMEM, "failed to create MSI domain\n");
 		goto err;
 	}
-	aspeed_pcie_msi_enable(pcie);
+
+	writel(~0, pcie->reg + pcie->platform->reg_msi_en);
+	writel(~0, pcie->reg + pcie->platform->reg_msi_en + 0x04);
+	writel(~0, pcie->reg + pcie->platform->reg_msi_sts);
+	writel(~0, pcie->reg + pcie->platform->reg_msi_sts + 0x04);
 #endif
 	return 0;
 err:
@@ -838,10 +839,6 @@ static void aspeed_pcie_port_init(struct aspeed_pcie *pcie)
 
 	reset_control_deassert(pcie->perst);
 	mdelay(500);
-
-	writel(0, pcie->reg + pcie->platform->reg_intx_sts);
-	writel(~0, pcie->reg + pcie->platform->reg_msi_sts);
-	writel(~0, pcie->reg + pcie->platform->reg_msi_sts + 0x04);
 
 	writel(PCIE_RX_DMA_EN | PCIE_RX_LINEAR | PCIE_RX_MSI_SEL | PCIE_RX_MSI_EN |
 	       PCIE_Wait_RX_TLP_CLR | PCIE_RC_RX_ENABLE | PCIE_RC_ENABLE,
@@ -959,7 +956,6 @@ static int aspeed_ast2600_setup(struct platform_device *pdev)
 	regmap_write(pcie->cfg, H2X_AHB_ADDR_CONFIG2, ~0);
 
 	regmap_write(pcie->cfg, H2X_CTRL, H2X_BRIDGE_EN);
-
 
 	aspeed_pcie_port_init(pcie);
 
