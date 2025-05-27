@@ -152,7 +152,6 @@ struct aspeed_pcie {
 	struct regmap *pciephy;
 	struct clk *clock;
 	const struct aspeed_pcie_rc_platform *platform;
-	bool support_msi;
 
 	int domain;
 	u32 msi_address;
@@ -751,7 +750,7 @@ static struct irq_chip aspeed_msi_irq_chip = {
 
 static struct msi_domain_info aspeed_msi_domain_info = {
 	.flags = (MSI_FLAG_USE_DEF_DOM_OPS | MSI_FLAG_USE_DEF_CHIP_OPS |
-		  MSI_FLAG_MULTI_PCI_MSI),
+		  MSI_FLAG_MULTI_PCI_MSI | MSI_FLAG_PCI_MSIX),
 	.chip = &aspeed_msi_irq_chip,
 };
 #endif
@@ -795,9 +794,6 @@ static int aspeed_pcie_init_irq_domain(struct aspeed_pcie *pcie)
 	}
 
 #ifdef CONFIG_PCI_MSI
-	if (!pcie->support_msi)
-		return 0;
-
 	pcie->dev_domain =
 		irq_domain_add_linear(NULL, MAX_MSI_HOST_IRQS, &aspeed_msi_domain_ops, pcie);
 	if (!pcie->dev_domain) {
@@ -964,7 +960,6 @@ static int aspeed_ast2600_setup(struct platform_device *pdev)
 
 	regmap_write(pcie->cfg, H2X_CTRL, H2X_BRIDGE_EN);
 
-	pcie->support_msi = false;
 
 	aspeed_pcie_port_init(pcie);
 
@@ -1043,9 +1038,6 @@ static int aspeed_ast2700_setup(struct platform_device *pdev)
 	writel(~0, pcie->reg + pcie->platform->reg_msi_sts + 0x04);
 
 	pcie->host->ops = &aspeed_ast2700_pcie_ops;
-
-	aspeed_msi_domain_info.flags |= MSI_FLAG_PCI_MSIX;
-	pcie->support_msi = true;
 
 	if (!aspeed_ast2700_get_link(pcie))
 		dev_info(dev, "PCIe Link DOWN");
