@@ -1029,10 +1029,6 @@ static int aspeed_ast2700_setup(struct platform_device *pdev)
 		gpiod_set_value(pcie->perst_rc_out, 1);
 	mdelay(1000);
 
-	writel(0, pcie->reg + pcie->platform->reg_intx_sts);
-	writel(~0, pcie->reg + pcie->platform->reg_msi_sts);
-	writel(~0, pcie->reg + pcie->platform->reg_msi_sts + 0x04);
-
 	pcie->host->ops = &aspeed_ast2700_pcie_ops;
 
 	if (!aspeed_ast2700_get_link(pcie))
