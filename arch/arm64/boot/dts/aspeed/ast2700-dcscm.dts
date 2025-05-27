@@ -175,11 +175,6 @@
 	status = "okay";
 };
 
-&uart0 {
-	/* CPU0 SYSUART */
-	status = "okay";
-};
-
 /* Enable UART2 and UART9 for obmc-console. */
 &uart2 {
 	/delete-property/ pinctrl-names;
@@ -190,11 +185,6 @@
 &uart9 {
 	/delete-property/ pinctrl-names;
 	/delete-property/ pinctrl-0;
-	status = "okay";
-};
-
-&uart5 {
-	/* CPU1 SYSUART */
 	status = "okay";
 };
 
@@ -211,7 +201,13 @@
 	status = "okay";
 };
 
-/* UART13 and UART14 will be tunnelded to LTPI UART channels */
+/* UART3, UART13 and UART14 will be tunnelded to LTPI UART channels. */
+&uart3 {
+	/delete-property/ pinctrl-names;
+	/delete-property/ pinctrl-0;
+	status = "okay";
+};
+
 &uart13 {
 	status = "okay";
 };
@@ -858,9 +854,30 @@
 	memory-region = <&mctp1_reserved>;
 };
 
-#if 0  /* Disable i2c0 and i2c4. It is testing for LTPI passthrough. */
+/* Enable i2c0~i2c4 for LTPI testing. */
 &i2c0 {
 	/* SMB_PMBUS1_SCM */
+	/delete-property/ pinctrl-names;
+	/delete-property/ pinctrl-0;
+	status = "okay";
+};
+
+&i2c1 {
+	/* SMB_IPMB_SCL1 */
+	/delete-property/ pinctrl-names;
+	/delete-property/ pinctrl-0;
+	status = "okay";
+};
+
+&i2c2 {
+	/* SMB_CPLD_SCL2 */
+	/delete-property/ pinctrl-names;
+	/delete-property/ pinctrl-0;
+	status = "okay";
+};
+
+&i2c3 {
+	/* SMB_PMBUS2_SCM */
 	/delete-property/ pinctrl-names;
 	/delete-property/ pinctrl-0;
 	status = "okay";
@@ -872,27 +889,12 @@
 	/delete-property/ pinctrl-0;
 	status = "okay";
 };
-#endif
 
-#if 0 /* Disable i2c1, Cancel to SCI pin due to 2nd NCSI. */
-&i2c1 {
-	/* SMB_IPMB_SCL1 */
-	status = "okay";
-};
-#endif
-
-&i2c2 {
-	/* SMB_CPLD_SCL2 */
-	status = "okay";
-};
-
+/* Default i2c5 is tunnelded to LTPI. */
+/* Enable i2c5 pinctrl for testing on board LM75. */
 &i2c5 {
 	/* SMB_TMP_BMC */
 	status = "okay";
-	lm75@4b {
-		compatible = "national,lm75";
-		reg = <0x4b>;
-	};
 };
 
 /* AST2700 i2c8 -> AST1060 i2c5 for PCH mailbox emulation test. */
