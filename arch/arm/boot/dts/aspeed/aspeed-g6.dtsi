@@ -488,10 +488,10 @@
 				reg = <0x1e770000 0x80>;
 			};
 
-			pcie0: pcie@1e7700C0 {
+			pcie0: pcie@1e7700c0 {
 				compatible = "aspeed,ast2600-pcie";
 				device_type = "pci";
-				reg = <0x1e7700C0 0x40>;
+				reg = <0x1e7700c0 0x40>;
 				linux,pci-domain = <0>;
 				#address-cells = <3>;
 				#size-cells = <2>;
@@ -513,7 +513,7 @@
 				#interrupt-cells = <1>;
 				msi-parent = <&pcie0>;
 				msi-controller;
-				msi_address = <0x1e77005C>;
+				msi_address = <0x1e77005c>;
 
 				aspeed,ahbc = <&ahbc>;
 				aspeed,pciecfg = <&pcie_cfg>;
