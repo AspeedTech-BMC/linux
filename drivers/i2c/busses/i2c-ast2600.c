@@ -259,6 +259,11 @@
 /* 0x78 : Controller status */
 #define MSIC_STATUS		0x78
 
+/* 0x84 : Byte data log */
+#define BYTE_DATA_LOG	0x84
+
+#define AST2700_I2CC_GET_BUFF(x)		((x) & GENMASK(7, 0))
+
 /* 0x8c : Slave sirq log */
 #define AST2700_I2CC_SIRQ_LOG			0x8c
 #define SLAVE_ADDR_SHIFT		8
@@ -1712,8 +1717,15 @@ static void ast2600_i2c_master_package_irq(struct ast2600_i2c_bus *i2c_bus, u32 
 		}
 
 		if (msg->flags & I2C_M_RECV_LEN) {
-			u8 recv_len = AST2600_I2CC_GET_RX_BUFF(readl(i2c_bus->reg_base
+			u8 recv_len = 0;
+
+			if (i2c_bus->version == AST2700) {
+				recv_len = AST2700_I2CC_GET_BUFF(readl(i2c_bus->reg_base
+							       + BYTE_DATA_LOG));
+			} else {
+				recv_len = AST2600_I2CC_GET_RX_BUFF(readl(i2c_bus->reg_base
 							       + AST2600_I2CC_STS_AND_BUFF));
+			}
 
 			msg->len = min_t(unsigned int, recv_len, I2C_SMBUS_BLOCK_MAX);
 			msg->len += ((msg->flags & I2C_CLIENT_PEC) ? 2 : 1);
