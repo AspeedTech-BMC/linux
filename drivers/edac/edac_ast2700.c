@@ -35,20 +35,6 @@
 #define  ECC_STS_UNREC_CNT_SHIFT	(0)
 #define DRAMC_ECC_FAIL_ADDR		0x7c /* ECC fail address register */
 
-#define ASPEED_MCR_CONF        0x10 /* configuration register */
-#define ASPEED_MCR_INTR_CTRL   0x08 /* interrupt control/status register */
-#define ASPEED_MCR_ADDR_UNREC  0x58 /* address of first un-recoverable error */
-#define ASPEED_MCR_ADDR_REC    0x5c /* address of last recoverable error */
-#define ASPEED_MCR_LAST        ASPEED_MCR_ADDR_REC
-
-#define ASPEED_MCR_PROT_PASSWD	            0xfc600309
-#define ASPEED_MCR_CONF_DRAM_TYPE               BIT(4)
-#define ASPEED_MCR_CONF_ECC                     BIT(7)
-#define ASPEED_MCR_INTR_CTRL_CLEAR             BIT(31)
-#define ASPEED_MCR_INTR_CTRL_CNT_REC   GENMASK(23, 16)
-#define ASPEED_MCR_INTR_CTRL_CNT_UNREC GENMASK(15, 12)
-#define ASPEED_MCR_INTR_CTRL_ENABLE  (BIT(0) | BIT(1))
-
 static struct regmap *aspeed_regmap;
 
 static int regmap_reg_write(void *context, unsigned int reg, unsigned int val)
