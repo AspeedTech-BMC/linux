@@ -83,6 +83,7 @@
 		xdma2 = &xdma2;
 		bmcdev0 = &bmc_dev0;
 		bmcdev1 = &bmc_dev1;
+		edac = &edac;
 	};
 
 	cpus {
@@ -152,6 +153,12 @@
 			cache-sets = <1024>;
 			cache-level = <2>;
 		};
+	};
+
+	edac: sdram@12c00000 {
+		compatible = "aspeed,ast2700-sdram-edac", "syscon";
+		reg = <0 0x12c00000 0 0x1000>;
+		interrupts = <GIC_SPI 0 IRQ_TYPE_LEVEL_HIGH>;
 	};
 
 	pmu {
