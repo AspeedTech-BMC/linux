@@ -308,7 +308,10 @@ static int mctp_pcie_vdm_rx_thread(void *data)
 	while (!kthread_should_stop()) {
 		struct mctp_pcie_packet *packet;
 
-		wait_event_idle(vdm_dev->rx_wait, vdm_dev->receive_data);
+		wait_event_idle(vdm_dev->rx_wait, vdm_dev->receive_data || kthread_should_stop());
+
+		if (kthread_should_stop())
+			break;
 
 		spin_lock_irqsave(&vdm_dev->rx_lock, flags);
 		vdm_dev->receive_data = false;
@@ -407,6 +410,8 @@ static int mctp_pcie_vdm_add_mctp_dev(struct mctp_pcie_vdm_dev *vdm_dev,
 
 static void mctp_pcie_vdm_uninit(struct net_device *ndev)
 {
+	pr_debug("%s: uninitializing net device %s\n", __func__, ndev->name);
+
 	struct mctp_pcie_vdm_dev *vdm_dev = netdev_priv(ndev);
 	struct mctp_client *client = vdm_dev->client;
 
@@ -425,6 +430,10 @@ static void mctp_pcie_vdm_uninit(struct net_device *ndev)
 		kthread_stop(vdm_dev->tx_thread);
 		vdm_dev->tx_thread = NULL;
 	}
+
+	mutex_lock(&mctp_pcie_vdm_dev_mutex);
+	list_del(&vdm_dev->list);
+	mutex_unlock(&mctp_pcie_vdm_dev_mutex);
 }
 
 static int mctp_pcie_vdm_hdr_create(struct sk_buff *skb,
@@ -529,6 +538,8 @@ static void mctp_pcie_vdm_add_dev(struct device *dev)
 
 static void mctp_pcie_vdm_remove_dev(struct mctp_pcie_vdm_dev *vdm_dev)
 {
+	pr_debug("%s: removing vdm_dev %s\n", __func__,
+		 vdm_dev->ndev->name);
 	struct net_device *ndev = vdm_dev->ndev;
 
 	if (ndev) {
@@ -565,16 +576,14 @@ static int mctp_pcie_vdm_bus_notifier_call(struct notifier_block *nb,
 			pr_debug("mctp platform device event %lu platform device: %s\n",
 				 action, dev_name(dev));
 			struct mctp_pcie_vdm_dev *vdm_dev;
+			struct mctp_pcie_vdm_dev *tmp;
 
-			list_for_each_entry(vdm_dev, &mctp_pcie_vdm_devs,
-					    list) {
-				if (dev == vdm_dev->dev) {
+			list_for_each_entry_safe(vdm_dev, tmp, &mctp_pcie_vdm_devs, list) {
+				if (vdm_dev->dev == dev) {
+					pr_debug("mctp pcie vdm bus device event %lu net device: %s\n",
+						 action, vdm_dev->ndev->name);
 					mctp_pcie_vdm_remove_dev(vdm_dev);
-
-					mutex_lock(&mctp_pcie_vdm_dev_mutex);
-					list_del(&vdm_dev->list);
-					mutex_unlock(&mctp_pcie_vdm_dev_mutex);
-					break;
+					kfree(vdm_dev);
 				}
 			}
 		}
@@ -659,13 +668,11 @@ static __exit void mctp_pcie_vdm_mod_exit(void)
 			rc);
 
 	struct mctp_pcie_vdm_dev *vdm_dev;
+	struct mctp_pcie_vdm_dev *tmp;
 
-	list_for_each_entry(vdm_dev, &mctp_pcie_vdm_devs, list) {
+	list_for_each_entry_safe(vdm_dev, tmp, &mctp_pcie_vdm_devs, list) {
 		mctp_pcie_vdm_remove_dev(vdm_dev);
-
-		mutex_lock(&mctp_pcie_vdm_dev_mutex);
-		list_del(&vdm_dev->list);
-		mutex_unlock(&mctp_pcie_vdm_dev_mutex);
+		kfree(vdm_dev);
 	}
 }
 
