@@ -39,6 +39,7 @@
 		xdma0 = &xdma0;
 		xdma1 = &xdma1;
 		xdma2 = &xdma2;
+		edac = &edac;
 	};
 
 	cpus {
@@ -132,6 +133,12 @@
 			reg = <0x4 0x30080000 0x0 0x1000000>;
 			no-map;
 		};
+	};
+
+	edac: sdram@12c00000 {
+		compatible = "aspeed,ast2700-sdram-edac", "syscon";
+		reg = <0 0x12c00000 0 0x1000>;
+		interrupts = <GIC_SPI 0 IRQ_TYPE_LEVEL_HIGH>;
 	};
 
 	arm-pmu {

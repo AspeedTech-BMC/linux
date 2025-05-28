@@ -305,6 +305,10 @@
 	};
 };
 
+&edac {
+	status = "okay";
+};
+
 &uart12 {
 	status = "okay";
 };
