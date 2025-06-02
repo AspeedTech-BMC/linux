@@ -86,7 +86,7 @@ static int aspeed_ufscnr_probe(struct platform_device *pdev)
 
 	/* given rext, rx_r100, tx calibration value */
 	writel(0x000d0707, cnr->regs + UFS_MPHY_CALI_IN_1);
-	writel(0x05ffff00, cnr->regs + UFS_MPHY_CALI_IN_0);
+	writel(0xbbffff00, cnr->regs + UFS_MPHY_CALI_IN_0);
 
 	/* mphy reset deassert */
 	reg = readl(cnr->regs + UFS_MPHY_RST_REG);
