@@ -561,6 +561,9 @@ static int mctp_pcie_vdm_scan_bounded_devices(struct device *dev, void *data)
 static int mctp_pcie_vdm_bus_notifier_call(struct notifier_block *nb,
 					   unsigned long action, void *data)
 {
+	if (!data)
+		return NOTIFY_DONE;
+
 	struct device *dev = data;
 
 	switch (action) {
@@ -571,7 +574,7 @@ static int mctp_pcie_vdm_bus_notifier_call(struct notifier_block *nb,
 			mctp_pcie_vdm_add_dev(dev);
 		}
 		break;
-	case BUS_NOTIFY_UNBOUND_DRIVER:
+	case BUS_NOTIFY_UNBIND_DRIVER:
 		if (!strcmp(dev->driver->name, "aspeed-mctp")) {
 			pr_debug("mctp platform device event %lu platform device: %s\n",
 				 action, dev_name(dev));
