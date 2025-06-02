@@ -297,3 +297,83 @@
 		reg = <(0x12 | I2C_OWN_SLAVE_ADDRESS)>;
 	};
 };
+
+&i3c0 {
+	initial-role = "primary";
+	status = "okay";
+};
+
+&i3c1 {
+	initial-role = "primary";
+	status = "okay";
+};
+
+&i3c2 {
+	initial-role = "primary";
+	status = "okay";
+};
+
+&i3c3 {
+	initial-role = "primary";
+	status = "okay";
+};
+
+&i3c4 {
+	initial-role = "primary";
+	status = "okay";
+};
+
+&i3c5 {
+	initial-role = "primary";
+	status = "okay";
+};
+
+&i3c6 {
+	initial-role = "primary";
+	status = "okay";
+};
+
+&i3c7 {
+	initial-role = "primary";
+	status = "okay";
+};
+
+&i3c8 {
+	initial-role = "primary";
+	status = "okay";
+};
+
+&i3c9 {
+	initial-role = "primary";
+	status = "okay";
+};
+
+&i3c10 {
+	initial-role = "primary";
+	status = "okay";
+};
+
+&i3c11 {
+	initial-role = "primary";
+	status = "okay";
+};
+
+&i3c12 {
+	initial-role = "primary";
+	status = "okay";
+};
+
+&i3c13 {
+	initial-role = "primary";
+	status = "okay";
+};
+
+&i3c14 {
+	initial-role = "primary";
+	status = "okay";
+};
+
+&i3c15 {
+	initial-role = "primary";
+	status = "okay";
+};

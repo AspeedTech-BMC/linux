@@ -235,3 +235,115 @@
 		reg = <(0x10 | I2C_OWN_SLAVE_ADDRESS)>;
 	};
 };
+
+&i3c0 {
+	initial-role = "target";
+	pid = <0x000007ec 0x06010000>;
+	dcr = /bits/ 8 <0xcc>;
+	status = "okay";
+};
+
+&i3c1 {
+	initial-role = "target";
+	pid = <0x000007ec 0x06011000>;
+	dcr = /bits/ 8 <0xcc>;
+	status = "okay";
+};
+
+&i3c2 {
+	initial-role = "target";
+	pid = <0x000007ec 0x06012000>;
+	dcr = /bits/ 8 <0xcc>;
+	status = "okay";
+};
+
+&i3c3 {
+	initial-role = "target";
+	pid = <0x000007ec 0x06013000>;
+	dcr = /bits/ 8 <0xcc>;
+	status = "okay";
+};
+
+&i3c4 {
+	initial-role = "target";
+	pid = <0x000007ec 0x06014000>;
+	dcr = /bits/ 8 <0xcc>;
+	status = "okay";
+};
+
+&i3c5 {
+	initial-role = "target";
+	pid = <0x000007ec 0x06015000>;
+	dcr = /bits/ 8 <0xcc>;
+	status = "okay";
+};
+
+&i3c6 {
+	initial-role = "target";
+	pid = <0x000007ec 0x06016000>;
+	dcr = /bits/ 8 <0xcc>;
+	status = "okay";
+};
+
+&i3c7 {
+	initial-role = "target";
+	pid = <0x000007ec 0x06017000>;
+	dcr = /bits/ 8 <0xcc>;
+	status = "okay";
+};
+
+&i3c8 {
+	initial-role = "target";
+	pid = <0x000007ec 0x06018000>;
+	dcr = /bits/ 8 <0xcc>;
+	status = "okay";
+};
+
+&i3c9 {
+	initial-role = "target";
+	pid = <0x000007ec 0x06019000>;
+	dcr = /bits/ 8 <0xcc>;
+	status = "okay";
+};
+
+&i3c10 {
+	initial-role = "target";
+	pid = <0x000007ec 0x0601A000>;
+	dcr = /bits/ 8 <0xcc>;
+	status = "okay";
+};
+
+&i3c11 {
+	initial-role = "target";
+	pid = <0x000007ec 0x0601B000>;
+	dcr = /bits/ 8 <0xcc>;
+	status = "okay";
+};
+
+&i3c12 {
+	initial-role = "target";
+	pid = <0x000007ec 0x0601C000>;
+	dcr = /bits/ 8 <0xcc>;
+	status = "okay";
+};
+
+&i3c13 {
+	initial-role = "target";
+	pid = <0x000007ec 0x0601D000>;
+	dcr = /bits/ 8 <0xcc>;
+	status = "okay";
+};
+
+&i3c14 {
+	initial-role = "target";
+	pid = <0x000007ec 0x0601E000>;
+	dcr = /bits/ 8 <0xcc>;
+	status = "okay";
+};
+
+&i3c15 {
+	initial-role = "target";
+	pid = <0x000007ec 0x0601F000>;
+	dcr = /bits/ 8 <0xcc>;
+	status = "okay";
+};
