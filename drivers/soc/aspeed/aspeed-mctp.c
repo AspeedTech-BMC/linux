@@ -959,9 +959,9 @@ static void aspeed_mctp_rx_tasklet(unsigned long data)
 
 	/* Kick RX if it was stopped due to ring full condition */
 	if (rx->stopped) {
+		rx->stopped = false;
 		regmap_update_bits(priv->map, ASPEED_MCTP_CTRL, RX_CMD_READY,
 				   RX_CMD_READY);
-		rx->stopped = false;
 	}
 }
 
