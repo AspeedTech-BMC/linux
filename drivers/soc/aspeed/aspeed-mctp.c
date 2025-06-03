@@ -1983,6 +1983,7 @@ static void aspeed_mctp_pcie_setup(struct aspeed_mctp *priv)
 {
 	int ret;
 	u8 tx_max_payload_size;
+	u8 rx_max_payload_size;
 	struct kobject *kobj = &priv->mctp_miscdev.this_device->kobj;
 
 	ret = _get_bdf(priv);
@@ -1992,24 +1993,33 @@ static void aspeed_mctp_pcie_setup(struct aspeed_mctp *priv)
 		if (priv->match_data->need_address_mapping)
 			regmap_update_bits(priv->map, ASPEED_MCTP_EID,
 					   MEMORY_SPACE_MAPPING, BIT(31));
-		if (priv->match_data->dma_need_64bits_width)
+		if (priv->match_data->dma_need_64bits_width) {
 			tx_max_payload_size =
 				FIELD_GET(TX_MAX_PAYLOAD_SIZE_MASK,
 					  ilog2(ASPEED_MCTP_MTU >> 6));
-		else
-		/*
-		 * In ast2600, tx som and eom will not match expected result.
-		 * e.g. When Maximum Transmit Unit (MTU) set to 64 byte, and then transfer
-		 * size set between 61 ~ 124 (MTU-3 ~ 2*MTU-4), the engine will set all
-		 * packet vdm header eom to 1, no matter what it setted. To fix that
-		 * issue, the driver set MTU to next level(e.g. 64 to 128).
-		 */
+			rx_max_payload_size =
+				FIELD_GET(RX_MAX_PAYLOAD_SIZE_MASK,
+					  (ilog2(ASPEED_MCTP_MTU >> 6)) << RX_MAX_PAYLOAD_SIZE_SHIFT);
+		} else {
+			/*
+			 * In ast2600, tx som and eom will not match expected result.
+			 * e.g. When Maximum Transmit Unit (MTU) set to 64 byte, and then transfer
+			 * size set between 61 ~ 124 (MTU-3 ~ 2*MTU-4), the engine will set all
+			 * packet vdm header eom to 1, no matter what it setted. To fix that
+			 * issue, the driver set MTU to next level(e.g. 64 to 128).
+			 */
 			tx_max_payload_size =
 				FIELD_GET(TX_MAX_PAYLOAD_SIZE_MASK,
+						fls(ASPEED_MCTP_MTU >> 6));
+			rx_max_payload_size =
+				FIELD_GET(RX_MAX_PAYLOAD_SIZE_MASK,
 					  fls(ASPEED_MCTP_MTU >> 6));
+		}
+
 		regmap_update_bits(priv->map, ASPEED_MCTP_ENGINE_CTRL,
-				   TX_MAX_PAYLOAD_SIZE_MASK,
-				   tx_max_payload_size);
+				   TX_MAX_PAYLOAD_SIZE_MASK | RX_MAX_PAYLOAD_SIZE_MASK,
+				   (rx_max_payload_size << RX_MAX_PAYLOAD_SIZE_SHIFT) | tx_max_payload_size);
+
 		aspeed_mctp_flush_all_tx_queues(priv);
 		if (!priv->miss_mctp_int) {
 			aspeed_mctp_irq_enable(priv);
