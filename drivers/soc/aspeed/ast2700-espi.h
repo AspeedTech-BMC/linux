@@ -28,6 +28,7 @@
 #define   ESPI_INT_EN_RST_ASSERT	BIT(30)
 #define ESPI_DEV_ID			0x010
 #define ESPI_CAP_GEN			0x014
+#define   ESPI_CAP_GEN_RTC_SUP		BIT(29)
 #define ESPI_CAP_CH0			0x018
 #define ESPI_CAP_CH1			0x01c
 #define ESPI_CAP_CH2			0x020
