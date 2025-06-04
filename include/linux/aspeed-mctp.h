@@ -157,10 +157,8 @@ int aspeed_mctp_get_eid(struct mctp_client *client, u16 bdf,
 void *aspeed_mctp_packet_alloc(gfp_t flags);
 void aspeed_mctp_packet_free(void *packet);
 
-#ifdef CONFIG_MCTP_TRANSPORT_PCIE_VDM
 int aspeed_mctp_register_default_handler(struct mctp_client *client);
 int mctp_pcie_vdm_register_notifier(struct notifier_block *nb);
 int mctp_pcie_vdm_unregister_notifier(struct notifier_block *nb);
-#endif
 
 #endif /* __LINUX_ASPEED_MCTP_H */

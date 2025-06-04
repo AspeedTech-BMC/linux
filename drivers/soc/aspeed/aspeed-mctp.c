@@ -396,7 +396,6 @@ void aspeed_mctp_packet_free(void *packet)
 }
 EXPORT_SYMBOL_GPL(aspeed_mctp_packet_free);
 
-#ifdef CONFIG_MCTP_TRANSPORT_PCIE_VDM
 static BLOCKING_NOTIFIER_HEAD(mctp_pcie_vdm_notifier);
 
 int mctp_pcie_vdm_register_notifier(struct notifier_block *nb)
@@ -415,7 +414,6 @@ static void mctp_pcie_vdm_notify(void *data, unsigned int action)
 {
 	blocking_notifier_call_chain(&mctp_pcie_vdm_notifier, action, data);
 }
-#endif
 
 static int _get_bdf(struct aspeed_mctp *priv)
 {
@@ -787,10 +785,8 @@ static void aspeed_mctp_dispatch_packet(struct aspeed_mctp *priv,
 			aspeed_mctp_packet_free(packet);
 		} else {
 			wake_up_all(&client->wait_queue);
-#ifdef CONFIG_MCTP_TRANSPORT_PCIE_VDM
-			mctp_pcie_vdm_notify(client, MCTP_PCIE_VDM_NOTIFY_RECV);
-#endif
 		}
+		mctp_pcie_vdm_notify(client, MCTP_PCIE_VDM_NOTIFY_RECV);
 		aspeed_mctp_client_put(client);
 	} else {
 		dev_dbg(priv->dev, "Failed to dispatch RX packet\n");
@@ -1477,12 +1473,8 @@ int aspeed_mctp_remove_type_handler(struct mctp_client *client,
 	return ret;
 }
 
-#ifdef CONFIG_MCTP_TRANSPORT_PCIE_VDM
 EXPORT_SYMBOL_GPL(aspeed_mctp_register_default_handler);
 int aspeed_mctp_register_default_handler(struct mctp_client *client)
-#else
-static int aspeed_mctp_register_default_handler(struct mctp_client *client)
-#endif
 {
 	struct aspeed_mctp *priv = client->priv;
 	int ret = 0;
