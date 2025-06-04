@@ -2024,7 +2024,6 @@ static int i3c_hub_hw_init(struct i3c_hub *hub)
 		return ret;
 
 	part_id = dev_info[0] << 8 | dev_info[1];
-	part_id = dev_info[0] << 8 | dev_info[1];
 	dev_info(&hub->i3cdev->dev, "I3C Hub device %04x\n", part_id);
 
 	hub->devinfo = i3c_hub_find_device(part_id);
