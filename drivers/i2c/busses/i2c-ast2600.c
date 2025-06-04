@@ -437,7 +437,7 @@ static u32 ast2700_select_i2c_clock(struct ast2600_i2c_bus *i2c_bus)
 	data = (scl_high - 1) << 20 | scl_high << 16 | scl_low << 12 | baseclk_idx;
 	if (i2c_bus->timeout) {
 		i2c_bus->timeout = min(i2c_bus->timeout, 255);
-		writel(MSIC_I2C_SET_TIMEOUT(i2c_bus->timeout, i2c_bus->timeout),
+		writel(MSIC_I2C_SET_TIMEOUT(i2c_bus->timeout, 0),
 		       i2c_bus->reg_base + MSIC_CONFIG_ACTIMING1);
 		/* timeout_base set as 1ms */
 		data |= AST2600_I2CC_TOUTBASECLK(AST2700_I2C_TIMEOUT_CLK);
