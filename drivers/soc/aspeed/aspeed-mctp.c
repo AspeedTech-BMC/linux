@@ -2013,7 +2013,7 @@ static void aspeed_mctp_pcie_setup(struct aspeed_mctp *priv)
 						fls(ASPEED_MCTP_MTU >> 6));
 			rx_max_payload_size =
 				FIELD_GET(RX_MAX_PAYLOAD_SIZE_MASK,
-					  fls(ASPEED_MCTP_MTU >> 6));
+					   (fls(ASPEED_MCTP_MTU >> 6)) << RX_MAX_PAYLOAD_SIZE_SHIFT);
 		}
 
 		regmap_update_bits(priv->map, ASPEED_MCTP_ENGINE_CTRL,
