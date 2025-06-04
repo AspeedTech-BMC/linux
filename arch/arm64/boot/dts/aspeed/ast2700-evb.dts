@@ -721,6 +721,10 @@
 	flash-dma-mode;
 };
 
+&rtc_over_espi0 {
+	status = "okay";
+};
+
 &lpc0_kcs0 {
 	status = "okay";
 	kcs-io-addr = <0xca0>;
