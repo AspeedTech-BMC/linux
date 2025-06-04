@@ -297,6 +297,8 @@ static const struct i3c_hub_devdata {
 	{ 0x4812, 4 },
 	{ 0x8712, 8 },
 	{ 0x8812, 8 },
+	{ 0x4912, 4 },
+	{ 0x8912, 8 },
 };
 
 #define VIO_EXTERNAL	0x00u
