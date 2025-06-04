@@ -81,6 +81,7 @@ struct ast2700_espi_perif {
 		dma_addr_t pc_rx_addr;
 	} dma;
 
+	bool rtc_enable;
 	bool rx_ready;
 	wait_queue_head_t wq;
 
@@ -774,6 +775,11 @@ static void ast2700_espi_perif_reset(struct ast2700_espi *espi)
 		      | ESPI_CH0_CTRL_PC_RX_DMA_EN;
 		writel(reg, espi->regs + ESPI_CH0_CTRL);
 	}
+	if (perif->rtc_enable) {
+		reg = readl(espi->regs + ESPI_CAP_GEN)
+		      | ESPI_CAP_GEN_RTC_SUP;
+		writel(reg, espi->regs + ESPI_CAP_GEN);
+	}
 
 	writel(ESPI_CH0_INT_EN_PC_RX_CMPLT, espi->regs + ESPI_CH0_INT_EN);
 
@@ -934,6 +940,7 @@ static int ast2700_espi_perif_probe(struct ast2700_espi *espi)
 			return -ENOMEM;
 		}
 	}
+	perif->rtc_enable = of_property_read_bool(dev->of_node, "perif-rtc-enable");
 
 	perif->mdev.parent = dev;
 	perif->mdev.minor = MISC_DYNAMIC_MINOR;

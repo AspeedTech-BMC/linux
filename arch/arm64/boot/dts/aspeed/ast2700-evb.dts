@@ -717,6 +717,7 @@
 	perif-mcyc-enable;
 	perif-mcyc-src-addr = <0x0 0x98000000>;
 	perif-mcyc-size = <0x0 0x10000>;
+	perif-rtc-enable;
 	oob-dma-mode;
 	flash-dma-mode;
 };
