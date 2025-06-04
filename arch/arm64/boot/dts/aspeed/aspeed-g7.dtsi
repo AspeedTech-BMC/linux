@@ -1944,6 +1944,20 @@
 			status = "disabled";
 		};
 
+		rtc_over_espi0: rtc-over_espi0@14c3d000 {
+			compatible = "aspeed,ast2700-rtc-over-espi";
+			reg = <0x0 0x14c3d000 0x0 0x100>;
+			interval-ms = <1000>;
+			status = "disabled";
+		};
+
+		rtc_over_espi1: rtc-over_espi1@14c3d000 {
+			compatible = "aspeed,ast2700-rtc-over-espi";
+			reg = <0x0 0x14c3d100 0x0 0x100>;
+			interval-ms = <1000>;
+			status = "disabled";
+		};
+
 		vuart0: serial@14c30000 {
 			compatible = "aspeed,ast2600-uart";
 			reg = <0x0 0x14c30000 0x0 0x40>;
