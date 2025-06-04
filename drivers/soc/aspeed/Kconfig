@@ -86,6 +86,22 @@ config ASPEED_XDMA
 	  and a host processor. The driver provides ioctl() interface to reset
 	  and initialize engine.
 
+config ASPEED_LPC_PCC
+	tristate "Aspeed Post Code Capture support"
+	depends on ARCH_ASPEED && REGMAP && MFD_SYSCON
+	help
+	  Provides a driver to control the LPC PCC interface,
+	  allowing the BMC to snoop data bytes written by the
+	  the host to an arbitrary LPC I/O port.
+
+config ASPEED_UDMA
+	tristate "Aspeed UDMA Engine Driver"
+	depends on ARCH_ASPEED && REGMAP && MFD_SYSCON && HAS_DMA
+	help
+	  Enable support for the Aspeed UDMA Engine found on the Aspeed AST2XXX
+	  SOCs. The UDMA engine can perform UART DMA operations between the memory
+	  buffer and the UART/VUART devices.
+
 config ASPEED_MBOX
 	bool "Enable support for the ASPEED MBOX driver"
 	depends on ARCH_ASPEED
@@ -121,9 +137,10 @@ config ASPEED_PCIE_MMBI
 	tristate "ASPEED PCIE MMBI"
 
 config ASPEED_ESPI
-	bool "ASPEED eSPI slave driver"
+	tristate "ASPEED eSPI slave driver"
 	select AST2500_ESPI if MACH_ASPEED_G5
 	select AST2600_ESPI if MACH_ASPEED_G6
+	select AST2700_ESPI if MACH_ASPEED_G7
 	default n
 
 config AST2500_ESPI
@@ -133,24 +150,27 @@ config AST2500_ESPI
 	  Enable driver support for Aspeed AST2500 eSPI engine.
 
 config AST2600_ESPI
-	tristate
-	depends on ASPEED_ESPI
+	tristate "ASPEED AST2600 eSPI slave driver"
 	help
-	  Enable driver support for Aspeed AST2600 eSPI engine.
+	  Enable driver support for Aspeed AST2600 eSPI engine. The eSPI engine
+	  plays as a slave device in BMC to communicate with the Host over
+	  the eSPI interface. The four eSPI channels, namely peripheral,
+	  virtual wire, out-of-band, and flash are supported.
 
 config AST2700_ESPI
-	tristate
-	depends on ASPEED_ESPI
+	tristate "ASPEED AST2700 eSPI slave driver"
 	help
-	  Enable driver support for Aspeed AST2600 eSPI engine.
+	  Enable driver support for Aspeed AST2700 eSPI engine. The eSPI engine
+	  plays as a slave device in BMC to communicate with the Host over
+	  the eSPI interface. The four eSPI channels, namely peripheral,
+	  virtual wire, out-of-band, and flash are supported.
 
-config ASPEED_LPC_PCC
-	tristate "Aspeed Post Code Capture support"
-	depends on SOC_ASPEED && REGMAP && MFD_SYSCON
+config AST2700_RTC_OVER_ESPI
+	tristate "ASPEED AST2700 RTC over eSPI drvier"
+	depends on HAS_IOMEM
 	help
-	  Provides a driver to control the LPC PCC interface,
-	  allowing the BMC to snoop data bytes written by the
-	  the host to an arbitrary LPC I/O port.
+	  Enable driver support for Aspeed AST2700 RTC over eSPI function.
+	  Periodically copies RAM content from a RTC tm to a memory-mapped eSPI region.
 
 endmenu
 
