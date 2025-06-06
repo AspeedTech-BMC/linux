@@ -508,6 +508,7 @@ struct i3c_hub_agent_rx_hdr {
 	u8 addr;
 };
 
+#if IS_ENABLED(CONFIG_I2C_SLAVE)
 static void i3c_hub_agent_target_rx(struct i3c_hub_smbus_agent *agent, unsigned int n)
 {
 	struct i3c_hub_agent_rx_hdr hdr;
@@ -575,6 +576,7 @@ ack:
 			 agent->port_nr, ret);
 	agent->next_buf_idx = (agent->next_buf_idx + 1) % 2;
 }
+#endif
 
 static void i3c_hub_agent_ibi(struct i3c_hub_smbus_agent *agent)
 {
@@ -606,6 +608,7 @@ static void i3c_hub_agent_ibi(struct i3c_hub_smbus_agent *agent)
 				 "TP[%d] - failed to clear finish status\n", agent->port_nr);
 	}
 
+#if IS_ENABLED(CONFIG_I2C_SLAVE)
 	/* Slave Agent IBI */
 	if (stat & (HUB_REG_AGENT_CNTRL_STATUS_RX_BUF0 | HUB_REG_AGENT_CNTRL_STATUS_RX_BUF1)) {
 		if (agent->next_buf_idx == 0) {
@@ -640,6 +643,7 @@ static void i3c_hub_agent_ibi(struct i3c_hub_smbus_agent *agent)
 			dev_warn(&hub->i3cdev->dev,
 				 "Port[%d] - failed to clear rx overflow status\n", agent->port_nr);
 	}
+#endif
 }
 
 static u8 tx_clk_to_type(u32 clk)
@@ -666,7 +670,6 @@ static u8 tx_clk_to_type(u32 clk)
 	return type << 1;
 }
 
-#if IS_ENABLED(CONFIG_I2C_SLAVE)
 static int i3c_hub_agent_i2c_xfer_one(struct i3c_hub_smbus_agent *agent,
 				      struct i2c_msg *wr_msg, struct i2c_msg *rd_msg)
 {
@@ -825,6 +828,8 @@ static int i3c_hub_agent_i2c_xfer(struct i2c_adapter *i2c, struct i2c_msg *msgs,
 #ifdef CONFIG_I3C_HUB_POLLING_MODE
 static void smbus_agent_polling_work(struct work_struct *work);
 #endif
+
+#if IS_ENABLED(CONFIG_I2C_SLAVE)
 static int i3c_hub_agent_i2c_reg_target(struct i2c_client *client)
 {
 	struct i3c_hub_smbus_agent *agent = i2c_get_adapdata(client->adapter);
