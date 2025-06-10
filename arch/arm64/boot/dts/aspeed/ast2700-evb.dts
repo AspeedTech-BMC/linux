@@ -283,6 +283,22 @@
 		&pinctrl_adc14_default &pinctrl_adc15_default>;
 };
 
+&pinctrl0 {
+	pinctrl_emmcclk_driving: emmcclk-driving {
+		pins = "AC14";
+		drive-strength = <2>;
+	};
+
+	pinctrl_emmccmd_driving: emmccmd-driving {
+		pins = "AE15";
+		drive-strength = <3>;
+	};
+	pinctrl_emmcdat_driving: emmcdat-driving {
+		pins = "AD14", "AE14", "AF14", "AB13";
+		drive-strength = <3>;
+	};
+};
+
 &pinctrl1 {
 	pinctrl_i3c0_3_hv_voltage: i3chv-voltage {
 		pins = "U25";
@@ -603,6 +619,9 @@
 	pinctrl-0 = <&pinctrl_emmc_default
 		     &pinctrl_emmcg8_default>;
 #endif
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_emmc_default &pinctrl_emmcclk_driving &pinctrl_emmccmd_driving &pinctrl_emmcdat_driving>;
+
 	non-removable;
 	max-frequency = <200000000>;
 };
