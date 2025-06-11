@@ -1018,10 +1018,14 @@ static void ast2700_soc1_configure_mac01_clk(struct ast2700_clk_ctrl *clk_ctrl)
 	u32 reg[3];
 	int ret;
 
-	if (readl(clk_ctrl->base + SCU1_REVISION_ID) & REVISION_ID)
-		reg[0] = AST2700_DEF_MAC12_DELAY_1G_A1;
-	else
+	if (readl(clk_ctrl->base + SCU1_REVISION_ID) & REVISION_ID) {
+		if ((readl(clk_ctrl->base + SCU1_MAC12_CLK_DLY) & GENMASK(25, 0)) == 0)
+			reg[0] = AST2700_DEF_MAC12_DELAY_1G_A1;
+		else
+			reg[0] = readl(clk_ctrl->base + SCU1_MAC12_CLK_DLY);
+	} else {
 		reg[0] = AST2700_DEF_MAC12_DELAY_1G_A0;
+	}
 	reg[1] = AST2700_DEF_MAC12_DELAY_100M;
 	reg[2] = AST2700_DEF_MAC12_DELAY_10M;
 
