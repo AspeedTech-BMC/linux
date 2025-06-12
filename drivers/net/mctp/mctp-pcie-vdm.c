@@ -10,6 +10,7 @@
 #include "linux/skbuff.h"
 #include "linux/stddef.h"
 #include "linux/types.h"
+#include "linux/workqueue.h"
 #include <linux/module.h>
 #include <linux/netdevice.h>
 #include <linux/platform_device.h>
@@ -25,8 +26,7 @@
 #include <net/mctp.h>
 #include <net/mctpdevice.h>
 
-/* 64byte MCTP payload + 16 byte PCIe binding header */
-#define MCTP_PCIE_VDM_MIN_MTU (64 + 16)
+#define MCTP_PCIE_VDM_MIN_MTU 64
 #define MCTP_PCIE_VDM_MAX_MTU 512
 /* 16byte */
 #define MCTP_PCIE_VDM_HDR_SIZE 16
@@ -35,7 +35,6 @@
 
 #define MCTP_PCIE_VDM_NET_DEV_TX_QUEUE_LEN 1100
 #define MCTP_PCIE_VDM_DEV_TX_QUEUE_SIZE 64
-#define MCTP_PCIE_VDM_DEV_RX_QUEUE_SIZE 64
 
 #define MCTP_PCIE_VDM_FMT_4DW 0x3
 #define MCTP_PCIE_VDM_TYPE_MSG 0x10
@@ -109,18 +108,11 @@ struct mctp_pcie_vdm_route_info {
 struct mctp_pcie_vdm_dev {
 	struct device *dev;
 	struct net_device *ndev;
-	struct task_struct *rx_thread;
 	struct task_struct *tx_thread;
+	wait_queue_head_t tx_wait;
+	struct work_struct rx_work;
 	struct mctp_client *client;
 	struct ptr_ring tx_queue;
-	struct ptr_ring rx_queue;
-	/* lock flag receive_data for rx thread to avoid race */
-	spinlock_t rx_lock;
-	wait_queue_head_t tx_wait;
-	wait_queue_head_t rx_wait;
-	/* set to true when rx_queue is full to indicate that */
-	/* RX thread needs to wake up to forward msg */
-	bool receive_data;
 	struct list_head list;
 	/* each network may have at most 256 EIDs */
 	DECLARE_HASHTABLE(route_table, 8);
@@ -129,6 +121,7 @@ struct mctp_pcie_vdm_dev {
 /* mutex for vdm_devs add/delete */
 DEFINE_MUTEX(mctp_pcie_vdm_dev_mutex);
 LIST_HEAD(mctp_pcie_vdm_devs);
+struct workqueue_struct *mctp_pcie_vdm_wq;
 
 static const struct mctp_pcie_vdm_hdr mctp_pcie_vdm_hdr_template = {
 	.fmt = MCTP_PCIE_VDM_FMT_4DW,
@@ -158,43 +151,6 @@ static void mctp_pcie_vdm_display_skb_buff_data(struct sk_buff *skb)
 		i++;
 	}
 	pr_debug("%s\n", buf);
-}
-
-static void mctp_pcie_vdm_set_recv_check(struct mctp_pcie_vdm_dev *vdm_dev,
-					 bool enable)
-{
-	spin_lock(&vdm_dev->rx_lock);
-	vdm_dev->receive_data = enable;
-	spin_unlock(&vdm_dev->rx_lock);
-}
-
-static int mctp_pcie_vdm_receive_data(struct mctp_pcie_vdm_dev *vdm_dev)
-{
-	if (ptr_ring_full(&vdm_dev->rx_queue)) {
-		mctp_pcie_vdm_set_recv_check(vdm_dev, true);
-		return -ENOSPC;
-	}
-
-	struct mctp_pcie_packet *packet;
-
-	packet = aspeed_mctp_receive_packet(vdm_dev->client, msecs_to_jiffies(MCTP_RECEIVE_PKT_TIMEOUT_MS));
-
-	if (IS_ERR(packet)) {
-		if (PTR_ERR(packet) == -ETIME) {
-			mctp_pcie_vdm_set_recv_check(vdm_dev, false);
-		} else {
-			pr_err("%s: recv packet failed, return error code: %ld\n",
-			       __func__, PTR_ERR(packet));
-			return PTR_ERR(packet);
-		}
-	} else {
-		if (ptr_ring_produce_bh(&vdm_dev->rx_queue, packet)) {
-			pr_err("%s: failed to produce packet to rx queue\n",
-			       __func__);
-			aspeed_mctp_packet_free(packet);
-		}
-	}
-	return 0;
 }
 
 static void mctp_pcie_vdm_update_route_table(struct mctp_pcie_vdm_dev *vdm_dev,
@@ -414,13 +370,17 @@ static int mctp_pcie_vdm_tx_thread(void *data)
 {
 	struct mctp_pcie_vdm_dev *vdm_dev = data;
 	for (;;) {
+		wait_event_idle(vdm_dev->tx_wait,
+				__ptr_ring_peek(&vdm_dev->tx_queue) ||
+					kthread_should_stop());
+
 		if (kthread_should_stop())
 			break;
 
 		while (__ptr_ring_peek(&vdm_dev->tx_queue)) {
 			struct sk_buff *skb;
 
-			skb = ptr_ring_consume_bh(&vdm_dev->tx_queue);
+			skb = ptr_ring_consume(&vdm_dev->tx_queue);
 
 			if (skb) {
 				mctp_pcie_vdm_xmit(vdm_dev, skb);
@@ -430,33 +390,21 @@ static int mctp_pcie_vdm_tx_thread(void *data)
 		if (netif_queue_stopped(vdm_dev->ndev))
 			netif_wake_queue(vdm_dev->ndev);
 
-		wait_event_idle(vdm_dev->tx_wait,
-				__ptr_ring_peek(&vdm_dev->tx_queue) ||
-					kthread_should_stop());
 	}
 
 	pr_debug("%s stopping\n", __func__);
 	return 0;
 }
 
-static int mctp_pcie_vdm_rx_thread(void *data)
+static void mctp_pcie_vdm_rx_work_handler(struct work_struct *work)
 {
-	struct mctp_pcie_vdm_dev *vdm_dev = data;
-
-	while (!kthread_should_stop()) {
+	while (true) {
 		struct mctp_pcie_packet *packet;
+		struct mctp_pcie_vdm_dev *vdm_dev =
+			container_of(work, struct mctp_pcie_vdm_dev, rx_work);
 
-		wait_event_idle(vdm_dev->rx_wait,
-				__ptr_ring_peek(&vdm_dev->rx_queue) ||
-					vdm_dev->receive_data ||
-					kthread_should_stop());
-
-		if (kthread_should_stop())
-			break;
-
-		while (__ptr_ring_peek(&vdm_dev->rx_queue)) {
-			packet = ptr_ring_consume_bh(&vdm_dev->rx_queue);
-
+		packet = aspeed_mctp_receive_packet(vdm_dev->client, 0);
+		while (!IS_ERR(packet)) {
 			MCTP_PCIE_SWAP_HOST_ENDIAN(packet->data.hdr,
 						   sizeof(struct mctp_pcie_vdm_hdr) / sizeof(u32));
 			struct mctp_pcie_vdm_hdr *vdm_hdr =
@@ -467,9 +415,6 @@ static int mctp_pcie_vdm_rx_thread(void *data)
 			struct sk_buff *skb;
 			u16 len;
 			int net_status;
-
-			mctp_pcie_vdm_ctrl_msg_handler(vdm_dev,
-						       (u8 *)&packet->data);
 
 			stats = &vdm_dev->ndev->stats;
 			len = vdm_hdr->length * sizeof(u32) -
@@ -490,7 +435,6 @@ static int mctp_pcie_vdm_rx_thread(void *data)
 			skb_put_data(skb, (u8 *)&packet->data, len);
 			/* remove first 12bytes PCIe VDM header */
 			skb_pull(skb, sizeof(struct mctp_pcie_vdm_hdr));
-			mctp_pcie_vdm_display_skb_buff_data(skb);
 
 			cb = __mctp_cb(skb);
 			cb->halen = 2; // BDF size is 2 bytes
@@ -504,6 +448,9 @@ static int mctp_pcie_vdm_rx_thread(void *data)
 				stats->rx_dropped++;
 			}
 
+			mctp_pcie_vdm_ctrl_msg_handler(vdm_dev,
+						       (u8 *)&packet->data);
+
 			if (vdm_hdr->route_type ==
 			    (MCTP_PCIE_VDM_TYPE_MSG |
 			     MCTP_PCIE_VDM_ROUTE_BY_ID)) {
@@ -516,11 +463,9 @@ static int mctp_pcie_vdm_rx_thread(void *data)
 			}
 
 			aspeed_mctp_packet_free(packet);
+			packet = aspeed_mctp_receive_packet(vdm_dev->client, 0);
 		}
-		mctp_pcie_vdm_set_recv_check(vdm_dev, false);
 	}
-	pr_debug("%s stopping\n", __func__);
-	return 0;
 }
 
 static int mctp_pcie_vdm_add_mctp_dev(struct mctp_pcie_vdm_dev *vdm_dev,
@@ -534,20 +479,14 @@ static int mctp_pcie_vdm_add_mctp_dev(struct mctp_pcie_vdm_dev *vdm_dev,
 	}
 
 	vdm_dev->client = mctp_client;
-	vdm_dev->receive_data = false;
-	spin_lock_init(&vdm_dev->rx_lock);
-	init_waitqueue_head(&vdm_dev->tx_wait);
-	init_waitqueue_head(&vdm_dev->rx_wait);
 	hash_init(vdm_dev->route_table);
 	INIT_LIST_HEAD(&vdm_dev->list);
+	init_waitqueue_head(&vdm_dev->tx_wait);
 	ptr_ring_init(&vdm_dev->tx_queue, MCTP_PCIE_VDM_DEV_TX_QUEUE_SIZE,
 		      GFP_KERNEL);
-	ptr_ring_init(&vdm_dev->rx_queue, MCTP_PCIE_VDM_DEV_RX_QUEUE_SIZE,
-		      GFP_ATOMIC);
-	vdm_dev->rx_thread = kthread_run(mctp_pcie_vdm_rx_thread, vdm_dev,
-					 "mctp_pcie_vdm_rx_thread");
 	vdm_dev->tx_thread = kthread_run(mctp_pcie_vdm_tx_thread, vdm_dev,
 					 "mctp_pcie_vdm_tx_thread");
+	INIT_WORK(&vdm_dev->rx_work, mctp_pcie_vdm_rx_work_handler);
 
 	mutex_lock(&mctp_pcie_vdm_dev_mutex);
 	list_add_tail(&vdm_dev->list, &mctp_pcie_vdm_devs);
@@ -581,14 +520,16 @@ static void mctp_pcie_vdm_uninit(struct net_device *ndev)
 		kfree(route);
 	}
 
-	if (vdm_dev->rx_thread) {
-		kthread_stop(vdm_dev->rx_thread);
-		vdm_dev->rx_thread = NULL;
-	}
-
 	if (vdm_dev->tx_thread) {
 		kthread_stop(vdm_dev->tx_thread);
 		vdm_dev->tx_thread = NULL;
+	}
+
+	if (mctp_pcie_vdm_wq) {
+		cancel_work_sync(&vdm_dev->rx_work);
+		flush_workqueue(mctp_pcie_vdm_wq);
+		destroy_workqueue(mctp_pcie_vdm_wq);
+		mctp_pcie_vdm_wq = NULL;
 	}
 
 	mutex_lock(&mctp_pcie_vdm_dev_mutex);
@@ -771,10 +712,7 @@ static int mctp_pcie_vdm_net_notifier_call(struct notifier_block *nb,
 				pr_debug("mctp pcie vdm net device event %lu net device: %s\n",
 					action, vdm_dev->ndev->name);
 
-				int ret = mctp_pcie_vdm_receive_data(vdm_dev);
-
-				if (!ret || vdm_dev->receive_data)
-					wake_up(&vdm_dev->rx_wait);
+				queue_work(mctp_pcie_vdm_wq, &vdm_dev->rx_work);
 				break;
 			}
 		}
@@ -813,6 +751,12 @@ static __init int mctp_pcie_vdm_mod_init(void)
 		pr_warn("mctp PCIe VDM register controller notifier failed: %d\n",
 			rc);
 		return rc;
+	}
+
+	mctp_pcie_vdm_wq = alloc_workqueue("mctp_pcie_vdm_wq", WQ_UNBOUND, 1);
+	if (!mctp_pcie_vdm_wq) {
+		pr_err("Failed to create mctp pcie vdm workqueue\n");
+		return -ENOMEM;
 	}
 
 	return 0;
