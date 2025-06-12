@@ -219,7 +219,7 @@
 #define  SCU_DPLL_SOURCE		BIT(20)
 
 #define SCU_CLK_SEL			0x288
-#define  SCU_SOC_DISPLAY_SEL		GENMASK(17, 12)
+#define  SCU_SOC_DISPLAY_SEL		BIT(15)
 
 #define SCU_CLK_SEL2			0x304
 #define  SCU_VIDEO_OUTPUT_DELAY		GENMASK(5, 0)
@@ -326,6 +326,10 @@ struct aspeed_video_perf {
 /**
  * struct aspeed_video - driver data
  *
+ * base:		holds the base address of video engine
+ * vga_base:		holds the base address of VGA engine. For 2700-A0 workaround
+ * dvi_base:		holds the base address of DVI engine. For 2700 dvi support.
+ *
  * res_work:		holds the delayed_work for res-detection if unlock
  * buffers:		holds the list of buffer queued from user
  * flags:		holds the state of video
@@ -353,6 +357,7 @@ struct aspeed_video_perf {
 struct aspeed_video {
 	void __iomem *base;
 	void __iomem *vga_base;
+	void __iomem *dvi_base;
 	struct clk *eclk;
 	struct clk *vclk;
 	struct clk *crt2clk;
@@ -1252,6 +1257,49 @@ static irqreturn_t aspeed_video_irq(int irq, void *arg)
 	return get_box ? IRQ_WAKE_THREAD : IRQ_HANDLED;
 }
 
+static irqreturn_t aspeed_video_md_irq(int irq, void *arg)
+{
+	struct aspeed_video *video = arg;
+	u32 sts;
+
+	sts = readl(video->dvi_base + VE_INTERRUPT_STATUS);
+	writel(sts, video->dvi_base + VE_INTERRUPT_STATUS);
+	sts &= readl(video->dvi_base + VE_INTERRUPT_CTRL);
+
+	v4l2_dbg(2, debug, &video->v4l2_dev, "dvi irq sts=%#x %s%s\n", sts,
+		 sts & VE_INTERRUPT_MODE_DETECT_WD ? ", unlock" : "",
+		 sts & VE_INTERRUPT_MODE_DETECT ? ", lock" : "");
+
+	if (sts & VE_INTERRUPT_MODE_DETECT_WD) {
+		writel(0, video->dvi_base + VE_INTERRUPT_CTRL);
+		writel(0xffffffff, video->dvi_base + VE_INTERRUPT_STATUS);
+		aspeed_video_irq_res_change(video, 0);
+		return IRQ_HANDLED;
+	}
+
+	if (sts & VE_INTERRUPT_MODE_DETECT) {
+		if (test_bit(VIDEO_RES_DETECT, &video->flags)) {
+			aspeed_video_update(video, VE_INTERRUPT_CTRL,
+					    VE_INTERRUPT_MODE_DETECT, 0);
+			sts &= ~VE_INTERRUPT_MODE_DETECT;
+			set_bit(VIDEO_MODE_DETECT_DONE, &video->flags);
+			wake_up_interruptible_all(&video->wait);
+		} else {
+			/*
+			 * Signal acquired while NOT doing resolution
+			 * detection; reset the engine and re-initialize
+			 */
+			writel(0, video->dvi_base + VE_INTERRUPT_CTRL);
+			writel(0xffffffff, video->dvi_base + VE_INTERRUPT_STATUS);
+			aspeed_video_irq_res_change(video,
+						    RESOLUTION_CHANGE_DELAY);
+			return IRQ_HANDLED;
+		}
+	}
+
+	return IRQ_HANDLED;
+}
+
 static void aspeed_video_check_and_set_polarity(struct aspeed_video *video)
 {
 	int i;
@@ -1471,30 +1519,6 @@ static void aspeed_video_get_resolution_gfx(struct aspeed_video *video,
 	video->v4l2_input_status = 0;
 }
 
-/*
- * For ast2700 only. Due to hw design, the timing detection of DVI is
- * in io-die. Thus, we need to use another hw to do this job.
- */
-static void aspeed_video_get_resolution_dvi(struct aspeed_video *video,
-					    struct v4l2_bt_timings *det)
-{
-	//u32 mds, htotal, vtotal, val;
-
-	//// TODO: detect to get pixel
-	//mds = aspeed_video_read(v, VE_MODE_DETECT_STATUS);
-	//htotal = aspeed_video_read(v, VE_H_TOTAL_PIXELS);
-	//vtotal = FIELD_GET(VE_MODE_DETECT_V_LINES, mds);
-
-	det->height = 480;
-	det->width = 640;
-	video->v4l2_input_status = 0;
-
-	/* Enable mode-detect watchdog, resolution-change watchdog */
-	aspeed_video_update(video, VE_INTERRUPT_CTRL, 0,
-			    VE_INTERRUPT_MODE_DETECT_WD);
-	aspeed_video_update(video, VE_SEQ_CTRL, 0, VE_SEQ_CTRL_EN_WATCHDOG);
-}
-
 #define res_check(v) test_and_clear_bit(VIDEO_MODE_DETECT_DONE, &(v)->flags)
 
 static void aspeed_video_get_resolution_vga(struct aspeed_video *video,
@@ -1579,7 +1603,7 @@ static void aspeed_video_get_resolution_vga(struct aspeed_video *video,
 		return;
 	}
 
-	if (video->input == VIDEO_INPUT_DVI)
+	if (video->input == VIDEO_INPUT_DVI && video->version == 6)
 		video->frame_right -= 1;
 
 	det->height = (video->frame_bottom - video->frame_top) + 1;
@@ -1592,6 +1616,20 @@ static void aspeed_video_get_resolution_vga(struct aspeed_video *video,
 	aspeed_video_update(video, VE_INTERRUPT_CTRL, 0,
 			    VE_INTERRUPT_MODE_DETECT_WD);
 	aspeed_video_update(video, VE_SEQ_CTRL, 0, VE_SEQ_CTRL_EN_WATCHDOG);
+}
+
+/*
+ * For ast2700 only. Due to hw design, the timing detection of DVI is
+ * in io-die. Thus, we need to use another hw to do this job.
+ */
+static void aspeed_video_get_resolution_dvi(struct aspeed_video *video,
+					    struct v4l2_bt_timings *det)
+{
+	void *base = video->base;
+
+	video->base = video->dvi_base;
+	aspeed_video_get_resolution_vga(video, det);
+	video->base = base;
 }
 
 static void aspeed_video_get_resolution(struct aspeed_video *video)
@@ -1991,6 +2029,21 @@ static int aspeed_video_set_input(struct file *file, void *fh, unsigned int i)
 	if ((i != VIDEO_INPUT_MEM) && video->dbg_src.size)
 		aspeed_video_free_buf(video, &video->dbg_src);
 
+	if (i == VIDEO_INPUT_DVI && video->version == 7) {
+		if (IS_ERR(video->dvi_base)) {
+			v4l2_err(&video->v4l2_dev, "%s: dvi isn't ready for DVI input\n", __func__);
+			return -EINVAL;
+		}
+
+		/* Set DVI mode detection defaults */
+		writel(FIELD_PREP(VE_MODE_DT_HOR_TOLER, 2) |
+		       FIELD_PREP(VE_MODE_DT_VER_TOLER, 2) |
+		       FIELD_PREP(VE_MODE_DT_HOR_STABLE, 6) |
+		       FIELD_PREP(VE_MODE_DT_VER_STABLE, 6) |
+		       FIELD_PREP(VE_MODE_DT_EDG_THROD, 0x65),
+		       video->dvi_base + VE_MODE_DETECT);
+	}
+
 	video->input = i;
 
 	if (video->version == 6) {
@@ -2025,7 +2078,7 @@ static int aspeed_video_set_input(struct file *file, void *fh, unsigned int i)
 			regmap_write(video->scu, SCU_CRT2CLK,
 				     FIELD_PREP(SCU_CRT2CLK_N, 50) | FIELD_PREP(SCU_CRT2CLK_R, 15));
 
-			regmap_write(video->scu, SCU_CLK_SEL, FIELD_PREP(SCU_SOC_DISPLAY_SEL, 8));
+			regmap_write(video->scu, SCU_CLK_SEL, FIELD_PREP(SCU_SOC_DISPLAY_SEL, 1));
 		} else {
 			regmap_write(video->scu, SCU_CLK_SEL, FIELD_PREP(SCU_SOC_DISPLAY_SEL, 0));
 		}
@@ -2817,6 +2870,21 @@ static int aspeed_video_init(struct aspeed_video *video)
 	}
 	dev_info(video->dev, "irq %d\n", irq);
 
+	if (!IS_ERR(video->dvi_base)) {
+		irq = irq_of_parse_and_map(dev->of_node, 1);
+		if (!irq) {
+			dev_err(dev, "Unable to find DVI IRQ\n");
+			return -ENODEV;
+		}
+
+		rc = devm_request_irq(dev, irq, aspeed_video_md_irq, 0, dev_name(dev), video);
+		if (rc < 0) {
+			dev_err(dev, "Unable to request DVI IRQ %d\n", irq);
+			return rc;
+		}
+		dev_info(video->dev, "dvi mode-detection irq %d\n", irq);
+	}
+
 	video->reset = devm_reset_control_get_shared(dev, NULL);
 	if (IS_ERR(video->reset)) {
 		dev_err(dev, "Unable to get reset\n");
@@ -2961,6 +3029,11 @@ static int aspeed_video_probe(struct platform_device *pdev)
 		return -ENOMEM;
 	}
 	INIT_WORK(&video->rst_work, aspeed_video_rst_worker);
+
+	if (video->version == 7 && video->id == 0)
+		video->dvi_base = devm_platform_ioremap_resource(pdev, 1);
+	else
+		video->dvi_base = ERR_PTR(-ENODEV);
 
 	rc = aspeed_video_init(video);
 	if (rc)
