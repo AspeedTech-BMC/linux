@@ -1921,7 +1921,7 @@ static irqreturn_t aspeed_mctp_irq_handler(int irq, void *arg)
 	if (status & TX_CMD_SENT_INT) {
 		tasklet_hi_schedule(&priv->tx.tasklet);
 		if (!priv->match_data->fifo_auto_surround)
-			priv->tx.rd_ptr = priv->tx.rd_ptr + 1 % TX_PACKET_COUNT;
+			priv->tx.rd_ptr = (priv->tx.rd_ptr + 1) % TX_PACKET_COUNT;
 		handled |= TX_CMD_SENT_INT;
 	}
 
