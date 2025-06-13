@@ -1088,16 +1088,16 @@ static void aspeed_video_get_bounding_box(struct aspeed_video *v,
 
 static void aspeed_video_swap_src_buf(struct aspeed_video *v)
 {
-	// 2700's new design will automatically swap src at each operation
-	if (v->version > 6 && v->format == VIDEO_FMT_ASPEED)
-		return;
-
 	if (v->format == VIDEO_FMT_STANDARD)
 		return;
 
 	/* Reset bcd buffer to have a full frame update every 8 frames.  */
 	if (IS_ALIGNED(v->sequence, 8))
 		memset((u8 *)v->bcd.virt, 0x00, VE_BCD_BUFF_SIZE);
+
+	// 2700's new design will automatically swap src at each operation
+	if (v->version > 6 && v->format == VIDEO_FMT_ASPEED)
+		return;
 
 	if (v->sequence & 0x01) {
 		aspeed_video_write(v, VE_SRC0_ADDR, _make_addr(v->srcs[1].dma));
