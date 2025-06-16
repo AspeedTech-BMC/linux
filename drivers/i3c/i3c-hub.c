@@ -286,7 +286,6 @@
 
 static const bool ibi_paranoia = true;
 static DEFINE_MUTEX(hub_lock);
-static struct device_node *last_node;
 
 /* mapping of part_id register to device-specific data */
 static const struct i3c_hub_devdata {
@@ -303,6 +302,14 @@ static const struct i3c_hub_devdata {
 
 #define VIO_EXTERNAL	0x00u
 #define VIO_INTERNAL	0x01u
+
+struct used_node_entry {
+	struct list_head list;
+	struct device_node *node;
+};
+
+static LIST_HEAD(used_node_list);
+static DEFINE_MUTEX(used_node_list_lock);
 
 struct i3c_hub_cp_port {
 	u32 id;
@@ -1457,7 +1464,7 @@ static int i3c_hub_debugfs_init(struct i3c_hub *hub, const char *hub_id)
 {
 	struct dentry *entry, *dt_conf_dir, *reg_dir;
 	struct dentry *target_grp_dir;
-	struct dentry *cp_dir, *tp_dir;
+	struct dentry *cp_dir;
 	char file_name[32];
 	int i;
 
@@ -1934,6 +1941,52 @@ static int i3c_hub_read_id(struct i3c_hub *hub)
 	return 0;
 }
 
+static void add_used_node(struct device_node *node)
+{
+	struct used_node_entry *entry;
+
+	if (!node)
+		return;
+
+	entry = kzalloc(sizeof(*entry), GFP_KERNEL);
+	if (!entry)
+		return;
+
+	entry->node = of_node_get(node);
+	mutex_lock(&used_node_list_lock);
+	list_add_tail(&entry->list, &used_node_list);
+	mutex_unlock(&used_node_list_lock);
+}
+
+static bool is_node_used(struct device_node *node)
+{
+	struct used_node_entry *entry;
+	bool found = false;
+
+	mutex_lock(&used_node_list_lock);
+	list_for_each_entry(entry, &used_node_list, list) {
+		if (entry->node == node) {
+			found = true;
+			break;
+		}
+	}
+	mutex_unlock(&used_node_list_lock);
+	return found;
+}
+
+static void free_used_node_list(void)
+{
+	struct used_node_entry *entry, *tmp;
+
+	mutex_lock(&used_node_list_lock);
+	list_for_each_entry_safe(entry, tmp, &used_node_list, list) {
+		list_del(&entry->list);
+		of_node_put(entry->node);
+		kfree(entry);
+	}
+	mutex_unlock(&used_node_list_lock);
+}
+
 static struct device_node *i3c_hub_get_dt_hub_node(struct i3c_hub *hub)
 {
 	struct device_node *node = hub->i3cdev->dev.parent->of_node;
@@ -1947,8 +2000,8 @@ static struct device_node *i3c_hub_get_dt_hub_node(struct i3c_hub *hub)
 
 	max_ids_matched = 0;
 
-	from = last_node ? last_node : node;
 	hub_node = NULL;
+	from = node;
 	while (1) {
 		hub_node = of_find_node_by_name(from, "hub");
 		if (!hub_node)
@@ -1959,6 +2012,9 @@ static struct device_node *i3c_hub_get_dt_hub_node(struct i3c_hub *hub)
 			continue;
 
 		from = hub_node;
+
+		if (is_node_used(hub_node))
+			continue;
 
 		node_ids_matched = 1;
 		ret = of_property_read_u32(hub_node, "id-csel", &id_csel);
@@ -1984,7 +2040,8 @@ static struct device_node *i3c_hub_get_dt_hub_node(struct i3c_hub *hub)
 		return matched_node;
 	}
 
-	last_node = matched_node;
+	add_used_node(matched_node);
+
 	/* Find the proper node, update the id values in the node*/
 	ret = of_property_read_u32(matched_node, "id-csel", &id_csel);
 	hub->hub_dt_sel_id = ret == 0 ? id_csel : -1;
@@ -2346,6 +2403,8 @@ static void i3c_hub_remove(struct i3c_device *i3cdev)
 		if (hub->ports[i].bridge)
 			i3c_master_unregister(&hub->ports[i].bridge->i3c);
 	}
+
+	free_used_node_list();
 }
 
 static struct i3c_driver i3c_hub = {
