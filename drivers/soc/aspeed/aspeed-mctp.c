@@ -790,6 +790,7 @@ static void aspeed_mctp_rx_tasklet(unsigned long data)
 	struct aspeed_mctp_rx_cmd *rx_cmd;
 	u32 hw_read_ptr;
 	u32 *hdr, *payload;
+	bool rx_full;
 
 	if (priv->match_data->vdm_hdr_direct_xfer && priv->match_data->fifo_auto_surround) {
 		struct mctp_pcie_packet_data *rx_buf;
@@ -797,6 +798,12 @@ static void aspeed_mctp_rx_tasklet(unsigned long data)
 
 		/* Trigger HW read pointer update, must be done before RX loop */
 		regmap_write(priv->map, ASPEED_MCTP_RX_BUF_RD_PTR, UPDATE_RX_RD_PTR);
+
+		/*
+		 * rx->stopped indicates if rx ring is full or not.
+		 * Use rx_full to note ring status before consuming packet.
+		 */
+		rx_full = rx->stopped;
 
 		/*
 		 * XXX: Using rd_ptr obtained from HW is unreliable so we need to
@@ -959,9 +966,26 @@ static void aspeed_mctp_rx_tasklet(unsigned long data)
 
 	/* Kick RX if it was stopped due to ring full condition */
 	if (rx->stopped) {
-		rx->stopped = false;
-		regmap_update_bits(priv->map, ASPEED_MCTP_CTRL, RX_CMD_READY,
-				   RX_CMD_READY);
+		if (!rx_full) {
+			/*
+			 * RX ring may still be full in here as the HW keeps producing when Tasklet consumes the packets.
+			 * Use rx_full to detect if RX ring is already full before or after Tasklet consumption.
+			 * Schedule another tasklet here to consume RX ring before restarting reception if ring is full after the while loop,
+			 * in case that RX_CMD_NO_MORE_INT interrupts tasklet after tasklet consumes packets.
+			 * Use flag cause we cannot control if ASPEED_MCTP_RX_BUF_WR_PTR can be updated before ring full occurs.
+			 * Example of problematic scenario:
+			 * 1. Tasklet executing, found *hdr==0 at wr_ptr=14, break the while loop and going forward.
+			 * 2. After leaving the loop, Tasklet spend time doing some time-consuming stuffs like printing log.
+			 * 3. HW keep receiving during step2, and triggered RX_CMD_NO_MORE_INT to set rx->stopped to true in the IRQ handler.
+			 * 4. CPU returns to Tasklet, after step2 the tasklet sees rx->stopped == true, therefore kick RX_READY to restart RX.
+			 * 5. Issue reproduced, RX restarted without stored packets consumed, and get overwritten later.
+			 */
+			tasklet_hi_schedule(&priv->rx.tasklet);
+		} else {
+			rx->stopped = false;
+			regmap_update_bits(priv->map, ASPEED_MCTP_CTRL, RX_CMD_READY,
+					   RX_CMD_READY);
+		}
 	}
 }
 
