@@ -187,7 +187,7 @@ static int aspeed_lpc_enable_snoop(struct aspeed_lpc_snoop *snoop,
 	chan->id = ida_alloc(&aspeed_lpc_snoop_ida, GFP_KERNEL);
 	if (chan->id < 0) {
 		dev_err(dev, "cannot allocate ID\n");
-		return chan->id;
+		goto err_free_fifo;
 	}
 
 	chan->mdev.parent = dev;
@@ -198,7 +198,7 @@ static int aspeed_lpc_enable_snoop(struct aspeed_lpc_snoop *snoop,
 	rc = misc_register(&chan->mdev);
 	if (rc) {
 		dev_err(dev, "cannot register misc device\n");
-		return rc;
+		goto err_free_fifo;
 	}
 
 	/* Enable LPC snoop channel at requested port */
@@ -216,7 +216,8 @@ static int aspeed_lpc_enable_snoop(struct aspeed_lpc_snoop *snoop,
 		hicrb_en = HICRB_ENSNP1D;
 		break;
 	default:
-		return -EINVAL;
+		rc = -EINVAL;
+		goto err_misc_deregister;
 	}
 
 	regmap_update_bits(snoop->regmap, HICR5, hicr5_en, hicr5_en);
@@ -225,6 +226,12 @@ static int aspeed_lpc_enable_snoop(struct aspeed_lpc_snoop *snoop,
 	if (model_data->has_hicrb_ensnp)
 		regmap_update_bits(snoop->regmap, HICRB, hicrb_en, hicrb_en);
 
+	return 0;
+
+err_misc_deregister:
+	misc_deregister(&chan->mdev);
+err_free_fifo:
+	kfifo_free(&chan->fifo);
 	return rc;
 }
 

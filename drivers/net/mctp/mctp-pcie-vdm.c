@@ -599,7 +599,7 @@ static int mctp_pcie_vdm_add_net_dev(struct net_device **dev)
 	*dev = ndev;
 	int rc;
 
-	rc = mctp_register_netdev(ndev, NULL);
+	rc = mctp_register_netdev(ndev, NULL, MCTP_PHYS_BINDING_PCIE_VDM);
 	if (rc) {
 		pr_err("%s: failed to register net device\n", __func__);
 		free_netdev(ndev);
