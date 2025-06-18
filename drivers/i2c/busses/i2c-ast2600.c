@@ -2190,6 +2190,7 @@ static int ast2600_i2c_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
 	struct ast2600_i2c_bus *i2c_bus;
+	const char *xfer_mode;
 	struct resource *res;
 	u32 global_ctrl;
 	int ret;
@@ -2231,28 +2232,26 @@ static int ast2600_i2c_probe(struct platform_device *pdev)
 		i2c_bus->multi_slave[i] = NULL;
 #endif
 	i2c_bus->dev = dev;
-	if (i2c_bus->version == AST2600) {
+	if (i2c_bus->version == AST2600)
 		i2c_bus->mode = BUFF_MODE;
-
-		/* The ast2600 could select dma/buff/byte mode */
-		if (device_property_read_bool(dev, "aspeed,enable-byte"))
-			i2c_bus->mode = BYTE_MODE;
-
-		if (device_property_read_bool(dev, "aspeed,enable-buff"))
-			i2c_bus->mode = BUFF_MODE;
-
-		if (device_property_read_bool(dev, "aspeed,enable-dma"))
-			i2c_bus->mode = DMA_MODE;
-
-		if (i2c_bus->mode == BUFF_MODE) {
-			i2c_bus->buf_base = devm_platform_get_and_ioremap_resource(pdev, 1, &res);
-			if (IS_ERR(i2c_bus->buf_base))
-				i2c_bus->mode = BYTE_MODE;
-			else
-				i2c_bus->buf_size = resource_size(res) / 2;
-		}
-	} else {
+	else
 		i2c_bus->mode = DMA_MODE;
+
+	if (!device_property_read_string(dev, "aspeed,transfer-mode", &xfer_mode)) {
+		if (!strcmp(xfer_mode, "dma"))
+			i2c_bus->mode = DMA_MODE;
+		else if (!strcmp(xfer_mode, "byte"))
+			i2c_bus->mode = BYTE_MODE;
+		else
+			i2c_bus->mode = BUFF_MODE;
+	}
+
+	if (i2c_bus->mode == BUFF_MODE) {
+		i2c_bus->buf_base = devm_platform_get_and_ioremap_resource(pdev, 1, &res);
+		if (IS_ERR(i2c_bus->buf_base))
+			i2c_bus->mode = BYTE_MODE;
+		else
+			i2c_bus->buf_size = resource_size(res) / 2;
 	}
 
 	/*
@@ -2293,9 +2292,8 @@ static int ast2600_i2c_probe(struct platform_device *pdev)
 	i2c_bus->adap.algo_data = i2c_bus;
 	strscpy(i2c_bus->adap.name, pdev->name, sizeof(i2c_bus->adap.name));
 	i2c_set_adapdata(&i2c_bus->adap, i2c_bus);
-#ifdef CONFIG_64BIT
 	dma_set_mask_and_coherent(&pdev->dev, DMA_BIT_MASK(64));
-#endif
+
 	ast2600_i2c_init(i2c_bus);
 
 	ret = devm_request_irq(dev, i2c_bus->irq, ast2600_i2c_bus_irq, 0,
