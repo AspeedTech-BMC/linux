@@ -344,6 +344,10 @@
 	status = "okay";
 };
 
+&uart5 {
+	status = "okay";
+};
+
 &uart6 {
 	status = "okay";
 };
