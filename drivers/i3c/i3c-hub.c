@@ -688,6 +688,7 @@ static int i3c_hub_agent_i2c_xfer_one(struct i3c_hub_smbus_agent *agent,
 	struct i3c_hub *hub = agent->hub;
 	unsigned long flags, wait_time;
 	unsigned int offset;
+	unsigned char rx_buf[I3C_HUB_CONTROLLER_BUFFER_SIZE] = { 0 };
 	int ret;
 
 	ret = i3c_hub_disable_agent_ibi(hub);
@@ -695,6 +696,9 @@ static int i3c_hub_agent_i2c_xfer_one(struct i3c_hub_smbus_agent *agent,
 		dev_err(dev, "Failed to disable smbus agent IBI:%d\n", ret);
 		goto exit;
 	}
+
+	if (rd_msg && (rd_msg->flags & I2C_M_RECV_LEN))
+		rd_msg->len = I2C_SMBUS_BLOCK_MAX + rd_msg->len;
 
 	hdr.type |= tx_clk_to_type(agent->clk_freq);
 	if (wr_msg && rd_msg) {
@@ -789,10 +793,24 @@ static int i3c_hub_agent_i2c_xfer_one(struct i3c_hub_smbus_agent *agent,
 
 	if (!ret && rd_msg && rd_msg->len) {
 		offset = !wr_msg ? 0 : wr_msg->len;
-		ret = i3c_hub_read_paged(hub, page, sizeof(hdr) + offset, rd_msg->buf, rd_msg->len);
-		if (ret) {
-			dev_err(dev, "read data failed %d\n", ret);
-			ret = -EIO;
+
+		if (rd_msg->flags & I2C_M_RECV_LEN) {
+			ret = i3c_hub_read_paged(hub, page, sizeof(hdr) + offset,
+						 rx_buf, rd_msg->len);
+			if (ret) {
+				dev_err(dev, "read data failed %d\n", ret);
+				ret = -EIO;
+			}
+
+			rd_msg->len = min_t(unsigned int, rx_buf[0], I2C_SMBUS_BLOCK_MAX) + 1;
+			memcpy(rd_msg->buf, rx_buf, rd_msg->len);
+		} else {
+			ret = i3c_hub_read_paged(hub, page, sizeof(hdr) + offset,
+						 rd_msg->buf, rd_msg->len);
+			if (ret) {
+				dev_err(dev, "read data failed %d\n", ret);
+				ret = -EIO;
+			}
 		}
 	}
 
