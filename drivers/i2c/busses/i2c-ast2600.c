@@ -2232,26 +2232,27 @@ static int ast2600_i2c_probe(struct platform_device *pdev)
 		i2c_bus->multi_slave[i] = NULL;
 #endif
 	i2c_bus->dev = dev;
-	if (i2c_bus->version == AST2600)
+	if (i2c_bus->version == AST2600) {
 		i2c_bus->mode = BUFF_MODE;
-	else
+
+		if (!device_property_read_string(dev, "aspeed,transfer-mode", &xfer_mode)) {
+			if (!strcmp(xfer_mode, "dma"))
+				i2c_bus->mode = DMA_MODE;
+			else if (!strcmp(xfer_mode, "byte"))
+				i2c_bus->mode = BYTE_MODE;
+			else
+				i2c_bus->mode = BUFF_MODE;
+		}
+
+		if (i2c_bus->mode == BUFF_MODE) {
+			i2c_bus->buf_base = devm_platform_get_and_ioremap_resource(pdev, 1, &res);
+			if (IS_ERR(i2c_bus->buf_base))
+				i2c_bus->mode = BYTE_MODE;
+			else
+				i2c_bus->buf_size = resource_size(res) / 2;
+		}
+	} else {
 		i2c_bus->mode = DMA_MODE;
-
-	if (!device_property_read_string(dev, "aspeed,transfer-mode", &xfer_mode)) {
-		if (!strcmp(xfer_mode, "dma"))
-			i2c_bus->mode = DMA_MODE;
-		else if (!strcmp(xfer_mode, "byte"))
-			i2c_bus->mode = BYTE_MODE;
-		else
-			i2c_bus->mode = BUFF_MODE;
-	}
-
-	if (i2c_bus->mode == BUFF_MODE) {
-		i2c_bus->buf_base = devm_platform_get_and_ioremap_resource(pdev, 1, &res);
-		if (IS_ERR(i2c_bus->buf_base))
-			i2c_bus->mode = BYTE_MODE;
-		else
-			i2c_bus->buf_size = resource_size(res) / 2;
 	}
 
 	/*
