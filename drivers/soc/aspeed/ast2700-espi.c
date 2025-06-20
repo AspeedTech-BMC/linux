@@ -1946,7 +1946,10 @@ static void ast2700_espi_flash_reset(struct ast2700_espi *espi)
 static int ast2700_espi_flash_probe(struct ast2700_espi *espi)
 {
 	struct ast2700_espi_flash *flash;
+	struct device_node *np;
+	struct resource res;
 	struct device *dev;
+	void *virt;
 	int rc;
 
 	dev = espi->dev;
@@ -1963,18 +1966,26 @@ static int ast2700_espi_flash_probe(struct ast2700_espi *espi)
 	flash->edaf.mode = EDAF_MODE_HW;
 
 	of_property_read_u32(dev->of_node, "flash-edaf-mode", &flash->edaf.mode);
+	dev_err(dev, "eDAF mode: 0x%x\n", flash->edaf.mode);
 	if (flash->edaf.mode == EDAF_MODE_MIX) {
-		rc = of_property_read_u64(dev->of_node, "flash-edaf-tgt-addr", &flash->edaf.taddr);
-		if (rc || !IS_ALIGNED(flash->edaf.taddr, FLASH_EDAF_ALIGN)) {
-			dev_err(dev, "cannot get 16MB-aligned eDAF address\n");
+		np = of_parse_phandle(dev->of_node, "flash-edaf-tgt-addr", 0);
+		if (!np || of_address_to_resource(np, 0, &res)) {
+			dev_err(dev, "cannot get eDAF memory region\n");
 			return -ENODEV;
 		}
 
-		rc = of_property_read_u64(dev->of_node, "flash-edaf-size", &flash->edaf.size);
-		if (rc || !IS_ALIGNED(flash->edaf.size, FLASH_EDAF_ALIGN)) {
-			dev_err(dev, "cannot get 16MB-aligned eDAF size\n");
-			return -ENODEV;
-		}
+		of_node_put(np);
+
+		flash->edaf.taddr = res.start;
+		flash->edaf.size = resource_size(&res);
+		dev_err(dev, "eDAF address: 0x%llx\n", flash->edaf.taddr);
+		dev_err(dev, "eDAF size: 0x%llx\n", flash->edaf.size);
+	}
+
+	virt = devm_ioremap_resource(dev, &res);
+	if (!virt) {
+		dev_err(dev, "cannot map MMBI memory region\n");
+		return -ENOMEM;
 	}
 
 	flash->dma.enable = of_property_read_bool(dev->of_node, "flash-dma-mode");
