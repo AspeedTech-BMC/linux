@@ -31,7 +31,7 @@ espi0_mmbi_memory: espi0-mmbi-memory@424000000 {
 	no-map;
 };
 
-espi1_mmbi_memory: espi1-mmbi-memory@428000000 {
+edaf0: safs-mix-mode@428000000 {
 	reg = <0x4 0x28000000 0x0 0x4000000>;
 	no-map;
 };

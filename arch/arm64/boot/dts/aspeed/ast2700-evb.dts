@@ -733,6 +733,11 @@
 	perif-rtc-enable;
 	oob-dma-mode;
 	flash-dma-mode;
+#if 0	// if support eDAF MIX mode, open this if case to use sample code
+	flash-edaf-mode = <0x0>;
+	flash-edaf-tgt-addr = <&edaf0>;
+	flash-edaf-size = <0x0 0x4000000>;
+#endif
 };
 
 &rtc_over_espi0 {
