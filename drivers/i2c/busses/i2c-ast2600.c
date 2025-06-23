@@ -593,8 +593,6 @@ static void ast2700_i2c_slave_packet_dma_irq(struct ast2600_i2c_bus *i2c_bus, u3
 		}
 		if (i2c_bus->slave)
 			i2c_slave_event(i2c_bus->slave, I2C_SLAVE_STOP, &value);
-		else
-			dev_dbg(i2c_bus->dev, "s1-3 ws\n");
 		i2c_bus->slave = NULL;
 		sirq_log = readl(i2c_bus->reg_base + AST2700_I2CC_SIRQ_LOG);
 		if (!i2c_bus->slave)
