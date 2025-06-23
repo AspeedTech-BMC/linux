@@ -1140,7 +1140,8 @@
 
 		mbox0: mbox@12c1c200 {
 			compatible = "aspeed,ast2700-mailbox";
-			reg = <0x0 0x12c1c200 0x0 0x200>;
+			reg = <0x0 0x12c1c200 0x0 0x100>, <0x0 0x12c1c300 0x0 0x100>;
+			reg-names = "tx", "rx";
 			interrupts = <GIC_SPI 103 IRQ_TYPE_LEVEL_HIGH>;
 			#mbox-cells = <1>;
 			mbox-name = "ssp";
@@ -1148,7 +1149,8 @@
 
 		mbox1: mbox@12c1c600 {
 			compatible = "aspeed,ast2700-mailbox";
-			reg = <0x0 0x12c1c600 0x0 0x200>;
+			reg = <0x0 0x12c1c600 0x0 0x100>, <0x0 0x12c1c700 0x0 0x100>;
+			reg-names = "tx", "rx";
 			interrupts = <GIC_SPI 107 IRQ_TYPE_LEVEL_HIGH>;
 			#mbox-cells = <1>;
 			mbox-name = "tsp";
@@ -2408,7 +2410,8 @@
 
 		mbox2: mbox@14c39200 {
 			compatible = "aspeed,ast2700-mailbox";
-			reg = <0x0 0x14c39200 0x0 0x200>;
+			reg = <0x0 0x14c39200 0x0 0x100>, <0x0 0x14c39300 0x0 0x100>;
+			reg-names = "tx", "rx";
 			interrupts-extended = <&intc1_5 17>;
 			#mbox-cells = <1>;
 			mbox-name = "bootmcu";
