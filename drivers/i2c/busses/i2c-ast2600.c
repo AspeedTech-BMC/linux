@@ -520,6 +520,7 @@ static void ast2700_i2c_slave_packet_dma_irq(struct ast2600_i2c_bus *i2c_bus, u3
 	sts = isr & ~(AST2600_I2CS_SLAVE_PENDING | AST2600_I2CS_ADDR_NAK_MASK);
 	/* Handle i2c slave timeout condition */
 	if (AST2600_I2CS_INACTIVE_TO & sts) {
+		dev_dbg(i2c_bus->dev, "The slave timeout occurs isr: 0x%08x.\n", isr);
 		/* Reset time out counter */
 		u32 ac_timing = readl(i2c_bus->reg_base + AST2600_I2CC_AC_TIMING) &
 				AST2600_I2CC_AC_TIMING_MASK;
@@ -548,6 +549,7 @@ static void ast2700_i2c_slave_packet_dma_irq(struct ast2600_i2c_bus *i2c_bus, u3
 	}
 
 	if (AST2600_I2CS_ABNOR_STOP & sts) {
+		dev_err(i2c_bus->dev, "The slave abnomal protocol occurs isr: 0x%08x.\n", isr);
 		cmd = SLAVE_TRIGGER_CMD | AST2600_I2CS_RX_DMA_EN;
 		writel(AST2600_I2CS_SET_RX_DMA_LEN(I2C_SLAVE_MSG_BUF_SIZE),
 		       i2c_bus->reg_base + AST2600_I2CS_DMA_LEN);
