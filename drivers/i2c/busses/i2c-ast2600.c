@@ -432,7 +432,7 @@ static u32 ast2700_select_i2c_clock(struct ast2600_i2c_bus *i2c_bus)
 
 	baseclk_idx = min(baseclk_idx, 0xff);
 	divisor = min(divisor, 32);
-	scl_low = min(divisor * 9 / 16 - 1, 15);
+	scl_low = min((DIV_ROUND_UP(divisor * 9, 16)) - 1, 15);
 	scl_high = (divisor - scl_low - 2) & GENMASK(3, 0);
 	data = (scl_high - 1) << 20 | scl_high << 16 | scl_low << 12 | baseclk_idx;
 	if (i2c_bus->timeout) {
