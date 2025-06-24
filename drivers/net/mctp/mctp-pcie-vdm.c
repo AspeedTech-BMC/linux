@@ -398,73 +398,71 @@ static int mctp_pcie_vdm_tx_thread(void *data)
 
 static void mctp_pcie_vdm_rx_work_handler(struct work_struct *work)
 {
-	while (true) {
-		struct mctp_pcie_packet *packet;
-		struct mctp_pcie_vdm_dev *vdm_dev =
-			container_of(work, struct mctp_pcie_vdm_dev, rx_work);
+	struct mctp_pcie_packet *packet;
+	struct mctp_pcie_vdm_dev *vdm_dev =
+		container_of(work, struct mctp_pcie_vdm_dev, rx_work);
 
-		packet = aspeed_mctp_receive_packet(vdm_dev->client, 0);
-		while (!IS_ERR(packet)) {
-			MCTP_PCIE_SWAP_HOST_ENDIAN(packet->data.hdr,
-						   sizeof(struct mctp_pcie_vdm_hdr) / sizeof(u32));
-			struct mctp_pcie_vdm_hdr *vdm_hdr =
-				(struct mctp_pcie_vdm_hdr *)(&packet->data
-								      .hdr[0]);
-			struct mctp_skb_cb *cb;
-			struct net_device_stats *stats;
-			struct sk_buff *skb;
-			u16 len;
-			int net_status;
+	packet = aspeed_mctp_receive_packet(vdm_dev->client, 0);
+	while (!IS_ERR(packet)) {
+		MCTP_PCIE_SWAP_HOST_ENDIAN(packet->data.hdr,
+					   sizeof(struct mctp_pcie_vdm_hdr) / sizeof(u32));
+		struct mctp_pcie_vdm_hdr *vdm_hdr =
+			(struct mctp_pcie_vdm_hdr *)(&packet->data
+									.hdr[0]);
+		struct mctp_skb_cb *cb;
+		struct net_device_stats *stats;
+		struct sk_buff *skb;
+		u16 len;
+		int net_status;
 
-			stats = &vdm_dev->ndev->stats;
-			len = vdm_hdr->length * sizeof(u32) -
-			      vdm_hdr->tag_pad_len;
-			len += MCTP_PCIE_VDM_HDR_SIZE;
-			skb = netdev_alloc_skb(vdm_dev->ndev, len);
-			pr_debug("%s: received packet size: %d\n", __func__,
-				 len);
+		stats = &vdm_dev->ndev->stats;
+		len = vdm_hdr->length * sizeof(u32) -
+				vdm_hdr->tag_pad_len;
+		len += MCTP_PCIE_VDM_HDR_SIZE;
+		skb = netdev_alloc_skb(vdm_dev->ndev, len);
+		pr_debug("%s: received packet size: %d\n", __func__,
+			 len);
 
-			if (!skb) {
-				stats->rx_errors++;
-				pr_err("%s: failed to alloc skb\n", __func__);
-				continue;
-			}
-
-			skb->protocol = htons(ETH_P_MCTP);
-			/* put data into tail sk buff */
-			skb_put_data(skb, (u8 *)&packet->data, len);
-			/* remove first 12bytes PCIe VDM header */
-			skb_pull(skb, sizeof(struct mctp_pcie_vdm_hdr));
-
-			cb = __mctp_cb(skb);
-			cb->halen = 2; // BDF size is 2 bytes
-			memcpy(cb->haddr, &vdm_hdr->pci_req_id, cb->halen);
-
-			net_status = netif_rx(skb);
-			if (net_status == NET_RX_SUCCESS) {
-				stats->rx_packets++;
-				stats->rx_bytes += skb->len;
-			} else {
-				stats->rx_dropped++;
-			}
-
-			mctp_pcie_vdm_ctrl_msg_handler(vdm_dev,
-						       (u8 *)&packet->data);
-
-			if (vdm_hdr->route_type ==
-			    (MCTP_PCIE_VDM_TYPE_MSG |
-			     MCTP_PCIE_VDM_ROUTE_BY_ID)) {
-				u16 bdf = vdm_hdr->pci_req_id;
-				u8 src_eid = FIELD_GET(GENMASK(23, 16),
-						       packet->data.hdr[3]);
-
-				mctp_pcie_vdm_update_route_table(vdm_dev,
-								 src_eid, bdf);
-			}
-
-			aspeed_mctp_packet_free(packet);
-			packet = aspeed_mctp_receive_packet(vdm_dev->client, 0);
+		if (!skb) {
+			stats->rx_errors++;
+			pr_err("%s: failed to alloc skb\n", __func__);
+			continue;
 		}
+
+		skb->protocol = htons(ETH_P_MCTP);
+		/* put data into tail sk buff */
+		skb_put_data(skb, (u8 *)&packet->data, len);
+		/* remove first 12bytes PCIe VDM header */
+		skb_pull(skb, sizeof(struct mctp_pcie_vdm_hdr));
+
+		cb = __mctp_cb(skb);
+		cb->halen = 2; // BDF size is 2 bytes
+		memcpy(cb->haddr, &vdm_hdr->pci_req_id, cb->halen);
+
+		net_status = netif_rx(skb);
+		if (net_status == NET_RX_SUCCESS) {
+			stats->rx_packets++;
+			stats->rx_bytes += skb->len;
+		} else {
+			stats->rx_dropped++;
+		}
+
+		mctp_pcie_vdm_ctrl_msg_handler(vdm_dev,
+					       (u8 *)&packet->data);
+
+		if (vdm_hdr->route_type ==
+			(MCTP_PCIE_VDM_TYPE_MSG |
+				MCTP_PCIE_VDM_ROUTE_BY_ID)) {
+			u16 bdf = vdm_hdr->pci_req_id;
+			u8 src_eid = FIELD_GET(GENMASK(23, 16),
+							packet->data.hdr[3]);
+
+			mctp_pcie_vdm_update_route_table(vdm_dev,
+							 src_eid, bdf);
+		}
+
+		aspeed_mctp_packet_free(packet);
+		packet = aspeed_mctp_receive_packet(vdm_dev->client, 0);
 	}
 }
 
