@@ -12,6 +12,7 @@
 #include <linux/io.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
+#include <linux/mtd/spi-nor.h>
 #include <linux/of.h>
 #include <linux/of_platform.h>
 #include <linux/platform_device.h>
@@ -409,6 +410,7 @@ static bool aspeed_spi_supports_op(struct spi_mem *mem, const struct spi_mem_op 
 }
 
 static const struct aspeed_spi_data ast2400_spi_data;
+static const struct aspeed_spi_data ast2500_fmc_data;
 
 static int do_aspeed_spi_exec_op(struct spi_mem *mem, const struct spi_mem_op *op)
 {
@@ -422,6 +424,12 @@ static int do_aspeed_spi_exec_op(struct spi_mem *mem, const struct spi_mem_op *o
 		op->cmd.opcode, op->cmd.buswidth, op->addr.buswidth,
 		op->dummy.buswidth, op->data.buswidth,
 		op->addr.nbytes, op->dummy.nbytes, op->data.nbytes);
+
+	/* no operation for AST2500 when SW reset is executed */
+	if (aspi->data == &ast2500_fmc_data &&
+	    (op->cmd.opcode == SPINOR_OP_SRSTEN ||
+	     op->cmd.opcode == SPINOR_OP_SRST))
+		return ret;
 
 	if (op->data.dir == SPI_MEM_DATA_IN) {
 		if (!op->addr.nbytes)
