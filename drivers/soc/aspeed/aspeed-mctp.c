@@ -622,24 +622,15 @@ aspeed_mctp_find_handler(struct aspeed_mctp *priv,
 			 struct mctp_pcie_packet *packet)
 {
 	struct mctp_type_handler *handler;
-	u8 *hdr = (u8 *)packet->data.hdr;
 	u8 *payload = (u8 *)packet->data.payload;
 	struct mctp_client *client = NULL;
-	u8 mctp_type, som_eom;
+	u8 mctp_type;
 	u16 vendor = 0;
 	u16 vdm_type = 0;
 
 	lockdep_assert_held(&priv->clients_lock);
 
-	/*
-	 * Middle and EOM fragments cannot be matched to MCTP type.
-	 * For consistency do not match type for any fragmented messages.
-	 */
-	som_eom = hdr[MCTP_HDR_TAG_OFFSET] & MCTP_HDR_SOM_EOM;
-	if (som_eom != MCTP_HDR_SOM_EOM)
-		return NULL;
-
-	mctp_type = hdr[MCTP_PAYLOAD_TYPE_OFFSET];
+	mctp_type = payload[MCTP_PAYLOAD_TYPE_OFFSET];
 	if (mctp_type == MCTP_HDR_TYPE_VDM_PCI) {
 		vendor = *((u16 *)&payload[MCTP_PAYLOAD_VENDOR_OFFSET]);
 		vdm_type = *((u16 *)&payload[MCTP_PAYLOAD_VDM_TYPE_OFFSET]);
