@@ -450,7 +450,6 @@ static int ast2600_i2c_recover_bus(struct ast2600_i2c_bus *i2c_bus)
 {
 	u32 state = readl(i2c_bus->reg_base + AST2600_I2CC_STS_AND_BUFF);
 	int ret = 0;
-	u32 ctrl;
 	int r;
 
 	dev_dbg(i2c_bus->dev, "%d-bus recovery bus [%x]\n", i2c_bus->adap.nr, state);
@@ -465,7 +464,6 @@ static int ast2600_i2c_recover_bus(struct ast2600_i2c_bus *i2c_bus)
 		r = wait_for_completion_timeout(&i2c_bus->cmd_complete, i2c_bus->adap.timeout);
 		if (r == 0) {
 			dev_dbg(i2c_bus->dev, "recovery timed out\n");
-			writel(ctrl, i2c_bus->reg_base + AST2600_I2CC_FUN_CTRL);
 			return -ETIMEDOUT;
 		} else if (i2c_bus->cmd_err) {
 			dev_dbg(i2c_bus->dev, "recovery error\n");
