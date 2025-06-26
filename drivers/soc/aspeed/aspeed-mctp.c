@@ -2442,7 +2442,7 @@ static int aspeed_mctp_probe(struct platform_device *pdev)
 		return id;
 	priv->mctp_miscdev.parent = priv->dev;
 	priv->mctp_miscdev.minor = MISC_DYNAMIC_MINOR;
-	priv->mctp_miscdev.name = kasprintf(GFP_KERNEL, "aspeed-mctp%d", id);
+	priv->mctp_miscdev.name = devm_kasprintf(priv->dev, GFP_KERNEL, "aspeed-mctp%d", id);
 	priv->mctp_miscdev.fops = &aspeed_mctp_fops;
 	ret = misc_register(&priv->mctp_miscdev);
 	if (ret) {
@@ -2458,7 +2458,7 @@ static int aspeed_mctp_probe(struct platform_device *pdev)
 	}
 	aspeed_mctp_pcie_setup(priv);
 
-	name = kasprintf(GFP_KERNEL, "peci-mctp%d", id);
+	name = devm_kasprintf(priv->dev, GFP_KERNEL, "peci-mctp%d", id);
 	priv->peci_mctp =
 		platform_device_register_data(priv->dev, name, PLATFORM_DEVID_NONE, NULL, 0);
 	if (IS_ERR(priv->peci_mctp))
