@@ -80,6 +80,28 @@ static void aspeed_ltpi_gpio_irq_init_valid_mask(struct gpio_chip *gc,
 	}
 }
 
+static int aspeed_ltpi_gpio_irq_init_hw(struct gpio_chip *gc)
+{
+	struct aspeed_ltpi_gpio *gpio = gpiochip_get_data(gc);
+	void __iomem *addr;
+	unsigned long flags;
+	int i;
+
+	raw_spin_lock_irqsave(&gpio->lock, flags);
+
+	for (i = 0; i < (gc->ngpio >> 1); i++) {
+		addr = gpio->base + LTPI_GPIO_CTRL_REG_OFFSET(i);
+		ast_clr_bits(addr, LTPI_GPIO_IRQ_EN | LTPI_GPIO_IRQ_TYPE0 |
+					   LTPI_GPIO_IRQ_TYPE1 |
+					   LTPI_GPIO_IRQ_TYPE2);
+		ast_write_bits(addr, LTPI_GPIO_IRQ_STS, 1);
+	}
+
+	raw_spin_unlock_irqrestore(&gpio->lock, flags);
+
+	return 0;
+}
+
 static bool aspeed_ltpi_gpio_is_input(unsigned int offset)
 {
 	return !(offset % 2);
@@ -338,6 +360,7 @@ static int aspeed_ltpi_gpio_setup_irqs(struct aspeed_ltpi_gpio *gpio,
 	gpio_irq_chip_set_chip(irq, &aspeed_ltpi_gpio_irq_chip);
 	irq->init_valid_mask = aspeed_ltpi_gpio_irq_init_valid_mask;
 	irq->handler = handle_bad_irq;
+	irq->init_hw = aspeed_ltpi_gpio_irq_init_hw;
 	irq->default_type = IRQ_TYPE_NONE;
 	irq->parent_handler = aspeed_ltpi_gpio_irq_handler;
 	irq->parent_handler_data = gpio;
