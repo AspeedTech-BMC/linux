@@ -15,6 +15,7 @@
 #define LTPI_AUTO_CAP_LOW			0x24
 #define   LTPI_I2C_IO_FRAME_EN			GENMASK(29, 24)
 #define LTPI_AUTO_CAP_HIGH			0x28
+#define   LTPI_UART_IO_FRAME_EN			GENMASK(14, 13)
 
 #define LTPI_LINK_CONTROLL			0x80
 #define   LTPI_AUTO_CONFIG			BIT(10)
@@ -46,6 +47,7 @@
 #define SCU_IO_OTP_TRAP2_CLEAR			0xa24
 
 #define MAX_I2C_IN_LTPI				6
+#define MAX_UART_IN_LTPI			2
 
 enum chip_version {
 	AST2700,
@@ -63,6 +65,7 @@ struct aspeed_ltpi_priv {
 	u32 i2c_tunneling;
 	u32 i2c_timing_0;
 	u32 i2c_timing_1;
+	u32 uart_tunneling;
 };
 
 static irqreturn_t aspeed_ltpi_irq_handler(int irq, void *dev_id)
@@ -84,7 +87,7 @@ static irqreturn_t aspeed_ltpi_irq_handler(int irq, void *dev_id)
 
 static int aspeed_ltpi_init_mux(struct aspeed_ltpi_priv *priv)
 {
-	u32 reg, i2c_en, i;
+	u32 reg, i2c_en, uart_en, i;
 
 	reg = readl(priv->regs + LTPI_AUTO_CAP_LOW);
 
@@ -96,6 +99,13 @@ static int aspeed_ltpi_init_mux(struct aspeed_ltpi_priv *priv)
 	writel(reg, priv->regs + LTPI_MANUAL_CAP_LOW);
 
 	reg = readl(priv->regs + LTPI_AUTO_CAP_HIGH);
+
+	uart_en = FIELD_GET(LTPI_UART_IO_FRAME_EN, reg);
+	uart_en &= priv->uart_tunneling;
+
+	reg &= ~LTPI_UART_IO_FRAME_EN;
+	reg |= FIELD_PREP(LTPI_UART_IO_FRAME_EN, uart_en);
+
 	writel(reg, priv->regs + LTPI_MANUAL_CAP_HIGH);
 
 	/* Apply LTPI manual configuration */
@@ -183,6 +193,9 @@ static int aspeed_ltpi_probe(struct platform_device *pdev)
 			priv->i2c_timing_1 = LTPI_I2C_400K_1;
 		}
 	}
+	priv->uart_tunneling = GENMASK(MAX_UART_IN_LTPI - 1, 0);
+	if (!of_property_read_u32(np, "uart-tunneling", &ret))
+		priv->uart_tunneling = ret;
 
 	priv->scu = syscon_regmap_lookup_by_phandle(np, "aspeed,scu");
 	if (of_get_property(np, "remote-controller", NULL)) {
