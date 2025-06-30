@@ -1052,7 +1052,13 @@ ast2700_i3c_target_priv_xfers(struct i3c_dev_desc *dev,
 			xfer[i].rnw = i3c_xfers[i].rnw;
 			xfer[i].data = (void *)i3c_xfers[i].data.out;
 			xfer[i].cmd_tid = tid;
-			hci->cmd->prep_i3c_xfer(hci, dev, &xfer[i]);
+			if (xfer[i].cmd_tid == TID_TARGET_IBI) {
+				hci->cmd->prep_ibi_xfer(hci, dev, &xfer[i]);
+				xfer[i].data += 1;
+				xfer[i].data_len -= 1;
+			} else {
+				hci->cmd->prep_i3c_xfer(hci, dev, &xfer[i]);
+			}
 		} else {
 			dev_err(&hci->master.dev,
 				"target mode can't do priv_read command\n");

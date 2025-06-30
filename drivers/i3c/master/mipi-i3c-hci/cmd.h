@@ -139,6 +139,8 @@ struct hci_cmd_ops {
 			u8 code, enum i3c_hdr_mode mode);
 	void (*prep_i3c_xfer)(struct i3c_hci *hci, struct i3c_dev_desc *dev,
 			      struct hci_xfer *xfer);
+	void (*prep_ibi_xfer)(struct i3c_hci *hci, struct i3c_dev_desc *dev,
+			      struct hci_xfer *xfer);
 	void (*prep_i2c_xfer)(struct i3c_hci *hci, struct i2c_dev_desc *dev,
 			      struct hci_xfer *xfer);
 	void (*prep_internal)(struct i3c_hci *hci, struct hci_xfer *xfer,

@@ -118,7 +118,11 @@
  * Target Transfer Command
  */
 
-#define CMD_0_ATTR_T			FIELD_PREP(CMD_0_ATTR, 0x0)
+/* Read */
+#define CMD_0_ATTR_T_R			FIELD_PREP(CMD_0_ATTR, 0x0)
+/* IBI */
+#define CMD_0_ATTR_T_I			FIELD_PREP(CMD_0_ATTR, 0x1)
+
 
 #define CMD_T0_DATA_LENGTH(v)		FIELD_PREP(W0_MASK(31, 16), v)
 #define CMD_T0_MDB(v)			FIELD_PREP(W0_MASK(15, 8), v)
@@ -288,6 +292,24 @@ static int hci_cmd_v1_prep_hdr(struct i3c_hci *hci, struct hci_xfer *xfer,
 	return 0;
 }
 
+static void hci_cmd_v1_prep_ibi_xfer(struct i3c_hci *hci,
+				     struct i3c_dev_desc *dev,
+				     struct hci_xfer *xfer)
+{
+	u8 *data = xfer->data;
+	unsigned int data_len = xfer->data_len - 1;
+
+	if (!aspeed_get_i3c_revision_id(hci))
+		xfer->cmd_desc[0] = CMD_0_ATTR_T_I |
+				    CMD_T0_TID_A0(xfer->cmd_tid) |
+				    CMD_T0_MDB_EN | CMD_T0_MDB(data[0]) |
+				    CMD_T0_DATA_LENGTH(data_len);
+	else
+		xfer->cmd_desc[0] = CMD_0_ATTR_T_I | CMD_T0_TID(xfer->cmd_tid) |
+				    CMD_T0_MDB_EN | CMD_T0_MDB(data[0]) |
+				    CMD_T0_DATA_LENGTH(data_len);
+}
+
 static void hci_cmd_v1_prep_i3c_xfer(struct i3c_hci *hci,
 				     struct i3c_dev_desc *dev,
 				     struct hci_xfer *xfer)
@@ -297,10 +319,10 @@ static void hci_cmd_v1_prep_i3c_xfer(struct i3c_hci *hci,
 
 	if (hci->master.target) {
 		if (!aspeed_get_i3c_revision_id(hci))
-			xfer->cmd_desc[0] = CMD_0_ATTR_T | CMD_T0_TID_A0(xfer->cmd_tid) |
+			xfer->cmd_desc[0] = CMD_0_ATTR_T_R | CMD_T0_TID_A0(xfer->cmd_tid) |
 					CMD_T0_DATA_LENGTH(data_len);
 		else
-			xfer->cmd_desc[0] = CMD_0_ATTR_T | CMD_T0_TID(xfer->cmd_tid) |
+			xfer->cmd_desc[0] = CMD_0_ATTR_T_R | CMD_T0_TID(xfer->cmd_tid) |
 					CMD_T0_DATA_LENGTH(data_len);
 	} else {
 		struct i3c_hci_dev_data *dev_data = i3c_dev_get_master_data(dev);
@@ -494,6 +516,7 @@ const struct hci_cmd_ops mipi_i3c_hci_cmd_v1 = {
 	.prep_ccc		= hci_cmd_v1_prep_ccc,
 	.prep_hdr		= hci_cmd_v1_prep_hdr,
 	.prep_i3c_xfer		= hci_cmd_v1_prep_i3c_xfer,
+	.prep_ibi_xfer		= hci_cmd_v1_prep_ibi_xfer,
 	.prep_i2c_xfer		= hci_cmd_v1_prep_i2c_xfer,
 	.prep_internal		= hci_cmd_v1_prep_internal,
 	.perform_daa		= hci_cmd_v1_daa,
