@@ -44,7 +44,6 @@ config MCTP_TRANSPORT_I3C
 
 config MCTP_TRANSPORT_PCIE_VDM
 	tristate "MCTP PCIe VDM transport"
-	depends on NET
 	depends on PCI
 	select MCTP_FLOWS
 	help
