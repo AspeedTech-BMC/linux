@@ -2159,6 +2159,8 @@ static void dw_i3c_master_handle_ibi_sir(struct dw_i3c_master *master,
 	return;
 
 err_drain:
+	if (terminate_ibi)
+		i3c_generic_ibi_recycle_slot(data->ibi_pool, slot);
 	dw_i3c_master_drain_ibi_queue(master, len);
 	state = FIELD_GET(CM_TFR_STS, readl(master->regs + PRESENT_STATE));
 	if (terminate_ibi && state == CM_TFR_STS_MASTER_SERV_IBI)
