@@ -4,26 +4,27 @@
 #include <linux/bitfield.h>
 #include <linux/bitops.h>
 #include <linux/byteorder/generic.h>
-#include "linux/dynamic_debug.h"
+#include <linux/dynamic_debug.h>
 #include <linux/fs.h>
-#include "linux/hashtable.h"
+#include <linux/hashtable.h>
 #include <linux/if_arp.h>
-#include "linux/if_ether.h"
+#include <linux/if_ether.h>
 #include <linux/kthread.h>
-#include "linux/list.h"
+#include <linux/list.h>
+#include <linux/mctp-pcie-vdm.h>
 #include <linux/module.h>
-#include "linux/mutex.h"
+#include <linux/mutex.h>
 #include <linux/netdevice.h>
 #include <linux/notifier.h>
-#include "linux/pci.h"
+#include <linux/pci.h>
 #include <linux/platform_device.h>
-#include "linux/printk.h"
+#include <linux/printk.h>
 #include <linux/ptr_ring.h>
-#include "linux/skbuff.h"
-#include "linux/stddef.h"
-#include "linux/types.h"
+#include <linux/skbuff.h>
+#include <linux/stddef.h>
+#include <linux/types.h>
 #include <linux/wait.h>
-#include "linux/workqueue.h"
+#include <linux/workqueue.h>
 #include <net/mctp.h>
 #include <net/mctpdevice.h>
 
@@ -62,11 +63,12 @@
 		}                                 \
 	} while (0)
 
-#define MCTP_PCIE_SWAP_HOST_ENDIAN(arr, len)      \
+#define MCTP_PCIE_SWAP_LITTLE_ENDIAN(arr, len)      \
 	do {                                      \
 		u32 *p = (u32 *)(arr);            \
 		for (int i = 0; i < (len); i++) { \
 			p[i] = ntohl(p[i]);       \
+			p[i] = cpu_to_le32(p[i]); \
 		}                                 \
 	} while (0)
 
@@ -112,11 +114,11 @@ struct mctp_pcie_vdm_dev {
 	struct task_struct *tx_thread;
 	wait_queue_head_t tx_wait;
 	struct work_struct rx_work;
-	struct mctp_client *client;
 	struct ptr_ring tx_queue;
 	struct list_head list;
 	/* each network may have at most 256 EIDs */
 	DECLARE_HASHTABLE(route_table, 8);
+	const struct mctp_pcie_vdm_ops *callback_ops;
 };
 
 /* mutex for vdm_devs add/delete */
@@ -284,15 +286,20 @@ static netdev_tx_t mctp_pcie_vdm_start_xmit(struct sk_buff *skb,
 static void mctp_pcie_vdm_xmit(struct mctp_pcie_vdm_dev *vdm_dev,
 			       struct sk_buff *skb)
 {
-	struct net_device_stats *stats = &vdm_dev->ndev->stats;
-	struct mctp_pcie_vdm_hdr *hdr = (struct mctp_pcie_vdm_hdr *)skb->data;
+	struct net_device_stats *stats;
+	struct mctp_pcie_vdm_hdr *hdr;
+	u8 *hdr_byte;
+	u8 message_type;
+	u16 payload_len_dw;
+	u16 payload_len_byte;
+	int rc;
 
-	u8 *hdr_byte = (u8 *)hdr;
-	u16 payload_len_dw =
-		(ALIGN(skb->len, sizeof(u32)) - MCTP_PCIE_VDM_HDR_SIZE) /
-		sizeof(u32);
-	u8 message_type =
-		FIELD_GET(MCTP_MSG_TYPE_MASK, hdr_byte[MCTP_PCIE_VDM_HDR_SIZE]);
+	stats = &vdm_dev->ndev->stats;
+	hdr = (struct mctp_pcie_vdm_hdr *)skb->data;
+	hdr_byte = skb->data;
+	payload_len_dw = (ALIGN(skb->len, sizeof(u32)) - MCTP_PCIE_VDM_HDR_SIZE) / sizeof(u32);
+	payload_len_byte = skb->len - MCTP_PCIE_VDM_HDR_SIZE;
+	message_type = FIELD_GET(MCTP_MSG_TYPE_MASK, hdr_byte[MCTP_PCIE_VDM_HDR_SIZE]);
 
 	if (message_type == MCTP_CONTROL_MSG_TYPE) {
 		mctp_pcie_vdm_ctrl_msg_handler(vdm_dev, hdr_byte);
@@ -324,43 +331,19 @@ static void mctp_pcie_vdm_xmit(struct mctp_pcie_vdm_dev *vdm_dev,
 	}
 
 	hdr->length = payload_len_dw;
-
-	u16 payload_data_len = skb->len - MCTP_PCIE_VDM_HDR_SIZE;
-
 	hdr->tag_pad_len =
-		ALIGN(payload_data_len, sizeof(u32)) - payload_data_len;
+		ALIGN(payload_len_byte, sizeof(u32)) - payload_len_byte;
 	pr_debug("%s: skb len %d pad len %d\n", __func__, skb->len,
-		 hdr->tag_pad_len);
-	u16 len = (payload_len_dw * sizeof(uint32_t)) + MCTP_PCIE_VDM_HDR_SIZE;
-
-	// freed at aspeed-mctp tx tasklet
-	struct mctp_pcie_packet *packet = aspeed_mctp_packet_alloc(GFP_KERNEL);
-
-	if (!packet) {
-		pr_err("%s: failed to alloc packet\n", __func__);
-		stats->tx_errors++;
-		return;
-	}
-
-	memcpy((u8 *)&packet->data.hdr, skb->data, MCTP_PCIE_VDM_HDR_SIZE);
-	MCTP_PCIE_SWAP_NET_ENDIAN(packet->data.hdr,
-				  sizeof(struct mctp_pcie_vdm_hdr) /
-					  sizeof(u32));
-
-	memcpy((u8 *)&packet->data.payload, &hdr_byte[MCTP_PCIE_VDM_HDR_SIZE],
-	       len - MCTP_PCIE_VDM_HDR_SIZE);
-	packet->size = len;
-	pr_debug("%s: skb len %u, pkt len %u\n", __func__, skb->len,
-		 packet->size);
+			 hdr->tag_pad_len);
+	MCTP_PCIE_SWAP_NET_ENDIAN((u32 *)hdr,
+				  sizeof(struct mctp_pcie_vdm_hdr) / sizeof(u32));
 
 	mctp_pcie_vdm_display_skb_buff_data(skb);
-
-	int rc = aspeed_mctp_send_packet(vdm_dev->client, packet);
+	rc = vdm_dev->callback_ops->send_packet(vdm_dev->dev, skb->data, payload_len_dw * sizeof(u32));
 
 	if (rc) {
 		pr_err("%s: failed to send packet, rc %d\n", __func__, rc);
 		stats->tx_errors++;
-		aspeed_mctp_packet_free(packet);
 		return;
 	}
 	stats->tx_packets++;
@@ -399,17 +382,16 @@ static int mctp_pcie_vdm_tx_thread(void *data)
 
 static void mctp_pcie_vdm_rx_work_handler(struct work_struct *work)
 {
-	struct mctp_pcie_packet *packet;
-	struct mctp_pcie_vdm_dev *vdm_dev =
-		container_of(work, struct mctp_pcie_vdm_dev, rx_work);
+	struct mctp_pcie_vdm_dev *vdm_dev;
+	u8 *packet;
 
-	packet = aspeed_mctp_receive_packet(vdm_dev->client, 0);
+	vdm_dev = container_of(work, struct mctp_pcie_vdm_dev, rx_work);
+	packet = vdm_dev->callback_ops->recv_packet(vdm_dev->dev);
+
 	while (!IS_ERR(packet)) {
-		MCTP_PCIE_SWAP_HOST_ENDIAN(packet->data.hdr,
-					   sizeof(struct mctp_pcie_vdm_hdr) / sizeof(u32));
-		struct mctp_pcie_vdm_hdr *vdm_hdr =
-			(struct mctp_pcie_vdm_hdr *)(&packet->data
-									.hdr[0]);
+		MCTP_PCIE_SWAP_LITTLE_ENDIAN((u32 *)packet,
+					     sizeof(struct mctp_pcie_vdm_hdr) / sizeof(u32));
+		struct mctp_pcie_vdm_hdr *vdm_hdr = (struct mctp_pcie_vdm_hdr *)packet;
 		struct mctp_skb_cb *cb;
 		struct net_device_stats *stats;
 		struct sk_buff *skb;
@@ -432,9 +414,10 @@ static void mctp_pcie_vdm_rx_work_handler(struct work_struct *work)
 
 		skb->protocol = htons(ETH_P_MCTP);
 		/* put data into tail sk buff */
-		skb_put_data(skb, (u8 *)&packet->data, len);
+		skb_put_data(skb, packet, len);
 		/* remove first 12bytes PCIe VDM header */
 		skb_pull(skb, sizeof(struct mctp_pcie_vdm_hdr));
+		mctp_pcie_vdm_display_skb_buff_data(skb);
 
 		cb = __mctp_cb(skb);
 		cb->halen = 2; // BDF size is 2 bytes
@@ -448,36 +431,33 @@ static void mctp_pcie_vdm_rx_work_handler(struct work_struct *work)
 			stats->rx_dropped++;
 		}
 
-		mctp_pcie_vdm_ctrl_msg_handler(vdm_dev,
-					       (u8 *)&packet->data);
+		mctp_pcie_vdm_ctrl_msg_handler(vdm_dev, packet);
 
 		if (vdm_hdr->route_type ==
 			(MCTP_PCIE_VDM_TYPE_MSG |
 				MCTP_PCIE_VDM_ROUTE_BY_ID)) {
-			u16 bdf = vdm_hdr->pci_req_id;
-			u8 src_eid = FIELD_GET(GENMASK(23, 16),
-							packet->data.hdr[3]);
+			u32 mctp_hdr;
+			u16 bdf;
+			u8 src_eid;
+
+			bdf = vdm_hdr->pci_req_id;
+			mctp_hdr = *((u32 *)packet +
+				     sizeof(struct mctp_pcie_vdm_hdr) /
+					     sizeof(u32));
+			MCTP_PCIE_SWAP_LITTLE_ENDIAN(&mctp_hdr, 1);
+			src_eid = FIELD_GET(GENMASK(15, 8), mctp_hdr);
 
 			mctp_pcie_vdm_update_route_table(vdm_dev,
 							 src_eid, bdf);
 		}
 
-		aspeed_mctp_packet_free(packet);
-		packet = aspeed_mctp_receive_packet(vdm_dev->client, 0);
+		vdm_dev->callback_ops->free_packet(packet);
+		packet = vdm_dev->callback_ops->recv_packet(vdm_dev->dev);
 	}
 }
 
-static int mctp_pcie_vdm_add_mctp_dev(struct mctp_pcie_vdm_dev *vdm_dev,
-				      struct aspeed_mctp *priv)
+static int mctp_pcie_vdm_add_mctp_dev(struct mctp_pcie_vdm_dev *vdm_dev)
 {
-	struct mctp_client *mctp_client = aspeed_mctp_create_client(priv);
-
-	if (!mctp_client) {
-		pr_err("%s: failed to create mctp client\n", __func__);
-		return -ENOMEM;
-	}
-
-	vdm_dev->client = mctp_client;
 	hash_init(vdm_dev->route_table);
 	INIT_LIST_HEAD(&vdm_dev->list);
 	init_waitqueue_head(&vdm_dev->tx_wait);
@@ -490,29 +470,21 @@ static int mctp_pcie_vdm_add_mctp_dev(struct mctp_pcie_vdm_dev *vdm_dev,
 	mutex_lock(&mctp_pcie_vdm_dev_mutex);
 	list_add_tail(&vdm_dev->list, &mctp_pcie_vdm_devs);
 	mutex_unlock(&mctp_pcie_vdm_dev_mutex);
-
-	aspeed_mctp_register_default_handler(mctp_client);
 	return 0;
 }
 
 static void mctp_pcie_vdm_uninit(struct net_device *ndev)
 {
-	pr_debug("%s: uninitializing net device %s\n", __func__, ndev->name);
-
-	struct mctp_pcie_vdm_dev *vdm_dev = netdev_priv(ndev);
-	struct mctp_client *client = vdm_dev->client;
-
-	if (client) {
-		aspeed_mctp_flush_rx_queue(client);
-		aspeed_mctp_delete_client(client);
-		vdm_dev->client = NULL;
-	}
-	pr_debug("%s: uninitializing vdm_dev %s\n", __func__,
-		 vdm_dev->ndev->name);
+	struct mctp_pcie_vdm_dev *vdm_dev;
 
 	struct mctp_pcie_vdm_route_info *route;
 	struct hlist_node *tmp;
 	int bkt;
+	pr_debug("%s: uninitializing vdm_dev %s\n", __func__,
+		 vdm_dev->ndev->name);
+
+	vdm_dev = netdev_priv(ndev);
+	vdm_dev->callback_ops->uninit(vdm_dev->dev);
 
 	hash_for_each_safe(vdm_dev->route_table, bkt, tmp, route, hnode) {
 		hash_del(&route->hnode);
@@ -529,6 +501,15 @@ static void mctp_pcie_vdm_uninit(struct net_device *ndev)
 		flush_workqueue(mctp_pcie_vdm_wq);
 		destroy_workqueue(mctp_pcie_vdm_wq);
 		mctp_pcie_vdm_wq = NULL;
+	}
+
+	while (__ptr_ring_peek(&vdm_dev->tx_queue)) {
+		struct sk_buff *skb;
+
+		skb = ptr_ring_consume(&vdm_dev->tx_queue);
+
+		if (skb)
+			kfree_skb(skb);
 	}
 
 	mutex_lock(&mctp_pcie_vdm_dev_mutex);
@@ -607,18 +588,15 @@ static int mctp_pcie_vdm_add_net_dev(struct net_device **dev)
 	return rc;
 }
 
-static void mctp_pcie_vdm_add_dev(struct device *dev)
+struct mctp_pcie_vdm_dev *mctp_pcie_vdm_add_dev(struct device *dev)
 {
-	struct platform_device *pdev = to_platform_device(dev);
-	struct aspeed_mctp *priv = platform_get_drvdata(pdev);
-
 	struct net_device *ndev;
 	int rc;
 
 	rc = mctp_pcie_vdm_add_net_dev(&ndev);
 	if (rc) {
 		pr_err("%s: failed to add net device\n", __func__);
-		return;
+		return ERR_PTR(rc);
 	}
 
 	struct mctp_pcie_vdm_dev *vdm_dev;
@@ -627,131 +605,47 @@ static void mctp_pcie_vdm_add_dev(struct device *dev)
 	vdm_dev->ndev = ndev;
 	vdm_dev->dev = dev;
 
-	rc = mctp_pcie_vdm_add_mctp_dev(vdm_dev, priv);
+	rc = mctp_pcie_vdm_add_mctp_dev(vdm_dev);
 	if (rc) {
 		pr_err("%s: failed to add mctp device\n", __func__);
 		unregister_netdev(ndev);
 		free_netdev(ndev);
-		return;
+		return ERR_PTR(rc);
 	}
+	return vdm_dev;
 }
+EXPORT_SYMBOL_GPL(mctp_pcie_vdm_add_dev);
 
-static void mctp_pcie_vdm_remove_dev(struct mctp_pcie_vdm_dev *vdm_dev)
+void mctp_pcie_vdm_remove_dev(struct mctp_pcie_vdm_dev *vdm_dev)
 {
 	pr_debug("%s: removing vdm_dev %s\n", __func__, vdm_dev->ndev->name);
 	struct net_device *ndev = vdm_dev->ndev;
 
 	if (ndev) {
-		// TX & RX thread will be stopped in uninit operator
+		// objects in vdm_dev will be released in net_dev uninit operator
 		mctp_unregister_netdev(ndev);
 		free_netdev(ndev);
 	}
-}
 
-static int mctp_pcie_vdm_scan_bounded_devices(struct device *dev, void *data)
+	return;
+}
+EXPORT_SYMBOL_GPL(mctp_pcie_vdm_remove_dev);
+
+void mctp_pcie_vdm_notify_rx(struct mctp_pcie_vdm_dev *vdm_dev)
 {
-	if (dev->driver) {
-		if (!strcmp(dev->driver->name, "aspeed-mctp"))
-			mctp_pcie_vdm_add_dev(dev);
-	}
-	return 0;
+	queue_work(mctp_pcie_vdm_wq, &vdm_dev->rx_work);
 }
+EXPORT_SYMBOL_GPL(mctp_pcie_vdm_notify_rx);
 
-static int mctp_pcie_vdm_bus_notifier_call(struct notifier_block *nb,
-					   unsigned long action, void *data)
+void mctp_pcie_vdm_register_ops(struct mctp_pcie_vdm_dev *vdm_dev,
+				const struct mctp_pcie_vdm_ops *ops)
 {
-	struct device *dev = data;
-
-	if (!data)
-		return NOTIFY_DONE;
-
-	switch (action) {
-	case BUS_NOTIFY_BOUND_DRIVER:
-		if (!strcmp(dev->driver->name, "aspeed-mctp")) {
-			pr_debug("mctp platform device event %lu platform device: %s\n",
-				action, dev_name(dev));
-			mctp_pcie_vdm_add_dev(dev);
-		}
-		break;
-	case BUS_NOTIFY_UNBIND_DRIVER:
-		if (!strcmp(dev->driver->name, "aspeed-mctp")) {
-			pr_debug("mctp platform device event %lu platform device: %s\n",
-				action, dev_name(dev));
-			struct mctp_pcie_vdm_dev *vdm_dev;
-			struct mctp_pcie_vdm_dev *tmp;
-
-			list_for_each_entry_safe(vdm_dev, tmp,
-						 &mctp_pcie_vdm_devs, list) {
-				if (vdm_dev->dev == dev) {
-					pr_debug("mctp pcie vdm bus device event %lu net device: %s\n",
-						action, vdm_dev->ndev->name);
-					mctp_pcie_vdm_remove_dev(vdm_dev);
-					kfree(vdm_dev);
-				}
-			}
-		}
-		break;
-	default:
-		break;
-	}
-	return NOTIFY_OK;
+	vdm_dev->callback_ops = ops;
 }
-
-static int mctp_pcie_vdm_net_notifier_call(struct notifier_block *nb,
-					   unsigned long action, void *data)
-{
-	switch (action) {
-	case MCTP_PCIE_VDM_NOTIFY_RECV:
-		pr_debug("mctp pcie vdm net device event %lu data %p\n", action,
-			 data);
-		struct mctp_pcie_vdm_dev *vdm_dev;
-
-		list_for_each_entry(vdm_dev, &mctp_pcie_vdm_devs, list) {
-			if (vdm_dev->client == data) {
-				pr_debug("mctp pcie vdm net device event %lu net device: %s\n",
-					action, vdm_dev->ndev->name);
-
-				queue_work(mctp_pcie_vdm_wq, &vdm_dev->rx_work);
-				break;
-			}
-		}
-		break;
-	default:
-		break;
-	}
-
-	return NOTIFY_OK;
-}
-
-static struct notifier_block mctp_pcie_vdm_bus_notifier = {
-	.notifier_call = mctp_pcie_vdm_bus_notifier_call,
-};
-
-static struct notifier_block mctp_pcie_vdm_net_notifier = {
-	.notifier_call = mctp_pcie_vdm_net_notifier_call,
-};
+EXPORT_SYMBOL_GPL(mctp_pcie_vdm_register_ops);
 
 static __init int mctp_pcie_vdm_mod_init(void)
 {
-	int rc = 0;
-
-	bus_for_each_dev(&platform_bus_type, NULL, NULL,
-			 mctp_pcie_vdm_scan_bounded_devices);
-	rc = bus_register_notifier(&platform_bus_type,
-				   &mctp_pcie_vdm_bus_notifier);
-
-	if (rc < 0) {
-		pr_warn("mctp PCIe VDM bus notifier failed: %d\n", rc);
-		return rc;
-	}
-
-	rc = mctp_pcie_vdm_register_notifier(&mctp_pcie_vdm_net_notifier);
-	if (rc < 0) {
-		pr_warn("mctp PCIe VDM register controller notifier failed: %d\n",
-			rc);
-		return rc;
-	}
-
 	mctp_pcie_vdm_wq = alloc_workqueue("mctp_pcie_vdm_wq", WQ_UNBOUND, 1);
 	if (!mctp_pcie_vdm_wq) {
 		pr_err("Failed to create mctp pcie vdm workqueue\n");
@@ -763,25 +657,11 @@ static __init int mctp_pcie_vdm_mod_init(void)
 
 static __exit void mctp_pcie_vdm_mod_exit(void)
 {
-	int rc;
-
-	rc = bus_unregister_notifier(&platform_bus_type,
-				     &mctp_pcie_vdm_bus_notifier);
-	if (rc < 0)
-		pr_warn("mctp PCIe VDM could not unregister notifier, %d\n",
-			rc);
-
-	rc = mctp_pcie_vdm_unregister_notifier(&mctp_pcie_vdm_net_notifier);
-	if (rc < 0)
-		pr_warn("mctp PCIe VDM register controller notifier failed: %d\n",
-			rc);
-
 	struct mctp_pcie_vdm_dev *vdm_dev;
 	struct mctp_pcie_vdm_dev *tmp;
 
 	list_for_each_entry_safe(vdm_dev, tmp, &mctp_pcie_vdm_devs, list) {
 		mctp_pcie_vdm_remove_dev(vdm_dev);
-		kfree(vdm_dev);
 	}
 }
 

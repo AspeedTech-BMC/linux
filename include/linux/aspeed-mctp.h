@@ -1,11 +1,10 @@
 /* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
-/* Copyright (c) 2020 Intel Corporation */
+/* Copyright (c) 2025 ASPEED Tech */
 
 #ifndef __LINUX_ASPEED_MCTP_H
 #define __LINUX_ASPEED_MCTP_H
 
 #include <linux/types.h>
-#include <linux/notifier.h>
 
 struct mctp_client;
 struct aspeed_mctp;
@@ -50,10 +49,6 @@ struct mctp_pcie_packet_data {
 struct mctp_pcie_packet {
 	struct mctp_pcie_packet_data data;
 	u32 size;
-};
-
-enum {
-	MCTP_PCIE_VDM_NOTIFY_RECV,
 };
 
 /**
@@ -158,7 +153,5 @@ void *aspeed_mctp_packet_alloc(gfp_t flags);
 void aspeed_mctp_packet_free(void *packet);
 
 int aspeed_mctp_register_default_handler(struct mctp_client *client);
-int mctp_pcie_vdm_register_notifier(struct notifier_block *nb);
-int mctp_pcie_vdm_unregister_notifier(struct notifier_block *nb);
 
 #endif /* __LINUX_ASPEED_MCTP_H */
