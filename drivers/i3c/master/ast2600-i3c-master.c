@@ -1063,6 +1063,8 @@ out:
 		int nwords = (length + 3) >> 2;
 		int i;
 
+		if (slot)
+			i3c_generic_ibi_recycle_slot(data->ibi_pool, slot);
 		for (i = 0; i < nwords; i++)
 			readl(master->regs + IBI_QUEUE_DATA);
 		if (FIELD_GET(CM_TFR_STS,
