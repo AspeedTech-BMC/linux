@@ -3,13 +3,14 @@
 
 #include <linux/aspeed-mctp.h>
 #include <linux/bitfield.h>
-#include <linux/dma-direct.h>
+#include <linux/dma-mapping.h>
 #include <linux/interrupt.h>
 #include <linux/init.h>
 #include <linux/io.h>
 #include <linux/kernel.h>
 #include <linux/list.h>
 #include <linux/list_sort.h>
+#include <linux/mctp-pcie-vdm.h>
 #include <linux/mfd/syscon.h>
 #include <linux/miscdevice.h>
 #include <linux/mm.h>
@@ -66,6 +67,7 @@
 	(((x) << FIFO_LAYOUT_SHIFT) & FIFO_LAYOUT_MASK)
 
 #define ASPEED_MCTP_RX_BUF_ADDR		0x08
+#define ASPEED_MCTP_RX_BUF_HI_ADDR	0x020
 #define ASPEED_MCTP_RX_BUF_SIZE		0x024
 #define ASPEED_MCTP_RX_BUF_RD_PTR	0x028
 #define  UPDATE_RX_RD_PTR		BIT(31)
@@ -74,12 +76,14 @@
 #define  RX_BUF_WR_PTR_MASK		GENMASK(11, 0)
 
 #define ASPEED_MCTP_TX_BUF_ADDR		0x04
+#define ASPEED_MCTP_TX_BUF_HI_ADDR	0x030
 #define ASPEED_MCTP_TX_BUF_SIZE		0x034
 #define ASPEED_MCTP_TX_BUF_RD_PTR	0x038
 #define  UPDATE_TX_RD_PTR		BIT(31)
 #define  TX_BUF_RD_PTR_MASK		GENMASK(11, 0)
 #define ASPEED_MCTP_TX_BUF_WR_PTR	0x03c
 #define  TX_BUF_WR_PTR_MASK		GENMASK(11, 0)
+#define ASPEED_G7_MCTP_PCIE_BDF		0x04c
 
 #define ADDR_LEN	GENMASK(26, 0)
 #define DATA_ADDR(x)	(((x) >> 4) & ADDR_LEN)
@@ -149,9 +153,6 @@
 #define TX_MAX_PACKET_COUNT	(TX_BUF_RD_PTR_MASK + 1)
 #define RX_MAX_PACKET_COUNT	(RX_BUF_RD_PTR_MASK + 1)
 
-#define TX_CMD_BUF_SIZE \
-	PAGE_ALIGN(TX_PACKET_COUNT * sizeof(struct aspeed_mctp_tx_cmd))
-
 /* Per client packet cache sizes */
 #define RX_RING_COUNT		64
 #define TX_RING_COUNT		64
@@ -160,6 +161,14 @@
 #define ASPEED_PCIE_LINK	0x0c0
 #define PCIE_LINK_STS		BIT(5)
 #define ASPEED_PCIE_MISC_STS_1	0x0c4
+
+/* PCIe Host Controller registers */
+#define ASPEED_G7_PCIE_LOCATE	0x300
+#define PCIE_LOCATE_IO		BIT(0)
+#define ASPEED_G7_PCIE_LINK	0x358
+#define PCIE_G7_LINK_STS	BIT(8)
+#define ASPEED_G7_IO_PCIE_LINK	0x344
+#define PCIE_G7_IO_LINK_STS	BIT(18)
 
 /* PCI address definitions */
 #define PCI_DEV_NUM_MASK	GENMASK(4, 0)
@@ -220,12 +229,19 @@
 #define ID0_AST2625A3			0x05030403
 #define ID1_AST2625A3			0x05030403
 
+#define ASPEED_G7_SCU_PCIE0_CTRL_OFFSET	0xa60
+#define ASPEED_G7_SCU_PCIE1_CTRL_OFFSET	0xae0
+#define ASPEED_G7_SCU_PCIE_CTRL_VDM_EN	BIT(1)
+
 struct aspeed_mctp_match_data {
 	u32 rx_cmd_size;
+	u32 tx_cmd_size;
 	u32 packet_unit_size;
 	bool need_address_mapping;
 	bool vdm_hdr_direct_xfer;
 	bool fifo_auto_surround;
+	bool dma_need_64bits_width;
+	u32 scu_pcie_ctrl_offset;
 };
 
 struct aspeed_mctp_rx_cmd {
@@ -236,6 +252,13 @@ struct aspeed_mctp_rx_cmd {
 struct aspeed_mctp_tx_cmd {
 	u32 tx_lo;
 	u32 tx_hi;
+};
+
+struct aspeed_g7_mctp_tx_cmd {
+	u32 tx_lo;
+	u32 tx_mid;
+	u32 tx_hi;
+	u32 reserved;
 };
 
 struct mctp_buffer {
@@ -303,6 +326,13 @@ struct aspeed_mctp {
 	u32 rx_ring_count;
 	/* Tx pointer ring size */
 	u32 tx_ring_count;
+	/* Delayed work for periodic detection of Rx packets */
+	struct delayed_work rx_det_dwork;
+	u32 rx_det_period_us;
+#ifdef CONFIG_MCTP_TRANSPORT_PCIE_VDM
+	/* MCTP PCIe VDM device */
+	struct mctp_pcie_vdm_dev *vdm_dev;
+#endif
 };
 
 struct mctp_client {
@@ -344,20 +374,19 @@ void data_dump(struct aspeed_mctp *priv, struct mctp_pcie_packet_data *data)
 {
 	int i;
 
-	dev_dbg(priv->dev, "Address %08x", (u32)data);
+	dev_dbg(priv->dev, "Address %zu", (size_t)data);
 	dev_dbg(priv->dev, "VDM header:");
 	for (i = 0; i < PCIE_VDM_HDR_SIZE_DW; i++) {
 		dev_dbg(priv->dev, "%02x %02x %02x %02x", data->hdr[i] & 0xff,
-		       (data->hdr[i] >> 8) & 0xff,
-		       (data->hdr[i] >> 16) & 0xff,
-		       (data->hdr[i] >> 24) & 0xff);
+			(data->hdr[i] >> 8) & 0xff, (data->hdr[i] >> 16) & 0xff,
+			(data->hdr[i] >> 24) & 0xff);
 	}
 	dev_dbg(priv->dev, "Data payload:");
 	for (i = 0; i < PCIE_VDM_DATA_SIZE_DW; i++) {
-		dev_dbg(priv->dev, "%02x %02x %02x %02x", data->payload[i] & 0xff,
-		       (data->payload[i] >> 8) & 0xff,
-		       (data->payload[i] >> 16) & 0xff,
-		       (data->payload[i] >> 24) & 0xff);
+		dev_dbg(priv->dev, "%02x %02x %02x %02x",
+			data->payload[i] & 0xff, (data->payload[i] >> 8) & 0xff,
+			(data->payload[i] >> 16) & 0xff,
+			(data->payload[i] >> 24) & 0xff);
 	}
 }
 
@@ -373,20 +402,38 @@ void aspeed_mctp_packet_free(void *packet)
 }
 EXPORT_SYMBOL_GPL(aspeed_mctp_packet_free);
 
-static u16 _get_bdf(struct aspeed_mctp *priv)
+static int _get_bdf(struct aspeed_mctp *priv)
 {
 	u32 reg;
 	u16 bdf, devfn;
 
-	regmap_read(priv->pcie.map, ASPEED_PCIE_LINK, &reg);
-	if (!(reg & PCIE_LINK_STS))
-		return 0;
-	regmap_read(priv->pcie.map, ASPEED_PCIE_MISC_STS_1, &reg);
+	if (priv->match_data->dma_need_64bits_width) {
+		regmap_read(priv->pcie.map, ASPEED_G7_PCIE_LOCATE, &reg);
+		if (!(reg & PCIE_LOCATE_IO)) {
+			regmap_read(priv->pcie.map, ASPEED_G7_PCIE_LINK, &reg);
+			if (!(reg & PCIE_G7_LINK_STS))
+				return -ENETDOWN;
+			regmap_read(priv->map, ASPEED_G7_MCTP_PCIE_BDF, &reg);
+			bdf = PCI_DEVID(PCI_BUS_NUM(reg), reg & 0xff);
+		} else {
+			regmap_read(priv->pcie.map, ASPEED_G7_IO_PCIE_LINK,
+				    &reg);
+			if (!(reg & PCIE_G7_IO_LINK_STS))
+				return -ENETDOWN;
+			regmap_read(priv->map, ASPEED_G7_MCTP_PCIE_BDF, &reg);
+			bdf = PCI_DEVID(PCI_BUS_NUM(reg), reg & 0xff);
+		}
+	} else {
+		regmap_read(priv->pcie.map, ASPEED_PCIE_LINK, &reg);
+		if (!(reg & PCIE_LINK_STS))
+			return -ENETDOWN;
+		regmap_read(priv->pcie.map, ASPEED_PCIE_MISC_STS_1, &reg);
 
-	reg = reg & (PCI_BUS_NUM_MASK | PCI_DEV_NUM_MASK);
-	/* only support function 0 */
-	devfn = GET_PCI_DEV_NUM(reg) << 3;
-	bdf = PCI_DEVID(GET_PCI_BUS_NUM(reg), devfn);
+		reg = reg & (PCI_BUS_NUM_MASK | PCI_DEV_NUM_MASK);
+		/* only support function 0 */
+		devfn = GET_PCI_DEV_NUM(reg) << 3;
+		bdf = PCI_DEVID(GET_PCI_BUS_NUM(reg), devfn);
+	}
 
 	return bdf;
 }
@@ -417,6 +464,24 @@ static uint32_t chip_version(struct device *dev)
 		return ASPEED_MCTP_2600A3;
 	}
 	return ASPEED_MCTP_2600;
+}
+
+static int pcie_vdm_enable(struct device *dev)
+{
+	int ret = 0;
+	struct regmap *scu;
+	const struct aspeed_mctp_match_data *match_data =
+		of_device_get_match_data(dev);
+
+	scu = syscon_regmap_lookup_by_phandle(dev->of_node, "aspeed,scu");
+	if (IS_ERR(scu)) {
+		dev_err(dev, "failed to find SCU regmap\n");
+		return PTR_ERR(scu);
+	}
+	ret = regmap_update_bits(scu, match_data->scu_pcie_ctrl_offset,
+				 ASPEED_G7_SCU_PCIE_CTRL_VDM_EN,
+				 ASPEED_G7_SCU_PCIE_CTRL_VDM_EN);
+	return ret;
 }
 
 /*
@@ -450,6 +515,9 @@ static void aspeed_mctp_rx_trigger(struct mctp_channel *rx)
 	if (priv->match_data->fifo_auto_surround) {
 		regmap_write(priv->map, ASPEED_MCTP_RX_BUF_ADDR,
 			     rx->cmd.dma_handle);
+		if (priv->match_data->dma_need_64bits_width)
+			regmap_write(priv->map, ASPEED_MCTP_RX_BUF_HI_ADDR,
+				     upper_32_bits(rx->cmd.dma_handle));
 	} else {
 		regmap_read(priv->map, ASPEED_MCTP_RX_BUF_ADDR, &reg);
 		if (!reg) {
@@ -491,11 +559,19 @@ static void aspeed_mctp_tx_trigger(struct mctp_channel *tx, bool notify)
 	int ret;
 
 	if (notify) {
-		struct aspeed_mctp_tx_cmd *last_cmd;
+		if (priv->match_data->dma_need_64bits_width) {
+			struct aspeed_g7_mctp_tx_cmd *last_cmd;
 
-		last_cmd = (struct aspeed_mctp_tx_cmd *)tx->cmd.vaddr +
-			   (tx->wr_ptr - 1) % TX_PACKET_COUNT;
-		last_cmd->tx_lo |= TX_INTERRUPT_AFTER_CMD;
+			last_cmd = (struct aspeed_g7_mctp_tx_cmd *)tx->cmd.vaddr +
+				(tx->wr_ptr - 1) % TX_PACKET_COUNT;
+			last_cmd->tx_lo |= TX_INTERRUPT_AFTER_CMD;
+		} else {
+			struct aspeed_mctp_tx_cmd *last_cmd;
+
+			last_cmd = (struct aspeed_mctp_tx_cmd *)tx->cmd.vaddr +
+				   (tx->wr_ptr - 1) % TX_PACKET_COUNT;
+			last_cmd->tx_lo |= TX_INTERRUPT_AFTER_CMD;
+		}
 	}
 	if (priv->match_data->fifo_auto_surround)
 		regmap_write(priv->map, ASPEED_MCTP_TX_BUF_WR_PTR, tx->wr_ptr);
@@ -549,6 +625,8 @@ static void aspeed_mctp_emit_tx_cmd(struct mctp_channel *tx,
 	struct aspeed_mctp *priv = container_of(tx, typeof(*priv), tx);
 	struct aspeed_mctp_tx_cmd *tx_cmd =
 		(struct aspeed_mctp_tx_cmd *)tx->cmd.vaddr + tx->wr_ptr;
+	struct aspeed_g7_mctp_tx_cmd *tx_cmd_g7 =
+		(struct aspeed_g7_mctp_tx_cmd *)tx->cmd.vaddr + tx->wr_ptr;
 	u32 packet_sz_dw = packet->size / sizeof(u32) -
 		sizeof(packet->data.hdr) / sizeof(u32);
 	u32 offset;
@@ -559,11 +637,18 @@ static void aspeed_mctp_emit_tx_cmd(struct mctp_channel *tx,
 	if (priv->match_data->vdm_hdr_direct_xfer) {
 		offset = tx->wr_ptr * sizeof(packet->data);
 		memcpy((u8 *)tx->data.vaddr + offset, &packet->data,
-		sizeof(packet->data));
-
-		tx_cmd->tx_lo = TX_PACKET_SIZE(packet_sz_dw);
-		tx_cmd->tx_hi = TX_RESERVED_1;
-		tx_cmd->tx_hi |= TX_DATA_ADDR(tx->data.dma_handle + offset);
+		       sizeof(packet->data));
+		if (priv->match_data->dma_need_64bits_width) {
+			tx_cmd_g7->tx_lo = TX_PACKET_SIZE(packet_sz_dw);
+			tx_cmd_g7->tx_mid = TX_RESERVED_1;
+			tx_cmd_g7->tx_mid |= ((tx->data.dma_handle + offset) &
+					      GENMASK(31, 4));
+			tx_cmd_g7->tx_hi = upper_32_bits((tx->data.dma_handle + offset));
+		} else {
+			tx_cmd->tx_lo = TX_PACKET_SIZE(packet_sz_dw);
+			tx_cmd->tx_hi = TX_RESERVED_1;
+			tx_cmd->tx_hi |= TX_DATA_ADDR(tx->data.dma_handle + offset);
+		}
 	} else {
 		offset = tx->wr_ptr * sizeof(struct mctp_pcie_packet_data_2500);
 		memcpy((u8 *)tx->data.vaddr + offset, packet->data.payload,
@@ -574,7 +659,7 @@ static void aspeed_mctp_emit_tx_cmd(struct mctp_channel *tx,
 			tx_cmd->tx_hi |= TX_LAST_CMD;
 	}
 	dev_dbg(priv->dev, "tx->wr_prt: %d, tx_cmd: hi:%08x lo:%08x\n",
-		 tx->wr_ptr, tx_cmd->tx_hi, tx_cmd->tx_lo);
+		tx->wr_ptr, tx_cmd->tx_hi, tx_cmd->tx_lo);
 
 	tx->wr_ptr = (tx->wr_ptr + 1) % TX_PACKET_COUNT;
 }
@@ -680,6 +765,9 @@ static void aspeed_mctp_dispatch_packet(struct aspeed_mctp *priv,
 		} else {
 			wake_up_all(&client->wait_queue);
 		}
+#ifdef CONFIG_MCTP_TRANSPORT_PCIE_VDM
+		mctp_pcie_vdm_notify_rx(priv->vdm_dev);
+#endif
 		aspeed_mctp_client_put(client);
 	} else {
 		dev_dbg(priv->dev, "Failed to dispatch RX packet\n");
@@ -823,24 +911,19 @@ static void aspeed_mctp_rx_tasklet(unsigned long data)
 			} while (!*hdr && tmp_wr_ptr != rx->wr_ptr);
 
 			if (tmp_wr_ptr != rx->wr_ptr) {
-				dev_warn(priv->dev, "Runaway RX packet found %d -> %d\n",
-					rx->wr_ptr, tmp_wr_ptr);
+				dev_warn(priv->dev,
+					 "Runaway RX packet found %d -> %d\n",
+					 rx->wr_ptr, tmp_wr_ptr);
 				residual_cmds = abs(tmp_wr_ptr - rx->wr_ptr);
 				rx->wr_ptr = tmp_wr_ptr;
 				if (!priv->rx_runaway_wa.enable &&
 				    priv->rx_warmup)
-					regmap_write(priv->map,
-						     ASPEED_MCTP_RX_BUF_SIZE,
-						     rx->buffer_count -
-							     residual_cmds);
-				if (!priv->rx_runaway_wa.enable ||
-				    !priv->rx_runaway_wa.first_loop)
-					priv->rx_warmup = false;
+					regmap_write(priv->map, ASPEED_MCTP_RX_BUF_SIZE,
+						     rx->buffer_count - residual_cmds);
+				priv->rx_warmup = false;
 			}
 		} else {
-			if (!priv->rx_runaway_wa.enable ||
-			    !priv->rx_runaway_wa.first_loop)
-				priv->rx_warmup = false;
+			priv->rx_warmup = false;
 		}
 
 		if (priv->rx_runaway_wa.packet_counter > priv->rx_packet_count &&
@@ -864,7 +947,7 @@ static void aspeed_mctp_rx_tasklet(unsigned long data)
 				 * RX buffer size to 4 byte aligned value to avoid rx runaway.
 				 */
 				regmap_write(priv->map, ASPEED_MCTP_RX_BUF_SIZE,
-				     rx->buffer_count);
+					     rx->buffer_count);
 			priv->rx_runaway_wa.first_loop = false;
 		}
 
@@ -997,15 +1080,26 @@ static void aspeed_mctp_rx_chan_init(struct mctp_channel *rx)
 	int i;
 
 	if (priv->match_data->vdm_hdr_direct_xfer) {
-		for (i = 0; i < priv->rx_packet_count; i++) {
-			*rx_cmd = RX_DATA_ADDR(rx->data.dma_handle + data_size * i);
-			*rx_cmd |= RX_INTERRUPT_AFTER_CMD;
-			rx_cmd++;
+		if (priv->match_data->dma_need_64bits_width) {
+			for (i = 0; i < priv->rx_packet_count; i++) {
+				rx_cmd_64->rx_hi =
+					upper_32_bits((rx->data.dma_handle + data_size * i));
+				rx_cmd_64->rx_lo =
+					(rx->data.dma_handle + data_size * i) &
+					GENMASK(31, 4);
+				rx_cmd_64->rx_lo |= RX_INTERRUPT_AFTER_CMD;
+				rx_cmd_64++;
+			}
+		} else {
+			for (i = 0; i < priv->rx_packet_count; i++) {
+				*rx_cmd = RX_DATA_ADDR(rx->data.dma_handle + data_size * i);
+				*rx_cmd |= RX_INTERRUPT_AFTER_CMD;
+				rx_cmd++;
+			}
 		}
 	} else {
 		for (i = 0; i < priv->rx_packet_count; i++) {
-			rx_cmd_64->rx_hi = RX_DATA_ADDR_2500(
-				rx->data.dma_handle + data_size * i);
+			rx_cmd_64->rx_hi = RX_DATA_ADDR_2500(rx->data.dma_handle + data_size * i);
 			rx_cmd_64->rx_lo = 0;
 			if (i == priv->rx_packet_count - 1)
 				rx_cmd_64->rx_hi |= RX_LAST_CMD;
@@ -1023,8 +1117,13 @@ static void aspeed_mctp_rx_chan_init(struct mctp_channel *rx)
 		 * stepping then add chip revision detection and turn on this
 		 * workaround only when needed
 		 */
-		priv->rx_runaway_wa.enable =
-			(chip_version(priv->dev) == ASPEED_MCTP_2600) ? true : false;
+		if (priv->match_data->dma_need_64bits_width)
+			priv->rx_runaway_wa.enable = false;
+		else
+			priv->rx_runaway_wa.enable =
+				(chip_version(priv->dev) == ASPEED_MCTP_2600) ?
+					true :
+					false;
 
 		/*
 		 * Hardware does not wrap around ASPEED_MCTP_RX_BUF_SIZE
@@ -1045,6 +1144,9 @@ static void aspeed_mctp_tx_chan_init(struct mctp_channel *tx)
 	tx->rd_ptr = 0;
 	regmap_update_bits(priv->map, ASPEED_MCTP_CTRL, TX_CMD_TRIGGER, 0);
 	regmap_write(priv->map, ASPEED_MCTP_TX_BUF_ADDR, tx->cmd.dma_handle);
+	if (priv->match_data->dma_need_64bits_width)
+		regmap_write(priv->map, ASPEED_MCTP_TX_BUF_HI_ADDR,
+			     upper_32_bits(tx->cmd.dma_handle));
 	if (priv->match_data->fifo_auto_surround) {
 		regmap_write(priv->map, ASPEED_MCTP_TX_BUF_SIZE, TX_PACKET_COUNT);
 		regmap_write(priv->map, ASPEED_MCTP_TX_BUF_WR_PTR, 0);
@@ -1140,9 +1242,10 @@ int aspeed_mctp_send_packet(struct mctp_client *client,
 	int ret;
 	u16 bdf;
 
-	bdf = _get_bdf(priv);
-	if (bdf == 0)
-		return -EIO;
+	ret = _get_bdf(priv);
+	if (ret < 0)
+		return ret;
+	bdf = ret;
 
 	/*
 	 * If the data size is different from contents of PCIe VDM header,
@@ -1179,11 +1282,11 @@ struct mctp_pcie_packet *aspeed_mctp_receive_packet(struct mctp_client *client,
 						    unsigned long timeout)
 {
 	struct aspeed_mctp *priv = client->priv;
-	u16 bdf = _get_bdf(priv);
 	int ret;
 
-	if (bdf == 0)
-		return ERR_PTR(-EIO);
+	ret = _get_bdf(priv);
+	if (ret < 0)
+		return ERR_PTR(ret);
 
 	ret = wait_event_interruptible_timeout(client->wait_queue,
 					       __ptr_ring_peek(&client->rx_queue),
@@ -1379,7 +1482,7 @@ int aspeed_mctp_remove_type_handler(struct mctp_client *client,
 	return ret;
 }
 
-static int aspeed_mctp_register_default_handler(struct mctp_client *client)
+int aspeed_mctp_register_default_handler(struct mctp_client *client)
 {
 	struct aspeed_mctp *priv = client->priv;
 	int ret = 0;
@@ -1395,6 +1498,7 @@ static int aspeed_mctp_register_default_handler(struct mctp_client *client)
 
 	return ret;
 }
+EXPORT_SYMBOL_GPL(aspeed_mctp_register_default_handler);
 
 static int
 aspeed_mctp_register_type_handler(struct mctp_client *client,
@@ -1834,6 +1938,82 @@ static __poll_t aspeed_mctp_poll(struct file *file,
 	return ret;
 }
 
+#ifdef CONFIG_MCTP_TRANSPORT_PCIE_VDM
+static int aspeed_mctp_pcie_vdm_op_send_pkt(struct device *dev,
+					    u8 *data, size_t size)
+{
+	struct mctp_pcie_packet *packet;
+	struct platform_device *pdev;
+	struct aspeed_mctp *priv;
+	int rc;
+
+	pdev = to_platform_device(dev);
+	priv = platform_get_drvdata(pdev);
+	// freed at aspeed-mctp tx tasklet or send failure
+	packet = aspeed_mctp_packet_alloc(GFP_KERNEL);
+
+	if (!packet) {
+		dev_err(priv->dev, "failed to alloc packet\n");
+		return -ENOMEM;
+	}
+
+	memcpy((u8 *)&packet->data.hdr, data, PCIE_VDM_HDR_SIZE);
+	memcpy((u8 *)&packet->data.payload, data + PCIE_VDM_HDR_SIZE, size);
+	packet->size = (size + PCIE_VDM_HDR_SIZE);
+
+	rc = aspeed_mctp_send_packet(priv->default_client, packet);
+	if (rc) {
+		dev_err(priv->dev, "failed to send packet\n");
+		aspeed_mctp_packet_free(packet);
+		return rc;
+	}
+	return 0;
+}
+
+static u8 *aspeed_mctp_pcie_vdm_op_recv_pkt(struct device *dev)
+{
+	struct platform_device *pdev;
+	struct aspeed_mctp *priv;
+	struct mctp_pcie_packet *rx_packet;
+
+	pdev = to_platform_device(dev);
+	priv = platform_get_drvdata(pdev);
+	rx_packet = aspeed_mctp_receive_packet(priv->default_client, 0);
+
+	if (IS_ERR(rx_packet)) {
+		if (PTR_ERR(rx_packet) == -ETIME) {
+			dev_dbg(priv->dev, "no packet received\n");
+		} else {
+			dev_err(priv->dev, "failed to receive packet: %ld\n",
+				PTR_ERR(rx_packet));
+		}
+		return (u8 *)rx_packet;
+	}
+	return (u8 *)&rx_packet->data;
+}
+
+static void aspeed_mctp_pcie_vdm_op_uninit(struct device *dev)
+{
+	struct platform_device *pdev;
+	struct aspeed_mctp *priv;
+
+	pdev = to_platform_device(dev);
+	priv = platform_get_drvdata(pdev);
+
+	aspeed_mctp_flush_all_tx_queues(priv);
+	aspeed_mctp_flush_rx_queue(priv->default_client);
+	aspeed_mctp_delete_client(priv->default_client);
+}
+
+static const struct mctp_pcie_vdm_ops aspeed_mctp_pcie_vdm_ops = {
+	.send_packet = aspeed_mctp_pcie_vdm_op_send_pkt,
+	.recv_packet = aspeed_mctp_pcie_vdm_op_recv_pkt,
+	.free_packet = aspeed_mctp_packet_free,
+	.uninit = aspeed_mctp_pcie_vdm_op_uninit,
+};
+
+#endif
+
 static const struct file_operations aspeed_mctp_fops = {
 	.owner = THIS_MODULE,
 	.open = aspeed_mctp_open,
@@ -1848,7 +2028,7 @@ static const struct regmap_config aspeed_mctp_regmap_cfg = {
 	.reg_bits	= 32,
 	.reg_stride	= 4,
 	.val_bits	= 32,
-	.max_register	= ASPEED_MCTP_TX_BUF_WR_PTR,
+	.max_register	= ASPEED_G7_MCTP_PCIE_BDF,
 };
 
 struct device_type aspeed_mctp_type = {
@@ -1864,19 +2044,6 @@ static void aspeed_mctp_send_pcie_uevent(struct kobject *kobj, bool ready)
 			   ready ? pcie_ready_event : pcie_not_ready_event);
 }
 
-static u16 aspeed_mctp_pcie_setup(struct aspeed_mctp *priv)
-{
-	u16 bdf;
-
-	bdf = _get_bdf(priv);
-	if (bdf != 0)
-		cancel_delayed_work(&priv->pcie.rst_dwork);
-	else
-		schedule_delayed_work(&priv->pcie.rst_dwork,
-				      msecs_to_jiffies(1000));
-	return bdf;
-}
-
 static void aspeed_mctp_irq_enable(struct aspeed_mctp *priv)
 {
 	u32 enable = TX_CMD_SENT_INT | TX_CMD_WRONG_INT |
@@ -1890,39 +2057,83 @@ static void aspeed_mctp_irq_disable(struct aspeed_mctp *priv)
 	regmap_write(priv->map, ASPEED_MCTP_INT_EN, 0);
 }
 
+static void aspeed_mctp_pcie_setup(struct aspeed_mctp *priv)
+{
+	int ret;
+	u8 tx_max_payload_size;
+	u8 rx_max_payload_size;
+	struct kobject *kobj = &priv->mctp_miscdev.this_device->kobj;
+
+	ret = _get_bdf(priv);
+
+	if (ret >= 0) {
+		cancel_delayed_work(&priv->pcie.rst_dwork);
+		if (priv->match_data->need_address_mapping)
+			regmap_update_bits(priv->map, ASPEED_MCTP_EID,
+					   MEMORY_SPACE_MAPPING, BIT(31));
+
+		/* Only set TX MPS since HW will parse RX packet to decide how many bytes to receive
+		 * based on the length field in PCIe VDM header.
+		 */
+		if (priv->match_data->dma_need_64bits_width) {
+			tx_max_payload_size =
+				FIELD_GET(TX_MAX_PAYLOAD_SIZE_MASK,
+					  ilog2(ASPEED_MCTP_MTU >> 6));
+		} else {
+			/*
+			 * In ast2600, tx som and eom will not match expected result.
+			 * e.g. When Maximum Transmit Unit (MTU) set to 64 byte, and then transfer
+			 * size set between 61 ~ 124 (MTU-3 ~ 2*MTU-4), the engine will set all
+			 * packet vdm header eom to 1, no matter what it setted. To fix that
+			 * issue, the driver set MTU to next level(e.g. 64 to 128).
+			 */
+			tx_max_payload_size =
+				FIELD_GET(TX_MAX_PAYLOAD_SIZE_MASK,
+					  fls(ASPEED_MCTP_MTU >> 6));
+		}
+
+		regmap_update_bits(priv->map, ASPEED_MCTP_ENGINE_CTRL,
+				   TX_MAX_PAYLOAD_SIZE_MASK | RX_MAX_PAYLOAD_SIZE_MASK,
+				   (rx_max_payload_size << RX_MAX_PAYLOAD_SIZE_SHIFT) | tx_max_payload_size);
+
+		aspeed_mctp_flush_all_tx_queues(priv);
+		if (!priv->miss_mctp_int) {
+			aspeed_mctp_irq_enable(priv);
+		} else {
+			if (priv->rx_det_period_us)
+				schedule_delayed_work(&priv->rx_det_dwork,
+						      usecs_to_jiffies(priv->rx_det_period_us));
+		}
+		aspeed_mctp_rx_trigger(&priv->rx);
+		aspeed_mctp_send_pcie_uevent(kobj, true);
+	} else {
+		schedule_delayed_work(&priv->pcie.rst_dwork,
+				      msecs_to_jiffies(1000));
+	}
+}
+
 static void aspeed_mctp_reset_work(struct work_struct *work)
 {
 	struct aspeed_mctp *priv = container_of(work, typeof(*priv),
 						pcie.rst_dwork.work);
 	struct kobject *kobj = &priv->mctp_miscdev.this_device->kobj;
-	u16 bdf;
 
 	if (priv->pcie.need_uevent) {
 		aspeed_mctp_send_pcie_uevent(kobj, false);
 		priv->pcie.need_uevent = false;
 	}
 
-	bdf = aspeed_mctp_pcie_setup(priv);
-	if (bdf) {
-		if (priv->match_data->need_address_mapping)
-			regmap_update_bits(priv->map, ASPEED_MCTP_EID,
-					   MEMORY_SPACE_MAPPING, BIT(31));
-		/*
-		 * In some condition, tx som and eom will not match expected result.
-		 * e.g. When Maximum Transmit Unit (MTU) set to 64 byte, and then transfer
-		 * size set between 61 ~ 124 (MTU-3 ~ 2*MTU-4), the engine will set all
-		 * packet vdm header eom to 1, no matter what it setted. To fix that
-		 * issue, the driver set MTU to next level(e.g. 64 to 128).
-		 */
-		regmap_update_bits(priv->map, ASPEED_MCTP_ENGINE_CTRL,
-				   TX_MAX_PAYLOAD_SIZE_MASK,
-				   FIELD_GET(TX_MAX_PAYLOAD_SIZE_MASK, fls(ASPEED_MCTP_MTU >> 6)));
-		aspeed_mctp_flush_all_tx_queues(priv);
-		if (!priv->miss_mctp_int)
-			aspeed_mctp_irq_enable(priv);
-		aspeed_mctp_rx_trigger(&priv->rx);
-		aspeed_mctp_send_pcie_uevent(kobj, true);
-	}
+	aspeed_mctp_pcie_setup(priv);
+}
+
+static void aspeed_mctp_rx_detect_work(struct work_struct *work)
+{
+	struct aspeed_mctp *priv =
+		container_of(work, typeof(*priv), rx_det_dwork.work);
+
+	tasklet_hi_schedule(&priv->rx.tasklet);
+	schedule_delayed_work(&priv->rx_det_dwork,
+			      usecs_to_jiffies(priv->rx_det_period_us));
 }
 
 static void aspeed_mctp_channels_init(struct aspeed_mctp *priv)
@@ -2014,6 +2225,8 @@ static void aspeed_mctp_drv_fini(struct aspeed_mctp *priv)
 	tasklet_kill(&priv->rx.tasklet);
 
 	cancel_delayed_work_sync(&priv->pcie.rst_dwork);
+	if (priv->miss_mctp_int)
+		cancel_delayed_work_sync(&priv->rx_det_dwork);
 }
 
 static int aspeed_mctp_resources_init(struct aspeed_mctp *priv)
@@ -2061,64 +2274,110 @@ static int aspeed_mctp_resources_init(struct aspeed_mctp *priv)
 	return 0;
 }
 
+static void aspeed_release_rmem(void *d)
+{
+	of_reserved_mem_device_release(d);
+}
+
 static int aspeed_mctp_dma_init(struct aspeed_mctp *priv)
 {
 	struct mctp_channel *tx = &priv->tx;
 	struct mctp_channel *rx = &priv->rx;
 	size_t alloc_size;
-	struct device_node *memory_region;
-	struct reserved_mem *rmem;
-	phys_addr_t phy_base;
+	int ret = -ENOMEM;
 
 	BUILD_BUG_ON(TX_PACKET_COUNT >= TX_MAX_PACKET_COUNT);
 	BUILD_BUG_ON(RX_PACKET_COUNT >= RX_MAX_PACKET_COUNT);
 
-	memory_region = of_parse_phandle(priv->dev->of_node, "memory-region", 0);
-	if (!memory_region) {
-		dev_err(priv->dev, "Failed to find memory-region.\n");
-		return -ENOMEM;
+	ret = of_reserved_mem_device_init(priv->dev);
+	if (ret) {
+		dev_err(priv->dev, "device does not have specific DMA pool: %d\n",
+			ret);
+		return ret;
 	}
 
-	rmem = of_reserved_mem_lookup(memory_region);
-	of_node_put(memory_region);
-	if (!rmem) {
-		dev_err(priv->dev, "Failed to find reserved memory.\n");
-		return -ENOMEM;
+	ret = devm_add_action_or_reset(priv->dev, aspeed_release_rmem,
+				       priv->dev);
+	if (ret)
+		return ret;
+
+	ret = dma_set_mask_and_coherent(priv->dev, DMA_BIT_MASK(64));
+	if (ret) {
+		dev_err(priv->dev, "cannot set 64-bits DMA mask\n");
+		return ret;
 	}
-	phy_base = rmem->base;
 
 	alloc_size = PAGE_ALIGN(priv->rx_packet_count * priv->match_data->packet_unit_size);
-	rx->data.dma_handle = phys_to_dma(priv->dev, phy_base);
-	rx->data.vaddr = devm_ioremap(priv->dev, phy_base, alloc_size);
-	phy_base += alloc_size;
+	rx->data.vaddr =
+		dma_alloc_coherent(priv->dev, alloc_size, &rx->data.dma_handle, GFP_KERNEL);
 
 	if (!rx->data.vaddr)
 		return -ENOMEM;
 
 	alloc_size = PAGE_ALIGN(priv->rx_packet_count * priv->match_data->rx_cmd_size);
-	rx->cmd.dma_handle = phys_to_dma(priv->dev, phy_base);
-	rx->cmd.vaddr = devm_ioremap(priv->dev, phy_base, alloc_size);
-	phy_base += alloc_size;
+	rx->cmd.vaddr = dma_alloc_coherent(priv->dev, alloc_size, &rx->cmd.dma_handle, GFP_KERNEL);
 
 	if (!rx->cmd.vaddr)
-		return -ENOMEM;
+		goto out_rx_cmd;
 
 	alloc_size = PAGE_ALIGN(TX_PACKET_COUNT * priv->match_data->packet_unit_size);
-	tx->data.dma_handle = phys_to_dma(priv->dev, phy_base);
-	tx->data.vaddr = devm_ioremap(priv->dev, phy_base, alloc_size);
-	phy_base += alloc_size;
+	tx->data.vaddr =
+		dma_alloc_coherent(priv->dev, alloc_size, &tx->data.dma_handle, GFP_KERNEL);
 
 	if (!tx->data.vaddr)
-		return -ENOMEM;
-
-	alloc_size = TX_CMD_BUF_SIZE;
-	tx->cmd.dma_handle = phys_to_dma(priv->dev, phy_base);
-	tx->cmd.vaddr = devm_ioremap(priv->dev, phy_base, alloc_size);
+		goto out_tx_data;
+	alloc_size = PAGE_ALIGN(TX_PACKET_COUNT * priv->match_data->tx_cmd_size);
+	tx->cmd.vaddr = dma_alloc_coherent(priv->dev, alloc_size, &tx->cmd.dma_handle, GFP_KERNEL);
 
 	if (!tx->cmd.vaddr)
-		return -ENOMEM;
+		goto out_tx_cmd;
 
 	return 0;
+out_tx_cmd:
+	alloc_size = PAGE_ALIGN(TX_PACKET_COUNT *
+				priv->match_data->packet_unit_size);
+	dma_free_coherent(priv->dev, alloc_size, tx->data.vaddr,
+			  tx->data.dma_handle);
+
+out_tx_data:
+	alloc_size = PAGE_ALIGN(priv->rx_packet_count *
+				priv->match_data->rx_cmd_size);
+	dma_free_coherent(priv->dev, alloc_size, rx->cmd.vaddr,
+			  rx->cmd.dma_handle);
+
+out_rx_cmd:
+	alloc_size = PAGE_ALIGN(priv->rx_packet_count *
+				priv->match_data->packet_unit_size);
+	dma_free_coherent(priv->dev, alloc_size, rx->data.vaddr,
+			  rx->data.dma_handle);
+
+	return -ENOMEM;
+}
+
+static void aspeed_mctp_dma_fini(struct aspeed_mctp *priv)
+{
+	struct mctp_channel *tx = &priv->tx;
+	struct mctp_channel *rx = &priv->rx;
+	size_t free_size;
+
+	free_size = PAGE_ALIGN(TX_PACKET_COUNT * priv->match_data->tx_cmd_size);
+	dma_free_coherent(priv->dev, free_size, tx->cmd.vaddr,
+			  tx->cmd.dma_handle);
+
+	free_size = PAGE_ALIGN(priv->rx_packet_count *
+			       priv->match_data->rx_cmd_size);
+	dma_free_coherent(priv->dev, free_size, rx->cmd.vaddr,
+			  rx->cmd.dma_handle);
+
+	free_size = PAGE_ALIGN(TX_PACKET_COUNT *
+			       priv->match_data->packet_unit_size);
+	dma_free_coherent(priv->dev, free_size, tx->data.vaddr,
+			  tx->data.dma_handle);
+
+	free_size = PAGE_ALIGN(priv->rx_packet_count *
+			       priv->match_data->packet_unit_size);
+	dma_free_coherent(priv->dev, free_size, rx->data.vaddr,
+			  rx->data.dma_handle);
 }
 
 static int aspeed_mctp_irq_init(struct aspeed_mctp *priv)
@@ -2130,6 +2389,7 @@ static int aspeed_mctp_irq_init(struct aspeed_mctp *priv)
 	if (irq < 0) {
 		/* mctp irq is option */
 		priv->miss_mctp_int = 1;
+		INIT_DELAYED_WORK(&priv->rx_det_dwork, aspeed_mctp_rx_detect_work);
 	} else {
 		ret = devm_request_irq(priv->dev, irq, aspeed_mctp_irq_handler,
 				       IRQF_SHARED, dev_name(&pdev->dev), priv);
@@ -2149,23 +2409,35 @@ static int aspeed_mctp_irq_init(struct aspeed_mctp *priv)
 	return 0;
 }
 
-static void aspeed_mctp_hw_reset(struct aspeed_mctp *priv)
+static int aspeed_mctp_hw_reset(struct aspeed_mctp *priv)
 {
-	if (reset_control_deassert(priv->reset) != 0)
+	int ret = 0;
+
+	ret = reset_control_deassert(priv->reset);
+	if (ret) {
 		dev_warn(priv->dev, "Failed to deassert reset\n");
+		return ret;
+	}
 
 	if (priv->rc_f) {
-		if (reset_control_deassert(priv->reset_dma) != 0)
+		ret = reset_control_deassert(priv->reset_dma);
+		if (ret) {
 			dev_warn(priv->dev, "Failed to deassert ep reset\n");
+			return ret;
+		}
 	}
+
+	if (priv->match_data->dma_need_64bits_width)
+		ret = pcie_vdm_enable(priv->dev);
+
+	return ret;
 }
 
 static int aspeed_mctp_probe(struct platform_device *pdev)
 {
 	struct aspeed_mctp *priv;
-	char *name;
 	int ret, id;
-	u16 bdf;
+	const char *name;
 
 	priv = devm_kzalloc(&pdev->dev, sizeof(*priv), GFP_KERNEL);
 	if (!priv) {
@@ -2200,6 +2472,11 @@ static int aspeed_mctp_probe(struct platform_device *pdev)
 	if (ret)
 		priv->tx_ring_count = TX_RING_COUNT;
 
+	ret = device_property_read_u32(priv->dev, "aspeed,rx-det-period-us",
+				       &priv->rx_det_period_us);
+	if (ret)
+		priv->rx_det_period_us = 1000;
+
 	aspeed_mctp_drv_init(priv);
 
 	ret = aspeed_mctp_resources_init(priv);
@@ -2208,13 +2485,31 @@ static int aspeed_mctp_probe(struct platform_device *pdev)
 		goto out_drv;
 	}
 
+#ifdef CONFIG_MCTP_TRANSPORT_PCIE_VDM
+	struct mctp_pcie_vdm_dev *vdm_dev;
+	struct mctp_client *client;
+
+	/** use priv's default client to send/receive mctp packets */
+	client = aspeed_mctp_create_client(priv);
+	aspeed_mctp_register_default_handler(client);
+
+	vdm_dev = mctp_pcie_vdm_add_dev(priv->dev, &aspeed_mctp_pcie_vdm_ops);
+	if (IS_ERR(vdm_dev)) {
+		dev_err(priv->dev, "Failed to add mctp pcie vdm device Err %ld\n", PTR_ERR(vdm_dev));
+		goto out_drv;
+	}
+	priv->vdm_dev = vdm_dev;
+#endif
+
 	ret = aspeed_mctp_dma_init(priv);
 	if (ret) {
 		dev_err(priv->dev, "Failed to init DMA\n");
 		goto out_drv;
 	}
 
-	aspeed_mctp_hw_reset(priv);
+	ret = aspeed_mctp_hw_reset(priv);
+	if (ret)
+		goto out_drv;
 
 	aspeed_mctp_channels_init(priv);
 
@@ -2228,32 +2523,16 @@ static int aspeed_mctp_probe(struct platform_device *pdev)
 	ret = misc_register(&priv->mctp_miscdev);
 	if (ret) {
 		dev_err(priv->dev, "Failed to register miscdev\n");
-		goto out_drv;
+		goto out_dma;
 	}
 	priv->mctp_miscdev.this_device->type = &aspeed_mctp_type;
 
 	ret = aspeed_mctp_irq_init(priv);
 	if (ret) {
 		dev_err(priv->dev, "Failed to init IRQ!\n");
-		goto out_drv;
+		goto out_dma;
 	}
-	bdf = aspeed_mctp_pcie_setup(priv);
-	if (bdf != 0) {
-		if (priv->match_data->need_address_mapping)
-			regmap_update_bits(priv->map, ASPEED_MCTP_EID,
-					   MEMORY_SPACE_MAPPING, BIT(31));
-		/*
-		 * In some condition, tx som and eom will not match expected result.
-		 * e.g. When Maximum Transmit Unit (MTU) set to 64 byte, and then transfer
-		 * size set between 61 ~ 124 (MTU-3 ~ 2*MTU-4), the engine will set all
-		 * packet vdm header eom to 1, no matter what it setted. To fix that
-		 * issue, the driver set MTU to next level(e.g. 64 to 128).
-		 */
-		regmap_update_bits(priv->map, ASPEED_MCTP_ENGINE_CTRL,
-				   TX_MAX_PAYLOAD_SIZE_MASK,
-				   FIELD_GET(TX_MAX_PAYLOAD_SIZE_MASK, fls(ASPEED_MCTP_MTU >> 6)));
-		aspeed_mctp_rx_trigger(&priv->rx);
-	}
+	aspeed_mctp_pcie_setup(priv);
 
 	name = devm_kasprintf(priv->dev, GFP_KERNEL, "peci-mctp%d", id);
 	priv->peci_mctp =
@@ -2263,6 +2542,8 @@ static int aspeed_mctp_probe(struct platform_device *pdev)
 
 	return 0;
 
+out_dma:
+	aspeed_mctp_dma_fini(priv);
 out_drv:
 	aspeed_mctp_drv_fini(priv);
 out:
@@ -2274,11 +2555,17 @@ static int aspeed_mctp_remove(struct platform_device *pdev)
 {
 	struct aspeed_mctp *priv = platform_get_drvdata(pdev);
 
+#ifdef CONFIG_MCTP_TRANSPORT_PCIE_VDM
+	mctp_pcie_vdm_remove_dev(priv->vdm_dev);
+#endif
+
 	platform_device_unregister(priv->peci_mctp);
 
 	misc_deregister(&priv->mctp_miscdev);
 
 	aspeed_mctp_irq_disable(priv);
+
+	aspeed_mctp_dma_fini(priv);
 
 	aspeed_mctp_drv_fini(priv);
 
@@ -2287,6 +2574,7 @@ static int aspeed_mctp_remove(struct platform_device *pdev)
 
 static const struct aspeed_mctp_match_data ast2500_mctp_match_data = {
 	.rx_cmd_size = sizeof(struct aspeed_mctp_rx_cmd),
+	.tx_cmd_size = sizeof(struct aspeed_mctp_tx_cmd),
 	.packet_unit_size = 128,
 	.need_address_mapping = true,
 	.vdm_hdr_direct_xfer = false,
@@ -2295,15 +2583,40 @@ static const struct aspeed_mctp_match_data ast2500_mctp_match_data = {
 
 static const struct aspeed_mctp_match_data ast2600_mctp_match_data = {
 	.rx_cmd_size = sizeof(u32),
+	.tx_cmd_size = sizeof(struct aspeed_mctp_tx_cmd),
 	.packet_unit_size = sizeof(struct mctp_pcie_packet_data),
 	.need_address_mapping = false,
 	.vdm_hdr_direct_xfer = true,
 	.fifo_auto_surround = true,
 };
 
+static const struct aspeed_mctp_match_data ast2700_mctp0_match_data = {
+	.rx_cmd_size = sizeof(struct aspeed_mctp_rx_cmd),
+	.tx_cmd_size = sizeof(struct aspeed_g7_mctp_tx_cmd),
+	.packet_unit_size = sizeof(struct mctp_pcie_packet_data),
+	.need_address_mapping = false,
+	.vdm_hdr_direct_xfer = true,
+	.fifo_auto_surround = true,
+	.dma_need_64bits_width = true,
+	.scu_pcie_ctrl_offset = ASPEED_G7_SCU_PCIE0_CTRL_OFFSET,
+};
+
+static const struct aspeed_mctp_match_data ast2700_mctp1_match_data = {
+	.rx_cmd_size = sizeof(struct aspeed_mctp_rx_cmd),
+	.tx_cmd_size = sizeof(struct aspeed_g7_mctp_tx_cmd),
+	.packet_unit_size = sizeof(struct mctp_pcie_packet_data),
+	.need_address_mapping = false,
+	.vdm_hdr_direct_xfer = true,
+	.fifo_auto_surround = true,
+	.dma_need_64bits_width = true,
+	.scu_pcie_ctrl_offset = ASPEED_G7_SCU_PCIE1_CTRL_OFFSET,
+};
+
 static const struct of_device_id aspeed_mctp_match_table[] = {
 	{ .compatible = "aspeed,ast2500-mctp", .data = &ast2500_mctp_match_data},
 	{ .compatible = "aspeed,ast2600-mctp", .data = &ast2600_mctp_match_data},
+	{ .compatible = "aspeed,ast2700-mctp0", .data = &ast2700_mctp0_match_data},
+	{ .compatible = "aspeed,ast2700-mctp1", .data = &ast2700_mctp1_match_data},
 	{ }
 };
 
@@ -2318,6 +2631,7 @@ static struct platform_driver aspeed_mctp_driver = {
 
 static int __init aspeed_mctp_init(void)
 {
+	pr_info("aspeed_mctp_init\n");
 	packet_cache =
 		kmem_cache_create_usercopy("mctp-packet",
 					   sizeof(struct mctp_pcie_packet),

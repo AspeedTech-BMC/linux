@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
-/* Copyright (c) 2020 Intel Corporation */
+/* Copyright (c) 2025 ASPEED Tech */
 
 #ifndef __LINUX_ASPEED_MCTP_H
 #define __LINUX_ASPEED_MCTP_H
@@ -151,5 +151,7 @@ int aspeed_mctp_get_eid(struct mctp_client *client, u16 bdf,
 
 void *aspeed_mctp_packet_alloc(gfp_t flags);
 void aspeed_mctp_packet_free(void *packet);
+
+int aspeed_mctp_register_default_handler(struct mctp_client *client);
 
 #endif /* __LINUX_ASPEED_MCTP_H */

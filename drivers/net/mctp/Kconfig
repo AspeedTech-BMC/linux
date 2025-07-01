@@ -33,6 +33,15 @@ config MCTP_TRANSPORT_I2C
 	  from DMTF specification DSP0237. A MCTP protocol network device is
 	  created for each I2C bus that has been assigned a mctp-i2c device.
 
+config MCTP_TRANSPORT_PCIE_VDM
+	tristate "MCTP PCIe VDM transport"
+	depends on NET
+	depends on PCI
+	select MCTP_FLOWS
+	help
+	  Provides a driver to access MCTP devices over PCIe VDM transport,
+	  from DMTF specification DSP0238.
+
 endmenu
 
 endif
