@@ -692,8 +692,9 @@ static bool hci_pio_process_resp(struct i3c_hci *hci, struct hci_pio_data *pio)
 				to_keep = DIV_ROUND_UP(expected, 4);
 				hci_pio_push_to_next_rx(hci, xfer, to_keep);
 			}
-			/* Workaround for A0 dummy data issue */
-			aspeed_dummy_data_work_around(hci, pio);
+			if (!aspeed_get_i3c_revision_id(hci))
+				/* Workaround for A0 dummy data issue */
+				aspeed_dummy_data_work_around(hci, pio);
 			/* then process the RX list pointer */
 			if (hci_pio_process_rx(hci, pio))
 				pio->enabled_irqs &= ~STAT_RX_THLD;
