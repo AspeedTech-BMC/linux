@@ -1980,12 +1980,12 @@ static int ast2700_espi_flash_probe(struct ast2700_espi *espi)
 		flash->edaf.size = resource_size(&res);
 		dev_err(dev, "eDAF address: 0x%llx\n", flash->edaf.taddr);
 		dev_err(dev, "eDAF size: 0x%llx\n", flash->edaf.size);
-	}
 
-	virt = devm_ioremap_resource(dev, &res);
-	if (!virt) {
-		dev_err(dev, "cannot map MMBI memory region\n");
-		return -ENOMEM;
+		virt = devm_ioremap_resource(dev, &res);
+		if (!virt) {
+			dev_err(dev, "cannot map eDAF memory region\n");
+			return -ENOMEM;
+		}
 	}
 
 	flash->dma.enable = of_property_read_bool(dev->of_node, "flash-dma-mode");
