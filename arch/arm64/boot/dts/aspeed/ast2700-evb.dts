@@ -1033,7 +1033,7 @@
 &sdhci {
 	status = "okay";
 	bus-width = <4>;
-	max-frequency = <100000000>;
+	max-frequency = <125000000>;
 	/* DDR50 bits in CAPA2 are not supported */
 	sdhci-caps-mask = <0x6 0x0>;
 	sdhci-drive-type = /bits/ 8 <3>;
