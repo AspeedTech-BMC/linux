@@ -784,6 +784,9 @@ static void aspeed_mctp_rx_tasklet(unsigned long data)
 	u32 *hdr, *payload;
 	bool rx_full;
 
+	/* initialized as false */
+	rx_full = false;
+
 	if (priv->match_data->vdm_hdr_direct_xfer && priv->match_data->fifo_auto_surround) {
 		struct mctp_pcie_packet_data *rx_buf;
 		u32 residual_cmds = 0;
