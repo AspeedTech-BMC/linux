@@ -1241,6 +1241,8 @@ static int i3c_hub_send_ccc_cmd(struct i3c_master_controller *controller,
 
 	if (cmd->id == I3C_CCC_RSTDAA(true))
 		return 0;
+	if (cmd->id == I3C_CCC_DISEC(true))
+		return 0;
 
 	i3c_hub_trans_pre_cb(bridge);
 	ret = parent->ops->send_ccc_cmd(parent, cmd);
