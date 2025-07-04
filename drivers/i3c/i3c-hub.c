@@ -2159,6 +2159,8 @@ static int i3c_hub_port_init(struct i3c_hub *hub, u32 port_nr)
 		break;
 	case PORT_MODE_I3C:
 		ret = i3c_hub_port_init_i3c_bridge(hub, port, port_nr);
+		if (port->bridge)
+			ret = i3c_hub_bridge_disconnect(port->bridge);
 		break;
 	default:
 		/* Disable the port*/
@@ -2296,6 +2298,7 @@ static void i3c_hub_delayed_work(struct work_struct *work)
 {
 	struct i3c_hub *hub = container_of(work, typeof(*hub), delayed_work.work);
 	struct device *dev = i3cdev_to_dev(hub->i3cdev);
+	struct i3c_hub_target_port *port;
 	int i;
 	int ret;
 
@@ -2309,6 +2312,16 @@ static void i3c_hub_delayed_work(struct work_struct *work)
 		if (ret)
 			dev_err(dev, "ports init failed\n");
 	}
+
+	for (i = 0; i < hub->devinfo->n_ports; ++i) {
+		port = &hub->ports[i];
+		if (port->mode == PORT_MODE_I3C && port->bridge && !port->bridge->idle_disconnect) {
+			ret = i3c_hub_bridge_connect(port->bridge);
+			if (ret)
+				dev_err(dev, "Failed to connect bridge for port %d\n", i);
+		}
+	}
+
 	i3c_hub_protect_register(hub);
 
 	i3c_hub_target_port_debugfs_init(hub);
