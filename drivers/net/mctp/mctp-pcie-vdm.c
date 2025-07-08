@@ -197,7 +197,7 @@ static void mctp_pcie_vdm_ctrl_msg_handler(struct mctp_pcie_vdm_dev *vdm_dev,
 		return;
 
 	struct mctp_ctrl_msg_hdr *ctrl_hdr =
-		(struct mctp_ctrl_msg_hdr *)(&packet[MCTP_PCIE_VDM_HDR_SIZE]);
+		(struct mctp_ctrl_msg_hdr *)(&packet[MCTP_PCIE_VDM_HDR_SIZE + 1]);
 
 	/* host endian expected */
 	struct mctp_pcie_vdm_hdr *hdr = (struct mctp_pcie_vdm_hdr *)packet;
