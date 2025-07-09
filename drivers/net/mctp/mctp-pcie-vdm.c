@@ -87,6 +87,7 @@ enum mctp_ctrl_command_code {
 };
 
 struct mctp_ctrl_msg_hdr {
+	u8 message_type;
 	u8 ctrl_msg_class;
 	u8 command_code;
 };
