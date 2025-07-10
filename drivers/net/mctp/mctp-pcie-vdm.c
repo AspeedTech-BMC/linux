@@ -1,4 +1,11 @@
 // SPDX-License-Identifier: GPL-2.0
+/*
+ * mctp-pcie-vdm.c - MCTP-over-PCIe-VDM (DMTF DSP0238) transport binding driver.
+ *
+ * DSP0238 is available at:
+ * https://www.dmtf.org/sites/default/files/standards/documents/DSP0238_1.2.0.pdf
+ *
+ */
 
 #include <linux/aspeed-mctp.h>
 #include <linux/bitfield.h>
@@ -588,7 +595,8 @@ static int mctp_pcie_vdm_add_net_dev(struct net_device **dev)
 	return rc;
 }
 
-struct mctp_pcie_vdm_dev *mctp_pcie_vdm_add_dev(struct device *dev)
+struct mctp_pcie_vdm_dev *mctp_pcie_vdm_add_dev(struct device *dev,
+						const struct mctp_pcie_vdm_ops *ops)
 {
 	struct net_device *ndev;
 	int rc;
@@ -604,6 +612,7 @@ struct mctp_pcie_vdm_dev *mctp_pcie_vdm_add_dev(struct device *dev)
 	vdm_dev = netdev_priv(ndev);
 	vdm_dev->ndev = ndev;
 	vdm_dev->dev = dev;
+	vdm_dev->callback_ops = ops;
 
 	rc = mctp_pcie_vdm_add_mctp_dev(vdm_dev);
 	if (rc) {
@@ -636,13 +645,6 @@ void mctp_pcie_vdm_notify_rx(struct mctp_pcie_vdm_dev *vdm_dev)
 	queue_work(mctp_pcie_vdm_wq, &vdm_dev->rx_work);
 }
 EXPORT_SYMBOL_GPL(mctp_pcie_vdm_notify_rx);
-
-void mctp_pcie_vdm_register_ops(struct mctp_pcie_vdm_dev *vdm_dev,
-				const struct mctp_pcie_vdm_ops *ops)
-{
-	vdm_dev->callback_ops = ops;
-}
-EXPORT_SYMBOL_GPL(mctp_pcie_vdm_register_ops);
 
 static __init int mctp_pcie_vdm_mod_init(void)
 {

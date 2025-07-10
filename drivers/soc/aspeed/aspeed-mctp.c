@@ -2493,13 +2493,12 @@ static int aspeed_mctp_probe(struct platform_device *pdev)
 	client = aspeed_mctp_create_client(priv);
 	aspeed_mctp_register_default_handler(client);
 
-	vdm_dev = mctp_pcie_vdm_add_dev(priv->dev);
+	vdm_dev = mctp_pcie_vdm_add_dev(priv->dev, &aspeed_mctp_pcie_vdm_ops);
 	if (IS_ERR(vdm_dev)) {
 		dev_err(priv->dev, "Failed to add mctp pcie vdm device Err %ld\n", PTR_ERR(vdm_dev));
 		goto out_drv;
 	}
 	priv->vdm_dev = vdm_dev;
-	mctp_pcie_vdm_register_ops(vdm_dev, &aspeed_mctp_pcie_vdm_ops);
 #endif
 
 	ret = aspeed_mctp_dma_init(priv);
