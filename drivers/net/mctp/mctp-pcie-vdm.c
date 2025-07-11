@@ -6,8 +6,6 @@
  * https://www.dmtf.org/sites/default/files/standards/documents/DSP0238_1.2.0.pdf
  *
  */
-
-#include <linux/aspeed-mctp.h>
 #include <linux/bitfield.h>
 #include <linux/bitops.h>
 #include <linux/byteorder/generic.h>
@@ -341,7 +339,7 @@ static void mctp_pcie_vdm_xmit(struct mctp_pcie_vdm_dev *vdm_dev,
 	hdr->tag_pad_len =
 		ALIGN(payload_len_byte, sizeof(u32)) - payload_len_byte;
 	pr_debug("%s: skb len %d pad len %d\n", __func__, skb->len,
-			 hdr->tag_pad_len);
+		 hdr->tag_pad_len);
 	MCTP_PCIE_SWAP_NET_ENDIAN((u32 *)hdr,
 				  sizeof(struct mctp_pcie_vdm_hdr) / sizeof(u32));
 
@@ -360,6 +358,7 @@ static void mctp_pcie_vdm_xmit(struct mctp_pcie_vdm_dev *vdm_dev,
 static int mctp_pcie_vdm_tx_thread(void *data)
 {
 	struct mctp_pcie_vdm_dev *vdm_dev = data;
+
 	for (;;) {
 		wait_event_idle(vdm_dev->tx_wait,
 				__ptr_ring_peek(&vdm_dev->tx_queue) ||
@@ -380,7 +379,6 @@ static int mctp_pcie_vdm_tx_thread(void *data)
 		}
 		if (netif_queue_stopped(vdm_dev->ndev))
 			netif_wake_queue(vdm_dev->ndev);
-
 	}
 
 	pr_debug("%s stopping\n", __func__);
@@ -487,6 +485,7 @@ static void mctp_pcie_vdm_uninit(struct net_device *ndev)
 	struct mctp_pcie_vdm_route_info *route;
 	struct hlist_node *tmp;
 	int bkt;
+
 	pr_debug("%s: uninitializing vdm_dev %s\n", __func__,
 		 vdm_dev->ndev->name);
 
@@ -560,7 +559,7 @@ static void mctp_pcie_vdm_net_setup(struct net_device *ndev)
 {
 	ndev->type = ARPHRD_MCTP;
 
-	ndev->mtu = ASPEED_MCTP_MTU;
+	ndev->mtu = MCTP_PCIE_VDM_MIN_MTU;
 	ndev->min_mtu = MCTP_PCIE_VDM_MIN_MTU;
 	ndev->max_mtu = MCTP_PCIE_VDM_MAX_MTU;
 	ndev->tx_queue_len = MCTP_PCIE_VDM_NET_DEV_TX_QUEUE_LEN;
@@ -635,8 +634,6 @@ void mctp_pcie_vdm_remove_dev(struct mctp_pcie_vdm_dev *vdm_dev)
 		mctp_unregister_netdev(ndev);
 		free_netdev(ndev);
 	}
-
-	return;
 }
 EXPORT_SYMBOL_GPL(mctp_pcie_vdm_remove_dev);
 
