@@ -24,7 +24,7 @@
 #define SGMII_CFG_PWR_DOWN		BIT(11)
 #define SGMII_CFG_AN_ENABLE		BIT(12)
 #define SGMII_CFG_SW_RESET		BIT(15)
-#define SGMII_PCTL_TX_DEEMPH_3_5DB	BIT(6)
+#define SGMII_PCTL_TX_NO_DEEMPH		BIT(7)
 #define SGMII_MODE_ENABLE		BIT(0)
 #define SGMII_MODE_USE_LOCAL_CONFIG	BIT(2)
 
@@ -63,7 +63,7 @@ static void aspeed_sgmii_set_nway(struct phy *phy)
 
 	writel(0x0c, sgmii->regs + SGMII_FIFO_DELAY_THREHOLD);
 
-	writel(SGMII_PCTL_TX_DEEMPH_3_5DB, sgmii->regs + SGMII_PHY_PIPE_CTL);
+	writel(SGMII_PCTL_TX_NO_DEEMPH, sgmii->regs + SGMII_PHY_PIPE_CTL);
 
 	/* Bit 0 always sets to 1 in ACK message */
 	writel(0x1, sgmii->regs + SGMII_NWAY_ACK);
@@ -120,7 +120,7 @@ static int aspeed_sgmii_phy_set_speed(struct phy *phy, int speed)
 	writel(reg, sgmii->regs + SGMII_CFG);
 
 	writel(0x0c, sgmii->regs + SGMII_FIFO_DELAY_THREHOLD);
-	writel(SGMII_PCTL_TX_DEEMPH_3_5DB, sgmii->regs + SGMII_PHY_PIPE_CTL);
+	writel(SGMII_PCTL_TX_NO_DEEMPH, sgmii->regs + SGMII_PHY_PIPE_CTL);
 
 	/* Bit 0 always sets to 1 in ACK message */
 	writel(0x1, sgmii->regs + SGMII_NWAY_ACK);
