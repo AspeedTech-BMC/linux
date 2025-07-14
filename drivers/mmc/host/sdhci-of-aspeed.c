@@ -312,12 +312,18 @@ static int aspeed_sdhci_execute_tuning(struct sdhci_host *host, u32 opcode)
 	return mmc_send_tuning(host->mmc, opcode, NULL);
 }
 
+static void aspeed_sdhci_voltage_switch(struct sdhci_host *host)
+{
+	mdelay(30);
+}
+
 static const struct sdhci_ops aspeed_sdhci_ops = {
 	.read_l = aspeed_sdhci_readl,
 	.set_clock = sdhci_set_clock,
 	.get_max_clock = sdhci_pltfm_clk_get_max_clock,
 	.set_bus_width = aspeed_sdhci_set_bus_width,
 	.get_timeout_clock = sdhci_pltfm_clk_get_max_clock,
+	.voltage_switch = aspeed_sdhci_voltage_switch,
 	.reset = aspeed_sdhci_reset,
 	.set_uhs_signaling = sdhci_set_uhs_signaling,
 	.platform_execute_tuning = aspeed_sdhci_execute_tuning,
