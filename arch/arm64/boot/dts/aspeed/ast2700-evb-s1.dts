@@ -162,7 +162,7 @@
 
 &i2c3 {
 	clock-frequency = <1000000>;
-	debounce-level = <4>;
+	debounce-level = <6>;
 	status = "okay";
 	multi-master;
 	mctp-controller;
@@ -258,7 +258,7 @@
 
 &i2c11 {
 	clock-frequency = <1000000>;
-	debounce-level = <4>;
+	debounce-level = <6>;
 	status = "okay";
 	multi-master;
 	mctp-controller;
