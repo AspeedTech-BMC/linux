@@ -2647,7 +2647,7 @@ int sdhci_start_signal_voltage_switch(struct mmc_host *mmc,
 			}
 		}
 		/* Wait for 5ms */
-		usleep_range(5000, 5500);
+		usleep_range(15000, 15500);
 
 		/* 3.3V regulator output should be stable within 5 ms */
 		ctrl = sdhci_readw(host, SDHCI_HOST_CONTROL2);
