@@ -28,6 +28,15 @@
 #define LTPI_MANUAL_CAP_LOW			0x118
 #define LTPI_MANUAL_CAP_HIGH			0x11c
 
+#define LTPI_I2C_TIMING_0			0x134
+#define LTPI_I2C_TIMING_1			0x138
+
+#define LTPI_I2C_100K_0			0x3535352f
+#define LTPI_I2C_100K_1			0x09353535
+
+#define LTPI_I2C_400K_0			0x06060d06
+#define LTPI_I2C_400K_1			0x090d0a06
+
 #define SCU_IO_PINS_TRAP1			0x10
 #define SCU_IO_PINS_TRAP1_CLEAR			0x14
 #define   SCU_IO_PINS_TRAP_LTPI			GENMASK(2, 0)
@@ -38,6 +47,11 @@
 
 #define MAX_I2C_IN_LTPI				6
 
+enum chip_version {
+	AST2700,
+	AST1700,
+};
+
 struct aspeed_ltpi_priv {
 	struct device *dev;
 	void __iomem *regs;
@@ -45,7 +59,10 @@ struct aspeed_ltpi_priv {
 	struct clk *ltpi_phyclk;
 	struct reset_control *ltpi_rst;
 	struct regmap *scu;
+	u32 version;
 	u32 i2c_tunneling;
+	u32 i2c_timing_0;
+	u32 i2c_timing_1;
 };
 
 static irqreturn_t aspeed_ltpi_irq_handler(int irq, void *dev_id)
@@ -67,7 +84,7 @@ static irqreturn_t aspeed_ltpi_irq_handler(int irq, void *dev_id)
 
 static int aspeed_ltpi_init_mux(struct aspeed_ltpi_priv *priv)
 {
-	u32 reg, i2c_en;
+	u32 reg, i2c_en, i;
 
 	reg = readl(priv->regs + LTPI_AUTO_CAP_LOW);
 
@@ -86,6 +103,17 @@ static int aspeed_ltpi_init_mux(struct aspeed_ltpi_priv *priv)
 	reg &= ~LTPI_AUTO_CONFIG;
 	writel(reg, priv->regs + LTPI_LINK_CONTROLL);
 
+	/* Set the AST1700 i2c ac-timing */
+	if (priv->version == AST1700) {
+		/* Apply i2c timing */
+		for (i = 0; i < MAX_I2C_IN_LTPI; i++) {
+			writel(priv->i2c_timing_0,
+			       priv->regs + LTPI_I2C_TIMING_0 + (0x8 * i));
+			writel(priv->i2c_timing_1,
+			       priv->regs + LTPI_I2C_TIMING_1 + (0x8 * i));
+		}
+	}
+
 	return 0;
 }
 
@@ -99,11 +127,12 @@ static int aspeed_ltpi_probe(struct platform_device *pdev)
 	int irq, ret;
 
 	match = of_match_device(dev->driver->of_match_table, dev);
-	if (match && match->data) {
-		if (of_property_match_string(np, "compatible", match->compatible) == 0)
-			return 0;
-		else
+
+	if (match) {
+		if (of_property_match_string(np, "compatible", match->compatible) < 0)
 			return -ENODEV;
+	} else {
+		return -ENODEV;
 	}
 
 	priv = devm_kzalloc(&pdev->dev, sizeof(*priv), GFP_KERNEL);
@@ -114,6 +143,8 @@ static int aspeed_ltpi_probe(struct platform_device *pdev)
 	priv->regs = devm_platform_ioremap_resource(pdev, 0);
 	if (IS_ERR(priv->regs))
 		return PTR_ERR(priv->regs);
+
+	priv->version = (enum chip_version)device_get_match_data(dev);
 
 	priv->ltpi_clk = devm_clk_get(&pdev->dev, "ltpi");
 	if (IS_ERR(priv->ltpi_clk)) {
@@ -141,6 +172,15 @@ static int aspeed_ltpi_probe(struct platform_device *pdev)
 	priv->i2c_tunneling = GENMASK(MAX_I2C_IN_LTPI - 1, 0);
 	if (!of_property_read_u32(np, "i2c-tunneling", &ret))
 		priv->i2c_tunneling = ret;
+
+	priv->i2c_timing_0 = LTPI_I2C_100K_0;
+	priv->i2c_timing_1 = LTPI_I2C_100K_1;
+	if (!of_property_read_u32(np, "i2c-tunneling-timing", &ret)) {
+		if (ret == 400) {
+			priv->i2c_timing_0 = LTPI_I2C_400K_0;
+			priv->i2c_timing_1 = LTPI_I2C_400K_1;
+		}
+	}
 
 	priv->scu = syscon_regmap_lookup_by_phandle(np, "aspeed,scu");
 	if (of_get_property(np, "remote-controller", NULL)) {
@@ -194,7 +234,8 @@ static int aspeed_ltpi_remove(struct platform_device *pdev)
 }
 
 static const struct of_device_id aspeed_ltpi_of_match[] = {
-	{ .compatible = "aspeed-ltpi", },
+	{ .compatible = "aspeed-ltpi", .data = (const void *)AST2700,},
+	{ .compatible = "aspeed-ast1700-ltpi", .data = (const void *)AST1700,},
 	{ /* sentinel */ }
 };
 MODULE_DEVICE_TABLE(of, aspeed_ltpi_of_match);
@@ -203,7 +244,7 @@ static struct platform_driver aspeed_ltpi_driver = {
 	.probe = aspeed_ltpi_probe,
 	.remove = aspeed_ltpi_remove,
 	.driver = {
-		.name = "aspeed-ltpi",
+		.name = KBUILD_MODNAME,
 		.of_match_table = aspeed_ltpi_of_match,
 	},
 };
