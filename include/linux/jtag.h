@@ -9,7 +9,7 @@
 #include <linux/types.h>
 #include <uapi/linux/jtag.h>
 
-#define JTAG_MAX_XFER_DATA_LEN (0xFFFFFFFF) //65535
+#define JTAG_MAX_XFER_DATA_LEN (0xFFFFFFFF)
 
 struct jtag;
 /**
@@ -23,8 +23,8 @@ struct jtag;
  * @mode_set: set specific work mode for JTAG. Filled by dev driver
  * @trst_set: set TRST pin active(pull low) for JTAG. Filled by dev driver
  * @bitbang: set low level bitbang operations. Filled by dev driver
- * @enable: enables JTAG interface in master mode. Filled by dev driver
- * @disable: disables JTAG interface master mode. Filled by dev driver
+ * @enable: enables JTAG interface in controller mode. Filled by dev driver
+ * @disable: disables JTAG interface controller mode. Filled by dev driver
  */
 struct jtag_ops {
 	int (*freq_get)(struct jtag *jtag, u32 *freq);

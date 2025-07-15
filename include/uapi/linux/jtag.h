@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
+/* SPDX-License-Identifier: GPL-2.0 */
 /* Copyright (c) 2018 Mellanox Technologies. All rights reserved. */
 /* Copyright (c) 2018 Oleksandr Shamray <oleksandrs@mellanox.com> */
 /* Copyright (c) 2019 Intel Corporation */
@@ -20,16 +20,23 @@
  */
 #define  JTAG_CONTROL_MODE 1
 /*
- * JTAG_MASTER_OUTPUT_DISABLE: JTAG master mode output disable, it is used to
- * enable other devices to own the JTAG bus.
- * This is bitmask for mode param in jtag_mode for ioctl JTAG_SIOCMODE
+ * JTAG_TCK_CYCLE_DELAY_COUNT: JTAG delay counter for aspeed_jtag_tck_cycle. Used
+ * set the number of jtag_tck_cycle delays repetitions.
+ * This is bitmask for feature param in jtag_mode for ioctl JTAG_SIOCMODE
  */
-#define  JTAG_MASTER_OUTPUT_DISABLE 0
+#define  JTAG_TCK_CYCLE_DELAY_COUNT 2
 /*
- * JTAG_MASTER_MODE: JTAG master mode. Used to set JTAG controller master mode
+ * JTAG_CONTROLLER_OUTPUT_DISABLE: JTAG controller mode output disable, it is
+ * used to enable other devices to own the JTAG bus.
  * This is bitmask for mode param in jtag_mode for ioctl JTAG_SIOCMODE
  */
-#define  JTAG_MASTER_MODE 1
+#define  JTAG_CONTROLLER_OUTPUT_DISABLE 0
+/*
+ * JTAG_CONTROLLER_MODE: JTAG controller mode. Used to set JTAG controller in
+ * host mode.
+ * This is bitmask for mode param in jtag_mode for ioctl JTAG_SIOCMODE
+ */
+#define  JTAG_CONTROLLER_MODE 1
 /*
  * JTAG_XFER_HW_MODE: JTAG hardware mode. Used to set HW drived or bitbang
  * mode. This is bitmask for mode param in jtag_mode for ioctl JTAG_SIOCMODE
@@ -123,7 +130,8 @@ enum jtag_xfer_direction {
  *
  * @reset: 0 - run IDLE/PAUSE from current state
  *         1 - go through TEST_LOGIC/RESET state before  IDLE/PAUSE
- * @end: completion flag
+ * @from: initital jtag state
+ * @endstate: jtag end state
  * @tck: clock counter
  *
  * Structure provide interface to JTAG device for JTAG set state execution.
@@ -132,7 +140,7 @@ struct jtag_tap_state {
 	__u8	reset;
 	__u8	from;
 	__u8	endstate;
-	__u8	tck;
+	__u32	tck;
 };
 
 /**
@@ -211,8 +219,8 @@ struct tck_bitbang {
  * struct jtag_mode - jtag mode:
  *
  * @feature: 0 - JTAG feature setting selector for JTAG controller HW/SW
- *           1 - JTAG feature setting selector for controller bus master
- *               mode output (enable / disable).
+ *           1 - JTAG feature setting selector for controller bus mode
+ *               output (enable / disable).
  * @mode:    (0 - SW / 1 - HW) for JTAG_XFER_MODE feature(0)
  *           (0 - output disable / 1 - output enable) for JTAG_CONTROL_MODE
  *                                                    feature(1)
