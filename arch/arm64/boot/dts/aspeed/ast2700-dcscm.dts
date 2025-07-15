@@ -516,6 +516,10 @@
 	assigned-clock-rates = <200000000>, <125000000>, <50000000>;
 };
 
+&jtag1 {
+	status = "okay";
+};
+
 &gpio1 {
 	pinctrl-0 = <&pinctrl_i3c0_3_hv_voltage
 		     &pinctrl_i3c0_driving &pinctrl_i3c1_driving
