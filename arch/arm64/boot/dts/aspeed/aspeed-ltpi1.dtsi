@@ -357,7 +357,7 @@
 		};
 
 		ltpi1_ltpi: ltpi@50c34000 {
-			compatible = "aspeed-ltpi";
+			compatible = "aspeed-ast1700-ltpi";
 			reg = <0x0 0x50c34000 0x0 0x100>;
 			clocks = <&ltpi1_syscon AST1700_CLK_GATE_LTPICLK>,
 				 <&ltpi1_syscon AST1700_CLK_GATE_LTPIPHYCLK>;
