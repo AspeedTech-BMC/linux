@@ -63,7 +63,9 @@
 #define CE0_SEGMENT_ADDR_REG		0x30
 
 #define MISC_CTRL_REG			0x54
+#define   SPI_USER_CMD_MODE		BIT(27)
 #define   SPI_CS_TO_DIS			BIT(26)
+#define   SPI_UNALGNED_ACCESS		BIT(24)
 #define   SPI_CS_CONTINUOUS		BIT(16)
 #define   DUMMY_OUTPUT_DATA		GENMASK(7, 0)
 
@@ -138,8 +140,9 @@ struct aspeed_spi_data {
 	u32 (*get_clk_div)(struct aspeed_spi_chip *chip, u32 hz);
 	int (*calibrate)(struct aspeed_spi_chip *chip, u32 hdiv,
 			 const u8 *golden_buf, u8 *test_buf);
-	void (*safs_support)(struct aspeed_spi *aspi,
-			     struct spi_mem_op *op);
+	void (*safs_init)(struct aspeed_spi *aspi, struct spi_mem_op *op);
+	void (*safs_start)(struct aspeed_spi *aspi);
+	void (*safs_stop)(struct aspeed_spi *aspi);
 };
 
 #define ASPEED_SPI_MAX_NUM_CS	5
@@ -431,6 +434,9 @@ static int do_aspeed_spi_exec_op(struct spi_mem *mem, const struct spi_mem_op *o
 	     op->cmd.opcode == SPINOR_OP_SRST))
 		return ret;
 
+	if (aspi->data->safs_stop)
+		aspi->data->safs_stop(aspi);
+
 	if (op->data.dir == SPI_MEM_DATA_IN) {
 		if (!op->addr.nbytes)
 			ret = aspeed_spi_read_reg(chip, op);
@@ -443,6 +449,9 @@ static int do_aspeed_spi_exec_op(struct spi_mem *mem, const struct spi_mem_op *o
 		else
 			ret = aspeed_spi_write_user(chip, op);
 	}
+
+	if (aspi->data->safs_start)
+		aspi->data->safs_start(aspi);
 
 	/* Restore defaults */
 	writel(chip->ctl_val[ASPEED_SPI_READ], chip->ctl);
@@ -1308,8 +1317,8 @@ static int aspeed_spi_dirmap_create(struct spi_mem_dirmap_desc *desc)
 
 	chip->clk_freq = desc->mem->spi->max_speed_hz;
 
-	if (aspi->data->safs_support)
-		aspi->data->safs_support(aspi, op);
+	if (aspi->data->safs_init)
+		aspi->data->safs_init(aspi, op);
 
 	/* Only for reads */
 	if (op->data.dir == SPI_MEM_DATA_IN) {
@@ -2306,6 +2315,38 @@ void aspeed_spi_ast2600_fill_safs_cmd(struct aspeed_spi *aspi,
 	}
 }
 
+void aspeed_spi_ast2700_safs_init(struct aspeed_spi *aspi,
+				  struct spi_mem_op *op)
+{
+	u32 val;
+
+	(void)op;
+
+	val = readl(aspi->regs + MISC_CTRL_REG);
+	val |= SPI_UNALGNED_ACCESS | SPI_USER_CMD_MODE;
+	val &= ~SPI_CS_CONTINUOUS;
+	writel(val, aspi->regs + MISC_CTRL_REG);
+}
+
+void aspeed_spi_ast2700_safs_start(struct aspeed_spi *aspi)
+{
+	u32 val;
+
+	val = readl(aspi->regs + MISC_CTRL_REG);
+	val |= SPI_UNALGNED_ACCESS | SPI_USER_CMD_MODE;
+	val &= ~SPI_CS_CONTINUOUS;
+	writel(val, aspi->regs + MISC_CTRL_REG);
+}
+
+void aspeed_spi_ast2700_safs_stop(struct aspeed_spi *aspi)
+{
+	u32 val;
+
+	val = readl(aspi->regs + MISC_CTRL_REG);
+	val &= ~GENMASK(27, 24);
+	writel(val, aspi->regs + MISC_CTRL_REG);
+}
+
 /*
  * Platform definitions
  */
@@ -2413,7 +2454,7 @@ static const struct aspeed_spi_data ast2600_spi_data = {
 	.segment_end   = aspeed_spi_segment_ast2600_end,
 	.segment_reg   = aspeed_spi_segment_ast2600_reg,
 	.adjust_window = aspeed_adjust_window_ast2600,
-	.safs_support  = aspeed_spi_ast2600_fill_safs_cmd,
+	.safs_init     = aspeed_spi_ast2600_fill_safs_cmd,
 };
 
 static const struct aspeed_spi_data ast2700_fmc_data = {
@@ -2450,6 +2491,9 @@ static const struct aspeed_spi_data ast2700_spi_data = {
 	.segment_start = aspeed_spi_segment_ast2700_start,
 	.segment_end   = aspeed_spi_segment_ast2700_end,
 	.segment_reg   = aspeed_spi_segment_ast2700_reg,
+	.safs_init     = aspeed_spi_ast2700_safs_init,
+	.safs_start    = aspeed_spi_ast2700_safs_start,
+	.safs_stop     = aspeed_spi_ast2700_safs_stop,
 };
 
 static const struct of_device_id aspeed_spi_matches[] = {
