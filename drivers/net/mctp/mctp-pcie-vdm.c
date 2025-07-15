@@ -431,7 +431,7 @@ static void mctp_pcie_vdm_rx_work_handler(struct work_struct *work)
 		net_status = netif_rx(skb);
 		if (net_status == NET_RX_SUCCESS) {
 			stats->rx_packets++;
-			stats->rx_bytes += skb->len;
+			stats->rx_bytes += (len - sizeof(struct mctp_pcie_vdm_hdr));
 		} else {
 			stats->rx_dropped++;
 		}
