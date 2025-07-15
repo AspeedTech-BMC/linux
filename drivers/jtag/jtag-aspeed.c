@@ -419,9 +419,9 @@ static int aspeed_jtag_mode_set(struct jtag *jtag, struct jtag_mode *jtag_mode)
 		aspeed_jtag->llops->master_enable(aspeed_jtag);
 		break;
 	case JTAG_CONTROL_MODE:
-		if (jtag_mode->mode == JTAG_MASTER_OUTPUT_DISABLE)
+		if (jtag_mode->mode == JTAG_CONTROLLER_OUTPUT_DISABLE)
 			aspeed_jtag->llops->output_disable(aspeed_jtag);
-		else if (jtag_mode->mode == JTAG_MASTER_MODE)
+		else if (jtag_mode->mode == JTAG_CONTROLLER_MODE)
 			aspeed_jtag->llops->master_enable(aspeed_jtag);
 		break;
 	default:

@@ -230,6 +230,9 @@ static long jtag_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		if (get_user(active, (__u32 __user *)arg))
 			return -EFAULT;
 
+		dev_dbg(jtag->miscdev.parent,
+			"JTAG_SIOCTRST: active %d", active);
+
 		err = jtag->ops->trst_set(jtag, active);
 		break;
 
