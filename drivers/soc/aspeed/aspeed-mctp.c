@@ -48,6 +48,7 @@
 
 #define ASPEED_MCTP_EID		0x014
 #define  MEMORY_SPACE_MAPPING	GENMASK(31, 28)
+#define  MCTP_EID		GENMASK(7, 0)
 #define ASPEED_MCTP_OBFF_CTRL	0x018
 
 #define ASPEED_MCTP_ENGINE_CTRL		0x01c
@@ -1442,7 +1443,8 @@ aspeed_mctp_filter_eid(struct aspeed_mctp *priv, void __user *userbuf)
 	}
 
 	if (eid.enable) {
-		regmap_write(priv->map, ASPEED_MCTP_EID, eid.eid);
+		regmap_update_bits(priv->map, ASPEED_MCTP_EID,
+				   MCTP_EID, eid.eid);
 		regmap_update_bits(priv->map, ASPEED_MCTP_CTRL,
 				   MATCHING_EID, MATCHING_EID);
 	} else {
