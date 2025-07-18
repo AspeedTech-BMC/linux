@@ -1220,6 +1220,8 @@ static void ast2600_i2c_slave_packet_buff_irq(struct ast2600_i2c_bus *i2c_bus, u
 		break;
 	case AST2600_I2CS_SLAVE_PENDING | AST2600_I2CS_STOP |
 	     AST2600_I2CS_TX_NAK | AST2600_I2CS_SLAVE_MATCH | AST2600_I2CS_RX_DONE:
+	case AST2600_I2CS_SLAVE_PENDING | AST2600_I2CS_WAIT_RX_DMA | AST2600_I2CS_STOP |
+	     AST2600_I2CS_TX_NAK | AST2600_I2CS_SLAVE_MATCH | AST2600_I2CS_RX_DONE:
 		i2c_slave_event(i2c_bus->slave, I2C_SLAVE_STOP, &value);
 		i2c_slave_event(i2c_bus->slave, I2C_SLAVE_WRITE_REQUESTED, &value);
 		slave_rx_len = AST2600_I2CC_GET_RX_BUF_LEN(readl(i2c_bus->reg_base +
@@ -1228,14 +1230,6 @@ static void ast2600_i2c_slave_packet_buff_irq(struct ast2600_i2c_bus *i2c_bus, u
 			value = readb(i2c_bus->buf_base + 0x10 + i);
 			i2c_slave_event(i2c_bus->slave, I2C_SLAVE_WRITE_RECEIVED, &value);
 		}
-		writel(AST2600_I2CC_SET_RX_BUF_LEN(i2c_bus->buf_size),
-		       i2c_bus->reg_base + AST2600_I2CC_BUFF_CTRL);
-		cmd = SLAVE_TRIGGER_CMD | AST2600_I2CS_RX_BUFF_EN;
-		break;
-	case AST2600_I2CS_SLAVE_PENDING | AST2600_I2CS_WAIT_RX_DMA | AST2600_I2CS_STOP |
-	     AST2600_I2CS_TX_NAK | AST2600_I2CS_SLAVE_MATCH | AST2600_I2CS_RX_DONE:
-		i2c_slave_event(i2c_bus->slave, I2C_SLAVE_STOP, &value);
-		i2c_slave_event(i2c_bus->slave, I2C_SLAVE_READ_REQUESTED, &value);
 		writel(AST2600_I2CC_SET_RX_BUF_LEN(i2c_bus->buf_size),
 		       i2c_bus->reg_base + AST2600_I2CC_BUFF_CTRL);
 		cmd = SLAVE_TRIGGER_CMD | AST2600_I2CS_RX_BUFF_EN;
