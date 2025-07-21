@@ -105,12 +105,14 @@ static int aspeed_ltpi_init_mux(struct aspeed_ltpi_priv *priv)
 
 	/* Set the AST1700 i2c ac-timing */
 	if (priv->version == AST1700) {
-		/* Apply i2c timing */
+		/* Apply i2c timing with i2c tunneling setting */
 		for (i = 0; i < MAX_I2C_IN_LTPI; i++) {
-			writel(priv->i2c_timing_0,
-			       priv->regs + LTPI_I2C_TIMING_0 + (0x8 * i));
-			writel(priv->i2c_timing_1,
-			       priv->regs + LTPI_I2C_TIMING_1 + (0x8 * i));
+			if ((priv->i2c_tunneling >> i) & 0x1) {
+				writel(priv->i2c_timing_0,
+				       priv->regs + LTPI_I2C_TIMING_0 + (0x8 * i));
+				writel(priv->i2c_timing_1,
+				       priv->regs + LTPI_I2C_TIMING_1 + (0x8 * i));
+			}
 		}
 	}
 
