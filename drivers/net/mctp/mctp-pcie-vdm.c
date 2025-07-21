@@ -406,7 +406,7 @@ static void mctp_pcie_vdm_rx_work_handler(struct work_struct *work)
 		stats = &vdm_dev->ndev->stats;
 		len = vdm_hdr->length * sizeof(u32) -
 				vdm_hdr->tag_pad_len;
-		len += MCTP_PCIE_VDM_HDR_SIZE;
+		len += (MCTP_PCIE_VDM_HDR_SIZE - sizeof(struct mctp_pcie_vdm_hdr));
 		skb = netdev_alloc_skb(vdm_dev->ndev, len);
 		pr_debug("%s: received packet size: %d\n", __func__,
 			 len);
@@ -419,9 +419,7 @@ static void mctp_pcie_vdm_rx_work_handler(struct work_struct *work)
 
 		skb->protocol = htons(ETH_P_MCTP);
 		/* put data into tail sk buff */
-		skb_put_data(skb, packet, len);
-		/* remove first 12bytes PCIe VDM header */
-		skb_pull(skb, sizeof(struct mctp_pcie_vdm_hdr));
+		skb_put_data(skb, &packet[sizeof(struct mctp_pcie_vdm_hdr)], len);
 		mctp_pcie_vdm_display_skb_buff_data(skb);
 
 		cb = __mctp_cb(skb);
@@ -431,7 +429,7 @@ static void mctp_pcie_vdm_rx_work_handler(struct work_struct *work)
 		net_status = netif_rx(skb);
 		if (net_status == NET_RX_SUCCESS) {
 			stats->rx_packets++;
-			stats->rx_bytes += (len - sizeof(struct mctp_pcie_vdm_hdr));
+			stats->rx_bytes += len;
 		} else {
 			stats->rx_dropped++;
 		}
@@ -486,10 +484,9 @@ static void mctp_pcie_vdm_uninit(struct net_device *ndev)
 	struct hlist_node *tmp;
 	int bkt;
 
-	pr_debug("%s: uninitializing vdm_dev %s\n", __func__,
-		 vdm_dev->ndev->name);
-
 	vdm_dev = netdev_priv(ndev);
+	pr_info("%s: uninitializing vdm_dev %s\n", __func__,
+		vdm_dev->ndev->name);
 	vdm_dev->callback_ops->uninit(vdm_dev->dev);
 
 	hash_for_each_safe(vdm_dev->route_table, bkt, tmp, route, hnode) {
