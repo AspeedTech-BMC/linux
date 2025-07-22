@@ -48,10 +48,10 @@ static irqreturn_t ast2700_mbox_irq(int irq, void *p)
 {
 	struct ast2700_mbox *mb = p;
 	void __iomem *data_reg;
-	int num_words;
+	int num_words = mb->msg_size / sizeof(u32);
 	u32 *word_data;
 	u32 status;
-	int n;
+	int n, i;
 
 	/* Only examine channels that are currently enabled. */
 	status = readl(mb->rx_regs + IPCR_ENABLE) &
@@ -66,13 +66,11 @@ static irqreturn_t ast2700_mbox_irq(int irq, void *p)
 		if (!(status & RX_IRQ(n)))
 			continue;
 
+		data_reg = mb->rx_regs + IPCR_DATA + mb->msg_size * n;
+		word_data = chan->con_priv;
 		/* Read the message data */
-		for (data_reg = mb->rx_regs + IPCR_DATA + mb->msg_size * n,
-		     word_data = chan->con_priv,
-		     num_words = (mb->msg_size / sizeof(u32));
-		     num_words;
-		     num_words--, data_reg += sizeof(u32), word_data++)
-			*word_data = readl(data_reg);
+		for (i = 0; i < num_words; i++)
+			word_data[i] = readl(data_reg + i * sizeof(u32));
 
 		mbox_chan_received_data(chan, chan->con_priv);
 
@@ -86,10 +84,11 @@ static irqreturn_t ast2700_mbox_irq(int irq, void *p)
 static int ast2700_mbox_send_data(struct mbox_chan *chan, void *data)
 {
 	struct ast2700_mbox *mb = dev_get_drvdata(chan->mbox->dev);
-	void __iomem *data_reg;
-	u32 *word_data;
-	int num_words;
 	int idx = ch_num(chan);
+	void __iomem *data_reg = mb->tx_regs + IPCR_DATA + mb->msg_size * idx;
+	u32 *word_data = data;
+	int num_words = mb->msg_size / sizeof(u32);
+	int i;
 
 	if (!(readl(mb->tx_regs + IPCR_ENABLE) & BIT(idx))) {
 		dev_warn(mb->mbox.dev, "%s: Ch-%d not enabled yet\n", __func__, idx);
@@ -102,12 +101,8 @@ static int ast2700_mbox_send_data(struct mbox_chan *chan, void *data)
 	}
 
 	/* Write the message data */
-	for (data_reg = mb->tx_regs + IPCR_DATA + mb->msg_size * idx,
-	     word_data = (u32 *)data,
-	     num_words = (mb->msg_size / sizeof(u32));
-	     num_words;
-	     num_words--, data_reg += sizeof(u32), word_data++)
-		writel(*word_data, data_reg);
+	for (i = 0 ; i < num_words; i++)
+		writel(word_data[i], data_reg + i * sizeof(u32));
 
 	writel(BIT(idx), mb->tx_regs + IPCR_TX_TRIG);
 	dev_dbg(mb->mbox.dev, "%s: Ch-%d sent\n", __func__, idx);
