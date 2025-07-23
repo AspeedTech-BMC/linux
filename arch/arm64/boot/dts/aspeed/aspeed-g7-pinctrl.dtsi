@@ -1029,10 +1029,31 @@
 		groups = "SALT15";
 	};
 
+	pinctrl_ltpipsi2c0_default: ltpipsi2c0_default {
+		function = "I2C0";
+		groups = "LTPI_PS_I2C0";
+	};
+
+	pinctrl_ltpipsi2c1_default: ltpipsi2c1_default {
+		function = "I2C1";
+		groups = "LTPI_PS_I2C1";
+	};
+
+	pinctrl_ltpipsi2c2_default: ltpipsi2c2_default {
+		function = "I2C2";
+		groups = "LTPI_PS_I2C2";
+	};
+
+	pinctrl_ltpipsi2c3_default: ltpipsi2c3_default {
+		function = "I2C3";
+		groups = "LTPI_PS_I2C3";
+	};
+
 	pinctrl_can_default: can-default {
 		function = "CANBUS";
 		groups = "CANBUS";
 	};
+
 	pinctrl_di2c0_default: di2c0-default {
 		function = "I2C0";
 		groups = "DI2C0";
