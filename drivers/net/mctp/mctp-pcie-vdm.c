@@ -54,9 +54,6 @@
 #define MCTP_PCIE_VDM_MSG_TYPE 0x7E
 #define MCTP_CONTROL_MSG_TYPE 0x00
 
-#define MCTP_CTRL_MSG_RQDI_REQ 0x80
-#define MCTP_CTRL_MSG_RQDI_RSP 0x00
-
 #define MCTP_CTRL_MSG_RQDI_REQ_DATA_OFFSET 3
 #define MCTP_CTRL_MSG_RQDI_RSP_DATA_OFFSET 4
 
@@ -92,7 +89,7 @@ enum mctp_ctrl_command_code {
 };
 
 struct mctp_ctrl_msg_hdr {
-	u8 ctrl_msg_class;
+	u8 instanceID : 5, rsvd : 1, datagram : 1, rq : 1;
 	u8 command_code;
 };
 
@@ -209,7 +206,7 @@ static void mctp_pcie_vdm_ctrl_msg_handler(struct mctp_pcie_vdm_dev *vdm_dev,
 
 	switch (ctrl_hdr->command_code) {
 	case MCTP_CTRL_CMD_SET_ENDPOINT_ID:
-		if (ctrl_hdr->ctrl_msg_class == MCTP_CTRL_MSG_RQDI_REQ) {
+		if ((ctrl_hdr->rq == 1) && (ctrl_hdr->datagram == 0)) {
 			/* EID placed at byte2 of SET EID REQ DATA */
 			u8 dst_eid =
 				packet[MCTP_PCIE_VDM_HDR_SIZE +
@@ -221,7 +218,7 @@ static void mctp_pcie_vdm_ctrl_msg_handler(struct mctp_pcie_vdm_dev *vdm_dev,
 		}
 		break;
 	case MCTP_CTRL_CMD_GET_ENDPOINT_ID:
-		if (ctrl_hdr->ctrl_msg_class == MCTP_CTRL_MSG_RQDI_RSP) {
+		if ((ctrl_hdr->rq == 0) && (ctrl_hdr->datagram == 0)) {
 			/* EID placed at byte2 of GET EID RSP DATA */
 			u8 target_eid =
 				packet[MCTP_PCIE_VDM_HDR_SIZE +
@@ -235,18 +232,18 @@ static void mctp_pcie_vdm_ctrl_msg_handler(struct mctp_pcie_vdm_dev *vdm_dev,
 	case MCTP_CTRL_CMD_DISCOVERY_NOTIFY:
 		hdr->pci_target_id = 0x0000;
 		/* default use MCTP_PCIE_VDM_ROUTE_BY_ID, so no need to handle RSP class */
-		if (ctrl_hdr->ctrl_msg_class == MCTP_CTRL_MSG_RQDI_REQ) {
+		if ((ctrl_hdr->rq == 1) && (ctrl_hdr->datagram == 0)) {
 			hdr->route_type = MCTP_PCIE_VDM_TYPE_MSG |
 					  MCTP_PCIE_VDM_ROUTE_TO_RC;
 		}
 		break;
 	case MCTP_CTRL_CMD_PREPARE_ENDPOINT_DISCOVERY:
 	case MCTP_CTRL_CMD_ENDPOINT_DISCOVERY:
-		if (ctrl_hdr->ctrl_msg_class == MCTP_CTRL_MSG_RQDI_REQ) {
+		if ((ctrl_hdr->rq == 1) && (ctrl_hdr->datagram == 0)) {
 			hdr->route_type = MCTP_PCIE_VDM_TYPE_MSG |
 					  MCTP_PCIE_VDM_BROADCAST_FROM_RC;
 			hdr->pci_target_id = 0xFFFF;
-		} else if (ctrl_hdr->ctrl_msg_class == MCTP_CTRL_MSG_RQDI_RSP) {
+		} else if ((ctrl_hdr->rq == 0) && (ctrl_hdr->datagram == 0)) {
 			hdr->route_type = MCTP_PCIE_VDM_TYPE_MSG |
 					  MCTP_PCIE_VDM_ROUTE_TO_RC;
 		}
