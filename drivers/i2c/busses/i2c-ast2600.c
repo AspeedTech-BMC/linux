@@ -337,6 +337,7 @@ struct ast2600_i2c_bus {
 	struct i2c_client		*ara;
 #if IS_ENABLED(CONFIG_I2C_SLAVE)
 	int				slave_operate;
+	int				previous_idx;
 	unsigned char			*slave_dma_buf;
 	dma_addr_t			slave_dma_addr;
 	u8 slave_attached;
@@ -1249,10 +1250,17 @@ static void ast2600_i2c_slave_packet_buff_irq(struct ast2600_i2c_bus *i2c_bus, u
 		break;
 	/* the pending slave needs to be cleared with TX_NAK and STOP here */
 	/* other flags will be handled in the next irq callback */
+	/* the slave index will be updated when the slave match occurs */
+	/* use the pervious idx to do the slave stop event */
 	case AST2600_I2CS_SLAVE_PENDING | AST2600_I2CS_TX_NAK | AST2600_I2CS_STOP |
 		AST2600_I2CS_SLAVE_MATCH | AST2600_I2CS_RX_DONE:
 	case AST2600_I2CS_SLAVE_PENDING | AST2600_I2CS_TX_NAK | AST2600_I2CS_STOP |
 		AST2600_I2CS_SLAVE_MATCH | AST2600_I2CS_RX_DONE | AST2600_I2CS_WAIT_RX_DMA:
+		cmd = SLAVE_TRIGGER_CMD;
+		i2c_bus->slave = i2c_bus->multi_slave[i2c_bus->previous_idx];
+		i2c_slave_event(i2c_bus->slave, I2C_SLAVE_STOP, &value);
+		i2c_bus->slave_operate = 0;
+		break;
 	case AST2600_I2CS_TX_NAK | AST2600_I2CS_STOP:
 	case AST2600_I2CS_STOP:
 		cmd = SLAVE_TRIGGER_CMD;
@@ -1271,6 +1279,8 @@ static void ast2600_i2c_slave_packet_buff_irq(struct ast2600_i2c_bus *i2c_bus, u
 
 	if ((sts & AST2600_I2CS_STOP) && !(sts & AST2600_I2CS_SLAVE_PENDING))
 		i2c_bus->slave_operate = 0;
+	else
+		i2c_bus->previous_idx = AST2600_I2CS_GET_SLAVE(sts);
 }
 
 static void ast2600_i2c_slave_byte_irq(struct ast2600_i2c_bus *i2c_bus, u32 sts)
