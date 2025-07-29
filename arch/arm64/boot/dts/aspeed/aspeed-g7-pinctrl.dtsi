@@ -1029,22 +1029,22 @@
 	};
 
 	pinctrl_ltpipsi2c0_default: ltpipsi2c0_default {
-		function = "I2C0";
+		function = "LTPI_PS_I2C0";
 		groups = "LTPI_PS_I2C0";
 	};
 
 	pinctrl_ltpipsi2c1_default: ltpipsi2c1_default {
-		function = "I2C1";
+		function = "LTPI_PS_I2C1";
 		groups = "LTPI_PS_I2C1";
 	};
 
 	pinctrl_ltpipsi2c2_default: ltpipsi2c2_default {
-		function = "I2C2";
+		function = "LTPI_PS_I2C2";
 		groups = "LTPI_PS_I2C2";
 	};
 
 	pinctrl_ltpipsi2c3_default: ltpipsi2c3_default {
-		function = "I2C3";
+		function = "LTPI_PS_I2C3";
 		groups = "LTPI_PS_I2C3";
 	};
 
