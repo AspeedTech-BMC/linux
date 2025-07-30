@@ -653,6 +653,31 @@ static void i3c_hub_agent_ibi(struct i3c_hub_smbus_agent *agent)
 #endif
 }
 
+static int i3c_hub_reset_smbus_agent(struct i3c_hub_smbus_agent *agent)
+{
+	struct i3c_hub *hub = agent->hub;
+	int ret;
+	unsigned int val;
+
+	i3c_hub_unprotect_register(hub);
+
+	ret = regmap_read(hub->regmap, HUB_REG_TP_SMBUS_AGNT_EN, &val);
+	if (ret)
+		goto err_exit;
+	ret = regmap_write(hub->regmap, HUB_REG_TP_SMBUS_AGNT_EN, val & ~agent->port_mask);
+	if (ret)
+		goto err_exit;
+	ret = regmap_write(hub->regmap, HUB_REG_TP_SMBUS_AGNT_EN, val);
+	if (ret)
+		goto err_exit;
+
+err_exit:
+	if (ret)
+		dev_err(&hub->i3cdev->dev, "Failed to reset smbus agent:%d\n", ret);
+	i3c_hub_protect_register(hub);
+	return ret;
+}
+
 static u8 tx_clk_to_type(u32 clk)
 {
 	u8 type;
@@ -741,6 +766,8 @@ static int i3c_hub_agent_i2c_xfer_one(struct i3c_hub_smbus_agent *agent,
 		}
 	}
 
+	reinit_completion(&agent->completion);
+
 	/* start transfer */
 	ret = regmap_write(hub->regmap, HUB_REG_TP_SMBUS_AGNT_TRANS_START, port_bit);
 	if (ret) {
@@ -757,6 +784,7 @@ static int i3c_hub_agent_i2c_xfer_one(struct i3c_hub_smbus_agent *agent,
 	wait_time = wait_for_completion_timeout(&agent->completion,
 						agent->i2c.timeout);
 	if (!wait_time) {
+		i3c_hub_reset_smbus_agent(agent);
 		dev_err(&hub->i3cdev->dev, "tx timeout!\n");
 		ret = -ETIMEDOUT;
 		goto exit;
@@ -928,10 +956,19 @@ static int smbus_agent_sync_next_buf_idx(struct i3c_hub_smbus_agent *agent, u32 
 	unsigned int stat, rx_done;
 	int ret;
 	int i = 0;
+	unsigned int pullup;
+
+	ret = regmap_read(hub->regmap, HUB_REG_TP_PULLUP_EN, &pullup);
+	if (ret)
+		return ret;
+
+	ret = regmap_write(hub->regmap, HUB_REG_TP_PULLUP_EN, pullup | agent->port_mask);
+	if (ret)
+		goto err_recover;
 
 	ret = regmap_set_bits(hub->regmap, HUB_REG_ONCHIP_TD_AND_SMBUS_AGNT_CONF, 0x1);
 	if (ret)
-		return ret;
+		goto err_recover;
 
 	stat_reg = HUB_REG_TP_SMBUS_AGNT_STS(agent->port_nr);
 	page = HUB_PAGE_AGENT_TX(agent->port_nr);
@@ -978,6 +1015,7 @@ static int smbus_agent_sync_next_buf_idx(struct i3c_hub_smbus_agent *agent, u32 
 	ret = 0;
 
 err_recover:
+	regmap_write(hub->regmap, HUB_REG_TP_PULLUP_EN, pullup);
 	regmap_write(hub->regmap, stat_reg, 0x0f);
 	regmap_clear_bits(hub->regmap, HUB_REG_ONCHIP_TD_AND_SMBUS_AGNT_CONF, 0x1);
 	return ret;
