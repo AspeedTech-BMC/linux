@@ -1946,14 +1946,14 @@
 			status = "disabled";
 		};
 
-		rtc_over_espi0: rtc-over_espi0@14c3d000 {
+		rtc_over_espi0: rtc-over_espi@14c3d000 {
 			compatible = "aspeed,ast2700-rtc-over-espi";
 			reg = <0x0 0x14c3d000 0x0 0x100>;
 			interval-ms = <1000>;
 			status = "disabled";
 		};
 
-		rtc_over_espi1: rtc-over_espi1@14c3d000 {
+		rtc_over_espi1: rtc-over_espi@14c3d100 {
 			compatible = "aspeed,ast2700-rtc-over-espi";
 			reg = <0x0 0x14c3d100 0x0 0x100>;
 			interval-ms = <1000>;
