@@ -688,7 +688,8 @@ static int aspeed_jtag_shctrl_tms_mask(enum jtag_tapstate from,
 static void aspeed_jtag_set_tap_state_hw2(struct aspeed_jtag *aspeed_jtag,
 					  struct jtag_tap_state *tapstate)
 {
-	u32 reg_val;
+	u32 reg_val, execute_tck;
+	u32 tck = tapstate->tck;
 
 	/* x TMS high + 1 TMS low */
 	if (tapstate->reset || tapstate->endstate == JTAG_STATE_TLRESET) {
@@ -712,7 +713,8 @@ static void aspeed_jtag_set_tap_state_hw2(struct aspeed_jtag *aspeed_jtag,
 					  tapstate->endstate);
 	}
 	/* Run TCK */
-	if (tapstate->tck) {
+	while (tck) {
+		execute_tck = tck > GENMASK(9, 0) ? GENMASK(9, 0) : tck;
 		/* Disable sw mode */
 		aspeed_jtag_write(aspeed_jtag, 0, ASPEED_JTAG_SW);
 		aspeed_jtag_write(aspeed_jtag, 0, ASPEED_JTAG_PADCTRL0);
@@ -721,14 +723,15 @@ static void aspeed_jtag_set_tap_state_hw2(struct aspeed_jtag *aspeed_jtag,
 		aspeed_jtag_write(aspeed_jtag,
 				  reg_val | ASPEED_JTAG_GBLCTRL_FIFO_CTRL_MODE |
 					  ASPEED_JTAG_GBLCTRL_STSHIFT(0) |
-					  ASPEED_JTAG_GBLCTRL_UPDT_SHIFT(tapstate->tck),
+					  ASPEED_JTAG_GBLCTRL_UPDT_SHIFT(execute_tck),
 				  ASPEED_JTAG_GBLCTRL);
 
 		aspeed_jtag_write(aspeed_jtag,
 				  ASPEED_JTAG_SHCTRL_STSHIFT_EN |
-					  ASPEED_JTAG_SHCTRL_LWRDT_SHIFT(tapstate->tck),
+					  ASPEED_JTAG_SHCTRL_LWRDT_SHIFT(execute_tck),
 				  ASPEED_JTAG_SHCTRL);
 		aspeed_jtag_wait_shift_complete(aspeed_jtag);
+		tck -= execute_tck;
 	}
 }
 
