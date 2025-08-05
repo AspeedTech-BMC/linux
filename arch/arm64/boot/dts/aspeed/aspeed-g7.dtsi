@@ -829,8 +829,8 @@
 			#address-cells = <3>;
 			#size-cells = <2>;
 			bus-range = <0x00 0xff>;
-			ranges = <0x01000000 0 0x00000000 0x0 0x00000000 0x0 0x00008000>, /* I/O */
-				 <0x02000000 0 0x60000000 0x0 0x60000000 0x0 0x10000000>; /* memory */
+			ranges = <0x01000000 0x0 0x00000000 0x0 0x00000000 0x0 0x00008000>, /* I/O */
+				 <0x02000000 0x0 0x60000000 0x0 0x60000000 0x0 0x20000000>; /* memory */
 			interrupts = <GIC_SPI 56 IRQ_TYPE_LEVEL_HIGH>;
 			resets = <&syscon0 SCU0_RESET_H2X0>,
 				 <&syscon0 SCU0_RESET_PCIE0RST>;
@@ -870,7 +870,7 @@
 			#size-cells = <2>;
 			bus-range = <0x00 0xff>;
 			ranges = <0x01000000 0 0x00000000 0x0 0x00000000 0x0 0x00008000>,
-				 <0x02000000 0 0x80000000 0x0 0x80000000 0x0 0x10000000>; /* memory */
+				 <0x02000000 0 0x80000000 0x0 0x80000000 0x0 0x20000000>; /* memory */
 			interrupts = <GIC_SPI 57 IRQ_TYPE_LEVEL_HIGH>;
 			resets = <&syscon0 SCU0_RESET_H2X1>,
 				 <&syscon0 SCU0_RESET_PCIE1RST>;
@@ -2482,7 +2482,7 @@
 			#size-cells = <2>;
 			bus-range = <0x00 0xff>;
 			ranges = <0x01000000 0 0x00000000 0x0 0x00000000 0x0 0x00008000>,
-				 <0x02000000 0 0xa0000000 0x0 0xa0000000 0x0 0x10000000>; /* memory */
+				 <0x02000000 0 0xa0000000 0x0 0xa0000000 0x0 0x20000000>; /* memory */
 			interrupts-extended = <&intc1_4 31>;
 			resets = <&syscon1 SCU1_RESET_H2X>,
 				 <&syscon1 SCU1_RESET_PCIE2RST>;
