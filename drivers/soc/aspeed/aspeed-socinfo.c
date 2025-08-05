@@ -12,9 +12,7 @@
 static struct {
 	const char *name;
 	const u32 id;
-}
-
-const rev_table[] = {
+} const rev_table[] = {
 	/* AST2400 */
 	{ "AST2400", 0x02000303 },
 	{ "AST1400", 0x02010103 },
@@ -63,7 +61,7 @@ static const char *siliconid_to_rev(u32 siliconid)
 		case 3:
 			return "A2";
 		}
-	} else if (gen == 0x6) {
+	} else {
 		/* AST2600 */
 		switch (rev) {
 		case 0:
@@ -74,12 +72,6 @@ static const char *siliconid_to_rev(u32 siliconid)
 			return "A2";
 		case 3:
 			return "A3";
-		}
-	} else {
-		/* AST2700 */
-		switch (rev) {
-		case 0:
-			return "A0";
 		}
 	}
 
