@@ -237,6 +237,9 @@ static irqreturn_t aspeed_pcie_intr_handler(int irq, void *dev_id)
 		for (i = 0; i < 2; i++) {
 			status = readl(pcie->reg + platform->reg_msi_sts + (i * 4));
 			writel(status, pcie->reg + platform->reg_msi_sts + (i * 4));
+			/* Workaround: AST2700 MSI needs to cleat status twice */
+			if (of_device_is_compatible(pcie->dev->of_node, "aspeed,ast2700-pcie"))
+				writel(status, pcie->reg + platform->reg_msi_sts + (i * 4));
 			if (!status)
 				continue;
 
