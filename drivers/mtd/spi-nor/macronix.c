@@ -28,8 +28,28 @@ mx25l25635_post_bfpt_fixups(struct spi_nor *nor,
 	return 0;
 }
 
+static int macronix_post_sfdp_fixups(struct spi_nor *nor)
+{
+	struct spi_nor_flash_parameter *params = nor->params;
+
+	params->hwcaps.mask |= SNOR_HWCAPS_PP_1_1_4;
+	if (!!(nor->flags & (SNOR_F_4B_OPCODES | SNOR_F_HAS_4BAIT))) {
+		spi_nor_set_pp_settings(&params->page_programs[SNOR_CMD_PP_1_1_4],
+					SPINOR_OP_PP_1_1_4_4B, SNOR_PROTO_1_1_4);
+	} else {
+		spi_nor_set_pp_settings(&params->page_programs[SNOR_CMD_PP_1_1_4],
+					SPINOR_OP_PP_1_1_4, SNOR_PROTO_1_1_4);
+	}
+
+	return 0;
+}
+
 static const struct spi_nor_fixups mx25l25635_fixups = {
 	.post_bfpt = mx25l25635_post_bfpt_fixups,
+};
+
+static const struct spi_nor_fixups macronix_qspi_pp_fixups = {
+	.post_sfdp = macronix_post_sfdp_fixups,
 };
 
 static const struct flash_info macronix_nor_parts[] = {
