@@ -1038,12 +1038,13 @@ static long ast2700_espi_vw_ioctl(struct file *fp, unsigned int cmd, unsigned lo
 {
 	struct ast2700_espi_vw *vw;
 	struct ast2700_espi *espi;
-	uint64_t gpio;
+	uint32_t gpio0, gpio1;
 	uint32_t hw_mode;
 
 	vw = container_of(fp->private_data, struct ast2700_espi_vw, mdev);
 	espi = container_of(vw, struct ast2700_espi, vw);
-	gpio = ((uint64_t)vw->gpio.val1 << 32) | vw->gpio.val0;
+	gpio0 = vw->gpio.val0;
+	gpio1 = vw->gpio.val1;
 	hw_mode = vw->gpio.hw_mode;
 
 	if (hw_mode) {
@@ -1053,23 +1054,41 @@ static long ast2700_espi_vw_ioctl(struct file *fp, unsigned int cmd, unsigned lo
 
 	switch (cmd) {
 	case ASPEED_ESPI_VW_GET_GPIO_VAL:
-		if (put_user(gpio, (uint64_t __user *)arg)) {
-			dev_err(espi->dev, "failed to get vGPIO value\n");
+		if (put_user(gpio0, (uint32_t __user *)arg)) {
+			dev_err(espi->dev, "failed to get vGPIO value0\n");
 			return -EFAULT;
 		}
 
-		dev_info(espi->dev, "Get vGPIO value: 0x%llx\n", gpio);
+		dev_info(espi->dev, "Get vGPIO value0: 0x%x\n", gpio0);
 		break;
 
 	case ASPEED_ESPI_VW_PUT_GPIO_VAL:
-		if (get_user(gpio, (uint64_t __user *)arg)) {
-			dev_err(espi->dev, "failed to put vGPIO value\n");
+		if (get_user(gpio0, (uint32_t __user *)arg)) {
+			dev_err(espi->dev, "failed to put vGPIO value0\n");
 			return -EFAULT;
 		}
 
-		dev_info(espi->dev, "Put vGPIO value: 0x%llx\n", gpio);
-		writel(gpio >> 32, espi->regs + ESPI_CH1_GPIO_VAL1);
-		writel(gpio & 0xffffffff, espi->regs + ESPI_CH1_GPIO_VAL0);
+		dev_info(espi->dev, "Put vGPIO value0: 0x%x\n", gpio0);
+		writel(gpio0, espi->regs + ESPI_CH1_GPIO_VAL0);
+		break;
+
+	case ASPEED_ESPI_VW_GET_GPIO_VAL1:
+		if (put_user(gpio1, (uint32_t __user *)arg)) {
+			dev_err(espi->dev, "failed to get vGPIO value1\n");
+			return -EFAULT;
+		}
+
+		dev_info(espi->dev, "Get vGPIO value1: 0x%x\n", gpio1);
+		break;
+
+	case ASPEED_ESPI_VW_PUT_GPIO_VAL1:
+		if (get_user(gpio1, (uint32_t __user *)arg)) {
+			dev_err(espi->dev, "failed to put vGPIO value1\n");
+			return -EFAULT;
+		}
+
+		dev_info(espi->dev, "Put vGPIO value1: 0x%x\n", gpio1);
+		writel(gpio1, espi->regs + ESPI_CH1_GPIO_VAL1);
 		break;
 
 	default:
