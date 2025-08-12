@@ -167,9 +167,9 @@ struct aspeed_espi_ioc {
  *      Write the output value of GPIO over the VW channel
  */
 #define ASPEED_ESPI_VW_GET_GPIO_VAL	_IOR(__ASPEED_ESPI_IOCTL_MAGIC, \
-					     0x10, uint8_t)
+					     0x10, uint32_t)
 #define ASPEED_ESPI_VW_PUT_GPIO_VAL	_IOW(__ASPEED_ESPI_IOCTL_MAGIC, \
-					     0x11, uint8_t)
+					     0x11, uint32_t)
 /*
  * Out-of-band Channel (CH2)
  *  - ASPEED_ESPI_OOB_GET_RX
