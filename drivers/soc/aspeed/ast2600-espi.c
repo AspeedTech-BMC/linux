@@ -968,23 +968,38 @@ static long ast2600_espi_vw_ioctl(struct file *fp, unsigned int cmd, unsigned lo
 {
 	struct ast2600_espi_vw *vw;
 	struct ast2600_espi *espi;
-	uint32_t gpio;
+	uint32_t gpio, hw_mode;
 
 	vw = container_of(fp->private_data, struct ast2600_espi_vw, mdev);
 	espi = container_of(vw, struct ast2600_espi, vw);
 	gpio = vw->gpio.val;
+	hw_mode = vw->gpio.hw_mode;
+
+	if (hw_mode) {
+		dev_err(espi->dev, "HW mode: vGPIO reflect on physical GPIO. Get state from GPIO driver.\n");
+		return -EFAULT;
+	}
 
 	switch (cmd) {
 	case ASPEED_ESPI_VW_GET_GPIO_VAL:
-		if (put_user(gpio, (uint32_t __user *)arg))
+		if (put_user(gpio, (uint32_t __user *)arg)) {
+			dev_err(espi->dev, "failed to get vGPIO value\n");
 			return -EFAULT;
-		break;
-	case ASPEED_ESPI_VW_PUT_GPIO_VAL:
-		if (get_user(gpio, (uint32_t __user *)arg))
-			return -EFAULT;
+		}
 
+		dev_info(espi->dev, "Get vGPIO value: 0x%x\n", gpio);
+		break;
+
+	case ASPEED_ESPI_VW_PUT_GPIO_VAL:
+		if (get_user(gpio, (uint32_t __user *)arg)) {
+			dev_err(espi->dev, "failed to put vGPIO value\n");
+			return -EFAULT;
+		}
+
+		dev_info(espi->dev, "Put vGPIO value: 0x%x\n", gpio);
 		writel(gpio, espi->regs + ESPI_VW_GPIO_VAL);
 		break;
+
 	default:
 		return -EINVAL;
 	};
