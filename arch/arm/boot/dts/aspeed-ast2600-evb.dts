@@ -802,10 +802,17 @@
 	flash-dma-mode;
 };
 
+#if 1
 &lpc_snoop {
 	status = "okay";
 	snoop-ports = <0x80>;
 };
+#else
+&lpc_pcc {
+	status = "okay";
+	pcc-ports = <0x80>;
+};
+#endif
 
 &ibt {
 	status = "okay";
