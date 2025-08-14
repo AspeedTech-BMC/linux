@@ -992,10 +992,17 @@ spd_ ## bus ## _ ## index: spd@addr,4cc5118 ## index ## 000 { \
 };
 #endif
 
+#if 1
 &lpc_snoop {
 	status = "okay";
 	snoop-ports = <0x80>;
 };
+#else
+&lpc_pcc {
+	status = "okay";
+	pcc-ports = <0x80>;
+};
+#endif
 
 &ibt {
 	status = "okay";
