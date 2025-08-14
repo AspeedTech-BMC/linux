@@ -27,12 +27,16 @@
 #define VUART_GCRA	0x20
 #define   VUART_GCRA_VUART_EN			BIT(0)
 #define   VUART_GCRA_SIRQ_POLARITY		BIT(1)
+#define   VUART_GCRA_CHARACTER_TIMEOUT_TIME_MASK	GENMASK(3, 2)
+#define   VUART_GCRA_CHARACTER_TIMEOUT_TIME_SHIFT	2
 #define   VUART_GCRA_DISABLE_HOST_TX_DISCARD	BIT(5)
 #define VUART_GCRB	0x24
 #define   VUART_GCRB_HOST_SIRQ_MASK		GENMASK(7, 4)
 #define   VUART_GCRB_HOST_SIRQ_SHIFT		4
 #define VUART_ADDRL	0x28
 #define VUART_ADDRH	0x2c
+#define VUART_GCRG	0x38
+#define   VUART_GCRG_CHARACTER_TIMEOUT_TIME_CONTROL	BIT(1)
 
 #define DMA_TX_BUFSZ	PAGE_SIZE
 #define DMA_RX_BUFSZ	(64 * 1024)
@@ -43,6 +47,8 @@ struct ast8250_vuart {
 	u32 port;
 	u32 sirq;
 	u32 sirq_pol;
+	bool character_timeout_time_en;
+	u32 character_timeout_time;
 };
 
 struct ast8250_udma {
@@ -179,6 +185,21 @@ static void ast8250_vuart_init(struct ast8250_data *data)
 	else
 		reg &= ~VUART_GCRA_SIRQ_POLARITY;
 	writeb(reg, data->regs + VUART_GCRA);
+
+	if (vuart->character_timeout_time_en) {
+		/* Character timeout time */
+		reg = readb(data->regs + VUART_GCRA);
+		reg &= ~VUART_GCRA_CHARACTER_TIMEOUT_TIME_MASK;
+		reg |= ((vuart->character_timeout_time
+			 << VUART_GCRA_CHARACTER_TIMEOUT_TIME_SHIFT) &
+			VUART_GCRA_CHARACTER_TIMEOUT_TIME_MASK);
+		writeb(reg, data->regs + VUART_GCRA);
+
+		/* Character timeout time by LCLK control bit */
+		reg = readb(data->regs + VUART_GCRG);
+		reg |= VUART_GCRG_CHARACTER_TIMEOUT_TIME_CONTROL;
+		writeb(reg, data->regs + VUART_GCRG);
+	}
 }
 
 static void ast8250_vuart_set_host_tx_discard(struct ast8250_data *data, bool discard)
@@ -417,6 +438,14 @@ static int ast8250_probe(struct platform_device *pdev)
 		if (rc) {
 			dev_err(dev, "failed to get VUART SIRQ polarity\n");
 			return -ENODEV;
+		}
+
+		rc = of_property_read_u32(dev->of_node, "character-timeout-time", &data->vuart.character_timeout_time);
+		if (rc) {
+			dev_info(dev, "use default VUART character timeout time setting\n");
+			data->vuart.character_timeout_time_en = false;
+		} else {
+			data->vuart.character_timeout_time_en = true;
 		}
 
 		ast8250_vuart_init(data);
