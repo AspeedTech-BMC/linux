@@ -255,6 +255,14 @@
 	status = "okay";
 };
 
+&vuart1 {
+	virtual;
+	port = <0x3f8>;
+	sirq = <4>;
+	sirq-polarity = <0>;
+	status = "okay";
+};
+
 &adc0 {
 	aspeed,int-vref-microvolt = <2500000>;
 	status = "okay";
