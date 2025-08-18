@@ -117,6 +117,8 @@
 #define PORT_TYPE_ROOT			BIT(2)
 #define PEHR_MISC_70		0x70
 #define PEHR_MISC_78		0x78
+#define PEHR_MISC_1B8		0x1B8
+#define SW_ATT_BTN			BIT(0)
 #define PEHR_MISC_344		0x344
 #define LINK_STATUS_GEN2		BIT(18)
 #define PEHR_MISC_358		0x358
@@ -580,11 +582,6 @@ static int aspeed_ast2700_rd_conf(struct pci_bus *bus, unsigned int devfn,
 		break;
 	}
 
-	if (IS_ENABLED(CONFIG_HOTPLUG_PCI_PCIE)) {
-		if (where == (0x80 + PCI_EXP_SLTSTA) && bus->number == 0 && pcie->hotplug_event)
-			*val |= PCI_EXP_SLTSTA_ABP;
-	}
-
 	writel(status, pcie->reg + H2X_CFGE_INT_STS);
 	pcie->tx_tag++;
 	return PCIBIOS_SUCCESSFUL;
@@ -622,14 +619,6 @@ static int aspeed_ast2700_wr_conf(struct pci_bus *bus, unsigned int devfn,
 	}
 
 	if (bus->number == 0) {
-		if (IS_ENABLED(CONFIG_HOTPLUG_PCI_PCIE)) {
-			if (where == (0x80 + PCI_EXP_SLTSTA) && pcie->hotplug_event &&
-			    (val & (PCI_EXP_SLTSTA_ABP << 16))) {
-				pcie->hotplug_event = 0;
-				return PCIBIOS_SUCCESSFUL;
-			}
-		}
-
 		/* Internal access to bridge */
 		writel(0x100000 | byte_en << 16 | (where & ~3), pcie->reg + H2X_CFGI_TLP);
 		writel(val, pcie->reg + H2X_CFGI_WR_DATA);
@@ -890,6 +879,11 @@ static ssize_t hotplug_store(struct device *dev, struct device_attribute *attr,
 	struct aspeed_pcie *pcie = dev_get_drvdata(dev);
 
 	pcie->hotplug_event = 1;
+
+	if (of_device_is_compatible(pcie->dev->of_node, "aspeed,ast2700-pcie")) {
+		regmap_write_bits(pcie->pciephy, PEHR_MISC_1B8, SW_ATT_BTN, SW_ATT_BTN);
+		regmap_clear_bits(pcie->pciephy, PEHR_MISC_1B8, SW_ATT_BTN);
+	}
 
 	return len;
 }
