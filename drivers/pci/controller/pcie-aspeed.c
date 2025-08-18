@@ -38,7 +38,7 @@
 #define PEHR_MISC_14		0x14
 #define HOTPLUG_CAPABLE_ENABLE		BIT(6)
 #define HOTPLUG_SURPRISE_ENABLE		BIT(5)
-#define ATTENTION_BUTTON_ENALBE		BIT(0)
+#define ATTENTION_BUTTON_ENABLE		BIT(0)
 #define PEHR_GLOBAL		0x30
 #define RC_SYNC_RESET_DISABLE		BIT(20)
 #define PCIE_RC_SLOT_ENABLE		BIT(1)
@@ -104,6 +104,11 @@
 
 /* AST2700 PEHR */
 #define PEHR_VID_DID		0x00
+#define PEHR_MISC_44		0x44
+#define ENABLE_SLOT_CAP			BIT(12)
+#define PEHR_MISC_38		0x38
+#define DATALINK_REPORT_CAP		BIT(20)
+#define PEHR_MISC_3C		0x3C
 #define PEHR_MISC_58		0x58
 #define LOCAL_SCALE_SUP			BIT(0)
 #define PEHR_MISC_5C		0x5C
@@ -386,11 +391,15 @@ static int aspeed_ast2600_rd_conf(struct pci_bus *bus, unsigned int devfn,
 		break;
 	}
 
-#ifdef CONFIG_HOTPLUG_PCI
-	if (where == 0x9a && bus->number == 128 && (PCI_SLOT(devfn) == 0x8) &&
-	    (PCI_FUNC(devfn) == 0x0) && pcie->hotplug_event)
-		*val |= PCI_EXP_SLTSTA_ABP;
-#endif
+	if (IS_ENABLED(CONFIG_HOTPLUG_PCI_PCIE)) {
+		if (where == (0x80 + PCI_EXP_SLTSTA) &&
+		    bus->number == 128 &&
+		    PCI_SLOT(devfn) == 0x8 &&
+		    PCI_FUNC(devfn) == 0x0 &&
+		    pcie->hotplug_event)
+			*val |= PCI_EXP_SLTSTA_ABP;
+	}
+
 	ret = PCIBIOS_SUCCESSFUL;
 out:
 	writel(readl(pcie->reg + H2X_DEV_STS), pcie->reg + H2X_DEV_STS);
@@ -409,14 +418,17 @@ static int aspeed_ast2600_wr_conf(struct pci_bus *bus, unsigned int devfn,
 	u32 isr, cfg_val;
 	int ret;
 
-#ifdef CONFIG_HOTPLUG_PCI
-	if (where == 0x9a && bus->number == 128 && (PCI_SLOT(devfn) == 0x8) &&
-	    (PCI_FUNC(devfn) == 0x0) && pcie->hotplug_event &&
-	    (val & PCI_EXP_SLTSTA_ABP)) {
-		pcie->hotplug_event = 0;
-		return PCIBIOS_SUCCESSFUL;
+	if (IS_ENABLED(CONFIG_HOTPLUG_PCI_PCIE)) {
+		if (where == (0x80 + PCI_EXP_SLTSTA) &&
+		    bus->number == 128 &&
+		    PCI_SLOT(devfn) == 0x8 &&
+		    PCI_FUNC(devfn) == 0x0 &&
+		    pcie->hotplug_event &&
+		    (val & PCI_EXP_SLTSTA_ABP)) {
+			pcie->hotplug_event = 0;
+			return PCIBIOS_SUCCESSFUL;
+		}
 	}
-#endif
 
 	/* Driver may set unlock RX buffere before triggering next TX config */
 	writel(PCIE_UNLOCK_RX_BUFF | readl(pcie->reg + H2X_DEV_CTRL),
@@ -568,6 +580,11 @@ static int aspeed_ast2700_rd_conf(struct pci_bus *bus, unsigned int devfn,
 		break;
 	}
 
+	if (IS_ENABLED(CONFIG_HOTPLUG_PCI_PCIE)) {
+		if (where == (0x80 + PCI_EXP_SLTSTA) && bus->number == 0 && pcie->hotplug_event)
+			*val |= PCI_EXP_SLTSTA_ABP;
+	}
+
 	writel(status, pcie->reg + H2X_CFGE_INT_STS);
 	pcie->tx_tag++;
 	return PCIBIOS_SUCCESSFUL;
@@ -605,6 +622,14 @@ static int aspeed_ast2700_wr_conf(struct pci_bus *bus, unsigned int devfn,
 	}
 
 	if (bus->number == 0) {
+		if (IS_ENABLED(CONFIG_HOTPLUG_PCI_PCIE)) {
+			if (where == (0x80 + PCI_EXP_SLTSTA) && pcie->hotplug_event &&
+			    (val & (PCI_EXP_SLTSTA_ABP << 16))) {
+				pcie->hotplug_event = 0;
+				return PCIBIOS_SUCCESSFUL;
+			}
+		}
+
 		/* Internal access to bridge */
 		writel(0x100000 | byte_en << 16 | (where & ~3), pcie->reg + H2X_CFGI_TLP);
 		writel(val, pcie->reg + H2X_CFGI_WR_DATA);
@@ -824,17 +849,18 @@ static void aspeed_pcie_port_init(struct aspeed_pcie *pcie)
 	u32 link_sts = 0;
 
 	regmap_write(pcie->pciephy, PEHR_LOCK, PCIE_UNLOCK);
-#ifdef CONFIG_HOTPLUG_PCI
-	regmap_write(pcie->pciephy, PEHR_GLOBAL,
-		     RC_SYNC_RESET_DISABLE | ROOT_COMPLEX_ID(0x3) |
-			     PCIE_RC_SLOT_ENABLE);
-	regmap_write(pcie->pciephy, PEHR_MISC_10, 0xd7040022 | DATALINK_REPORT_CAPABLE);
-	regmap_write(pcie->pciephy, PEHR_MISC_14,
-		     HOTPLUG_CAPABLE_ENABLE | HOTPLUG_SURPRISE_ENABLE |
-			     ATTENTION_BUTTON_ENALBE);
-#else
-	regmap_write(pcie->pciephy, PEHR_GLOBAL, ROOT_COMPLEX_ID(0x3));
-#endif
+
+	if (IS_ENABLED(CONFIG_HOTPLUG_PCI_PCIE)) {
+		regmap_write(pcie->pciephy, PEHR_GLOBAL,
+			     RC_SYNC_RESET_DISABLE | ROOT_COMPLEX_ID(0x3) | PCIE_RC_SLOT_ENABLE);
+		regmap_write(pcie->pciephy, PEHR_MISC_10, 0xd7040022 | DATALINK_REPORT_CAPABLE);
+		regmap_write(pcie->pciephy, PEHR_MISC_14,
+			     HOTPLUG_CAPABLE_ENABLE | HOTPLUG_SURPRISE_ENABLE |
+			     ATTENTION_BUTTON_ENABLE);
+	} else {
+		regmap_write(pcie->pciephy, PEHR_GLOBAL, ROOT_COMPLEX_ID(0x3));
+	}
+
 	if (pcie->perst_rc_out) {
 		mdelay(100);
 		gpiod_set_value(pcie->perst_rc_out, 1);
@@ -964,10 +990,6 @@ static int aspeed_ast2600_setup(struct platform_device *pdev)
 
 	pcie->host->ops = &aspeed_ast2600_pcie_ops;
 
-	ret = sysfs_create_file(&pdev->dev.kobj, &dev_attr_hotplug.attr);
-	if (ret)
-		return dev_err_probe(&pdev->dev, ret, "unable to create sysfs interface\n");
-
 	pcie->perst_ep_in = devm_gpiod_get_optional(pcie->dev, "perst-ep-in", GPIOD_IN);
 	if (pcie->perst_ep_in) {
 		gpiod_set_debounce(pcie->perst_ep_in, 100);
@@ -1034,6 +1056,16 @@ static int aspeed_ast2700_setup(struct platform_device *pdev)
 
 	pcie->host->ops = &aspeed_ast2700_pcie_ops;
 
+	if (IS_ENABLED(CONFIG_HOTPLUG_PCI_PCIE)) {
+		regmap_write_bits(pcie->pciephy, PEHR_MISC_44, ENABLE_SLOT_CAP,
+				  ENABLE_SLOT_CAP);
+		regmap_write(pcie->pciephy, PEHR_MISC_3C,
+			     HOTPLUG_CAPABLE_ENABLE | HOTPLUG_SURPRISE_ENABLE |
+				     ATTENTION_BUTTON_ENABLE);
+		regmap_write_bits(pcie->pciephy, PEHR_MISC_38,
+				  DATALINK_REPORT_CAP, DATALINK_REPORT_CAP);
+	}
+
 	if (!aspeed_ast2700_get_link(pcie))
 		dev_info(dev, "PCIe Link DOWN");
 	else
@@ -1093,6 +1125,12 @@ static int aspeed_pcie_probe(struct platform_device *pdev)
 	ret = pcie->platform->setup(pdev);
 	if (ret)
 		return dev_err_probe(dev, ret, "Failed to setup PCIe RC\n");
+
+	if (IS_ENABLED(CONFIG_HOTPLUG_PCI_PCIE)) {
+		ret = sysfs_create_file(&pdev->dev.kobj, &dev_attr_hotplug.attr);
+		if (ret)
+			return dev_err_probe(&pdev->dev, ret, "unable to create sysfs interface\n");
+	}
 
 	host->sysdata = pcie;
 
