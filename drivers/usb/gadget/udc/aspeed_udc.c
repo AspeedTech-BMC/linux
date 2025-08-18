@@ -379,7 +379,6 @@ static int ast_udc_ep_enable(struct usb_ep *_ep,
 	ep->desc = desc;
 	ep->stopped = 0;
 	ep->ep.maxpacket = maxpacket;
-	ep->chunk_max = AST_EP_DMA_DESC_MAX_LEN;
 
 	if (maxpacket < AST_UDC_EPn_MAX_PACKET)
 		ep_conf = EP_SET_MAX_PKT(maxpacket);
@@ -392,7 +391,18 @@ static int ast_udc_ep_enable(struct usb_ep *_ep,
 	if (!ep->dir_in)
 		ep_conf |= EP_DIR_OUT;
 
-	EP_DBG(ep, "type %d, dir_in %d\n", type, dir_in);
+	/*
+	 * Large send function can send up to 8 packets from
+	 * one descriptor with a limit of 4096 bytes.
+	 */
+	ep->chunk_max = ep->ep.maxpacket;
+	if (ep->dir_in) {
+		ep->chunk_max <<= 3;
+		while (ep->chunk_max > AST_EP_DMA_DESC_MAX_LEN)
+			ep->chunk_max -= ep->ep.maxpacket;
+	}
+
+	EP_DBG(ep, "type %d, dir_in %d, chunk_max %d\n", type, dir_in, ep->chunk_max);
 	switch (type) {
 	case USB_ENDPOINT_XFER_ISOC:
 		ep_conf |= EP_SET_TYPE_MASK(EP_TYPE_ISO);
