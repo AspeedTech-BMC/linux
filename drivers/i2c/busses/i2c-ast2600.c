@@ -2355,6 +2355,10 @@ static int ast2600_i2c_probe(struct platform_device *pdev)
 	if (ret < 0)
 		return dev_err_probe(dev, ret, "Unable to request irq %d\n", i2c_bus->irq);
 
+	ret = devm_i2c_add_adapter(dev, &i2c_bus->adap);
+	if (ret)
+		return ret;
+
 	i2c_bus->alert_enable = device_property_read_bool(dev, "smbus-alert");
 	if (i2c_bus->alert_enable) {
 		i2c_bus->ara = i2c_new_smbus_alert_device(&i2c_bus->adap, &i2c_bus->alert_data);
@@ -2369,10 +2373,6 @@ static int ast2600_i2c_probe(struct platform_device *pdev)
 		writel(AST2600_I2CM_PKT_DONE | AST2600_I2CM_BUS_RECOVER,
 		       i2c_bus->reg_base + AST2600_I2CM_IER);
 	}
-
-	ret = devm_i2c_add_adapter(dev, &i2c_bus->adap);
-	if (ret)
-		return ret;
 
 	dev_info(dev, "%s [%d]: adapter [%d KHz] mode [%d] version [%d]\n",
 		 dev->of_node->name, i2c_bus->adap.nr, i2c_bus->timing_info.bus_freq_hz / 1000,
