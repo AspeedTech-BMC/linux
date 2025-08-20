@@ -665,7 +665,7 @@
 		};
 
 		pcie_vuart0: serial@12c18000 {
-			compatible = "aspeed,ast2600-uart";
+			compatible = "aspeed,ast2700-uart";
 			reg = <0x0 0x12c18000 0x0 0x40>;
 			interrupts = <GIC_SPI 80 IRQ_TYPE_LEVEL_HIGH>;
 			clocks = <&syscon0 SCU0_CLK_APB>;
@@ -674,7 +674,7 @@
 		};
 
 		pcie_vuart1: serial@12c18100 {
-			compatible = "aspeed,ast2600-uart";
+			compatible = "aspeed,ast2700-uart";
 			reg = <0x0 0x12c18100 0x0 0x40>;
 			interrupts = <GIC_SPI 81 IRQ_TYPE_LEVEL_HIGH>;
 			clocks = <&syscon0 SCU0_CLK_APB>;
@@ -683,7 +683,7 @@
 		};
 
 		pcie_vuart2: serial@12c18200 {
-			compatible = "aspeed,ast2600-uart";
+			compatible = "aspeed,ast2700-uart";
 			reg = <0x0 0x12c18200 0x0 0x40>;
 			interrupts = <GIC_SPI 93 IRQ_TYPE_LEVEL_HIGH>;
 			clocks = <&syscon0 SCU0_CLK_APB>;
@@ -692,7 +692,7 @@
 		};
 
 		pcie_vuart3: serial@12c18300 {
-			compatible = "aspeed,ast2600-uart";
+			compatible = "aspeed,ast2700-uart";
 			reg = <0x0 0x12c18300 0x0 0x40>;
 			interrupts = <GIC_SPI 94 IRQ_TYPE_LEVEL_HIGH>;
 			clocks = <&syscon0 SCU0_CLK_APB>;
@@ -1951,7 +1951,7 @@
 		};
 
 		vuart0: serial@14c30000 {
-			compatible = "aspeed,ast2600-uart";
+			compatible = "aspeed,ast2700-uart";
 			reg = <0x0 0x14c30000 0x0 0x40>;
 			interrupts-extended = <&intc1_0 17>;
 			clocks = <&syscon0 SCU0_CLK_APB>;
@@ -1960,7 +1960,7 @@
 		};
 
 		vuart1: serial@14c30100 {
-			compatible = "aspeed,ast2600-uart";
+			compatible = "aspeed,ast2700-uart";
 			reg = <0x0 0x14c30100 0x0 0x40>;
 			interrupts-extended = <&intc1_0 18>;
 			clocks = <&syscon0 SCU0_CLK_APB>;
@@ -1969,7 +1969,7 @@
 		};
 
 		vuart2: serial@14c30200 {
-			compatible = "aspeed,ast2600-uart";
+			compatible = "aspeed,ast2700-uart";
 			reg = <0x0 0x14c30200 0x0 0x40>;
 			interrupts-extended = <&intc1_1 17>;
 			clocks = <&syscon0 SCU0_CLK_APB>;
@@ -1978,7 +1978,7 @@
 		};
 
 		vuart3: serial@14c30300 {
-			compatible = "aspeed,ast2600-uart";
+			compatible = "aspeed,ast2700-uart";
 			reg = <0x0 0x14c30300 0x0 0x40>;
 			interrupts-extended = <&intc1_1 18>;
 			clocks = <&syscon0 SCU0_CLK_APB>;
