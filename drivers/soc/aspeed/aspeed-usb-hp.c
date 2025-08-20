@@ -33,6 +33,7 @@ static const struct of_device_id aspeed_usb_hp_dt_ids[] = {
 	{
 		.compatible = "aspeed,ast2700-usb2bhp",
 	},
+	{}
 };
 MODULE_DEVICE_TABLE(of, aspeed_usb_hp_dt_ids);
 
