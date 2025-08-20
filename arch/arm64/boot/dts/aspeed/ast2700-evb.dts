@@ -477,7 +477,6 @@
 	port = <0x3f8>;
 	sirq = <4>;
 	sirq-polarity = <0>;
-	character-timeout-time = <3>;
 	status = "okay";
 };
 
