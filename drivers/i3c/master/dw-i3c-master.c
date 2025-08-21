@@ -692,9 +692,11 @@ static void dw_i3c_master_end_xfer_locked(struct dw_i3c_master *master, u32 isr)
 		switch (xfer->cmds[i].error) {
 		case RESPONSE_NO_ERROR:
 			break;
+		case RESPONSE_ERROR_TRANSF_ABORT:
+			ret = -EINTR;
+			break;
 		case RESPONSE_ERROR_PARITY:
 		case RESPONSE_ERROR_IBA_NACK:
-		case RESPONSE_ERROR_TRANSF_ABORT:
 		case RESPONSE_ERROR_CRC:
 		case RESPONSE_ERROR_FRAME:
 			ret = -EIO;
@@ -713,7 +715,7 @@ static void dw_i3c_master_end_xfer_locked(struct dw_i3c_master *master, u32 isr)
 	xfer->ret = ret;
 	complete(&xfer->comp);
 
-	if (ret < 0) {
+	if (ret < 0 && ret != -EINTR) {
 		/*
 		 * The controller will enter the HALT state if an error occurs.
 		 * Therefore, there is no need to manually halt the controller
