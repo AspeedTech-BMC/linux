@@ -841,7 +841,6 @@
 			#interrupt-cells = <1>;
 			msi-parent = <&pcie0>;
 			msi-controller;
-			msi_address = <0x000000F0>;
 
 			aspeed,pciephy = <&pcie_phy0>;
 			aspeed,pciecfg = <&pcie_cfg0>;
@@ -881,7 +880,6 @@
 			#interrupt-cells = <1>;
 			msi-parent = <&pcie1>;
 			msi-controller;
-			msi_address = <0x000000F0>;
 
 			aspeed,pciephy = <&pcie_phy1>;
 			aspeed,pciecfg = <&pcie_cfg1>;
@@ -2486,7 +2484,6 @@
 			#interrupt-cells = <1>;
 			msi-parent = <&pcie2>;
 			msi-controller;
-			msi_address = <0x000000F0>;
 
 			aspeed,pciephy = <&pcie_phy2>;
 			aspeed,pciecfg = <&pcie_cfg2>;
