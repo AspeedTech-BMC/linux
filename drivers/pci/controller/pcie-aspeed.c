@@ -24,6 +24,8 @@
 #include <linux/bitfield.h>
 #include <linux/clk.h>
 
+#include "../pci.h"
+
 #define MAX_MSI_HOST_IRQS	64
 
 /* AST2600 AHBC Registers */
@@ -148,6 +150,7 @@ struct aspeed_pcie_rc_platform {
 	int reg_intx_sts;
 	int reg_msi_en;
 	int reg_msi_sts;
+	int msi_address;
 };
 
 struct aspeed_pcie {
@@ -161,7 +164,6 @@ struct aspeed_pcie {
 	const struct aspeed_pcie_rc_platform *platform;
 
 	int domain;
-	u32 msi_address;
 	u8 tx_tag;
 
 	struct reset_control *h2xrst;
@@ -688,7 +690,7 @@ static void aspeed_msi_compose_msi_msg(struct irq_data *data,
 	struct aspeed_pcie *pcie = irq_data_get_irq_chip_data(data);
 
 	msg->address_hi = 0;
-	msg->address_lo = pcie->msi_address;
+	msg->address_lo = pcie->platform->msi_address;
 	msg->data = data->hwirq;
 }
 
@@ -1094,8 +1096,7 @@ static int aspeed_pcie_probe(struct platform_device *pdev)
 
 	pcie->reg = devm_platform_ioremap_resource(pdev, 0);
 
-	of_property_read_u32(node, "msi_address", &pcie->msi_address);
-	of_property_read_u32(node, "linux,pci-domain", &pcie->domain);
+	pcie->domain = of_get_pci_domain_nr(node);
 
 	pcie->cfg = syscon_regmap_lookup_by_phandle(dev->of_node, "aspeed,pciecfg");
 	if (IS_ERR(pcie->cfg))
@@ -1174,6 +1175,7 @@ static struct aspeed_pcie_rc_platform pcie_rc_ast2600 = {
 	.reg_intx_sts = 0x08,
 	.reg_msi_en = 0x20,
 	.reg_msi_sts = 0x28,
+	.msi_address = 0x1e77005c,
 };
 
 static struct aspeed_pcie_rc_platform pcie_rc_ast2700 = {
@@ -1182,6 +1184,7 @@ static struct aspeed_pcie_rc_platform pcie_rc_ast2700 = {
 	.reg_intx_sts = 0x48,
 	.reg_msi_en = 0x50,
 	.reg_msi_sts = 0x58,
+	.msi_address = 0x000000f0,
 };
 
 static const struct of_device_id aspeed_pcie_of_match[] = {
