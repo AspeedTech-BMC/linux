@@ -2371,6 +2371,10 @@ static int ast2600_i2c_probe(struct platform_device *pdev)
 	if (ret < 0)
 		goto unmap;
 
+	ret = i2c_add_adapter(&i2c_bus->adap);
+	if (ret < 0)
+		goto unmap;
+
 	i2c_bus->alert_enable = device_property_read_bool(dev, "smbus-alert");
 	if (i2c_bus->alert_enable) {
 		i2c_bus->ara = i2c_new_smbus_alert_device(&i2c_bus->adap, &i2c_bus->alert_data);
@@ -2385,10 +2389,6 @@ static int ast2600_i2c_probe(struct platform_device *pdev)
 		writel(AST2600_I2CM_PKT_DONE | AST2600_I2CM_BUS_RECOVER,
 		       i2c_bus->reg_base + AST2600_I2CM_IER);
 	}
-
-	ret = i2c_add_adapter(&i2c_bus->adap);
-	if (ret < 0)
-		goto unmap;
 
 	dev_info(dev, "%s [%d]: adapter [%d khz] mode [%d]\n",
 		 dev->of_node->name, i2c_bus->adap.nr, i2c_bus->bus_frequency / 1000,
