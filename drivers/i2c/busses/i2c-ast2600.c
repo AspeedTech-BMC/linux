@@ -962,10 +962,11 @@ static void ast2600_i2c_slave_packet_dma_irq(struct ast2600_i2c_bus *i2c_bus, u3
 		writel(ac_timing, i2c_bus->reg_base + AST2600_I2CC_AC_TIMING);
 		ac_timing |= AST2600_I2CC_TTIMEOUT(i2c_bus->timeout);
 		writel(ac_timing, i2c_bus->reg_base + AST2600_I2CC_AC_TIMING);
-		cmd = SLAVE_TRIGGER_CMD | AST2600_I2CS_RX_DMA_EN;
+		/* set rx dma length ,re-send slave trigger command and clear irq status */
 		writel(AST2600_I2CS_SET_RX_DMA_LEN(I2C_SLAVE_MSG_BUF_SIZE),
 		       i2c_bus->reg_base + AST2600_I2CS_DMA_LEN);
-		writel(cmd, i2c_bus->reg_base + AST2600_I2CS_CMD_STS);
+		writel(SLAVE_TRIGGER_CMD | AST2600_I2CS_RX_DMA_EN,
+		       i2c_bus->reg_base + AST2600_I2CS_CMD_STS);
 		writel(AST2600_I2CS_PKT_DONE, i2c_bus->reg_base + AST2600_I2CS_ISR);
 		i2c_slave_event(i2c_bus->slave, I2C_SLAVE_STOP, &value);
 		return;
@@ -1106,7 +1107,7 @@ static void ast2600_i2c_slave_packet_buff_irq(struct ast2600_i2c_bus *i2c_bus, u
 		writel(ac_timing, i2c_bus->reg_base + AST2600_I2CC_AC_TIMING);
 		ac_timing |= AST2600_I2CC_TTIMEOUT(i2c_bus->timeout);
 		writel(ac_timing, i2c_bus->reg_base + AST2600_I2CC_AC_TIMING);
-		/* Clear irq and re-send slave trigger command */
+		/* Re-send slave trigger command and clear irq */
 		writel(SLAVE_TRIGGER_CMD, i2c_bus->reg_base + AST2600_I2CS_CMD_STS);
 		writel(AST2600_I2CS_PKT_DONE, i2c_bus->reg_base + AST2600_I2CS_ISR);
 		i2c_slave_event(i2c_bus->slave, I2C_SLAVE_STOP, &value);
@@ -1301,8 +1302,8 @@ static void ast2600_i2c_slave_byte_irq(struct ast2600_i2c_bus *i2c_bus, u32 sts)
 		writel(ac_timing, i2c_bus->reg_base + AST2600_I2CC_AC_TIMING);
 		ac_timing |= AST2600_I2CC_TTIMEOUT(i2c_bus->timeout);
 		writel(ac_timing, i2c_bus->reg_base + AST2600_I2CC_AC_TIMING);
-		/* Clear irq and re-send slave trigger command */
-		writel(cmd, i2c_bus->reg_base + AST2600_I2CS_CMD_STS);
+		/* Re-send slave trigger command and clear irq */
+		writel(AST2600_I2CS_ACTIVE_ALL, i2c_bus->reg_base + AST2600_I2CS_CMD_STS);
 		writel(sts, i2c_bus->reg_base + AST2600_I2CS_ISR);
 		readl(i2c_bus->reg_base + AST2600_I2CS_ISR);
 		i2c_slave_event(i2c_bus->slave, I2C_SLAVE_STOP, &value);
