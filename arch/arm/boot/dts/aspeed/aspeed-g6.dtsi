@@ -513,7 +513,6 @@
 				#interrupt-cells = <1>;
 				msi-parent = <&pcie0>;
 				msi-controller;
-				msi_address = <0x1e77005c>;
 
 				aspeed,ahbc = <&ahbc>;
 				aspeed,pciecfg = <&pcie_cfg>;
