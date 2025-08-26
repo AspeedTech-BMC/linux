@@ -2071,13 +2071,14 @@ static void aspeed_mctp_pcie_setup(struct aspeed_mctp *priv)
 		if (priv->match_data->need_address_mapping)
 			regmap_update_bits(priv->map, ASPEED_MCTP_EID,
 					   MEMORY_SPACE_MAPPING, BIT(31));
+
+		/* Only set TX MPS since HW will parse RX packet to decide how many bytes to receive
+		 * based on the length field in PCIe VDM header.
+		 */
 		if (priv->match_data->dma_need_64bits_width) {
 			tx_max_payload_size =
 				FIELD_GET(TX_MAX_PAYLOAD_SIZE_MASK,
 					  ilog2(ASPEED_MCTP_MTU >> 6));
-			rx_max_payload_size =
-				FIELD_GET(RX_MAX_PAYLOAD_SIZE_MASK,
-					  (ilog2(ASPEED_MCTP_MTU >> 6)) << RX_MAX_PAYLOAD_SIZE_SHIFT);
 		} else {
 			/*
 			 * In ast2600, tx som and eom will not match expected result.
@@ -2089,9 +2090,6 @@ static void aspeed_mctp_pcie_setup(struct aspeed_mctp *priv)
 			tx_max_payload_size =
 				FIELD_GET(TX_MAX_PAYLOAD_SIZE_MASK,
 						fls(ASPEED_MCTP_MTU >> 6));
-			rx_max_payload_size =
-				FIELD_GET(RX_MAX_PAYLOAD_SIZE_MASK,
-					   (fls(ASPEED_MCTP_MTU >> 6)) << RX_MAX_PAYLOAD_SIZE_SHIFT);
 		}
 
 		regmap_update_bits(priv->map, ASPEED_MCTP_ENGINE_CTRL,
