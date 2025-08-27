@@ -54,6 +54,7 @@ edaf0: eadf0-memory@420000000 {
 	no-map;
 };
 
+#if DUAL_NODE
 espi1_mmbi_memory: espi1-mmbi-memory@424000000 {
 	reg = <0x4 0x24000000 0x0 0x4000000>;
 	no-map;
@@ -64,6 +65,7 @@ edaf1: edaf1-memory@428000000 {
 	reg = <0x4 0x28000000 0x0 0x4000000>;
 	no-map;
 };
+#endif
 
 ssp_memory: ssp-memory@42c000000 {
 	reg = <0x4 0x2c000000 0x0 0x2000000>;

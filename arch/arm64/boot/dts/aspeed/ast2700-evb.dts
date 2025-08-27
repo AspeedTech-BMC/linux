@@ -7,6 +7,7 @@
 #include <dt-bindings/i2c/i2c.h>
 #include <dt-bindings/net/ti-dp83867.h>
 
+#define DUAL_NODE 0	// 1: DUAL_NODE, 0: SINGLE_NODE
 #define PCIE0_EP 1	// 1: EP, 0: RC
 #define PCIE1_EP 1	// 1: EP, 0: RC
 #define PCIE2_RC 1	// 1: RC, 0: SGMII
@@ -741,6 +742,28 @@
 &rtc_over_espi0 {
 	status = "okay";
 };
+
+#if DUAL_NODE
+&espi1 {
+	status = "okay";
+	perif-dma-mode;
+	perif-mmbi-enable;
+	perif-mmbi-src-addr = <0x0 0xa8000000>;
+	perif-mmbi-tgt-memory = <&espi1_mmbi_memory>;
+	perif-mmbi-instance-num = <0x1>;
+	perif-mcyc-enable;
+	perif-mcyc-src-addr = <0x0 0x98000000>;
+	perif-mcyc-size = <0x0 0x10000>;
+	perif-rtc-enable;
+	oob-dma-mode;
+	flash-dma-mode;
+#if 0	// eDAF mode: Change 1 to enable MIX mode in Linux, but HW mode in SPL would be overwritten
+	flash-edaf-mode = <0x0>;
+	flash-edaf-tgt-addr = <&edaf1>;
+	flash-edaf-size = <0x0 0x4000000>;
+#endif
+};
+#endif
 
 &lpc0_kcs0 {
 	status = "okay";
