@@ -11,7 +11,7 @@
 	compatible = "aspeed,ast2700-evb", "aspeed,ast2700";
 
 	chosen {
-		stdout-path = &uart12;
+		stdout-path = "serial12:115200n8";
 	};
 
 	firmware {
