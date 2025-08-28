@@ -70,15 +70,15 @@ struct aspeed_pinctrl_data {
 	struct regmap *scu;
 
 	const struct pinctrl_pin_desc *pins;
-	const unsigned int npins;
+	unsigned int npins;
 
 	const struct aspeed_pin_config *configs;
-	const unsigned int nconfigs;
+	unsigned int nconfigs;
 
 	struct aspeed_pinmux_data pinmux;
 
 	const struct aspeed_pin_config_map *confmaps;
-	const unsigned int nconfmaps;
+	unsigned int nconfmaps;
 };
 
 /* Aspeed pinctrl helpers */
@@ -101,6 +101,11 @@ int aspeed_pinmux_set_mux(struct pinctrl_dev *pctldev, unsigned int function,
 int aspeed_gpio_request_enable(struct pinctrl_dev *pctldev,
 		struct pinctrl_gpio_range *range,
 		unsigned int offset);
+int aspeed_g7_pinmux_set_mux(struct pinctrl_dev *pctldev, unsigned int function,
+			     unsigned int group);
+int aspeed_g7_gpio_request_enable(struct pinctrl_dev *pctldev,
+				  struct pinctrl_gpio_range *range,
+				  unsigned int offset);
 int aspeed_pinctrl_probe(struct platform_device *pdev,
 		struct pinctrl_desc *pdesc,
 		struct aspeed_pinctrl_data *pdata);
