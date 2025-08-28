@@ -485,7 +485,6 @@ static bool hci_dma_dequeue_xfer(struct i3c_hci *hci,
 	bool did_unqueue = false;
 	u32 ring_ctrl_val, op1_val, done_ptr;
 
-	spin_lock(&rh->lock);
 	ring_ctrl_val = rh_reg_read(RING_CONTROL);
 	/* stop the ring */
 	rh_reg_write(RING_CONTROL, ring_ctrl_val | RING_CTRL_ABORT);
@@ -528,6 +527,7 @@ static bool hci_dma_dequeue_xfer(struct i3c_hci *hci,
 		}
 	}
 
+	spin_lock(&rh->lock);
 	op1_val = rh_reg_read(RING_OPERATION1);
 	op1_val &= ~RING_OP1_CR_ENQ_PTR;
 	done_ptr = FIELD_GET(RING_OP1_CR_SW_DEQ_PTR, op1_val);
