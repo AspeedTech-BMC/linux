@@ -23,8 +23,6 @@
 #include <linux/i3c/device.h>
 #include <linux/i3c/master.h>
 
-#include "internals.h"
-
 #define I3C_HUB_TP_MAX_COUNT				0x08
 #define I3C_HUB_LOGICAL_BUS_MAX_COUNT			0x08
 
@@ -403,38 +401,6 @@ static inline int i3c_hub_protect_register(struct i3c_hub *hub)
 	return regmap_write(hub->regmap, HUB_REG_PROTECTION, REGISTERS_LOCK_CODE);
 }
 
-static int i3c_hub_disable_agent_ibi(struct i3c_hub *hub)
-{
-	int ret = 0;
-
-#ifndef CONFIG_I3C_HUB_POLLING_MODE
-	struct i3c_master_controller *master = hub->driving_master;
-
-	i3c_bus_normaluse_lock(&master->bus);
-	ret = i3c_master_disec_locked(hub->driving_master,
-				      hub->i3cdev->desc->info.dyn_addr,
-				      I3C_CCC_EVENT_SIR);
-	i3c_bus_normaluse_unlock(&master->bus);
-#endif
-	return ret;
-}
-
-static int i3c_hub_enable_agent_ibi(struct i3c_hub *hub)
-{
-	int ret = 0;
-
-#ifndef CONFIG_I3C_HUB_POLLING_MODE
-	struct i3c_master_controller *master = hub->driving_master;
-
-	i3c_bus_normaluse_lock(&master->bus);
-	ret = i3c_master_enec_locked(hub->driving_master,
-				     hub->i3cdev->desc->info.dyn_addr,
-				     I3C_CCC_EVENT_SIR);
-	i3c_bus_normaluse_unlock(&master->bus);
-#endif
-	return ret;
-}
-
 static int i3c_hub_write_paged(struct i3c_hub *hub, unsigned int page,
 			       unsigned int addr, const void *data, size_t size)
 {
@@ -716,12 +682,6 @@ static int i3c_hub_agent_i2c_xfer_one(struct i3c_hub_smbus_agent *agent,
 	unsigned char rx_buf[I3C_HUB_CONTROLLER_BUFFER_SIZE] = { 0 };
 	int ret;
 
-	ret = i3c_hub_disable_agent_ibi(hub);
-	if (ret) {
-		dev_err(dev, "Failed to disable smbus agent IBI:%d\n", ret);
-		goto exit;
-	}
-
 	if (rd_msg && (rd_msg->flags & I2C_M_RECV_LEN))
 		rd_msg->len = I2C_SMBUS_BLOCK_MAX + rd_msg->len;
 
@@ -730,7 +690,7 @@ static int i3c_hub_agent_i2c_xfer_one(struct i3c_hub_smbus_agent *agent,
 		if (wr_msg->addr != rd_msg->addr) {
 			dev_err(&hub->i3cdev->dev, "different addr in i2c wr and rd msgs\n");
 			ret = -EINVAL;
-			goto exit;
+			return ret;
 		}
 		hdr.addr_rnw = (wr_msg->addr << 1) | 0;
 		hdr.type |= 0x1;
@@ -749,20 +709,20 @@ static int i3c_hub_agent_i2c_xfer_one(struct i3c_hub_smbus_agent *agent,
 	if ((hdr.wr_len + hdr.rd_len) > 83) {
 		dev_err(dev, "SMBus Agent Tx Buffer Overflow: (%d, %d)\n", hdr.wr_len, hdr.rd_len);
 		ret = -EOVERFLOW;
-		goto exit;
+		return ret;
 	}
 
 	page = HUB_PAGE_AGENT_TX(port);
 	ret = i3c_hub_write_paged(hub, page, 0, &hdr, sizeof(hdr));
 	if (ret) {
 		dev_err(dev, "Write header failed %d\n", ret);
-		goto exit;
+		return ret;
 	}
 	if (wr_msg && wr_msg->len) {
 		ret = i3c_hub_write_paged(hub, page, 4, wr_msg->buf, wr_msg->len);
 		if (ret) {
 			dev_err(dev, "write data failed %d\n", ret);
-			goto exit;
+			return ret;
 		}
 	}
 
@@ -772,13 +732,7 @@ static int i3c_hub_agent_i2c_xfer_one(struct i3c_hub_smbus_agent *agent,
 	ret = regmap_write(hub->regmap, HUB_REG_TP_SMBUS_AGNT_TRANS_START, port_bit);
 	if (ret) {
 		dev_err(dev, "write start failed %d\n", ret);
-		goto exit;
-	}
-
-	ret = i3c_hub_enable_agent_ibi(hub);
-	if (ret) {
-		dev_err(dev, "Failed to enable smbus agent IBI:%d\n", ret);
-		goto exit;
+		return ret;
 	}
 
 	wait_time = wait_for_completion_timeout(&agent->completion,
@@ -787,7 +741,7 @@ static int i3c_hub_agent_i2c_xfer_one(struct i3c_hub_smbus_agent *agent,
 		i3c_hub_reset_smbus_agent(agent);
 		dev_err(&hub->i3cdev->dev, "tx timeout!\n");
 		ret = -ETIMEDOUT;
-		goto exit;
+		return ret;
 	}
 	spin_lock_irqsave(&agent->lock, flags);
 	port_stat = agent->tx_res;
@@ -842,9 +796,6 @@ static int i3c_hub_agent_i2c_xfer_one(struct i3c_hub_smbus_agent *agent,
 		}
 	}
 
-exit:
-	if (i3c_hub_enable_agent_ibi(hub))
-		dev_err(dev, "Failed to enable smbus agent IBI:%d\n", ret);
 	return ret;
 }
 
@@ -1434,7 +1385,7 @@ static const struct i3c_master_controller_ops i3c_hub_i3c_ops = {
 	.recycle_ibi_slot = i3c_hub_recycle_ibi_slot,
 };
 
-int i3c_hub_bridge_register(struct i3c_hub_bridge *bridge, struct device *parent)
+static int i3c_hub_bridge_register(struct i3c_hub_bridge *bridge, struct device *parent)
 {
 	return i3c_master_register(&bridge->i3c, parent, &i3c_hub_i3c_ops, false);
 }
@@ -2257,11 +2208,6 @@ static void i3c_hub_ibi(struct i3c_device *i3c,
 	struct i3c_hub *hub = i3cdev_get_drvdata(i3c);
 	const struct i3c_hub_ibi_payload *p = NULL;
 	unsigned int i, dev_stat, target_stat;
-	int ret;
-
-	ret = i3c_hub_disable_agent_ibi(hub);
-	if (ret)
-		dev_warn(&hub->i3cdev->dev, "Failed to disable smbus agent IBI:%d\n", ret);
 
 	if (payload->len == sizeof(*p))
 		p = payload->data;
@@ -2278,7 +2224,7 @@ static void i3c_hub_ibi(struct i3c_device *i3c,
 
 		ret = regmap_bulk_read(hub->regmap, HUB_REG_DEV_AND_PORT_IBI_STS, tmp, 2);
 		if (ret)
-			goto exit;
+			return;
 
 		dev_stat = tmp[0];
 		target_stat = tmp[1];
@@ -2309,10 +2255,6 @@ static void i3c_hub_ibi(struct i3c_device *i3c,
 			i3c_hub_agent_ibi(port->agent);
 		}
 	}
-
-exit:
-	if (i3c_hub_enable_agent_ibi(hub))
-		dev_err(&hub->i3cdev->dev, "Failed to enable smbus agent IBI:%d\n", ret);
 }
 
 static const struct i3c_ibi_setup i3c_hub_ibi_setup = {
