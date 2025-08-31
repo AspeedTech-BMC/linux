@@ -1280,7 +1280,7 @@ static void i3c_hub_detach_i2c_dev(struct i2c_dev_desc *dev)
 }
 
 static int i3c_hub_i2c_xfers(struct i2c_dev_desc *dev,
-			     const struct i2c_msg *xfers, int nxfers)
+			     struct i2c_msg *xfers, int nxfers)
 {
 	struct i3c_master_controller *parent = parent_controller_from_i2c_desc(dev);
 	struct i3c_hub_bridge *bridge = bus_from_i2c_desc(dev);
