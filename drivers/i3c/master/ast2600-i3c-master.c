@@ -1014,9 +1014,9 @@ static void aspeed_i3c_master_dequeue_xfer(struct aspeed_i3c_master *master,
 static void aspeed_i3c_master_sir_handler(struct aspeed_i3c_master *master,
 				      u32 ibi_status)
 {
-	struct aspeed_i3c_i2c_dev_data *data;
-	struct i3c_dev_desc *dev;
-	struct i3c_ibi_slot *slot;
+	struct aspeed_i3c_i2c_dev_data *data = NULL;
+	struct i3c_dev_desc *dev = NULL;
+	struct i3c_ibi_slot *slot = NULL;
 	u8 addr = IBI_QUEUE_IBI_ADDR(ibi_status);
 	u8 length = IBI_QUEUE_STATUS_DATA_LEN(ibi_status);
 	u8 *buf;
