@@ -210,6 +210,7 @@ static int aspeed_mbox_probe(struct platform_device *pdev)
 	struct resource *res;
 	struct device *dev = &pdev->dev;
 	int ret;
+	u32 tx_tout = -1;
 
 	info = devm_kzalloc(dev, sizeof(*info), GFP_KERNEL);
 	if (!info)
@@ -241,11 +242,20 @@ static int aspeed_mbox_probe(struct platform_device *pdev)
 		info->rx_base.size = resource_size(res);
 	}
 
+	if (device_property_read_u32(dev, "aspeed,tx-timeout", &tx_tout))
+		tx_tout = -1;
+
+	dev_info(dev, "TX shmem: phys 0x%pa size %llu\n",
+		 &info->tx_base.phys_addr, info->tx_base.size);
+	dev_info(dev, "RX shmem: phys 0x%pa size %llu\n",
+		 &info->rx_base.phys_addr, info->rx_base.size);
+	dev_info(dev, "TX timeout: %u ms\n", tx_tout);
+
 	info->cl.dev		= dev;
 	info->cl.rx_callback	= mbox_rx_callback;
 	info->cl.tx_block	= true;
 	info->cl.knows_txdone	= false;
-	info->cl.tx_tout	= 100;
+	info->cl.tx_tout	= tx_tout;
 
 	info->chan = mbox_request_channel(&info->cl, 0);
 	if (IS_ERR(info->chan)) {

@@ -206,6 +206,7 @@
 		compatible = "aspeed,aspeed-mbox";
 		reg = <0x4 0x31480000 0x0 0x200000>, <0x0 0x10001000 0x0 0x1000>;
 		mboxes = <&mbox0 0>;
+		aspeed,tx-timeout = <100>;
 	};
 };
 #endif
