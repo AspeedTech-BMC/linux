@@ -46,16 +46,6 @@ tsp_memory: tsp-memory@42e000000 {
 	no-map;
 };
 
-atf: trusted-firmware-a@430000000 {
-	reg = <0x4 0x30000000 0x0 0x80000>;
-	no-map;
-};
-
-optee_core: optee-core@430080000 {
-	reg = <0x4 0x30080000 0x0 0x1000000>;
-	no-map;
-};
-
 ipc_ssp_share: ipc-ssp-share@431080000 {
 	reg = <0x4 0x31080000 0x0 0x800000>;
 	no-map;
