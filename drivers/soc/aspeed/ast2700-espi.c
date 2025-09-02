@@ -1999,7 +1999,7 @@ static int ast2700_espi_flash_probe(struct ast2700_espi *espi)
 	flash->edaf.mode = EDAF_MODE_HW;
 
 	of_property_read_u32(dev->of_node, "flash-edaf-mode", &flash->edaf.mode);
-	dev_err(dev, "eDAF mode: 0x%x\n", flash->edaf.mode);
+	dev_info(dev, "eDAF mode: 0x%x\n", flash->edaf.mode);
 	if (flash->edaf.mode == EDAF_MODE_MIX) {
 		np = of_parse_phandle(dev->of_node, "flash-edaf-tgt-addr", 0);
 		if (!np || of_address_to_resource(np, 0, &res)) {
@@ -2011,8 +2011,8 @@ static int ast2700_espi_flash_probe(struct ast2700_espi *espi)
 
 		flash->edaf.taddr = res.start;
 		flash->edaf.size = resource_size(&res);
-		dev_err(dev, "eDAF address: 0x%llx\n", flash->edaf.taddr);
-		dev_err(dev, "eDAF size: 0x%llx\n", flash->edaf.size);
+		dev_info(dev, "eDAF address: 0x%llx\n", flash->edaf.taddr);
+		dev_info(dev, "eDAF size: 0x%llx\n", flash->edaf.size);
 
 		virt = devm_ioremap_resource(dev, &res);
 		if (!virt) {
