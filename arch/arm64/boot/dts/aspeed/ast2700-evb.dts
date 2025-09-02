@@ -65,6 +65,13 @@
 			compatible = "shared-dma-pool";
 			no-map;
 		};
+
+		espi0_mcyc_memory: mcyc0 {
+			size = <0x0 0x01000000>;
+			alignment = <0x0 0x00010000>;
+			compatible = "shared-dma-pool";
+			reusable;
+		};
 	};
 
 	fan0: pwm-fan0 {
@@ -732,6 +739,7 @@
 	perif-mcyc-enable;
 	perif-mcyc-src-addr = <0x0 0x98000000>;
 	perif-mcyc-size = <0x0 0x10000>;
+	memory-region = <&espi0_mcyc_memory>;
 	perif-rtc-enable;
 	oob-dma-mode;
 	flash-dma-mode;
