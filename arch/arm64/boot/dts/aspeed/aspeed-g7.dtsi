@@ -585,13 +585,13 @@
 			reg = <0 0x12c029a0 0 0x40>;
 		};
 
-		pcie_cfg0: pcie-cfg@12c02a00 {
-			compatible = "aspeed,ast2700-pcie-cfg", "syscon";
+		pcie_cfg0: syscon@12c02a00 {
+			compatible = "syscon";
 			reg = <0 0x12c02a00 0 0x80>;
 		};
 
-		pcie_cfg1: pcie-cfg@12c02a80 {
-			compatible = "aspeed,ast2700-pcie-cfg", "syscon";
+		pcie_cfg1: syscon@12c02a80 {
+			compatible = "syscon";
 			reg = <0 0x12c02a80 0 0x80>;
 		};
 
@@ -854,7 +854,6 @@
 			pinctrl-names = "default";
 
 			#interrupt-cells = <1>;
-			msi-parent = <&pcie0>;
 			msi-controller;
 
 			aspeed,pciephy = <&pcie_phy0>;
@@ -893,7 +892,6 @@
 			pinctrl-names = "default";
 
 			#interrupt-cells = <1>;
-			msi-parent = <&pcie1>;
 			msi-controller;
 
 			aspeed,pciephy = <&pcie_phy1>;
@@ -2447,8 +2445,8 @@
 			status = "disabled";
 		};
 
-		pcie_cfg2: pcie-cfg@14c02a80 {
-			compatible = "aspeed,ast2700-pcie-cfg", "syscon";
+		pcie_cfg2: syscon@14c02a80 {
+			compatible = "syscon";
 			reg = <0 0x14c02a80 0 0x80>;
 		};
 
@@ -2489,7 +2487,6 @@
 			pinctrl-names = "default";
 
 			#interrupt-cells = <1>;
-			msi-parent = <&pcie2>;
 			msi-controller;
 
 			aspeed,pciephy = <&pcie_phy2>;
