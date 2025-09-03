@@ -36,6 +36,7 @@
 /* AST2700 SCU */
 #define SCU0_REVISION_ID		0x0
 #define REVISION_ID				GENMASK(23, 16)
+#define SCU0_PCIE_CONF_CTRL		0x970
 /* Host2BMC */
 #define ASPEED_BMC_MEM_BAR			0xF10
 #define  PCIE2PCI_MEM_BAR_ENABLE		BIT(1)
@@ -129,10 +130,9 @@ struct aspeed_bmc_device {
 	const struct aspeed_platform *platform;
 
 	/* AST2700 */
-	struct regmap *config;
 	struct regmap *device;
 	struct regmap *e2m;
-	/*AST2600*/
+
 	struct regmap *scu;
 	int pcie_irq;
 };
@@ -401,12 +401,6 @@ static int aspeed_ast2700_init(struct platform_device *pdev)
 	u32 scu_id;
 	int i;
 
-	bmc_device->config = syscon_regmap_lookup_by_phandle(dev->of_node, "aspeed,config");
-	if (IS_ERR(bmc_device->config)) {
-		dev_err(&pdev->dev, "failed to find config regmap\n");
-		return PTR_ERR(bmc_device->config);
-	}
-
 	bmc_device->device = syscon_regmap_lookup_by_phandle(dev->of_node, "aspeed,device");
 	if (IS_ERR(bmc_device->device)) {
 		dev_err(&pdev->dev, "failed to find device regmap\n");
@@ -428,7 +422,8 @@ static int aspeed_ast2700_init(struct platform_device *pdev)
 	if (bmc_device->pcie2lpc) {
 		pcie_config_ctl = SCU_PCIE_CONF_BMC_DEV_EN_E2L |
 				  SCU_PCIE_CONF_BMC_DEV_EN_LPC_DECODE;
-		regmap_update_bits(bmc_device->config, 0x10, pcie_config_ctl, pcie_config_ctl);
+		regmap_update_bits(bmc_device->scu, SCU0_PCIE_CONF_CTRL,
+				   pcie_config_ctl, pcie_config_ctl);
 	}
 
 	/* update class code to others as it is a MFD device */
