@@ -657,12 +657,12 @@
 			#interrupt-cells = <2>;
 		};
 
-		pcie_phy0: pcie-phy@12c15000 {
+		pcie_phy0: phy@12c15000 {
 			compatible = "aspeed,ast2700-pcie-phy", "syscon";
 			reg = <0x0 0x12c15000 0x0 0x800>;
 		};
 
-		pcie_phy1: rc-bridge@12c15800 {
+		pcie_phy1: phy@12c15800 {
 			compatible = "aspeed,ast2700-pcie-phy", "syscon";
 			reg = <0x0 0x12c15800 0x0 0x800>;
 		};
@@ -2449,7 +2449,7 @@
 			status = "disabled";
 		};
 
-		pcie_phy2: rc-bridge@14c1c000 {
+		pcie_phy2: phy@14c1c000 {
 			compatible = "aspeed,ast2700-pcie-phy", "syscon";
 			reg = <0x0 0x14c1c000 0x0 0x800>;
 		};
