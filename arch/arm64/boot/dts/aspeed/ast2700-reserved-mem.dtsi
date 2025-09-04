@@ -31,10 +31,12 @@ espi0_mmbi_memory: espi0-mmbi-memory@424000000 {
 	no-map;
 };
 
+#if 0	// if support eDAF MIX mode, open this if case to use sample code
 edaf0: safs-mix-mode@428000000 {
 	reg = <0x4 0x28000000 0x0 0x4000000>;
 	no-map;
 };
+#endif
 
 ssp_memory: ssp-memory@42c000000 {
 	reg = <0x4 0x2c000000 0x0 0x2000000>;
