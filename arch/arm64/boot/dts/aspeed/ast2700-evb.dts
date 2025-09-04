@@ -1204,3 +1204,14 @@
 	};
 };
 #endif
+
+#if 0
+&soc0 {
+	mbox-bootmcu-1 {
+		compatible = "aspeed,aspeed-mbox";
+		reg = <0x4 0x31880000 0x0 0x100000>, <0x4 0x31980000 0x0 0x100000>;
+		mboxes = <&mbox2 1>;
+		aspeed,tx-timeout = <10000>;
+	};
+};
+#endif
