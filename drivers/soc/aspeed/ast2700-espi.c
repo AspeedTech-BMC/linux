@@ -10,6 +10,7 @@
 #include <linux/bitfield.h>
 #include <linux/count_zeros.h>
 #include <linux/of_device.h>
+#include <linux/of_reserved_mem.h>
 #include <linux/of_address.h>
 #include <linux/interrupt.h>
 #include <linux/platform_device.h>
@@ -907,6 +908,16 @@ static int ast2700_espi_perif_probe(struct ast2700_espi *espi)
 		if (rc || !IS_ALIGNED(perif->mcyc.size, PERIF_MCYC_ALIGN)) {
 			dev_err(dev, "cannot get 64KB-aligned memory cycle size\n");
 			return -EINVAL;
+		}
+
+		np = of_parse_phandle(dev->of_node, "memory-region", 0);
+		if (np) {
+			of_reserved_mem_device_init(dev);
+			rc = dma_set_mask_and_coherent(dev, DMA_BIT_MASK(64));
+			if (rc) {
+				dev_err(dev, "Failed to mask DMA.\n");
+				return -ENODEV;
+			}
 		}
 
 		perif->mcyc.virt = dmam_alloc_coherent(dev, perif->mcyc.size,
