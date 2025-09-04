@@ -52,6 +52,11 @@ ipc_ssp_share: ipc-ssp-share@431080000 {
 	no-map;
 };
 
+ipc_bootmcu_share: ipc-bootmcu-share@431880000 {
+	reg = <0x4 0x31880000 0x0 0x328000>;
+	no-map;
+};
+
 uhci0_reserved: uhci0-reserved@431b30000 {
 	reg = <0x4 0x31b30000 0x0 0x40000>;
 	compatible = "shared-dma-pool";
