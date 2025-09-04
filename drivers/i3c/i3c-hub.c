@@ -2012,7 +2012,7 @@ static struct device_node *i3c_hub_get_dt_hub_node(struct i3c_hub *hub)
 	hub_node = NULL;
 	from = node;
 	while (1) {
-		hub_node = of_find_node_by_name(from, "hub");
+		hub_node = of_get_child_by_name(from, "hub");
 		if (!hub_node)
 			break;
 		from = hub_node;
