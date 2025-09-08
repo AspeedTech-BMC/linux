@@ -53,7 +53,7 @@ ipc_ssp_share: ipc-ssp-share@431080000 {
 };
 
 ipc_bootmcu_share: ipc-bootmcu-share@431880000 {
-	reg = <0x4 0x31880000 0x0 0x328000>;
+	reg = <0x4 0x31880000 0x0 0x2b0000>;
 	no-map;
 };
 
