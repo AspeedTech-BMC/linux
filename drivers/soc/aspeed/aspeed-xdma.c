@@ -704,6 +704,9 @@ static ssize_t aspeed_xdma_write(struct file *file, const char __user *buf,
 	if (len != sizeof(op))
 		return -EINVAL;
 
+	if (READ_ONCE(client->in_progress))
+		return -EBUSY;
+
 	if (copy_from_user(&op, buf, len))
 		return -EFAULT;
 
@@ -769,7 +772,8 @@ static __poll_t aspeed_xdma_poll(struct file *file,
 			mask |= EPOLLOUT | EPOLLWRNORM;
 	}
 
-	aspeed_xdma_reset(ctx);
+	if (mask)
+		aspeed_xdma_reset(ctx);
 
 	return mask;
 }
