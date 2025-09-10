@@ -6,6 +6,9 @@
 #include <dt-bindings/gpio/aspeed-gpio.h>
 #include <dt-bindings/i2c/i2c.h>
 
+#define PCIE0_EP 1
+#define PCIE1_EP 1
+
 / {
 	model = "AST2700A0-EVB";
 	compatible = "aspeed,ast2700-evb", "aspeed,ast2700";
@@ -59,20 +62,6 @@
 			alignment = <0x0 0x01000000>;
 			compatible = "shared-dma-pool";
 			reusable;
-		};
-
-		xdma_memory0: xdma0 {
-			size = <0x0 0x01000000>;
-			alignment = <0x0 0x01000000>;
-			compatible = "shared-dma-pool";
-			no-map;
-		};
-
-		xdma_memory1: xdma1 {
-			size = <0x0 0x01000000>;
-			alignment = <0x0 0x01000000>;
-			compatible = "shared-dma-pool";
-			no-map;
 		};
 	};
 
@@ -832,6 +821,7 @@
 	status = "okay";
 };
 
+#if PCIE0_EP
 &bmc_dev0 {
 	status = "okay";
 	memory-region = <&bmc_dev0_memory>;
@@ -886,7 +876,9 @@
 	status = "okay";
 	bt-channel = <2>;
 };
+#endif
 
+#if PCIE1_EP
 &bmc_dev1 {
 	status = "okay";
 	memory-region = <&bmc_dev1_memory>;
@@ -912,6 +904,7 @@
 
 	status = "okay";
 };
+#endif
 
 &jtag1 {
 	status = "okay";

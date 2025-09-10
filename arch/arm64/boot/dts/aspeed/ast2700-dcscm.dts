@@ -6,6 +6,9 @@
 #include <dt-bindings/gpio/aspeed-gpio.h>
 #include <dt-bindings/i2c/i2c.h>
 
+#define PCIE0_EP 1	// 1: EP, 0: RC
+#define PCIE1_EP 1	// 1: EP, 0: RC
+
 / {
 	model = "AST2700-DCSCM";
 	compatible = "aspeed,ast2700";
@@ -48,18 +51,6 @@
 			reusable;
 		};
 #endif
-
-		xdma_memory0: xdma0 {
-			size = <0x0 0x00100000>;
-			compatible = "shared-dma-pool";
-			no-map;
-		};
-
-		xdma_memory1: xdma1 {
-			size = <0x0 0x00100000>;
-			compatible = "shared-dma-pool";
-			no-map;
-		};
 	};
 
 	iio-hwmon {

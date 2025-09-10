@@ -5,6 +5,9 @@
 #include "aspeed-g7.dtsi"
 #include <dt-bindings/gpio/aspeed-gpio.h>
 
+#define PCIE0_EP 1	// 1: EP, 0: RC
+#define PCIE1_EP 0	// 1: EP, 0: RC
+
 / {
 	model = "AST2700-SLT";
 	compatible = "aspeed,ast2700-slt", "aspeed,ast2700";
@@ -44,20 +47,6 @@
 			alignment = <0x0 0x01000000>;
 			compatible = "shared-dma-pool";
 			reusable;
-		};
-
-		xdma_memory0: xdma0 {
-			size = <0x0 0x01000000>;
-			alignment = <0x0 0x01000000>;
-			compatible = "shared-dma-pool";
-			no-map;
-		};
-
-		xdma_memory1: xdma1 {
-			size = <0x0 0x01000000>;
-			alignment = <0x0 0x01000000>;
-			compatible = "shared-dma-pool";
-			no-map;
 		};
 	};
 
@@ -648,22 +637,7 @@
 	status = "okay";
 };
 
-&pcie0_mmbi0 {
-	status = "okay";
-	memory-region = <&pcie0_mmbi0_memory>;
-
-	mmbi-bmc-int-value = /bits/ 8 <0x00>;
-	mmbi-bmc-int-offset = <0x100000>;
-};
-
-&pcie1_mmbi4 {
-	status = "okay";
-	memory-region = <&pcie1_mmbi4_memory>;
-
-	mmbi-bmc-int-value = /bits/ 8 <0x44>;
-	mmbi-bmc-int-offset = <0x100400>;
-};
-
+#if PCIE0_EP
 &bmc_dev0 {
 	status = "okay";
 	memory-region = <&bmc_dev0_memory>;
@@ -718,6 +692,15 @@
 	status = "okay";
 	bt-channel = <2>;
 };
+
+&pcie0_mmbi0 {
+	status = "okay";
+	memory-region = <&pcie0_mmbi0_memory>;
+
+	mmbi-bmc-int-value = /bits/ 8 <0x00>;
+	mmbi-bmc-int-offset = <0x100000>;
+};
+#endif
 
 &pcie1 {
 	status = "okay";

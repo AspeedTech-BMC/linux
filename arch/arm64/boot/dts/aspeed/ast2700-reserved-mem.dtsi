@@ -1,13 +1,16 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-/* AST2700 reserved memories with fixed address */
+/* AST2700 reserved memories with no-map property */
+
+#if PCIE0_EP
 bmc_dev0_memory: bmc-dev0-memory@423800000 {
 	reg = <0x4 0x23800000 0x0 0x100000>;
 	no-map;
 };
 
-bmc_dev1_memory: bmc-dev1-memory@423900000 {
-	reg = <0x4 0x23900000 0x0 0x100000>;
+xdma_memory0: xdma0 {
+	size = <0x0 0x00100000>;
+	compatible = "shared-dma-pool";
 	no-map;
 };
 
@@ -15,11 +18,25 @@ pcie0_mmbi0_memory: pcie0-mmbi0-memory@423a00000 {
 	reg = <0x4 0x23a00000 0x0 0x200000>;
 	no-map;
 };
+#endif
+
+#if PCIE1_EP
+bmc_dev1_memory: bmc-dev1-memory@423900000 {
+	reg = <0x4 0x23900000 0x0 0x100000>;
+	no-map;
+};
+
+xdma_memory1: xdma1 {
+	size = <0x0 0x00100000>;
+	compatible = "shared-dma-pool";
+	no-map;
+};
 
 pcie1_mmbi4_memory: pcie1-mmbi4-memory@423c00000 {
 	reg = <0x4 0x23c00000 0x0 0x200000>;
 	no-map;
 };
+#endif
 
 pcie2_mmbi0_memory: pcie2-mmbi0-memory@423e00000 {
 	reg = <0x4 0x23e00000 0x0 0x200000>;

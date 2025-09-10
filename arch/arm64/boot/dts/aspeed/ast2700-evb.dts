@@ -54,18 +54,6 @@
 		};
 #endif
 
-		xdma_memory0: xdma0 {
-			size = <0x0 0x00100000>;
-			compatible = "shared-dma-pool";
-			no-map;
-		};
-
-		xdma_memory1: xdma1 {
-			size = <0x0 0x00100000>;
-			compatible = "shared-dma-pool";
-			no-map;
-		};
-
 		espi0_mcyc_memory: mcyc0 {
 			size = <0x0 0x01000000>;
 			alignment = <0x0 0x00010000>;
