@@ -163,6 +163,20 @@
 
 &ltpi0_pwm_tach {
 	status = "okay";
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_ltpi0_pwm0_default &pinctrl_ltpi0_pwm1_default
+		     &pinctrl_ltpi0_pwm2_default &pinctrl_ltpi0_pwm3_default
+		     &pinctrl_ltpi0_pwm4_default &pinctrl_ltpi0_pwm5_default
+		     &pinctrl_ltpi0_pwm6_default &pinctrl_ltpi0_pwm7_default
+		     &pinctrl_ltpi0_pwm8_default
+		     &pinctrl_ltpi0_tach0_default &pinctrl_ltpi0_tach1_default
+		     &pinctrl_ltpi0_tach2_default &pinctrl_ltpi0_tach3_default
+		     &pinctrl_ltpi0_tach4_default &pinctrl_ltpi0_tach5_default
+		     &pinctrl_ltpi0_tach6_default &pinctrl_ltpi0_tach7_default
+		     &pinctrl_ltpi0_tach8_default &pinctrl_ltpi0_tach9_default
+		     &pinctrl_ltpi0_tach10_default &pinctrl_ltpi0_tach11_default
+		     &pinctrl_ltpi0_tach12_default &pinctrl_ltpi0_tach13_default
+		     &pinctrl_ltpi0_tach14_default &pinctrl_ltpi0_tach15_default>;
 	ltpi_fan0 {
 		tach-ch = /bits/ 8 <0x0>;
 	};
@@ -230,11 +244,20 @@
 &ltpi0_adc0 {
 	aspeed,int-vref-microvolt = <2500000>;
 	status = "okay";
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_ltpi0_adc0_default &pinctrl_ltpi0_adc1_default
+		&pinctrl_ltpi0_adc2_default &pinctrl_ltpi0_adc3_default
+		&pinctrl_ltpi0_adc4_default &pinctrl_ltpi0_adc5_default
+		&pinctrl_ltpi0_adc6_default &pinctrl_ltpi0_adc7_default>;
 };
 
 &ltpi0_adc1 {
 	aspeed,int-vref-microvolt = <2500000>;
 	status = "okay";
+	pinctrl-0 = <&pinctrl_ltpi0_adc8_default &pinctrl_ltpi0_adc9_default
+		&pinctrl_ltpi0_adc10_default &pinctrl_ltpi0_adc11_default
+		&pinctrl_ltpi0_adc12_default &pinctrl_ltpi0_adc13_default
+		&pinctrl_ltpi0_adc14_default &pinctrl_ltpi0_adc15_default>;
 };
 
 &ltpi0 {
