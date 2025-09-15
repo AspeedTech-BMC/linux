@@ -118,7 +118,6 @@ struct aspeed_bmc_device {
 	struct miscdevice miscdev;
 	int id;
 	void __iomem *reg_base;
-	void __iomem *bmc_mem_virt;
 	dma_addr_t bmc_mem_phy;
 	phys_addr_t bmc_mem_size;
 
@@ -601,12 +600,6 @@ static int aspeed_bmc_device_probe(struct platform_device *pdev)
 
 	bmc_device->bmc_mem_phy = res.start;
 	bmc_device->bmc_mem_size = resource_size(&res);
-	bmc_device->bmc_mem_virt = devm_ioremap_resource(dev, &res);
-	if (!bmc_device->bmc_mem_virt) {
-		dev_err(dev, "cannot map bmc dev memory region\n");
-		ret = -ENOMEM;
-		goto out_region;
-	}
 
 	bmc_device->irq = platform_get_irq(pdev, 0);
 	if (bmc_device->irq < 0) {
@@ -668,7 +661,6 @@ out_irq:
 	devm_free_irq(&pdev->dev, bmc_device->irq, bmc_device);
 out_unmap:
 	iounmap(bmc_device->reg_base);
-	devm_iounmap(&pdev->dev, bmc_device->bmc_mem_virt);
 out_region:
 	devm_kfree(&pdev->dev, bmc_device);
 	dev_warn(dev, "aspeed bmc device: driver init failed (ret=%d)!\n", ret);
@@ -687,8 +679,6 @@ static int  aspeed_bmc_device_remove(struct platform_device *pdev)
 	devm_free_irq(&pdev->dev, bmc_device->pcie_irq, bmc_device);
 
 	iounmap(bmc_device->reg_base);
-
-	devm_iounmap(&pdev->dev, bmc_device->bmc_mem_virt);
 
 	devm_kfree(&pdev->dev, bmc_device);
 
