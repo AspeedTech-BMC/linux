@@ -4,8 +4,8 @@
 
 #if PCIE0_EP
 bmc_dev0_memory: bmc-dev0-memory@41b800000 {
+	compatible = "restricted-dma-pool";
 	reg = <0x4 0x1b800000 0x0 0x100000>;
-	no-map;
 };
 
 xdma_memory0: xdma0 {
@@ -22,8 +22,8 @@ pcie0_mmbi0_memory: pcie0-mmbi0-memory@41ba00000 {
 
 #if PCIE1_EP
 bmc_dev1_memory: bmc-dev1-memory@41b900000 {
+	compatible = "restricted-dma-pool";
 	reg = <0x4 0x1b900000 0x0 0x100000>;
-	no-map;
 };
 
 xdma_memory1: xdma1 {
