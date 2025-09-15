@@ -10,6 +10,7 @@
 
 #include <linux/i3c/master.h>
 #include <linux/i3c/target.h>
+#include <linux/io.h>
 
 extern const struct bus_type i3c_bus_type;
 extern const struct device_type i3c_masterdev_type;

@@ -56,6 +56,20 @@ struct aspeed_lpc_snoop_model_data {
 	unsigned int has_hicrb_ensnp;
 };
 
+enum aspeed_lpc_snoop_index {
+	ASPEED_LPC_SNOOP_INDEX_0 = 0,
+	ASPEED_LPC_SNOOP_INDEX_1 = 1,
+	ASPEED_LPC_SNOOP_INDEX_MAX = ASPEED_LPC_SNOOP_INDEX_1,
+};
+
+struct aspeed_lpc_snoop_channel_cfg {
+	enum aspeed_lpc_snoop_index index;
+	u32 hicr5_en;
+	u32 snpwadr_mask;
+	u32 snpwadr_shift;
+	u32 hicrb_en;
+};
+
 struct aspeed_lpc_snoop_channel {
 	int id;
 	struct miscdevice mdev;
@@ -259,7 +273,6 @@ static void aspeed_lpc_disable_snoop(struct aspeed_lpc_snoop *snoop,
 		break;
 	default:
 		return;
-	}
 
 	kfifo_free(&snoop->chan[hw_channel].fifo);
 	misc_deregister(&snoop->chan[hw_channel].mdev);
@@ -316,7 +329,7 @@ static int aspeed_lpc_snoop_probe(struct platform_device *pdev)
 			 snoop->chan[i].id, ports[i]);
 	}
 
-	return 0;
+	return idx == ASPEED_LPC_SNOOP_INDEX_0 ? -ENODEV : 0;
 
 err:
 	return rc;
