@@ -1404,7 +1404,6 @@
 			aspeed,vhub-generic-endpoints = <21>;
 			pinctrl-names = "default";
 			pinctrl-0 = <&pinctrl_usb2cd_default>;
-			aspeed,scu = <&syscon0>;
 			status = "disabled";
 		};
 
@@ -1429,7 +1428,6 @@
 			aspeed,vhub-generic-endpoints = <21>;
 			pinctrl-names = "default";
 			pinctrl-0 = <&pinctrl_usb2dd_default>;
-			aspeed,scu = <&syscon0>;
 			status = "disabled";
 		};
 
