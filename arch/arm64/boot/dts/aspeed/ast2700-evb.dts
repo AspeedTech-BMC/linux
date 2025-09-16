@@ -1193,6 +1193,10 @@
 
 &vhubc {
 	status = "okay";
+#if 0
+	pinctrl-0 = <&pinctrl_usb2cud_default>;
+	aspeed,uart-ports = <12>;
+#endif
 };
 
 &ehci3 {

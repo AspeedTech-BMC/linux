@@ -199,6 +199,14 @@
 #define VHUB_DSC1_IN_SET_LEN(x)		((x) & 0xfff)
 #define VHUB_DSC1_IN_LEN(x)		((x) & 0xfff)
 
+/***********************************
+ *                                 *
+ * USB2COM register definitions *
+ *                                 *
+ ***********************************/
+#define AST_VHUB_COM_MODE_SEL		0x10
+#define AST_VHUB_COM_EN_CTRL		0x1C
+
 /****************************************
  *                                      *
  * Data structures and misc definitions *
@@ -217,6 +225,8 @@
 #define AST_VHUB_DESCS_COUNT	256	/* Use 256 descriptor mode (valid
 					 * values are 256 and 32)
 					 */
+
+#define AST_VHUB_NUM_UART_PORTS	15	/* USB2COM ports */
 
 struct ast_vhub;
 struct ast_vhub_dev;

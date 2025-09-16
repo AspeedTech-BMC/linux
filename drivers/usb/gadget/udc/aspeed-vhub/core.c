@@ -359,6 +359,61 @@ static void ast_vhub_remove(struct platform_device *pdev)
 	vhub->ep0_bufs = NULL;
 }
 
+static int ast_vhub_init_uart(struct device *dev, struct ast_vhub *vhub)
+{
+	const struct device_node *np = dev->of_node;
+	void __iomem *regs = vhub->regs + 0x800;
+	int i, rc = 0;
+	int num_ports;
+	u32 ports[AST_VHUB_NUM_UART_PORTS], port;
+	u32 mode_sel = 0, dev_en = 0;
+
+	num_ports = of_property_count_u32_elems(np, "aspeed,uart-ports");
+	if (num_ports == -EINVAL) {
+		/* Property not found */
+		return 0;
+	}
+	if (num_ports < 0) {
+		dev_err(dev, "Failed to read uart-ports property\n");
+		return num_ports;
+	}
+	if (num_ports > AST_VHUB_NUM_UART_PORTS) {
+		dev_warn(dev, "Too many UART ports (%d), max is %d\n",
+			 num_ports, AST_VHUB_NUM_UART_PORTS);
+		num_ports = AST_VHUB_NUM_UART_PORTS;
+	}
+
+	rc = of_property_read_u32_array(np, "aspeed,uart-ports",
+					ports, num_ports);
+	if (rc)
+		return rc;
+
+	dev_en = readl(regs + AST_VHUB_COM_EN_CTRL);
+
+	for (i = 0; i < num_ports; i++) {
+		// io-die uart only
+		if (ports[i] == 4 || ports[i] > AST_VHUB_NUM_UART_PORTS) {
+			dev_warn(dev, "Ignoring invalid UART port %d\n",
+				 ports[i]);
+			continue;
+		}
+
+		if (ports[i] < 4)
+			port = ports[i];
+		else
+			port = ports[i] - 1;
+
+		mode_sel |= (0x2 << (port * 2));
+		dev_en |= BIT(port + 16);
+	}
+
+	dev_info(dev, "Enabled UART ports\n");
+
+	writel(mode_sel, regs + AST_VHUB_COM_MODE_SEL);
+	writel(dev_en, regs + AST_VHUB_COM_EN_CTRL);
+	return 0;
+}
+
 static int ast_vhub_probe(struct platform_device *pdev)
 {
 	enum usb_device_speed max_speed;
@@ -450,6 +505,8 @@ static int ast_vhub_probe(struct platform_device *pdev)
 		writel(pdata->txfifo_fix_val | val,
 		       vhub->regs + pdata->txfifo_fix_reg);
 	}
+
+	ast_vhub_init_uart(&pdev->dev, vhub);
 
 	/* Check if we need to limit the HW to USB1 */
 	max_speed = usb_get_maximum_speed(&pdev->dev);
