@@ -52,13 +52,6 @@
 /* MCTP message type */
 #define MCTP_MSG_TYPE_MASK GENMASK(6, 0)
 #define MCTP_PCIE_VDM_MSG_TYPE 0x7E
-#define MCTP_CONTROL_MSG_TYPE 0x00
-
-#define MCTP_CTRL_MSG_RQDI_REQ 0x80
-#define MCTP_CTRL_MSG_RQDI_RSP 0x00
-
-#define MCTP_CTRL_MSG_RQDI_REQ_DATA_OFFSET 3
-#define MCTP_CTRL_MSG_RQDI_RSP_DATA_OFFSET 4
 
 #define MCTP_PCIE_SWAP_NET_ENDIAN(arr, len)       \
 	do {                                      \
@@ -91,11 +84,6 @@ enum mctp_ctrl_command_code {
 	MCTP_CTRL_CMD_DISCOVERY_NOTIFY = 0x0D
 };
 
-struct mctp_ctrl_msg_hdr {
-	u8 ctrl_msg_class;
-	u8 command_code;
-};
-
 struct mctp_pcie_vdm_hdr {
 	u32 length : 10, rsvd0 : 2, attr : 2, ep : 1, td : 1, rsvd1 : 4, tc : 3,
 		rsvd2 : 1, route_type : 5, fmt : 2, rsvd3 : 1;
@@ -106,13 +94,6 @@ struct mctp_pcie_vdm_hdr {
 	u16 pci_target_id;
 };
 
-struct mctp_pcie_vdm_route_info {
-	u8 eid;
-	u8 dirty;
-	u16 bdf_addr;
-	struct hlist_node hnode;
-};
-
 struct mctp_pcie_vdm_dev {
 	struct device *dev;
 	struct net_device *ndev;
@@ -121,8 +102,6 @@ struct mctp_pcie_vdm_dev {
 	struct work_struct rx_work;
 	struct ptr_ring tx_queue;
 	struct list_head list;
-	/* each network may have at most 256 EIDs */
-	DECLARE_HASHTABLE(route_table, 8);
 	const struct mctp_pcie_vdm_ops *callback_ops;
 };
 
@@ -159,102 +138,6 @@ static void mctp_pcie_vdm_display_skb_buff_data(struct sk_buff *skb)
 		i++;
 	}
 	pr_debug("%s\n", buf);
-}
-
-static void mctp_pcie_vdm_update_route_table(struct mctp_pcie_vdm_dev *vdm_dev,
-					     u8 eid, u16 bdf)
-{
-	if (eid == 0x00 || eid == 0xFF)
-		return;
-
-	bool exist = false;
-	struct mctp_pcie_vdm_route_info *route;
-
-	hash_for_each_possible(vdm_dev->route_table, route, hnode, eid) {
-		pr_debug("%s: route table eid %d maps to %d", __func__,
-			 route->eid, route->bdf_addr);
-		if (route->eid == eid) {
-			exist = true;
-			route->bdf_addr = bdf;
-			break;
-		}
-	}
-
-	if (!exist) {
-		route = kmalloc(sizeof(*route), GFP_KERNEL);
-		route->bdf_addr = bdf;
-		route->eid = eid;
-		route->dirty = 0;
-
-		hash_add(vdm_dev->route_table, &route->hnode, route->eid);
-		pr_debug("%s: not found, add map eid %d to bdf 0x%x", __func__,
-			 eid, bdf);
-	}
-}
-
-static void mctp_pcie_vdm_ctrl_msg_handler(struct mctp_pcie_vdm_dev *vdm_dev,
-					   u8 *packet)
-{
-	u8 message_type =
-		FIELD_GET(MCTP_MSG_TYPE_MASK, packet[MCTP_PCIE_VDM_HDR_SIZE]);
-
-	if (message_type != MCTP_CONTROL_MSG_TYPE)
-		return;
-
-	struct mctp_ctrl_msg_hdr *ctrl_hdr =
-		(struct mctp_ctrl_msg_hdr *)(&packet[MCTP_PCIE_VDM_HDR_SIZE + 1]);
-
-	/* host endian expected */
-	struct mctp_pcie_vdm_hdr *hdr = (struct mctp_pcie_vdm_hdr *)packet;
-
-	switch (ctrl_hdr->command_code) {
-	case MCTP_CTRL_CMD_SET_ENDPOINT_ID:
-		if (ctrl_hdr->ctrl_msg_class == MCTP_CTRL_MSG_RQDI_REQ) {
-			/* EID placed at byte2 of SET EID REQ DATA */
-			u8 dst_eid =
-				packet[MCTP_PCIE_VDM_HDR_SIZE +
-				       MCTP_CTRL_MSG_RQDI_REQ_DATA_OFFSET + 1];
-			u16 dst_bdf = hdr->pci_target_id;
-
-			mctp_pcie_vdm_update_route_table(vdm_dev, dst_eid,
-							 dst_bdf);
-		}
-		break;
-	case MCTP_CTRL_CMD_GET_ENDPOINT_ID:
-		if (ctrl_hdr->ctrl_msg_class == MCTP_CTRL_MSG_RQDI_RSP) {
-			/* EID placed at byte2 of GET EID RSP DATA */
-			u8 target_eid =
-				packet[MCTP_PCIE_VDM_HDR_SIZE +
-				       MCTP_CTRL_MSG_RQDI_RSP_DATA_OFFSET + 1];
-			u16 src_bdf = hdr->pci_req_id;
-
-			mctp_pcie_vdm_update_route_table(vdm_dev, target_eid,
-							 src_bdf);
-		}
-		break;
-	case MCTP_CTRL_CMD_DISCOVERY_NOTIFY:
-		hdr->pci_target_id = 0x0000;
-		/* default use MCTP_PCIE_VDM_ROUTE_BY_ID, so no need to handle RSP class */
-		if (ctrl_hdr->ctrl_msg_class == MCTP_CTRL_MSG_RQDI_REQ) {
-			hdr->route_type = MCTP_PCIE_VDM_TYPE_MSG |
-					  MCTP_PCIE_VDM_ROUTE_TO_RC;
-		}
-		break;
-	case MCTP_CTRL_CMD_PREPARE_ENDPOINT_DISCOVERY:
-	case MCTP_CTRL_CMD_ENDPOINT_DISCOVERY:
-		if (ctrl_hdr->ctrl_msg_class == MCTP_CTRL_MSG_RQDI_REQ) {
-			hdr->route_type = MCTP_PCIE_VDM_TYPE_MSG |
-					  MCTP_PCIE_VDM_BROADCAST_FROM_RC;
-			hdr->pci_target_id = 0xFFFF;
-		} else if (ctrl_hdr->ctrl_msg_class == MCTP_CTRL_MSG_RQDI_RSP) {
-			hdr->route_type = MCTP_PCIE_VDM_TYPE_MSG |
-					  MCTP_PCIE_VDM_ROUTE_TO_RC;
-		}
-		break;
-	default:
-		/* Unknown command code or not supported currently */
-		break;
-	}
 }
 
 static netdev_tx_t mctp_pcie_vdm_start_xmit(struct sk_buff *skb,
@@ -305,35 +188,6 @@ static void mctp_pcie_vdm_xmit(struct mctp_pcie_vdm_dev *vdm_dev,
 	payload_len_dw = (ALIGN(skb->len, sizeof(u32)) - MCTP_PCIE_VDM_HDR_SIZE) / sizeof(u32);
 	payload_len_byte = skb->len - MCTP_PCIE_VDM_HDR_SIZE;
 	message_type = FIELD_GET(MCTP_MSG_TYPE_MASK, hdr_byte[MCTP_PCIE_VDM_HDR_SIZE]);
-
-	if (message_type == MCTP_CONTROL_MSG_TYPE) {
-		mctp_pcie_vdm_ctrl_msg_handler(vdm_dev, hdr_byte);
-	} else {
-		if (hdr->route_type ==
-		    (MCTP_PCIE_VDM_TYPE_MSG | MCTP_PCIE_VDM_ROUTE_BY_ID)) {
-			struct mctp_pcie_vdm_route_info *route;
-			bool exist = false;
-			u16 bdf = 0x00;
-			u8 dst_eid =
-				FIELD_GET(GENMASK(15, 8),
-					  *((u32 *)skb->data +
-					    sizeof(struct mctp_pcie_vdm_hdr) /
-						    sizeof(u32)));
-
-			hash_for_each_possible(vdm_dev->route_table, route,
-					       hnode, dst_eid) {
-				if (route->eid == dst_eid) {
-					exist = true;
-					bdf = route->bdf_addr;
-					hdr->pci_target_id = bdf;
-					break;
-				}
-			}
-			if (exist)
-				pr_debug("%s fill bdf 0x%x to eid %d", __func__,
-					 bdf, dst_eid);
-		}
-	}
 
 	hdr->length = payload_len_dw;
 	hdr->tag_pad_len =
@@ -434,26 +288,6 @@ static void mctp_pcie_vdm_rx_work_handler(struct work_struct *work)
 			stats->rx_dropped++;
 		}
 
-		mctp_pcie_vdm_ctrl_msg_handler(vdm_dev, packet);
-
-		if (vdm_hdr->route_type ==
-			(MCTP_PCIE_VDM_TYPE_MSG |
-				MCTP_PCIE_VDM_ROUTE_BY_ID)) {
-			u32 mctp_hdr;
-			u16 bdf;
-			u8 src_eid;
-
-			bdf = vdm_hdr->pci_req_id;
-			mctp_hdr = *((u32 *)packet +
-				     sizeof(struct mctp_pcie_vdm_hdr) /
-					     sizeof(u32));
-			MCTP_PCIE_SWAP_LITTLE_ENDIAN(&mctp_hdr, 1);
-			src_eid = FIELD_GET(GENMASK(15, 8), mctp_hdr);
-
-			mctp_pcie_vdm_update_route_table(vdm_dev,
-							 src_eid, bdf);
-		}
-
 		vdm_dev->callback_ops->free_packet(packet);
 		packet = vdm_dev->callback_ops->recv_packet(vdm_dev->dev);
 	}
@@ -461,7 +295,6 @@ static void mctp_pcie_vdm_rx_work_handler(struct work_struct *work)
 
 static int mctp_pcie_vdm_add_mctp_dev(struct mctp_pcie_vdm_dev *vdm_dev)
 {
-	hash_init(vdm_dev->route_table);
 	INIT_LIST_HEAD(&vdm_dev->list);
 	init_waitqueue_head(&vdm_dev->tx_wait);
 	ptr_ring_init(&vdm_dev->tx_queue, MCTP_PCIE_VDM_DEV_TX_QUEUE_SIZE,
@@ -480,19 +313,10 @@ static void mctp_pcie_vdm_uninit(struct net_device *ndev)
 {
 	struct mctp_pcie_vdm_dev *vdm_dev;
 
-	struct mctp_pcie_vdm_route_info *route;
-	struct hlist_node *tmp;
-	int bkt;
-
 	vdm_dev = netdev_priv(ndev);
 	pr_info("%s: uninitializing vdm_dev %s\n", __func__,
 		vdm_dev->ndev->name);
 	vdm_dev->callback_ops->uninit(vdm_dev->dev);
-
-	hash_for_each_safe(vdm_dev->route_table, bkt, tmp, route, hnode) {
-		hash_del(&route->hnode);
-		kfree(route);
-	}
 
 	if (vdm_dev->tx_thread) {
 		kthread_stop(vdm_dev->tx_thread);
