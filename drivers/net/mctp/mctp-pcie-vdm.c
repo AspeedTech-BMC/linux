@@ -277,8 +277,10 @@ static void mctp_pcie_vdm_rx_work_handler(struct work_struct *work)
 		mctp_pcie_vdm_display_skb_buff_data(skb);
 
 		cb = __mctp_cb(skb);
-		cb->halen = 2; // BDF size is 2 bytes
-		memcpy(cb->haddr, &vdm_hdr->pci_req_id, cb->halen);
+		cb->halen = 3; // route type | bdf address
+		cb->haddr[0] = vdm_hdr->route_type;
+		cb->haddr[1] = vdm_hdr->pci_req_id >> 8;
+		cb->haddr[2] = vdm_hdr->pci_req_id & 0xFF;
 
 		net_status = netif_rx(skb);
 		if (net_status == NET_RX_SUCCESS) {
@@ -349,14 +351,17 @@ static int mctp_pcie_vdm_hdr_create(struct sk_buff *skb,
 				    unsigned short type, const void *daddr,
 				    const void *saddr, unsigned int len)
 {
+	u8 dest_addr[3] = {0};
 	struct mctp_pcie_vdm_hdr *hdr =
 		(struct mctp_pcie_vdm_hdr *)skb_push(skb, sizeof(*hdr));
 
 	pr_debug("%s type %d len %d\n", __func__, type, len);
 	memcpy(hdr, &mctp_pcie_vdm_hdr_template, sizeof(*hdr));
 	if (daddr) {
-		pr_debug("%s dst addr %d\n", __func__, *(u16 *)daddr);
-		hdr->pci_target_id = *(u16 *)daddr;
+		memcpy(dest_addr, (u8 *)daddr, sizeof(dest_addr));
+		hdr->route_type = dest_addr[0] & GENMASK(2, 0);
+		hdr->pci_target_id = dest_addr[1] << 8 | dest_addr[2];
+		pr_debug("%s dst route %d addr %d\n", __func__, hdr->route_type, hdr->pci_target_id);
 	}
 
 	if (saddr) {
@@ -384,7 +389,7 @@ static void mctp_pcie_vdm_net_setup(struct net_device *ndev)
 	ndev->min_mtu = MCTP_PCIE_VDM_MIN_MTU;
 	ndev->max_mtu = MCTP_PCIE_VDM_MAX_MTU;
 	ndev->tx_queue_len = MCTP_PCIE_VDM_NET_DEV_TX_QUEUE_LEN;
-	ndev->addr_len = 2; //PCIe bdf is 2 bytes
+	ndev->addr_len = 3; //PCIe bdf is 2bytes + 1byte route type
 	ndev->hard_header_len = sizeof(struct mctp_pcie_vdm_hdr);
 
 	ndev->netdev_ops = &mctp_pcie_vdm_net_ops;
