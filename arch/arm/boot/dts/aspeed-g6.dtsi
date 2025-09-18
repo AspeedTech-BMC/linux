@@ -1080,6 +1080,7 @@
 				#size-cells = <1>;
 				ranges = <0 0x1e740000 0x10000>;
 				clocks = <&syscon ASPEED_CLK_GATE_SDCLK>;
+				resets = <&syscon ASPEED_RESET_SDIO>;
 				status = "disabled";
 
 				sdhci0: sdhci@1e740100 {
