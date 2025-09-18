@@ -11,8 +11,6 @@
 #include <linux/device.h>
 #include <linux/notifier.h>
 
-struct mctp_pcie_vdm_dev;
-
 /**
  * @send_packet: referenced to send packets with PCIe VDM header packed.
  * @recv_packet: referenced multiple times until no RX packet to be handled.
@@ -27,16 +25,9 @@ struct mctp_pcie_vdm_ops {
 	void (*uninit)(struct device *dev);
 };
 
-struct mctp_pcie_vdm_dev *mctp_pcie_vdm_add_dev(struct device *dev,
-						const struct mctp_pcie_vdm_ops *ops);
-void mctp_pcie_vdm_remove_dev(struct mctp_pcie_vdm_dev *vdm_dev);
-
-/**
- * Notify mctp-pcie-vdm that packets are received and ready to be processed.
- * After notified, mctp-pcie-vdm will call recv_packet() multiple times
- * until no more packets to be processed. The lower layer driver can keep receiving
- * packets while the upper layer is processing the received packets.
- */
-void mctp_pcie_vdm_notify_rx(struct mctp_pcie_vdm_dev *vdm_dev);
+struct net_device *mctp_pcie_vdm_add_dev(struct device *dev,
+					 const struct mctp_pcie_vdm_ops *ops);
+void mctp_pcie_vdm_receive_packet(struct net_device *ndev);
+void mctp_pcie_vdm_remove_dev(struct net_device *ndev);
 
 #endif	 /* __LINUX_MCTP_PCIE_VDM_H */

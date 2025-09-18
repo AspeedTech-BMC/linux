@@ -330,8 +330,7 @@ struct aspeed_mctp {
 	struct delayed_work rx_det_dwork;
 	u32 rx_det_period_us;
 #ifdef CONFIG_MCTP_TRANSPORT_PCIE_VDM
-	/* MCTP PCIe VDM device */
-	struct mctp_pcie_vdm_dev *vdm_dev;
+	struct net_device *ndev;
 #endif
 };
 
@@ -766,7 +765,7 @@ static void aspeed_mctp_dispatch_packet(struct aspeed_mctp *priv,
 			wake_up_all(&client->wait_queue);
 		}
 #ifdef CONFIG_MCTP_TRANSPORT_PCIE_VDM
-		mctp_pcie_vdm_notify_rx(priv->vdm_dev);
+		mctp_pcie_vdm_receive_packet(priv->ndev);
 #endif
 		aspeed_mctp_client_put(client);
 	} else {
@@ -963,7 +962,6 @@ static void aspeed_mctp_rx_tasklet(unsigned long data)
 			rx_packet = aspeed_mctp_packet_alloc(GFP_ATOMIC);
 			if (rx_packet) {
 				memcpy(&rx_packet->data, hdr, sizeof(rx_packet->data));
-
 				aspeed_mctp_swap_pcie_vdm_hdr(&rx_packet->data);
 
 				aspeed_mctp_dispatch_packet(priv, rx_packet);
@@ -2486,19 +2484,19 @@ static int aspeed_mctp_probe(struct platform_device *pdev)
 	}
 
 #ifdef CONFIG_MCTP_TRANSPORT_PCIE_VDM
-	struct mctp_pcie_vdm_dev *vdm_dev;
+	struct net_device *ndev;
 	struct mctp_client *client;
 
 	/** use priv's default client to send/receive mctp packets */
 	client = aspeed_mctp_create_client(priv);
 	aspeed_mctp_register_default_handler(client);
 
-	vdm_dev = mctp_pcie_vdm_add_dev(priv->dev, &aspeed_mctp_pcie_vdm_ops);
-	if (IS_ERR(vdm_dev)) {
-		dev_err(priv->dev, "Failed to add mctp pcie vdm device Err %ld\n", PTR_ERR(vdm_dev));
+	ndev = mctp_pcie_vdm_add_dev(priv->dev, &aspeed_mctp_pcie_vdm_ops);
+	if (IS_ERR(ndev)) {
+		dev_err(priv->dev, "Failed to add mctp pcie vdm device Err %ld\n", PTR_ERR(ndev));
 		goto out_drv;
 	}
-	priv->vdm_dev = vdm_dev;
+	priv->ndev = ndev;
 #endif
 
 	ret = aspeed_mctp_dma_init(priv);
@@ -2556,7 +2554,7 @@ static int aspeed_mctp_remove(struct platform_device *pdev)
 	struct aspeed_mctp *priv = platform_get_drvdata(pdev);
 
 #ifdef CONFIG_MCTP_TRANSPORT_PCIE_VDM
-	mctp_pcie_vdm_remove_dev(priv->vdm_dev);
+	mctp_pcie_vdm_remove_dev(priv->ndev);
 #endif
 
 	platform_device_unregister(priv->peci_mctp);
