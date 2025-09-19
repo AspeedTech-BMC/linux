@@ -845,10 +845,17 @@
 	status = "okay";
 };
 
+#if 1
 &lpc1_snoop {
 	status = "okay";
 	snoop-ports = <0x80>, <0x81>;
 };
+#else
+&lpc1_pcc {
+	status = "okay";
+	pcc-ports = <0x80>;
+};
+#endif
 
 &lpc1_uart_routing {
 	status = "okay";
