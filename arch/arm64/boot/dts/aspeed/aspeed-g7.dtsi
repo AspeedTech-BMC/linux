@@ -490,21 +490,29 @@
 			};
 		};
 
-		intc0_11: interrupt-controller@12101b00 {
-			compatible = "aspeed,ast2700-intc-ic";
-			reg = <0x0 0x12101b00 0x0 0x10>;
-			#interrupt-cells = <1>;
-			interrupt-controller;
-			interrupts = <GIC_SPI 192 IRQ_TYPE_LEVEL_HIGH>,
-					<GIC_SPI 193 IRQ_TYPE_LEVEL_HIGH>,
-					<GIC_SPI 194 IRQ_TYPE_LEVEL_HIGH>,
-					<GIC_SPI 195 IRQ_TYPE_LEVEL_HIGH>,
-					<GIC_SPI 196 IRQ_TYPE_LEVEL_HIGH>,
-					<GIC_SPI 197 IRQ_TYPE_LEVEL_HIGH>,
-					<GIC_SPI 198 IRQ_TYPE_LEVEL_HIGH>,
-					<GIC_SPI 199 IRQ_TYPE_LEVEL_HIGH>,
-					<GIC_SPI 200 IRQ_TYPE_LEVEL_HIGH>,
-					<GIC_SPI 201 IRQ_TYPE_LEVEL_HIGH>;
+		intc0: interrupt-controller@12100000 {
+			compatible = "aspeed,ast2700-intc0";
+			reg = <0 0x12100000 0 0x4000>;
+			#address-cells = <2>;
+			#size-cells = <2>;
+			ranges = <0x0 0x0 0x0 0x12100000 0x0 0x4000>;
+
+			intc0_11: interrupt-controller@1b00 {
+				#interrupt-cells = <1>;
+				interrupt-controller;
+				compatible = "aspeed,ast2700-intc-ic";
+				reg = <0x0 0x1b00 0x0 0x10>;
+				interrupts = <GIC_SPI 192 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 193 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 194 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 195 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 196 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 197 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 198 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 199 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 200 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 201 IRQ_TYPE_LEVEL_HIGH>;
+			};
 		};
 
 		bmc_dev0: bmc-dev@12110000 {
@@ -1660,52 +1668,60 @@
 			interrupts-extended = <&intc1_4 19>;
 		};
 
-		intc1_0: interrupt-controller@14c18100 {
-			compatible = "aspeed,ast2700-intc-ic";
-			reg = <0x0 0x14c18100 0x0 0x10>;
-			#interrupt-cells = <1>;
-			interrupt-controller;
-			interrupts-extended = <&intc0_11 0>;
-		};
+		intc1: interrupt-controller@14c18000 {
+			compatible = "aspeed,ast2700-intc1";
+			reg = <0 0x14c18000 0 0x400>;
+			#address-cells = <2>;
+			#size-cells = <2>;
+			ranges = <0x0 0x0 0x0 0x14c18000 0x0 0x400>;
 
-		intc1_1: interrupt-controller@14c18110 {
-			compatible = "aspeed,ast2700-intc-ic";
-			reg = <0x0 0x14c18110 0x0 0x10>;
-			#interrupt-cells = <1>;
-			interrupt-controller;
-			interrupts-extended = <&intc0_11 1>;
-		};
+			intc1_0: interrupt-controller@100 {
+				#interrupt-cells = <1>;
+				interrupt-controller;
+				compatible = "aspeed,ast2700-intc-ic";
+				reg = <0x0 0x100 0x0 0x10>;
+				interrupts-extended = <&intc0_11 0>;
+			};
 
-		intc1_2: interrupt-controller@14c18120 {
-			compatible = "aspeed,ast2700-intc-ic";
-			reg = <0x0 0x14c18120 0x0 0x10>;
-			#interrupt-cells = <1>;
-			interrupt-controller;
-			interrupts-extended = <&intc0_11 2>;
-		};
+			intc1_1: interrupt-controller@110 {
+				#interrupt-cells = <1>;
+				interrupt-controller;
+				compatible = "aspeed,ast2700-intc-ic";
+				reg = <0x0 0x110 0x0 0x10>;
+				interrupts-extended = <&intc0_11 1>;
+			};
 
-		intc1_3: interrupt-controller@14c18130 {
-			compatible = "aspeed,ast2700-intc-ic";
-			reg = <0x0 0x14c18130 0x0 0x10>;
-			#interrupt-cells = <1>;
-			interrupt-controller;
-			interrupts-extended = <&intc0_11 3>;
-		};
+			intc1_2: interrupt-controller@120 {
+				#interrupt-cells = <1>;
+				interrupt-controller;
+				compatible = "aspeed,ast2700-intc-ic";
+				reg = <0x0 0x120 0x0 0x10>;
+				interrupts-extended = <&intc0_11 2>;
+			};
 
-		intc1_4: interrupt-controller@14c18140 {
-			compatible = "aspeed,ast2700-intc-ic";
-			reg = <0x0 0x14c18140 0x0 0x10>;
-			#interrupt-cells = <1>;
-			interrupt-controller;
-			interrupts-extended = <&intc0_11 4>;
-		};
+			intc1_3: interrupt-controller@130 {
+				#interrupt-cells = <1>;
+				interrupt-controller;
+				compatible = "aspeed,ast2700-intc-ic";
+				reg = <0x0 0x130 0x0 0x10>;
+				interrupts-extended = <&intc0_11 3>;
+			};
 
-		intc1_5: interrupt-controller@14c18150 {
-			compatible = "aspeed,ast2700-intc-ic";
-			reg = <0x0 0x14c18150 0x0 0x10>;
-			#interrupt-cells = <1>;
-			interrupt-controller;
-			interrupts-extended = <&intc0_11 5>;
+			intc1_4: interrupt-controller@140 {
+				#interrupt-cells = <1>;
+				interrupt-controller;
+				compatible = "aspeed,ast2700-intc-ic";
+				reg = <0x0 0x140 0x0 0x10>;
+				interrupts-extended = <&intc0_11 4>;
+			};
+
+			intc1_5: interrupt-controller@150 {
+				#interrupt-cells = <1>;
+				interrupt-controller;
+				compatible = "aspeed,ast2700-intc-ic";
+				reg = <0x0 0x150 0x0 0x10>;
+				interrupts-extended = <&intc0_11 5>;
+			};
 		};
 
 		peci0: peci-controller@14c1f000 {
