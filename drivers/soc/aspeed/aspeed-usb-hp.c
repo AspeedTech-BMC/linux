@@ -27,7 +27,7 @@ static const struct of_device_id aspeed_usb_hp_dt_ids[] = {
 	{
 		.compatible = "aspeed,ast2700-usb3bhp",
 	},
-		{
+	{
 		.compatible = "aspeed,ast2700-usb2ahp",
 	},
 	{
@@ -51,7 +51,7 @@ static int aspeed_usb_hp_probe(struct platform_device *pdev)
 	int rc = 0;
 
 	if (of_device_is_compatible(pdev->dev.of_node,
-				    "ast2600-usb2ahp")) {
+				    "aspeed,ast2600-usb2ahp")) {
 		dev_info(&pdev->dev, "Initialized AST2600 USB2AHP\n");
 		return 0;
 	}
