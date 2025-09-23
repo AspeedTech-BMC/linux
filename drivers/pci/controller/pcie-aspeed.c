@@ -1134,6 +1134,10 @@ static int aspeed_pcie_probe(struct platform_device *pdev)
 	pcie->perst_rc_out = devm_gpiod_get_optional(dev, "perst-rc-out",
 						     GPIOD_OUT_LOW | GPIOD_FLAGS_BIT_NONEXCLUSIVE);
 
+	ret = devm_mutex_init(dev, &pcie->lock);
+	if (ret)
+		return dev_err_probe(dev, ret, "failed to init mutex\n");
+
 	ret = pcie->platform->setup(pdev);
 	if (ret)
 		return dev_err_probe(dev, ret, "Failed to setup PCIe RC\n");
