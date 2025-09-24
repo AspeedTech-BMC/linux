@@ -763,7 +763,11 @@
 	flash-edaf-size = <0x0 0x4000000>;
 #endif
 };
-#endif
+
+&rtc_over_espi1 {
+	status = "okay";
+};
+#endif /* DUAL_NODE */
 
 &lpc0_kcs0 {
 	status = "okay";
@@ -954,11 +958,11 @@
 	bmc-int-value = /bits/ 8 <0x00>;
 	bmc-int-location = <0>;
 };
-#else
+#else /* !PCIE0_EP */
 &pcie0 {
 	status = "okay";
 };
-#endif
+#endif /* PCIE0_EP */
 
 #if PCIE1_EP
 &bmc_dev1 {
@@ -1023,11 +1027,11 @@
 	bmc-int-value = /bits/ 8 <0x00>;
 	bmc-int-location = <0>;
 };
-#else
+#else /* !PCIE1_EP */
 &pcie1 {
 	status = "okay";
 };
-#endif
+#endif /* PCIE1_EP */
 
 #if 0
 &i3c0 {
