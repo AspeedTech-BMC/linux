@@ -18,29 +18,58 @@
 #define INTC_INT_ENABLE_REG	0x00
 #define INTC_INT_STATUS_REG	0x04
 #define INTC_IRQS_PER_WORD	32
+#define INTC_IRQ_BASE		192
 
 struct aspeed_intc_ic {
 	void __iomem		*base;
-	raw_spinlock_t		gic_lock;
 	raw_spinlock_t		intc_lock;
 	struct irq_domain	*irq_domain;
 };
 
-static void aspeed_intc_ic_irq_handler(struct irq_desc *desc)
+static void aspeed_intc0_ic_irq_handler(struct irq_desc *desc)
 {
 	struct aspeed_intc_ic *intc_ic = irq_desc_get_handler_data(desc);
 	struct irq_chip *chip = irq_desc_get_chip(desc);
+	struct irq_data *irq_data = irq_desc_get_irq_data(desc);
+	unsigned long hwirq;
+
+	if (!irq_data || !intc_ic) {
+		pr_err("Invalid irq_data or intc_ic\n");
+		return;
+	}
+
+	if (irq_data->hwirq < INTC_IRQ_BASE + 32) {
+		pr_err("Invalid hwirq: %lu\n", irq_data->hwirq);
+		return;
+	}
+	hwirq = irq_data->hwirq - INTC_IRQ_BASE - 32; /* 32 is SPI offset */
 
 	chained_irq_enter(chip, desc);
 
-	scoped_guard(raw_spinlock, &intc_ic->gic_lock) {
-		unsigned long bit, status;
+	generic_handle_domain_irq(intc_ic->irq_domain, hwirq);
+	writel(BIT(hwirq), intc_ic->base + INTC_INT_STATUS_REG);
 
-		status = readl(intc_ic->base + INTC_INT_STATUS_REG);
-		for_each_set_bit(bit, &status, INTC_IRQS_PER_WORD) {
-			generic_handle_domain_irq(intc_ic->irq_domain, bit);
-			writel(BIT(bit), intc_ic->base + INTC_INT_STATUS_REG);
-		}
+	chained_irq_exit(chip, desc);
+}
+
+static void aspeed_intc1_ic_irq_handler(struct irq_desc *desc)
+{
+	struct aspeed_intc_ic *intc_ic = irq_desc_get_handler_data(desc);
+	struct irq_chip *chip = irq_desc_get_chip(desc);
+	unsigned long bit, status;
+
+	if (!intc_ic) {
+		pr_err("Invalid intc_ic\n");
+		return;
+	}
+
+	chained_irq_enter(chip, desc);
+
+	status = readl(intc_ic->base + INTC_INT_STATUS_REG);
+
+	for_each_set_bit(bit, &status, INTC_IRQS_PER_WORD) {
+		generic_handle_domain_irq(intc_ic->irq_domain, bit);
+		writel(BIT(bit), intc_ic->base + INTC_INT_STATUS_REG);
 	}
 
 	chained_irq_exit(chip, desc);
@@ -90,7 +119,7 @@ static int __init aspeed_intc_ic_of_init(struct device_node *node,
 {
 	struct aspeed_intc_ic *intc_ic;
 	int ret = 0;
-	int irq, i;
+	int irq, irq_count, i;
 
 	intc_ic = kzalloc(sizeof(*intc_ic), GFP_KERNEL);
 	if (!intc_ic)
@@ -112,27 +141,37 @@ static int __init aspeed_intc_ic_of_init(struct device_node *node,
 		goto err_iounmap;
 	}
 
-	raw_spin_lock_init(&intc_ic->gic_lock);
 	raw_spin_lock_init(&intc_ic->intc_lock);
 
-	/* Check all the irq numbers valid. If not, unmaps all the base and frees the data. */
-	for (i = 0; i < of_irq_count(node); i++) {
+	irq_count = of_irq_count(node);
+	if (irq_count == 0) {
+		pr_err("Failed to get irq count\n");
+		ret = -EINVAL;
+		goto err_iounmap;
+	}
+
+	for (i = 0; i < irq_count; i++) {
 		irq = irq_of_parse_and_map(node, i);
 		if (!irq) {
 			pr_err("Failed to get irq number\n");
 			ret = -EINVAL;
 			goto err_iounmap;
+		} else {
+			if (irq_count > 1)
+				irq_set_chained_handler_and_data(irq, aspeed_intc0_ic_irq_handler, intc_ic);
+			else
+				irq_set_chained_handler_and_data(irq, aspeed_intc1_ic_irq_handler, intc_ic);
 		}
-	}
-
-	for (i = 0; i < of_irq_count(node); i++) {
-		irq = irq_of_parse_and_map(node, i);
-		irq_set_chained_handler_and_data(irq, aspeed_intc_ic_irq_handler, intc_ic);
 	}
 
 	return 0;
 
 err_iounmap:
+	for (i = 0; i < irq_count; i++) {
+		irq = irq_of_parse_and_map(node, i);
+		if (irq)
+			irq_dispose_mapping(irq);
+	}
 	iounmap(intc_ic->base);
 err_free_ic:
 	kfree(intc_ic);
