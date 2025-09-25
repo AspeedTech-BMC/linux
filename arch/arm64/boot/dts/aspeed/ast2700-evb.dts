@@ -1227,7 +1227,7 @@
 };
 #endif
 
-#if 0
+#if 1
 &soc0 {
 	mbox-bootmcu-1 {
 		compatible = "aspeed,aspeed-mbox";
