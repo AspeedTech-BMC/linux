@@ -14,11 +14,6 @@
 #include <soc/aspeed/reset-aspeed.h>
 #include <dt-bindings/clock/aspeed,ast2700-scu.h>
 
-#define SCU_CLK_12MHZ	(12 * HZ_PER_MHZ)
-#define SCU_CLK_24MHZ	(24 * HZ_PER_MHZ)
-#define SCU_CLK_25MHZ	(25 * HZ_PER_MHZ)
-#define SCU_CLK_192MHZ	(192 * HZ_PER_MHZ)
-
 /* SOC0 */
 #define SCU0_HWSTRAP1		0x010
 #define SCU0_CLK_STOP		0x240
@@ -365,14 +360,6 @@ static const struct clk_parent_data uart12clk[] = {
 	{ .fw_name = "uart12clk", .name = "uart12clk" },
 };
 
-static const struct clk_parent_data uart13clk[] = {
-	{ .fw_name = "uart13clk", .name = "uart13clk" },
-};
-
-static const struct clk_parent_data uart14clk[] = {
-	{ .fw_name = "uart14clk", .name = "uart14clk" },
-};
-
 static const struct clk_parent_data soc1_i3c[] = {
 	{ .fw_name = "soc1-i3c", .name = "soc1-i3c" },
 };
@@ -506,10 +493,10 @@ static const struct clk_parent_data uartx_clk_sels[] = {
 	}
 
 static const struct ast2700_clk_info ast2700_scu0_clk_info[] __initconst = {
-	FIXED_CLK(SCU0_CLKIN, "soc0-clkin", SCU_CLK_25MHZ),
-	FIXED_CLK(SCU0_CLK_24M, "soc0-clk24Mhz", SCU_CLK_24MHZ),
-	FIXED_CLK(SCU0_CLK_192M, "soc0-clk192Mhz", SCU_CLK_192MHZ),
-	FIXED_CLK(SCU0_CLK_U2PHY_CLK12M, "u2phy_clk12m", SCU_CLK_12MHZ),
+	FIXED_CLK(SCU0_CLKIN, "soc0-clkin", 25 * HZ_PER_MHZ),
+	FIXED_CLK(SCU0_CLK_24M, "soc0-clk24Mhz", 24 * HZ_PER_MHZ),
+	FIXED_CLK(SCU0_CLK_192M, "soc0-clk192Mhz", 192 * HZ_PER_MHZ),
+	FIXED_CLK(SCU0_CLK_U2PHY_CLK12M, "u2phy_clk12m", 12 * HZ_PER_MHZ),
 	PLL_CLK(SCU0_CLK_HPLL, CLK_HPLL, "soc0-hpll", soc0_clkin, SCU0_HPLL_PARAM),
 	PLL_CLK(SCU0_CLK_DPLL, CLK_PLL, "soc0-dpll", soc0_clkin, SCU0_DPLL_PARAM),
 	PLL_CLK(SCU0_CLK_MPLL, CLK_PLL, "soc0-mpll", soc0_clkin, SCU0_MPLL_PARAM),
@@ -602,7 +589,7 @@ static const struct ast2700_clk_info ast2700_scu0_clk_info[] __initconst = {
 };
 
 static const struct ast2700_clk_info ast2700_scu1_clk_info[] __initconst = {
-	FIXED_CLK(SCU1_CLKIN, "soc1-clkin", SCU_CLK_25MHZ),
+	FIXED_CLK(SCU1_CLKIN, "soc1-clkin", 25 * HZ_PER_MHZ),
 	PLL_CLK(SCU1_CLK_HPLL, CLK_PLL, "soc1-hpll", soc1_clkin, SCU1_HPLL_PARAM),
 	PLL_CLK(SCU1_CLK_APLL, CLK_PLL, "soc1-apll", soc1_clkin, SCU1_APLL_PARAM),
 	PLL_CLK(SCU1_CLK_DPLL, CLK_PLL, "soc1-dpll", soc1_clkin, SCU1_DPLL_PARAM),
