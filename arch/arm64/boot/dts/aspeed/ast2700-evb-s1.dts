@@ -438,3 +438,28 @@
 			  <&syscon1 SCU1_CLK_RMII>;
 	assigned-clock-rates = <200000000>, <125000000>, <50000000>;
 };
+
+&vhuba0 {
+	status = "okay";
+	pinctrl-0 = <&pinctrl_usb2ad0_default>;
+};
+
+&uphy2a {
+	status = "okay";
+};
+
+&usb3ahp {
+	status = "disabled";
+};
+
+&usb3bhp {
+	status = "disabled";
+};
+
+&vhubb0 {
+	status = "okay";
+};
+
+&vhubb1 {
+	status = "disabled";
+};
