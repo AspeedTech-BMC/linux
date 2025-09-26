@@ -32,13 +32,17 @@
 #define DEVICE_NAME				"aspeed-xdma"
 
 #define SCU_AST2600_MISC_CTRL			0x0c0
-#define  SCU_AST2600_MISC_CTRL_XDMA_BMC		BIT(8)
+#define  SCU_AST2600_MISC_CTRL_XDMA_BMC		 BIT(8)
+#define  SCU_AST2700_MISC_CTRL_XDMA_CLIENT	 BIT(4)
 
 #define SCU_AST2600_DEBUG_CTRL			0x0c8
-#define  DEBUG_CTRL_XDMA_DISABLE		BIT(2)
+#define  DEBUG_CTRL_AST2600_XDMA_DISABLE	 BIT(2)
+#define  DEBUG_CTRL_AST2700_XDMA_DISABLE	 BIT(8)
 
 #define SCU_AST2500_PCIE_CONF			0x180
 #define SCU_AST2600_PCIE_CONF			0xc20
+#define SCU_AST2700_PCIE0_CONF			0x970
+#define SCU_AST2700_PCIE1_CONF			0x9B0
 #define  SCU_PCIE_CONF_VGA_EN			 BIT(0)
 #define  SCU_PCIE_CONF_VGA_EN_MMIO		 BIT(1)
 #define  SCU_PCIE_CONF_VGA_EN_LPC		 BIT(2)
@@ -53,9 +57,16 @@
 #define  SCU_PCIE_CONF_BMC_EN_IRQ		 BIT(13)
 #define  SCU_PCIE_CONF_BMC_EN_DMA		 BIT(14)
 
+#define SCU_AST2700_PCIE0_CTRL			0xa60
+#define SCU_AST2700_PCIE1_CTRL			0xae0
+#define  SCU_AST2700_PCIE_CTRL_DMA_EN		 BIT(2)
+
 #define SCU_AST2500_BMC_CLASS_REV		0x19c
 #define SCU_AST2600_BMC_CLASS_REV		0xc68
+#define SCU_AST2700_PCIE0_BMC_CLASS_REV		0xa18
+#define SCU_AST2700_PCIE1_BMC_CLASS_REV		0xa98
 #define  SCU_BMC_CLASS_REV_XDMA			 0xff000001
+#define  SCU_BMC_CLASS_REV_MASK			 0xffffff00
 
 #define XDMA_CMDQ_SIZE				PAGE_SIZE
 #define XDMA_NUM_CMDS				\
@@ -89,6 +100,16 @@
 #define XDMA_CMD_AST2600_CMD_LINE_NO		GENMASK_ULL(27, 16)
 #define XDMA_CMD_AST2600_CMD_LINE_SIZE		GENMASK_ULL(14, 0)
 #define XDMA_CMD_AST2600_CMD_MULTILINE_SIZE	GENMASK_ULL(14, 12)
+
+#define XDMA_CMD_AST2700_PITCH_BMC		GENMASK_ULL(62, 48)
+#define XDMA_CMD_AST2700_PITCH_HOST		GENMASK_ULL(46, 32)
+#define XDMA_CMD_AST2700_CMD_64_EN		BIT_ULL(40)
+#define XDMA_CMD_AST2700_CMD_IRQ_BMC		BIT_ULL(37)
+#define XDMA_CMD_AST2700_CMD_UPSTREAM		BIT_ULL(32)
+#define XDMA_CMD_AST2700_CMD_LINE_NO		GENMASK_ULL(27, 16)
+#define XDMA_CMD_AST2700_CMD_LINE_SIZE		GENMASK_ULL(14, 0)
+#define XDMA_CMD_AST2700_CMD_MULTILINE_SIZE	GENMASK_ULL(14, 12)
+#define XDMA_CMD_AST2700_BMC_ADDR		GENMASK_ULL(34, 0)
 
 #define XDMA_AST2500_QUEUE_ENTRY_SIZE		4
 #define XDMA_AST2500_HOST_CMDQ_ADDR0		0x00
@@ -164,6 +185,36 @@
 #define XDMA_AST2600_INPRG_US_CMD20		0x70
 #define XDMA_AST2600_INPRG_US_CMD21		0x74
 
+#define XDMA_AST2700_QUEUE_ENTRY_SIZE		2
+#define XDMA_AST2700_BMC_CMDQ_ADDR0		0x10
+#define XDMA_AST2700_BMC_CMDQ_ADDR1		0x14
+#define XDMA_AST2700_BMC_CMDQ_ENDP		0x18
+#define XDMA_AST2700_BMC_CMDQ_WRITEP		0x1c
+#define XDMA_AST2700_BMC_CMDQ_READP		0x20
+#define XDMA_AST2700_CTRL			0x38
+#define  XDMA_AST2700_CTRL_US_COMP		 BIT(16)
+#define  XDMA_AST2700_CTRL_DS_COMP		 BIT(17)
+#define  XDMA_AST2700_CTRL_DS_DIRTY		 BIT(18)
+#define  XDMA_AST2700_CTRL_IDLE			 BIT(19)
+#define  XDMA_AST2700_CTRL_DS_SIZE_256		 BIT(20)
+#define XDMA_AST2700_STATUS			0x3c
+#define  XDMA_AST2700_STATUS_US_COMP		 BIT(16)
+#define  XDMA_AST2700_STATUS_DS_COMP		 BIT(17)
+#define  XDMA_AST2700_STATUS_DS_DIRTY		 BIT(18)
+#define  XDMA_AST2700_STATUS_IDLE		 BIT(19)
+#define XDMA_AST2700_INPRG_DS_CMD00		0x40
+#define XDMA_AST2700_INPRG_DS_CMD01		0x44
+#define XDMA_AST2700_INPRG_DS_CMD10		0x48
+#define XDMA_AST2700_INPRG_DS_CMD11		0x4c
+#define XDMA_AST2700_INPRG_DS_CMD20		0x50
+#define XDMA_AST2700_INPRG_DS_CMD21		0x54
+#define XDMA_AST2700_INPRG_US_CMD00		0x60
+#define XDMA_AST2700_INPRG_US_CMD01		0x64
+#define XDMA_AST2700_INPRG_US_CMD10		0x68
+#define XDMA_AST2700_INPRG_US_CMD11		0x6c
+#define XDMA_AST2700_INPRG_US_CMD20		0x70
+#define XDMA_AST2700_INPRG_US_CMD21		0x74
+
 struct aspeed_xdma_cmd {
 	u64 host_addr;
 	u64 pitch;
@@ -173,6 +224,7 @@ struct aspeed_xdma_cmd {
 
 struct aspeed_xdma_regs {
 	u8 bmc_cmdq_addr;
+	u8 bmc_cmdq_addr_ext;
 	u8 bmc_cmdq_endp;
 	u8 bmc_cmdq_writep;
 	u8 bmc_cmdq_readp;
@@ -193,12 +245,13 @@ struct aspeed_xdma_chip {
 	u32 scu_bmc_class;
 	u32 scu_misc_ctrl;
 	u32 scu_pcie_conf;
+	u32 scu_pcie_ctrl;
 	unsigned int queue_entry_size;
 	struct aspeed_xdma_regs regs;
 	struct aspeed_xdma_status_bits status_bits;
 	unsigned int (*set_cmd)(struct aspeed_xdma *ctx,
 				struct aspeed_xdma_cmd cmds[2],
-				struct aspeed_xdma_op *op, u32 bmc_addr);
+				struct aspeed_xdma_op *op, u64 bmc_addr);
 };
 
 struct aspeed_xdma_client;
@@ -233,8 +286,8 @@ struct aspeed_xdma {
 
 	struct work_struct reset_work;
 
-	u32 mem_phys;
-	u32 mem_size;
+	phys_addr_t mem_phys;
+	phys_addr_t mem_size;
 	void *mem_virt;
 	dma_addr_t mem_coherent;
 	dma_addr_t cmdq_phys;
@@ -282,6 +335,10 @@ static void aspeed_xdma_init_eng(struct aspeed_xdma *ctx)
 	aspeed_xdma_writel(ctx, ctx->chip->regs.bmc_cmdq_writep, 0);
 	aspeed_xdma_writel(ctx, ctx->chip->regs.control, ctx->chip->control);
 	aspeed_xdma_writel(ctx, ctx->chip->regs.bmc_cmdq_addr, ctx->cmdq_phys);
+#ifdef CONFIG_ARCH_DMA_ADDR_T_64BIT
+	if (ctx->chip->regs.bmc_cmdq_addr_ext)
+		aspeed_xdma_writel(ctx, ctx->chip->regs.bmc_cmdq_addr_ext, ctx->cmdq_phys >> 32);
+#endif
 
 	ctx->cmd_idx = 0;
 	spin_unlock_irqrestore(&ctx->engine_lock, flags);
@@ -290,7 +347,7 @@ static void aspeed_xdma_init_eng(struct aspeed_xdma *ctx)
 static unsigned int aspeed_xdma_ast2500_set_cmd(struct aspeed_xdma *ctx,
 						struct aspeed_xdma_cmd cmds[2],
 						struct aspeed_xdma_op *op,
-						u32 bmc_addr)
+						u64 bmc_addr)
 {
 	unsigned int rc = 1;
 	unsigned int pitch = 1;
@@ -302,7 +359,7 @@ static unsigned int aspeed_xdma_ast2500_set_cmd(struct aspeed_xdma *ctx,
 	u64 cmd_pitch = (op->direction ? XDMA_CMD_AST2500_PITCH_UPSTREAM : 0) |
 		XDMA_CMD_AST2500_PITCH_ID;
 
-	dev_dbg(ctx->dev, "xdma %s ast2500: bmc[%08x] len[%08x] host[%08x]\n",
+	dev_dbg(ctx->dev, "xdma %s ast2500: bmc[%08llx] len[%08x] host[%08x]\n",
 		op->direction ? "upstream" : "downstream", bmc_addr, op->len,
 		(u32)op->host_addr);
 
@@ -345,7 +402,7 @@ static unsigned int aspeed_xdma_ast2500_set_cmd(struct aspeed_xdma *ctx,
 
 	cmds[0].host_addr = op->host_addr;
 	cmds[0].pitch = cmd_pitch |
-		((u64)bmc_addr & XDMA_CMD_AST2500_PITCH_ADDR) |
+		(bmc_addr & XDMA_CMD_AST2500_PITCH_ADDR) |
 		FIELD_PREP(XDMA_CMD_AST2500_PITCH_HOST, pitch) |
 		FIELD_PREP(XDMA_CMD_AST2500_PITCH_BMC, pitch);
 	cmds[0].cmd = cmd | FIELD_PREP(XDMA_CMD_AST2500_CMD_LINE_NO, line_no) |
@@ -361,7 +418,7 @@ static unsigned int aspeed_xdma_ast2500_set_cmd(struct aspeed_xdma *ctx,
 static unsigned int aspeed_xdma_ast2600_set_cmd(struct aspeed_xdma *ctx,
 						struct aspeed_xdma_cmd cmds[2],
 						struct aspeed_xdma_op *op,
-						u32 bmc_addr)
+						u64 bmc_addr)
 {
 	unsigned int rc = 1;
 	unsigned int pitch = 1;
@@ -374,8 +431,7 @@ static unsigned int aspeed_xdma_ast2600_set_cmd(struct aspeed_xdma *ctx,
 	    (op->host_addr + (u64)op->len) & 0xffffffff00000000ULL)
 		cmd |= XDMA_CMD_AST2600_CMD_64_EN;
 
-	dev_dbg(ctx->dev,
-		"xdma %s ast2600: bmc[%08x] len[%08x] host[%016llx]\n",
+	dev_dbg(ctx->dev, "xdma %s ast2600: bmc[%08llx] len[%08x] host[%016llx]\n",
 		op->direction ? "upstream" : "downstream",
 		bmc_addr, op->len, op->host_addr);
 
@@ -414,12 +470,78 @@ static unsigned int aspeed_xdma_ast2600_set_cmd(struct aspeed_xdma *ctx,
 	}
 
 	cmds[0].host_addr = op->host_addr;
-	cmds[0].pitch = ((u64)bmc_addr & XDMA_CMD_AST2600_PITCH_ADDR) |
+	cmds[0].pitch = (bmc_addr & XDMA_CMD_AST2600_PITCH_ADDR) |
 		FIELD_PREP(XDMA_CMD_AST2600_PITCH_HOST, pitch) |
 		FIELD_PREP(XDMA_CMD_AST2600_PITCH_BMC, pitch);
 	cmds[0].cmd = cmd | FIELD_PREP(XDMA_CMD_AST2600_CMD_LINE_NO, line_no) |
 		FIELD_PREP(XDMA_CMD_AST2600_CMD_LINE_SIZE, line_size);
 	cmds[0].reserved = 0ULL;
+
+	print_hex_dump_debug("xdma cmd ", DUMP_PREFIX_OFFSET, 16, 1, cmds,
+			     sizeof(*cmds), true);
+
+	return rc;
+}
+
+static unsigned int aspeed_xdma_ast2700_set_cmd(struct aspeed_xdma *ctx,
+						struct aspeed_xdma_cmd cmds[2],
+						struct aspeed_xdma_op *op,
+						u64 bmc_addr)
+{
+	unsigned int rc = 1;
+	unsigned int pitch = 1;
+	unsigned int line_no = 1;
+	unsigned int line_size = op->len;
+	u64 cmd = XDMA_CMD_AST2700_CMD_IRQ_BMC |
+		(op->direction ? XDMA_CMD_AST2700_CMD_UPSTREAM : 0);
+
+	if (op->host_addr & 0xffffffff00000000ULL ||
+	    (op->host_addr + (u64)op->len) & 0xffffffff00000000ULL)
+		cmd |= XDMA_CMD_AST2700_CMD_64_EN;
+
+	dev_dbg(ctx->dev, "xdma %s ast2700: bmc[%016llx] len[%08x] host[%016llx]\n",
+		op->direction ? "upstream" : "downstream",
+		bmc_addr, op->len, op->host_addr);
+
+	if (op->len > XDMA_CMD_AST2700_CMD_LINE_SIZE) {
+		unsigned int rem;
+		unsigned int total;
+
+		line_no = op->len / XDMA_CMD_AST2700_CMD_MULTILINE_SIZE;
+		total = XDMA_CMD_AST2700_CMD_MULTILINE_SIZE * line_no;
+		rem = op->len - total;
+		line_size = XDMA_CMD_AST2700_CMD_MULTILINE_SIZE;
+		pitch = line_size;
+
+		if (rem) {
+			u64 rbmc = bmc_addr + total;
+
+			cmds[1].host_addr = op->host_addr + (u64)total;
+			cmds[1].pitch =
+				FIELD_PREP(XDMA_CMD_AST2700_PITCH_HOST, 1) |
+				FIELD_PREP(XDMA_CMD_AST2700_PITCH_BMC, 1);
+			cmds[1].cmd = cmd |
+				FIELD_PREP(XDMA_CMD_AST2700_CMD_LINE_NO, 1) |
+				FIELD_PREP(XDMA_CMD_AST2700_CMD_LINE_SIZE,
+					   rem);
+			cmds[1].reserved = rbmc & XDMA_CMD_AST2700_BMC_ADDR;
+
+			print_hex_dump_debug("xdma rem ", DUMP_PREFIX_OFFSET,
+					     16, 1, &cmds[1], sizeof(*cmds),
+					     true);
+
+			cmd &= ~XDMA_CMD_AST2700_CMD_IRQ_BMC;
+
+			rc++;
+		}
+	}
+	cmds[0].host_addr = op->host_addr;
+	cmds[0].pitch =
+		FIELD_PREP(XDMA_CMD_AST2700_PITCH_HOST, pitch) |
+		FIELD_PREP(XDMA_CMD_AST2700_PITCH_BMC, pitch);
+	cmds[0].cmd = cmd | FIELD_PREP(XDMA_CMD_AST2700_CMD_LINE_NO, line_no) |
+		FIELD_PREP(XDMA_CMD_AST2700_CMD_LINE_SIZE, line_size);
+	cmds[0].reserved = bmc_addr & XDMA_CMD_AST2700_BMC_ADDR;
 
 	print_hex_dump_debug("xdma cmd ", DUMP_PREFIX_OFFSET, 16, 1, cmds,
 			     sizeof(*cmds), true);
@@ -730,8 +852,8 @@ static int aspeed_xdma_mmap(struct file *file, struct vm_area_struct *vma)
 	rc = io_remap_pfn_range(vma, vma->vm_start, client->phys >> PAGE_SHIFT,
 				client->size, vma->vm_page_prot);
 	if (rc) {
-		dev_warn(ctx->dev, "mmap err: v[%08lx] to p[%08x], s[%08x]\n",
-			 vma->vm_start, (u32)client->phys, client->size);
+		dev_warn(ctx->dev, "mmap err: v[%08lx] to p[%pa], s[%08x]\n",
+			 vma->vm_start, &client->phys, client->size);
 
 		gen_pool_free(ctx->pool, (unsigned long)client->virt,
 			      client->size);
@@ -744,8 +866,8 @@ static int aspeed_xdma_mmap(struct file *file, struct vm_area_struct *vma)
 	}
 
 	trace_xdma_mmap(client);
-	dev_dbg(ctx->dev, "mmap: v[%08lx] to p[%08x], s[%08x]\n",
-		vma->vm_start, (u32)client->phys, client->size);
+	dev_dbg(ctx->dev, "mmap: v[%08lx] to p[%pa], s[%08x]\n",
+		vma->vm_start, &client->phys, client->size);
 
 	return 0;
 }
@@ -840,8 +962,9 @@ static int aspeed_xdma_init_scu(struct aspeed_xdma *ctx, struct device *dev)
 
 		if (pcie_device_bmc) {
 			selection = bmc;
-			regmap_write(scu, ctx->chip->scu_bmc_class,
-				     SCU_BMC_CLASS_REV_XDMA);
+			regmap_update_bits(scu, ctx->chip->scu_bmc_class,
+					   SCU_BMC_CLASS_REV_MASK,
+					   SCU_BMC_CLASS_REV_XDMA);
 		} else {
 			selection = vga;
 		}
@@ -850,13 +973,25 @@ static int aspeed_xdma_init_scu(struct aspeed_xdma *ctx, struct device *dev)
 				   selection);
 
 		if (ctx->chip->scu_misc_ctrl) {
-			regmap_update_bits(scu, ctx->chip->scu_misc_ctrl,
-					   SCU_AST2600_MISC_CTRL_XDMA_BMC,
-					   SCU_AST2600_MISC_CTRL_XDMA_BMC);
+			u32 mask = (ctx->chip->regs.bmc_cmdq_addr_ext)
+				 ? SCU_AST2700_MISC_CTRL_XDMA_CLIENT
+				 : SCU_AST2600_MISC_CTRL_XDMA_BMC;
+			u32 disable = DEBUG_CTRL_AST2600_XDMA_DISABLE;
 
-			/* Allow XDMA to be used on AST2600 */
+			if (ctx->chip->regs.bmc_cmdq_addr_ext)
+				disable |= DEBUG_CTRL_AST2700_XDMA_DISABLE;
+
+			regmap_update_bits(scu, ctx->chip->scu_misc_ctrl,
+					   mask, mask);
+
 			regmap_update_bits(scu, SCU_AST2600_DEBUG_CTRL,
-					   DEBUG_CTRL_XDMA_DISABLE, 0);
+					   disable, 0);
+		}
+
+		if (ctx->chip->scu_pcie_ctrl) {
+			regmap_update_bits(scu, ctx->chip->scu_pcie_ctrl,
+					   SCU_AST2700_PCIE_CTRL_DMA_EN,
+					   SCU_AST2700_PCIE_CTRL_DMA_EN);
 		}
 	} else {
 		dev_warn(dev, "Unable to configure PCIe: %ld; continuing.\n",
@@ -925,7 +1060,7 @@ static int aspeed_xdma_iomap(struct aspeed_xdma *ctx,
 
 static int aspeed_xdma_probe(struct platform_device *pdev)
 {
-	int rc;
+	int rc, id;
 	struct aspeed_xdma *ctx;
 	struct reserved_mem *mem;
 	struct device *dev = &pdev->dev;
@@ -960,7 +1095,7 @@ static int aspeed_xdma_probe(struct platform_device *pdev)
 		goto err_noirq;
 	}
 
-	rc = request_irq(ctx->irq, aspeed_xdma_irq, 0, DEVICE_NAME, ctx);
+	rc = request_irq(ctx->irq, aspeed_xdma_irq, 0, dev_name(dev), ctx);
 	if (rc < 0) {
 		dev_err(dev, "Failed to request IRQ %d.\n", ctx->irq);
 		goto err_noirq;
@@ -1076,9 +1211,13 @@ static int aspeed_xdma_probe(struct platform_device *pdev)
 
 	aspeed_xdma_init_eng(ctx);
 
+	id = of_alias_get_id(dev->of_node, "xdma");
+	if (id < 0)
+		id = 0;
+
 	ctx->misc.minor = MISC_DYNAMIC_MINOR;
 	ctx->misc.fops = &aspeed_xdma_fops;
-	ctx->misc.name = "aspeed-xdma";
+	ctx->misc.name = kasprintf(GFP_KERNEL, "%s%d", DEVICE_NAME, id);
 	ctx->misc.parent = dev;
 	rc = misc_register(&ctx->misc);
 	if (rc) {
@@ -1095,7 +1234,7 @@ static int aspeed_xdma_probe(struct platform_device *pdev)
 		dev_warn(dev, "Failed to find PCI-E IRQ.\n");
 	} else {
 		rc = request_irq(ctx->pcie_irq, aspeed_xdma_pcie_irq,
-				 IRQF_SHARED, DEVICE_NAME, ctx);
+				 IRQF_SHARED, dev_name(dev), ctx);
 		if (rc < 0) {
 			dev_warn(dev, "Failed to request PCI-E IRQ %d.\n", rc);
 			ctx->pcie_irq = -1;
@@ -1157,9 +1296,11 @@ static const struct aspeed_xdma_chip aspeed_ast2500_xdma_chip = {
 	.scu_bmc_class = SCU_AST2500_BMC_CLASS_REV,
 	.scu_misc_ctrl = 0,
 	.scu_pcie_conf = SCU_AST2500_PCIE_CONF,
+	.scu_pcie_ctrl = 0,
 	.queue_entry_size = XDMA_AST2500_QUEUE_ENTRY_SIZE,
 	.regs = {
 		.bmc_cmdq_addr = XDMA_AST2500_BMC_CMDQ_ADDR,
+		.bmc_cmdq_addr_ext = 0,
 		.bmc_cmdq_endp = XDMA_AST2500_BMC_CMDQ_ENDP,
 		.bmc_cmdq_writep = XDMA_AST2500_BMC_CMDQ_WRITEP,
 		.bmc_cmdq_readp = XDMA_AST2500_BMC_CMDQ_READP,
@@ -1180,9 +1321,11 @@ static const struct aspeed_xdma_chip aspeed_ast2600_xdma_chip = {
 	.scu_bmc_class = SCU_AST2600_BMC_CLASS_REV,
 	.scu_misc_ctrl = SCU_AST2600_MISC_CTRL,
 	.scu_pcie_conf = SCU_AST2600_PCIE_CONF,
+	.scu_pcie_ctrl = 0,
 	.queue_entry_size = XDMA_AST2600_QUEUE_ENTRY_SIZE,
 	.regs = {
 		.bmc_cmdq_addr = XDMA_AST2600_BMC_CMDQ_ADDR,
+		.bmc_cmdq_addr_ext = 0,
 		.bmc_cmdq_endp = XDMA_AST2600_BMC_CMDQ_ENDP,
 		.bmc_cmdq_writep = XDMA_AST2600_BMC_CMDQ_WRITEP,
 		.bmc_cmdq_readp = XDMA_AST2600_BMC_CMDQ_READP,
@@ -1197,6 +1340,56 @@ static const struct aspeed_xdma_chip aspeed_ast2600_xdma_chip = {
 	.set_cmd = aspeed_xdma_ast2600_set_cmd,
 };
 
+static const struct aspeed_xdma_chip aspeed_ast2700_xdma0_chip = {
+	.control = XDMA_AST2700_CTRL_US_COMP | XDMA_AST2700_CTRL_DS_COMP |
+		XDMA_AST2700_CTRL_DS_DIRTY,
+	.scu_bmc_class = SCU_AST2700_PCIE0_BMC_CLASS_REV,
+	.scu_misc_ctrl = SCU_AST2600_MISC_CTRL,
+	.scu_pcie_conf = SCU_AST2700_PCIE0_CONF,
+	.scu_pcie_ctrl = SCU_AST2700_PCIE0_CTRL,
+	.queue_entry_size = XDMA_AST2700_QUEUE_ENTRY_SIZE,
+	.regs = {
+		.bmc_cmdq_addr = XDMA_AST2700_BMC_CMDQ_ADDR0,
+		.bmc_cmdq_addr_ext = XDMA_AST2700_BMC_CMDQ_ADDR1,
+		.bmc_cmdq_endp = XDMA_AST2700_BMC_CMDQ_ENDP,
+		.bmc_cmdq_writep = XDMA_AST2700_BMC_CMDQ_WRITEP,
+		.bmc_cmdq_readp = XDMA_AST2700_BMC_CMDQ_READP,
+		.control = XDMA_AST2700_CTRL,
+		.status = XDMA_AST2700_STATUS,
+	},
+	.status_bits = {
+		.us_comp = XDMA_AST2700_STATUS_US_COMP,
+		.ds_comp = XDMA_AST2700_STATUS_DS_COMP,
+		.ds_dirty = XDMA_AST2700_STATUS_DS_DIRTY,
+	},
+	.set_cmd = aspeed_xdma_ast2700_set_cmd,
+};
+
+static const struct aspeed_xdma_chip aspeed_ast2700_xdma1_chip = {
+	.control = XDMA_AST2700_CTRL_US_COMP | XDMA_AST2700_CTRL_DS_COMP |
+		XDMA_AST2700_CTRL_DS_DIRTY,
+	.scu_bmc_class = SCU_AST2700_PCIE1_BMC_CLASS_REV,
+	.scu_misc_ctrl = SCU_AST2600_MISC_CTRL,
+	.scu_pcie_conf = SCU_AST2700_PCIE1_CONF,
+	.scu_pcie_ctrl = SCU_AST2700_PCIE1_CTRL,
+	.queue_entry_size = XDMA_AST2700_QUEUE_ENTRY_SIZE,
+	.regs = {
+		.bmc_cmdq_addr = XDMA_AST2700_BMC_CMDQ_ADDR0,
+		.bmc_cmdq_addr_ext = XDMA_AST2700_BMC_CMDQ_ADDR1,
+		.bmc_cmdq_endp = XDMA_AST2700_BMC_CMDQ_ENDP,
+		.bmc_cmdq_writep = XDMA_AST2700_BMC_CMDQ_WRITEP,
+		.bmc_cmdq_readp = XDMA_AST2700_BMC_CMDQ_READP,
+		.control = XDMA_AST2700_CTRL,
+		.status = XDMA_AST2700_STATUS,
+	},
+	.status_bits = {
+		.us_comp = XDMA_AST2700_STATUS_US_COMP,
+		.ds_comp = XDMA_AST2700_STATUS_DS_COMP,
+		.ds_dirty = XDMA_AST2700_STATUS_DS_DIRTY,
+	},
+	.set_cmd = aspeed_xdma_ast2700_set_cmd,
+};
+
 static const struct of_device_id aspeed_xdma_match[] = {
 	{
 		.compatible = "aspeed,ast2500-xdma",
@@ -1205,6 +1398,14 @@ static const struct of_device_id aspeed_xdma_match[] = {
 	{
 		.compatible = "aspeed,ast2600-xdma",
 		.data = &aspeed_ast2600_xdma_chip,
+	},
+	{
+		.compatible = "aspeed,ast2700-xdma0",
+		.data = &aspeed_ast2700_xdma0_chip,
+	},
+	{
+		.compatible = "aspeed,ast2700-xdma1",
+		.data = &aspeed_ast2700_xdma1_chip,
 	},
 	{ },
 };
