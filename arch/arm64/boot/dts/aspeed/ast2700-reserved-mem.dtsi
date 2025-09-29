@@ -1,0 +1,126 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
+
+/* AST2700 reserved memories with no-map property */
+
+#if PCIE0_EP
+bmc_dev0_memory: bmc-dev0-memory@413800000 {
+	compatible = "restricted-dma-pool";
+	reg = <0x4 0x13800000 0x0 0x100000>;
+};
+
+xdma_memory0: xdma0 {
+	size = <0x0 0x00100000>;
+	compatible = "shared-dma-pool";
+	no-map;
+};
+
+pcie0_mmbi0_memory: pcie0-mmbi0-memory@413a00000 {
+	reg = <0x4 0x1ba00000 0x0 0x200000>;
+	no-map;
+};
+#endif /* PCIE0_EP */
+
+#if PCIE1_EP
+bmc_dev1_memory: bmc-dev1-memory@413900000 {
+	compatible = "restricted-dma-pool";
+	reg = <0x4 0x13900000 0x0 0x100000>;
+};
+
+xdma_memory1: xdma1 {
+	size = <0x0 0x00100000>;
+	compatible = "shared-dma-pool";
+	no-map;
+};
+
+pcie1_mmbi4_memory: pcie1-mmbi4-memory@413c00000 {
+	reg = <0x4 0x13c00000 0x0 0x200000>;
+	no-map;
+};
+#endif /* PCIE1_EP */
+
+pcie2_mmbi0_memory: pcie2-mmbi0-memory@413e00000 {
+	reg = <0x4 0x13e00000 0x0 0x200000>;
+	no-map;
+};
+
+espi0_mmbi_memory: espi0-mmbi-memory@41c000000 {
+	reg = <0x4 0x14000000 0x0 0x4000000>;
+	no-map;
+};
+
+edaf0: eadf0-memory@418000000 {
+	reg = <0x4 0x18000000 0x0 0x8000000>;
+	no-map;
+};
+
+#if DUAL_NODE
+espi1_mmbi_memory: espi1-mmbi-memory@420000000 {
+	reg = <0x4 0x20000000 0x0 0x4000000>;
+	no-map;
+};
+
+edaf1: edaf1-memory@424000000 {
+	reg = <0x4 0x24000000 0x0 0x8000000>;
+	no-map;
+};
+#endif /* DUAL_NODE */
+
+ssp_memory: ssp-memory@42c000000 {
+	reg = <0x4 0x2c000000 0x0 0x2000000>;
+	no-map;
+};
+
+tsp_memory: tsp-memory@42e000000 {
+	reg = <0x4 0x2e000000 0x0 0x2000000>;
+	no-map;
+};
+
+ipc_ssp_share: ipc-ssp-share@431080000 {
+	reg = <0x4 0x31080000 0x0 0x800000>;
+	no-map;
+};
+
+ipc_bootmcu_share: ipc-bootmcu-share@431880000 {
+	reg = <0x4 0x31880000 0x0 0x2b0000>;
+	no-map;
+};
+
+uhci0_reserved: uhci0-reserved@431b30000 {
+	reg = <0x4 0x31b30000 0x0 0x40000>;
+	compatible = "shared-dma-pool";
+	no-map;
+};
+
+uhci1_reserved: uhci1-reserved@431b70000 {
+	reg = <0x4 0x31b70000 0x0 0x40000>;
+	compatible = "shared-dma-pool";
+	no-map;
+};
+
+vbios_base0: vbios-base0@431bb0000 {
+	reg = <0x4 0x31bb0000 0x0 0x10000>;
+	no-map;
+};
+
+vbios_base1: vbios-base1@431bc0000 {
+	reg = <0x4 0x31bc0000 0x0 0x10000>;
+	no-map;
+};
+
+mctp0_reserved: mctp0-reserved@431bd0000 {
+	reg = <0x4 0x31bd0000 0x0 0x10000>;
+	compatible = "shared-dma-pool";
+	no-map;
+};
+
+mctp1_reserved: mctp1-reserved@431be0000 {
+	reg = <0x4 0x31be0000 0x0 0x10000>;
+	compatible = "shared-dma-pool";
+	no-map;
+};
+
+mctp2_reserved: mctp2-reserved@431bf0000 {
+	reg = <0x4 0x31bf0000 0x0 0x10000>;
+	compatible = "shared-dma-pool";
+	no-map;
+};
