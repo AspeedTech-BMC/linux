@@ -51,6 +51,46 @@
 #define SCU1_MAC12_CLK_DLY_100M	0x394
 #define SCU1_MAC12_CLK_DLY_10M	0x398
 
+/*
+ * MAC Clock Delay settings
+ */
+#define MAC_CLK_RMII1_50M_RCLK_O_CTRL	BIT(30)
+#define   MAC_CLK_RMII1_50M_RCLK_O_DIS	0
+#define   MAC_CLK_RMII1_50M_RCLK_O_EN	1
+#define MAC_CLK_RMII0_50M_RCLK_O_CTRL	BIT(29)
+#define   MAC_CLK_RMII0_5M_RCLK_O_DIS	0
+#define   MAC_CLK_RMII0_5M_RCLK_O_EN	1
+#define MAC_CLK_RMII_TXD_FALLING_2	BIT(27)
+#define MAC_CLK_RMII_TXD_FALLING_1	BIT(26)
+#define MAC_CLK_RXCLK_INV_2		BIT(25)
+#define MAC_CLK_RXCLK_INV_1		BIT(24)
+#define MAC_CLK_1G_INPUT_DELAY_2	GENMASK(23, 18)
+#define MAC_CLK_1G_INPUT_DELAY_1	GENMASK(17, 12)
+#define MAC_CLK_1G_OUTPUT_DELAY_2	GENMASK(11, 6)
+#define MAC_CLK_1G_OUTPUT_DELAY_1	GENMASK(5, 0)
+
+#define MAC_CLK_100M_10M_RESERVED	GENMASK(31, 26)
+#define MAC_CLK_100M_10M_RXCLK_INV_2	BIT(25)
+#define MAC_CLK_100M_10M_RXCLK_INV_1	BIT(24)
+#define MAC_CLK_100M_10M_INPUT_DELAY_2	GENMASK(23, 18)
+#define MAC_CLK_100M_10M_INPUT_DELAY_1	GENMASK(17, 12)
+#define MAC_CLK_100M_10M_OUTPUT_DELAY_2	GENMASK(11, 6)
+#define MAC_CLK_100M_10M_OUTPUT_DELAY_1	GENMASK(5, 0)
+
+#define AST2700_DEF_MAC12_DELAY_1G_A0	0x00CF4D75
+#define AST2700_DEF_MAC12_DELAY_1G_A1	0x005D6618
+#define AST2700_DEF_MAC12_DELAY_100M	0x00410410
+#define AST2700_DEF_MAC12_DELAY_10M	0x00410410
+
+struct mac_delay_config {
+	u32 tx_delay_1000;
+	u32 rx_delay_1000;
+	u32 tx_delay_100;
+	u32 rx_delay_100;
+	u32 tx_delay_10;
+	u32 rx_delay_10;
+};
+
 enum ast2700_clk_type {
 	CLK_MUX,
 	CLK_PLL,
@@ -938,6 +978,62 @@ static struct clk_hw *ast2700_clk_hw_register_gate(struct device *dev, const cha
 	return hw;
 }
 
+static void ast2700_soc1_configure_mac01_clk(struct ast2700_clk_ctrl *clk_ctrl)
+{
+	struct device_node *np = clk_ctrl->dev->of_node;
+	struct mac_delay_config mac_cfg;
+	u32 reg[3];
+	int ret;
+
+	if (readl(clk_ctrl->base + SCU1_REVISION_ID) & REVISION_ID) {
+		if ((readl(clk_ctrl->base + SCU1_MAC12_CLK_DLY) & GENMASK(25, 0)) == 0)
+			reg[0] = AST2700_DEF_MAC12_DELAY_1G_A1;
+		else
+			reg[0] = readl(clk_ctrl->base + SCU1_MAC12_CLK_DLY);
+	} else {
+		reg[0] = AST2700_DEF_MAC12_DELAY_1G_A0;
+	}
+	reg[1] = AST2700_DEF_MAC12_DELAY_100M;
+	reg[2] = AST2700_DEF_MAC12_DELAY_10M;
+
+	ret = of_property_read_u32_array(np, "mac0-clk-delay", (u32 *)&mac_cfg,
+					 sizeof(mac_cfg) / sizeof(u32));
+	if (!ret) {
+		reg[0] &= ~(MAC_CLK_1G_INPUT_DELAY_1 | MAC_CLK_1G_OUTPUT_DELAY_1);
+		reg[0] |= FIELD_PREP(MAC_CLK_1G_INPUT_DELAY_1, mac_cfg.rx_delay_1000) |
+			  FIELD_PREP(MAC_CLK_1G_OUTPUT_DELAY_1, mac_cfg.tx_delay_1000);
+
+		reg[1] &= ~(MAC_CLK_100M_10M_INPUT_DELAY_1 | MAC_CLK_100M_10M_OUTPUT_DELAY_1);
+		reg[1] |= FIELD_PREP(MAC_CLK_100M_10M_INPUT_DELAY_1, mac_cfg.rx_delay_100) |
+			  FIELD_PREP(MAC_CLK_100M_10M_OUTPUT_DELAY_1, mac_cfg.tx_delay_100);
+
+		reg[2] &= ~(MAC_CLK_100M_10M_INPUT_DELAY_1 | MAC_CLK_100M_10M_OUTPUT_DELAY_1);
+		reg[2] |= FIELD_PREP(MAC_CLK_100M_10M_INPUT_DELAY_1, mac_cfg.rx_delay_10) |
+			  FIELD_PREP(MAC_CLK_100M_10M_OUTPUT_DELAY_1, mac_cfg.tx_delay_10);
+	}
+
+	ret = of_property_read_u32_array(np, "mac1-clk-delay", (u32 *)&mac_cfg,
+					 sizeof(mac_cfg) / sizeof(u32));
+	if (!ret) {
+		reg[0] &= ~(MAC_CLK_1G_INPUT_DELAY_2 | MAC_CLK_1G_OUTPUT_DELAY_2);
+		reg[0] |= FIELD_PREP(MAC_CLK_1G_INPUT_DELAY_2, mac_cfg.rx_delay_1000) |
+			  FIELD_PREP(MAC_CLK_1G_OUTPUT_DELAY_2, mac_cfg.tx_delay_1000);
+
+		reg[1] &= ~(MAC_CLK_100M_10M_INPUT_DELAY_2 | MAC_CLK_100M_10M_OUTPUT_DELAY_2);
+		reg[1] |= FIELD_PREP(MAC_CLK_100M_10M_INPUT_DELAY_2, mac_cfg.rx_delay_100) |
+			  FIELD_PREP(MAC_CLK_100M_10M_OUTPUT_DELAY_2, mac_cfg.tx_delay_100);
+
+		reg[2] &= ~(MAC_CLK_100M_10M_INPUT_DELAY_2 | MAC_CLK_100M_10M_OUTPUT_DELAY_2);
+		reg[2] |= FIELD_PREP(MAC_CLK_100M_10M_INPUT_DELAY_2, mac_cfg.rx_delay_10) |
+			  FIELD_PREP(MAC_CLK_100M_10M_OUTPUT_DELAY_2, mac_cfg.tx_delay_10);
+	}
+
+	reg[0] |= (readl(clk_ctrl->base + SCU1_MAC12_CLK_DLY) & ~GENMASK(25, 0));
+	writel(reg[0], clk_ctrl->base + SCU1_MAC12_CLK_DLY);
+	writel(reg[1], clk_ctrl->base + SCU1_MAC12_CLK_DLY_100M);
+	writel(reg[2], clk_ctrl->base + SCU1_MAC12_CLK_DLY_10M);
+}
+
 static void ast2700_soc1_configure_i3c_clk(struct ast2700_clk_ctrl *clk_ctrl)
 {
 	if (readl(clk_ctrl->base + SCU1_REVISION_ID) & REVISION_ID) {
@@ -957,6 +1053,7 @@ static int ast2700_soc_clk_probe(struct platform_device *pdev)
 	struct ast2700_clk_ctrl *clk_ctrl;
 	struct device *dev = &pdev->dev;
 	struct auxiliary_device *adev;
+	u32 uart_clk_source = 0;
 	void __iomem *clk_base;
 	struct clk_hw **hws;
 	char *reset_name;
@@ -992,8 +1089,18 @@ static int ast2700_soc_clk_probe(struct platform_device *pdev)
 	clk_hw_data->num = clk_data->nr_clks;
 	hws = clk_hw_data->hws;
 
-	if (clk_data->scu)
+	if (clk_data->scu) {
+		of_property_read_u32(dev->of_node, "uart-clk-source", &uart_clk_source);
+		if (uart_clk_source) {
+			u32 val = readl(clk_base + SCU1_CLK_SEL1) & ~GENMASK(12, 0);
+
+			uart_clk_source &= GENMASK(12, 0);
+			writel(val | uart_clk_source, clk_base + SCU1_CLK_SEL1);
+		}
+
+		ast2700_soc1_configure_mac01_clk(clk_ctrl);
 		ast2700_soc1_configure_i3c_clk(clk_ctrl);
+	}
 
 	for (i = 0; i < clk_data->nr_clks; i++) {
 		const struct ast2700_clk_info *clk = &clk_data->clk_info[i];
