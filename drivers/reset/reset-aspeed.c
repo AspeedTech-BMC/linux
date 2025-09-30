@@ -12,12 +12,15 @@
 #include <linux/slab.h>
 
 #include <dt-bindings/reset/aspeed,ast2700-scu.h>
+#include <soc/aspeed/reset-aspeed.h>
 
 #define SCU0_RESET_CTRL1 0x200
 #define SCU0_RESET_CTRL2 0x220
 #define SCU1_RESET_CTRL1 0x200
 #define SCU1_RESET_CTRL2 0x220
 #define SCU1_PCIE3_CTRL 0x908
+
+struct aspeed_reset;
 
 struct ast2700_reset_signal {
 	bool dedicated_clr; /* dedicated reset clr offset */
@@ -221,8 +224,58 @@ static int aspeed_reset_probe(struct auxiliary_device *adev,
 	reset->rcdev.of_reset_n_cells = 1;
 	reset->base = (void __iomem *)adev->dev.platform_data;
 
+	dev_set_drvdata(dev, reset);
+
 	return devm_reset_controller_register(dev, &reset->rcdev);
 }
+
+static void aspeed_reset_unregister_adev(void *_adev)
+{
+	struct auxiliary_device *adev = _adev;
+
+	auxiliary_device_delete(adev);
+	auxiliary_device_uninit(adev);
+}
+
+static void aspeed_reset_adev_release(struct device *dev)
+{
+	struct auxiliary_device *adev = to_auxiliary_dev(dev);
+
+	kfree(adev);
+}
+
+int aspeed_reset_controller_register(struct device *clk_dev, void __iomem *base,
+				     const char *adev_name)
+{
+	struct auxiliary_device *adev;
+	int ret;
+
+	adev = kzalloc(sizeof(*adev), GFP_KERNEL);
+	if (!adev)
+		return -ENOMEM;
+
+	adev->name = adev_name;
+	adev->dev.parent = clk_dev;
+	adev->dev.release = aspeed_reset_adev_release;
+	adev->id = 666u;
+
+	ret = auxiliary_device_init(adev);
+	if (ret) {
+		kfree(adev);
+		return ret;
+	}
+
+	ret = auxiliary_device_add(adev);
+	if (ret) {
+		auxiliary_device_uninit(adev);
+		return ret;
+	}
+
+	adev->dev.platform_data = (__force void *)base;
+
+	return devm_add_action_or_reset(clk_dev, aspeed_reset_unregister_adev, adev);
+}
+EXPORT_SYMBOL_GPL(aspeed_reset_controller_register);
 
 static const struct aspeed_reset_info ast2700_reset0_info = {
 	.nr_resets = ARRAY_SIZE(ast2700_reset0_signals),
@@ -235,8 +288,8 @@ static const struct aspeed_reset_info ast2700_reset1_info = {
 };
 
 static const struct auxiliary_device_id aspeed_reset_ids[] = {
-	{ .name = "clk_ast2700.reset0", .driver_data = (kernel_ulong_t)&ast2700_reset0_info },
-	{ .name = "clk_ast2700.reset1", .driver_data = (kernel_ulong_t)&ast2700_reset1_info },
+	{ .name = "reset_aspeed.reset0", .driver_data = (kernel_ulong_t)&ast2700_reset0_info },
+	{ .name = "reset_aspeed.reset1", .driver_data = (kernel_ulong_t)&ast2700_reset1_info },
 	{ }
 };
 MODULE_DEVICE_TABLE(auxiliary, aspeed_reset_ids);
@@ -246,7 +299,11 @@ static struct auxiliary_driver aspeed_reset_driver = {
 	.id_table	= aspeed_reset_ids,
 };
 
-module_auxiliary_driver(aspeed_reset_driver);
+static int __init rest_aspeed_init(void)
+{
+	return auxiliary_driver_register(&aspeed_reset_driver);
+}
+subsys_initcall(rest_aspeed_init);
 
 MODULE_AUTHOR("Ryan Chen <ryan_chen@aspeedtech.com>");
 MODULE_DESCRIPTION("ASPEED SoC Reset Controller Driver");
