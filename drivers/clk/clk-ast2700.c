@@ -3,16 +3,14 @@
  * Copyright (c) 2024 ASPEED Technology Inc.
  * Author: Ryan Chen <ryan_chen@aspeedtech.com>
  */
-#include <linux/auxiliary_bus.h>
-#include <linux/bitfield.h>
 #include <linux/clk-provider.h>
 #include <linux/io.h>
 #include <linux/mod_devicetable.h>
-#include <linux/of_platform.h>
 #include <linux/platform_device.h>
 #include <linux/slab.h>
 #include <linux/units.h>
 
+#include <soc/aspeed/reset-aspeed.h>
 #include <dt-bindings/clock/aspeed,ast2700-scu.h>
 
 /* SOC0 */
@@ -1052,7 +1050,6 @@ static int ast2700_soc_clk_probe(struct platform_device *pdev)
 	struct clk_hw_onecell_data *clk_hw_data;
 	struct ast2700_clk_ctrl *clk_ctrl;
 	struct device *dev = &pdev->dev;
-	struct auxiliary_device *adev;
 	u32 uart_clk_source = 0;
 	void __iomem *clk_base;
 	struct clk_hw **hws;
@@ -1074,7 +1071,7 @@ static int ast2700_soc_clk_probe(struct platform_device *pdev)
 
 	clk_ctrl->base = clk_base;
 
-	clk_data = device_get_match_data(dev);
+	clk_data = (struct ast2700_clk_data *)device_get_match_data(dev);
 	if (!clk_data)
 		return -ENODEV;
 
@@ -1171,8 +1168,7 @@ static int ast2700_soc_clk_probe(struct platform_device *pdev)
 
 			reg = clk_ctrl->base + gate->reg;
 			hws[i] = ast2700_clk_hw_register_gate(dev, clk->name, gate->parent,
-							      reg, gate->bit, gate->flags,
-							      &clk_ctrl->lock);
+							      reg, gate->bit, gate->flags, 0);
 
 		} else {
 			const struct ast2700_clk_gate_data *gate = &clk->data.gate;
@@ -1191,11 +1187,7 @@ static int ast2700_soc_clk_probe(struct platform_device *pdev)
 	if (ret)
 		return ret;
 
-	adev = devm_auxiliary_device_create(dev, reset_name, (__force void *)clk_base);
-	if (!adev)
-		return -ENODEV;
-
-	return 0;
+	return aspeed_reset_controller_register(dev, clk_base, reset_name);
 }
 
 static const struct ast2700_clk_data ast2700_clk0_data = {
