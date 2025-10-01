@@ -9,6 +9,7 @@
 #define pr_fmt(fmt)	KBUILD_MODNAME ": " fmt
 
 #include <linux/clk.h>
+#include <linux/reset.h>
 #include <linux/dma-mapping.h>
 #include <linux/etherdevice.h>
 #include <linux/ethtool.h>
@@ -19,6 +20,7 @@
 #include <linux/of.h>
 #include <linux/of_mdio.h>
 #include <linux/phy.h>
+#include <linux/phy/phy.h>
 #include <linux/platform_device.h>
 #include <linux/property.h>
 #include <linux/crc32.h>
@@ -98,6 +100,7 @@ struct ftgmac100 {
 	struct work_struct reset_task;
 	struct mii_bus *mii_bus;
 	struct clk *clk;
+	struct reset_control *rst;
 
 	/* AST2500/AST2600 RMII ref clock gate */
 	struct clk *rclk;
@@ -119,6 +122,9 @@ struct ftgmac100 {
 	/* Misc */
 	bool need_mac_restart;
 	bool is_aspeed;
+
+	/* AST2700 SGMII */
+	struct phy *sgmii;
 };
 
 static int ftgmac100_reset_mac(struct ftgmac100 *priv, u32 maccr)
@@ -147,6 +153,23 @@ static int ftgmac100_reset_mac(struct ftgmac100 *priv, u32 maccr)
 static int ftgmac100_reset_and_config_mac(struct ftgmac100 *priv)
 {
 	u32 maccr = 0;
+
+	/* RMII needs SCU reset to clear status */
+	if (priv->netdev->phydev->interface == PHY_INTERFACE_MODE_RMII) {
+		int err;
+
+		err = reset_control_assert(priv->rst);
+		if (err) {
+			dev_err(priv->dev, "Failed to reset mac (%d)\n", err);
+			return err;
+		}
+		usleep_range(10000, 20000);
+		err = reset_control_deassert(priv->rst);
+		if (err) {
+			dev_err(priv->dev, "Failed to deassert mac reset (%d)\n", err);
+			return err;
+		}
+	}
 
 	switch (priv->cur_speed) {
 	case SPEED_10:
@@ -265,10 +288,12 @@ static void ftgmac100_init_hw(struct ftgmac100 *priv)
 	iowrite32(reg, priv->base + FTGMAC100_OFFSET_ISR);
 
 	/* Setup RX ring buffer base */
-	iowrite32(priv->rxdes_dma, priv->base + FTGMAC100_OFFSET_RXR_BADR);
+	iowrite32(lower_32_bits(priv->rxdes_dma), priv->base + FTGMAC100_OFFSET_RXR_BADR);
+	iowrite32(upper_32_bits(priv->rxdes_dma), priv->base + FTGMAC100_OFFSET_RXR_BADDR_HIGH);
 
 	/* Setup TX ring buffer base */
-	iowrite32(priv->txdes_dma, priv->base + FTGMAC100_OFFSET_NPTXR_BADR);
+	iowrite32(lower_32_bits(priv->txdes_dma), priv->base + FTGMAC100_OFFSET_NPTXR_BADR);
+	iowrite32(upper_32_bits(priv->txdes_dma), priv->base + FTGMAC100_OFFSET_TXR_BADDR_HIGH);
 
 	/* Configure RX buffer size */
 	iowrite32(FTGMAC100_RBSR_SIZE(RX_BUF_SIZE),
@@ -321,6 +346,7 @@ static void ftgmac100_init_hw(struct ftgmac100 *priv)
 static void ftgmac100_start_hw(struct ftgmac100 *priv)
 {
 	u32 maccr = ioread32(priv->base + FTGMAC100_OFFSET_MACCR);
+	struct phy_device *phydev = priv->netdev->phydev;
 
 	/* Keep the original GMAC and FAST bits */
 	maccr &= (FTGMAC100_MACCR_FAST_MODE | FTGMAC100_MACCR_GIGA_MODE);
@@ -348,6 +374,10 @@ static void ftgmac100_start_hw(struct ftgmac100 *priv)
 	/* Vlan filtering enabled */
 	if (priv->netdev->features & NETIF_F_HW_VLAN_CTAG_RX)
 		maccr |= FTGMAC100_MACCR_RM_VLAN;
+
+	if (of_device_is_compatible(priv->dev->of_node, "aspeed,ast2700-mac") &&
+	    phydev && phydev->interface == PHY_INTERFACE_MODE_RMII)
+		maccr |= FTGMAC100_MACCR_RMII_ENABLE;
 
 	/* Hit the HW */
 	iowrite32(maccr, priv->base + FTGMAC100_OFFSET_MACCR);
@@ -425,7 +455,9 @@ static int ftgmac100_alloc_rx_buf(struct ftgmac100 *priv, unsigned int entry,
 	priv->rx_skbs[entry] = skb;
 
 	/* Store DMA address into RX desc */
-	rxdes->rxdes3 = cpu_to_le32(map);
+	rxdes->rxdes2 = cpu_to_le32(FIELD_PREP(FTGMAC100_RXDES2_RXBUF_BADR_HI,
+					       upper_32_bits(map)));
+	rxdes->rxdes3 = cpu_to_le32(lower_32_bits(map));
 
 	/* Ensure the above is ordered vs clearing the OWN bit */
 	dma_wmb();
@@ -551,7 +583,8 @@ static bool ftgmac100_rx_packet(struct ftgmac100 *priv, int *processed)
 				       csum_vlan & 0xffff);
 
 	/* Tear down DMA mapping, do necessary cache management */
-	map = le32_to_cpu(rxdes->rxdes3);
+	map = le32_to_cpu(rxdes->rxdes3) |
+	      ((le32_to_cpu(rxdes->rxdes2) & FTGMAC100_RXDES2_RXBUF_BADR_HI) << 16);
 
 #if defined(CONFIG_ARM) && !defined(CONFIG_ARM_DMA_USE_IOMMU)
 	/* When we don't have an iommu, we can save cycles by not
@@ -628,8 +661,11 @@ static void ftgmac100_free_tx_packet(struct ftgmac100 *priv,
 				     struct ftgmac100_txdes *txdes,
 				     u32 ctl_stat)
 {
-	dma_addr_t map = le32_to_cpu(txdes->txdes3);
+	dma_addr_t map;
 	size_t len;
+
+	map = le32_to_cpu(txdes->txdes3) |
+	      ((le32_to_cpu(txdes->txdes2) & FTGMAC100_TXDES2_TXBUF_BADR_HI) << 16);
 
 	if (ctl_stat & FTGMAC100_TXDES0_FTS) {
 		len = skb_headlen(skb);
@@ -784,7 +820,9 @@ static netdev_tx_t ftgmac100_hard_start_xmit(struct sk_buff *skb,
 	f_ctl_stat |= FTGMAC100_TXDES0_FTS;
 	if (nfrags == 0)
 		f_ctl_stat |= FTGMAC100_TXDES0_LTS;
-	txdes->txdes3 = cpu_to_le32(map);
+	txdes->txdes2 = cpu_to_le32(FIELD_PREP(FTGMAC100_TXDES2_TXBUF_BADR_HI,
+					       upper_32_bits((ulong)map)));
+	txdes->txdes3 = cpu_to_le32(lower_32_bits(map));
 	txdes->txdes1 = cpu_to_le32(csum_vlan);
 
 	/* Next descriptor */
@@ -812,7 +850,9 @@ static netdev_tx_t ftgmac100_hard_start_xmit(struct sk_buff *skb,
 			ctl_stat |= FTGMAC100_TXDES0_LTS;
 		txdes->txdes0 = cpu_to_le32(ctl_stat);
 		txdes->txdes1 = 0;
-		txdes->txdes3 = cpu_to_le32(map);
+		txdes->txdes2 = cpu_to_le32(FIELD_PREP(FTGMAC100_TXDES2_TXBUF_BADR_HI,
+						       upper_32_bits((ulong)map)));
+		txdes->txdes3 = cpu_to_le32(lower_32_bits(map));
 
 		/* Next one */
 		pointer = ftgmac100_next_tx_pointer(priv, pointer);
@@ -887,7 +927,10 @@ static void ftgmac100_free_buffers(struct ftgmac100 *priv)
 	for (i = 0; i < priv->rx_q_entries; i++) {
 		struct ftgmac100_rxdes *rxdes = &priv->rxdes[i];
 		struct sk_buff *skb = priv->rx_skbs[i];
-		dma_addr_t map = le32_to_cpu(rxdes->rxdes3);
+		dma_addr_t map;
+
+		map = le32_to_cpu(rxdes->rxdes3) |
+		      ((le32_to_cpu(rxdes->rxdes2) & FTGMAC100_RXDES2_RXBUF_BADR_HI) << 16);
 
 		if (!skb)
 			continue;
@@ -986,7 +1029,9 @@ static void ftgmac100_init_rings(struct ftgmac100 *priv)
 	for (i = 0; i < priv->rx_q_entries; i++) {
 		rxdes = &priv->rxdes[i];
 		rxdes->rxdes0 = 0;
-		rxdes->rxdes3 = cpu_to_le32(priv->rx_scratch_dma);
+		rxdes->rxdes2 =	cpu_to_le32(FIELD_PREP(FTGMAC100_RXDES2_RXBUF_BADR_HI,
+						       upper_32_bits(priv->rx_scratch_dma)));
+		rxdes->rxdes3 =	cpu_to_le32(lower_32_bits(priv->rx_scratch_dma));
 	}
 	/* Mark the end of the ring */
 	rxdes->rxdes0 |= cpu_to_le32(priv->rxdes0_edorr_mask);
@@ -1732,15 +1777,19 @@ static void ftgmac100_phy_disconnect(struct net_device *netdev)
 	struct ftgmac100 *priv = netdev_priv(netdev);
 	struct phy_device *phydev = netdev->phydev;
 
-	if (!phydev)
-		return;
+	if (priv->sgmii) {
+		phy_exit(priv->sgmii);
+		devm_phy_put(priv->dev, priv->sgmii);
+	}
 
-	phy_disconnect(phydev);
-	if (of_phy_is_fixed_link(priv->dev->of_node))
-		of_phy_deregister_fixed_link(priv->dev->of_node);
+	if (phydev) {
+		phy_disconnect(phydev);
+		if (of_phy_is_fixed_link(priv->dev->of_node))
+			of_phy_deregister_fixed_link(priv->dev->of_node);
 
-	if (priv->use_ncsi)
-		fixed_phy_unregister(phydev);
+		if (priv->use_ncsi)
+			fixed_phy_unregister(phydev);
+	}
 }
 
 static void ftgmac100_destroy_mdio(struct net_device *netdev)
@@ -1883,7 +1932,8 @@ static int ftgmac100_probe(struct platform_device *pdev)
 	np = pdev->dev.of_node;
 	if (np && (of_device_is_compatible(np, "aspeed,ast2400-mac") ||
 		   of_device_is_compatible(np, "aspeed,ast2500-mac") ||
-		   of_device_is_compatible(np, "aspeed,ast2600-mac"))) {
+		   of_device_is_compatible(np, "aspeed,ast2600-mac") ||
+		   of_device_is_compatible(np, "aspeed,ast2700-mac"))) {
 		priv->rxdes0_edorr_mask = BIT(30);
 		priv->txdes0_edotr_mask = BIT(30);
 		priv->is_aspeed = true;
@@ -1914,40 +1964,22 @@ static int ftgmac100_probe(struct platform_device *pdev)
 			goto err_phy_connect;
 		}
 		err = phy_connect_direct(netdev, phydev, ftgmac100_adjust_link,
-					 PHY_INTERFACE_MODE_MII);
+					 PHY_INTERFACE_MODE_RMII);
 		if (err) {
 			dev_err(&pdev->dev, "Connecting PHY failed\n");
 			goto err_phy_connect;
 		}
-	} else if (np && of_phy_is_fixed_link(np)) {
-		struct phy_device *phy;
-
-		err = of_phy_register_fixed_link(np);
-		if (err) {
-			dev_err(&pdev->dev, "Failed to register fixed PHY\n");
-			goto err_phy_connect;
-		}
-
-		phy = of_phy_get_and_connect(priv->netdev, np,
-					     &ftgmac100_adjust_link);
-		if (!phy) {
-			dev_err(&pdev->dev, "Failed to connect to fixed PHY\n");
-			of_phy_deregister_fixed_link(np);
-			err = -EINVAL;
-			goto err_phy_connect;
-		}
-
-		/* Display what we found */
-		phy_attached_info(phy);
-	} else if (np && of_get_property(np, "phy-handle", NULL)) {
+	} else if (np && (of_phy_is_fixed_link(np) ||
+			  of_get_property(np, "phy-handle", NULL))) {
 		struct phy_device *phy;
 
 		/* Support "mdio"/"phy" child nodes for ast2400/2500 with
 		 * an embedded MDIO controller. Automatically scan the DTS for
 		 * available PHYs and register them.
 		 */
-		if (of_device_is_compatible(np, "aspeed,ast2400-mac") ||
-		    of_device_is_compatible(np, "aspeed,ast2500-mac")) {
+		if (of_get_property(np, "phy-handle", NULL) &&
+		    (of_device_is_compatible(np, "aspeed,ast2400-mac") ||
+		     of_device_is_compatible(np, "aspeed,ast2500-mac"))) {
 			err = ftgmac100_setup_mdio(netdev);
 			if (err)
 				goto err_setup_mdio;
@@ -1996,6 +2028,54 @@ static int ftgmac100_probe(struct platform_device *pdev)
 		if (of_device_is_compatible(np, "aspeed,ast2600-mac"))
 			iowrite32(FTGMAC100_TM_DEFAULT,
 				  priv->base + FTGMAC100_OFFSET_TM);
+
+		if (of_device_is_compatible(np, "aspeed,ast2700-mac")) {
+			if (netdev->phydev->interface == PHY_INTERFACE_MODE_SGMII) {
+				priv->sgmii = devm_phy_optional_get(&pdev->dev, "sgmii");
+				if (IS_ERR(priv->sgmii)) {
+					dev_err(priv->dev, "Failed to get sgmii phy (%ld)\n",
+						PTR_ERR(priv->sgmii));
+					err = PTR_ERR(priv->sgmii);
+					goto err_register_netdev;
+				}
+			}
+		}
+	}
+
+	priv->rst = devm_reset_control_get_optional_exclusive(priv->dev, NULL);
+	if (IS_ERR(priv->rst)) {
+		err = PTR_ERR(priv->rst);
+		goto err_register_netdev;
+	}
+
+	err = reset_control_assert(priv->rst);
+	if (err) {
+		dev_err(priv->dev, "Failed to reset mac (%d)\n", err);
+		goto err_register_netdev;
+	}
+	usleep_range(10000, 20000);
+	err = reset_control_deassert(priv->rst);
+	if (err) {
+		dev_err(priv->dev, "Failed to deassert mac reset (%d)\n", err);
+		goto err_register_netdev;
+	}
+
+	if (priv->sgmii) {
+		/* If using fixed link in dts, sgmii need to be forced */
+		if (of_phy_is_fixed_link(np)) {
+			err = phy_set_speed(priv->sgmii, netdev->phydev->speed);
+			if (err) {
+				dev_err(priv->dev, "Failed to force sgmii speed\n");
+				goto err_register_netdev;
+			}
+		} else {
+			/* The phy_init is used to configure Nway */
+			err = phy_init(priv->sgmii);
+			if (err) {
+				dev_err(priv->dev, "Failed to configure sgmii Nway\n");
+				goto err_register_netdev;
+			}
+		}
 	}
 
 	/* Default ring sizes */
@@ -2021,6 +2101,12 @@ static int ftgmac100_probe(struct platform_device *pdev)
 	if (np && of_get_property(np, "no-hw-checksum", NULL))
 		netdev->hw_features &= ~(NETIF_F_HW_CSUM | NETIF_F_RXCSUM);
 	netdev->features |= netdev->hw_features;
+
+	err = dma_set_mask_and_coherent(&pdev->dev, DMA_BIT_MASK(64));
+	if (err) {
+		dev_err(&pdev->dev, "64-bit DMA enable failed\n");
+		goto err_register_netdev;
+	}
 
 	/* register network device */
 	err = register_netdev(netdev);
