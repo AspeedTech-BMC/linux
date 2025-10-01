@@ -11,6 +11,8 @@
 #include <linux/device.h>
 #include <linux/notifier.h>
 
+#ifdef CONFIG_MCTP_TRANSPORT_PCIE_VDM
+
 /**
  * @send_packet: referenced to send packets with PCIe VDM header packed.
  * @recv_packet: referenced multiple times until no RX packet to be handled.
@@ -30,4 +32,5 @@ struct net_device *mctp_pcie_vdm_add_dev(struct device *dev,
 void mctp_pcie_vdm_receive_packet(struct net_device *ndev);
 void mctp_pcie_vdm_remove_dev(struct net_device *ndev);
 
-#endif	 /* __LINUX_MCTP_PCIE_VDM_H */
+#endif	/* CONFIG_MCTP_TRANSPORT_PCIE_VDM */
+#endif	/* __LINUX_MCTP_PCIE_VDM_H */
