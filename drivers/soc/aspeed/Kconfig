@@ -83,6 +83,14 @@ config ASPEED_MBOX
 	  Enable support for the ASPEED MBOX driver. This driver
 	  provides a mailbox client to the ASPEED BMC SoC IPC.
 
+config ASPEED_MCTP
+	tristate "Aspeed MCTP Controller support"
+	depends on REGMAP && MFD_SYSCON
+	help
+	  Enable support for Aspeed MCTP Controller.
+	  The MCTP controller allows the BMC to communicate with devices on
+	  the host PCIe network.
+
 endmenu
 
 endif

@@ -9,3 +9,4 @@ obj-$(CONFIG_ASPEED_SOCINFO)		+= aspeed-socinfo.o
 obj-$(CONFIG_ASPEED_SBC)		+= aspeed-sbc.o
 obj-$(CONFIG_ASPEED_XDMA)		+= aspeed-xdma.o
 obj-$(CONFIG_ASPEED_MBOX)		+= aspeed-mbox.o
+obj-$(CONFIG_ASPEED_MCTP)		+= aspeed-mctp.o
