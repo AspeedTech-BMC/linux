@@ -2246,7 +2246,7 @@ static int ast2600_i2c_probe(struct platform_device *pdev)
 	struct ast2600_i2c_bus *i2c_bus;
 	const char *xfer_mode;
 	struct resource *res;
-	u32 global_ctrl, int_enable_ctrl = AST2600_I2CM_PKT_DONE | AST2600_I2CM_BUS_RECOVER;
+	u32 global_ctrl;
 	int ret;
 
 	i2c_bus = devm_kzalloc(dev, sizeof(*i2c_bus), GFP_KERNEL);
@@ -2357,7 +2357,8 @@ static int ast2600_i2c_probe(struct platform_device *pdev)
 		return dev_err_probe(dev, ret, "Unable to request irq %d\n", i2c_bus->irq);
 
 	/* Set interrupt generation of I2C master controller */
-	writel(int_enable_ctrl, i2c_bus->reg_base + AST2600_I2CM_IER);
+	writel(AST2600_I2CM_PKT_DONE | AST2600_I2CM_BUS_RECOVER,
+	       i2c_bus->reg_base + AST2600_I2CM_IER);
 
 	ret = devm_i2c_add_adapter(dev, &i2c_bus->adap);
 	if (ret)
@@ -2365,12 +2366,13 @@ static int ast2600_i2c_probe(struct platform_device *pdev)
 
 	i2c_bus->alert_enable = device_property_read_bool(dev, "smbus-alert");
 	if (i2c_bus->alert_enable) {
-		int_enable_ctrl |= AST2600_I2CM_SMBUS_ALT;
 		i2c_bus->ara = i2c_new_smbus_alert_device(&i2c_bus->adap, &i2c_bus->alert_data);
 		if (!i2c_bus->ara)
 			dev_warn(dev, "Failed to register ARA client\n");
 		else
-			writel(int_enable_ctrl, i2c_bus->reg_base + AST2600_I2CM_IER);
+			writel(AST2600_I2CM_PKT_DONE | AST2600_I2CM_BUS_RECOVER |
+			       AST2600_I2CM_SMBUS_ALT,
+			       i2c_bus->reg_base + AST2600_I2CM_IER);
 	} else {
 		i2c_bus->alert_enable = false;
 	}
