@@ -372,6 +372,26 @@
 			status = "disabled";
 		};
 
+		mac0: ethernet@14050000 {
+			compatible = "aspeed,ast2700-mac", "faraday,ftgmac100";
+			reg = <0x0 0x14050000 0x0 0x200>;
+			interrupts-extended = <&intc1_4 0>;
+
+			clocks = <&syscon1 SCU1_CLK_GATE_MAC0CLK>;
+			resets = <&syscon1 SCU1_RESET_MAC0>;
+			status = "disabled";
+		};
+
+		mac1: ethernet@14060000 {
+			compatible = "aspeed,ast2700-mac", "faraday,ftgmac100";
+			reg = <0x0 0x14060000 0x0 0x200>;
+			interrupts-extended = <&intc1_4 1>;
+
+			clocks = <&syscon1 SCU1_CLK_GATE_MAC1CLK>;
+			resets = <&syscon1 SCU1_RESET_MAC1>;
+			status = "disabled";
+		};
+
 		syscon1: syscon@14c02000 {
 			compatible = "aspeed,ast2700-scu1", "syscon", "simple-mfd";
 			reg = <0x0 0x14c02000 0x0 0x1000>;
