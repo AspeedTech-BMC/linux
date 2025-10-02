@@ -458,6 +458,8 @@
 			compatible = "aspeed,ast2600-mdio";
 			reg = <0 0x14040000 0 0x8>;
 			resets = <&syscon1 SCU1_RESET_MII>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&pinctrl_mdio0_default>;
 			status = "disabled";
 		};
 
@@ -465,6 +467,8 @@
 			compatible = "aspeed,ast2600-mdio";
 			reg = <0 0x14040008 0 0x8>;
 			resets = <&syscon1 SCU1_RESET_MII>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&pinctrl_mdio1_default>;
 			status = "disabled";
 		};
 
@@ -472,6 +476,20 @@
 			compatible = "aspeed,ast2600-mdio";
 			reg = <0 0x14040010 0 0x8>;
 			resets = <&syscon1 SCU1_RESET_MII>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&pinctrl_mdio2_default>;
+			status = "disabled";
+		};
+
+		sgmii: phy@14C01000 {
+			compatible = "aspeed,ast2700-sgmii";
+			reg = <0x0 0x14c01000 0x0 0x40>;
+
+			aspeed,plda = <&pcie_phy2>;
+
+			pinctrl-names = "default";
+			pinctrl-0 = <&pinctrl_sgmii_default>;
+			#phy-cells = <0>;
 			status = "disabled";
 		};
 
@@ -495,6 +513,19 @@
 			status = "disabled";
 		};
 
+		mac2: ethernet@14070000 {
+			compatible = "aspeed,ast2700-mac", "faraday,ftgmac100";
+			reg = <0x0 0x14070000 0x0 0x200>;
+			interrupts-extended = <&intc1_4 2>;
+
+			phys = <&sgmii>;
+			phy-names = "sgmii";
+
+			clocks = <&syscon1 SCU1_CLK_GATE_MAC2CLK>;
+			resets = <&syscon1 SCU1_RESET_MAC2>;
+			status = "disabled";
+		};
+
 		mctp2: mctp2@14c1a000 {
 			compatible = "aspeed,ast2700-mctp1";
 			reg = <0x0 0x14c1a000 0x0 0x40>;
@@ -504,11 +535,6 @@
 			aspeed,scu = <&syscon1>;
 			aspeed,pcieh = <&pcie_phy2>;
 			status = "disabled";
-		};
-
-		pcie_phy2: phy@14c1c000 {
-			compatible = "aspeed,ast2700-pcie-phy", "syscon";
-			reg = <0x0 0x14c1c000 0x0 0x800>;
 		};
 
 		syscon1: syscon@14c02000 {
@@ -760,6 +786,11 @@
 			interrupts-extended = <&intc1_5 17>;
 			#mbox-cells = <1>;
 			mbox-name = "bootmcu";
+		};
+
+		pcie_phy2: phy@14c1c000 {
+			compatible = "aspeed,ast2700-pcie-phy", "syscon";
+			reg = <0x0 0x14c1c000 0x0 0x800>;
 		};
 	};
 };
