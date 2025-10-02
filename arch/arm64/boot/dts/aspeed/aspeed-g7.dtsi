@@ -28,6 +28,9 @@
 		serial14 = &uart14;
 		bmcdev0 = &bmc_dev0;
 		bmcdev1 = &bmc_dev1;
+		mctp0 = &mctp0;
+		mctp1 = &mctp1;
+		mctp2 = &mctp2;
 	};
 
 	cpus {
@@ -209,6 +212,28 @@
 			status = "disabled";
 		};
 
+		mctp0: mctp0@12c06000 {
+			compatible = "aspeed,ast2700-mctp0";
+			reg = <0x0 0x12c06000 0x0 0x40>;
+			interrupts-extended = <&gic GIC_SPI 24 IRQ_TYPE_LEVEL_HIGH>, <&scu_ic0 ASPEED_AST2700_SCU_IC0_PCIE_PERST_LO_TO_HI>;
+			interrupt-names = "mctp", "pcie";
+			resets = <&syscon0 SCU0_RESET_MCTP0>;
+			aspeed,scu = <&syscon0>;
+			aspeed,pcieh = <&pcie_phy0>;
+			status = "disabled";
+		};
+
+		mctp1: mctp1@12c07000 {
+			compatible = "aspeed,ast2700-mctp1";
+			reg = <0x0 0x12c07000 0x0 0x40>;
+			interrupts-extended = <&gic GIC_SPI 25 IRQ_TYPE_LEVEL_HIGH>, <&scu_ic1 ASPEED_AST2700_SCU_IC1_PCIE_RCRST_LO_TO_HI>;
+			interrupt-names = "mctp", "pcie";
+			resets = <&syscon0 SCU0_RESET_MCTP1>;
+			aspeed,scu = <&syscon0>;
+			aspeed,pcieh = <&pcie_phy1>;
+			status = "disabled";
+		};
+
 		syscon0: syscon@12c02000 {
 			compatible = "aspeed,ast2700-scu0", "syscon", "simple-mfd";
 			reg = <0x0 0x12c02000 0x0 0x1000>;
@@ -243,6 +268,16 @@
 				compatible = "aspeed,ast2700-soc0-pinctrl";
 				reg = <0 0x400 0 0x600>;
 			};
+		};
+
+		pcie_phy0: phy@12c15000 {
+			compatible = "aspeed,ast2700-pcie-phy", "syscon";
+			reg = <0x0 0x12c15000 0x0 0x800>;
+		};
+
+		pcie_phy1: phy@12c15800 {
+			compatible = "aspeed,ast2700-pcie-phy", "syscon";
+			reg = <0x0 0x12c15800 0x0 0x800>;
 		};
 
 		pcie_cfg0: syscon@12c02a00 {
@@ -460,6 +495,22 @@
 			status = "disabled";
 		};
 
+		mctp2: mctp2@14c1a000 {
+			compatible = "aspeed,ast2700-mctp1";
+			reg = <0x0 0x14c1a000 0x0 0x40>;
+			interrupts-extended = <&intc1_4 3>, <&scu_ic2 ASPEED_AST2700_SCU_IC2_PCIE_PERST_LO_TO_HI>;
+			interrupt-names = "mctp", "pcie";
+			resets = <&syscon1 SCU1_RESET_MCTP>;
+			aspeed,scu = <&syscon1>;
+			aspeed,pcieh = <&pcie_phy2>;
+			status = "disabled";
+		};
+
+		pcie_phy2: phy@14c1c000 {
+			compatible = "aspeed,ast2700-pcie-phy", "syscon";
+			reg = <0x0 0x14c1c000 0x0 0x800>;
+		};
+
 		syscon1: syscon@14c02000 {
 			compatible = "aspeed,ast2700-scu1", "syscon", "simple-mfd";
 			reg = <0x0 0x14c02000 0x0 0x1000>;
@@ -472,6 +523,14 @@
 			pinctrl1: pinctrl@400 {
 				compatible = "aspeed,ast2700-soc1-pinctrl";
 				reg = <0x0 0x400 0x0 0x100>;
+			};
+
+			scu_ic2: interrupt-controller@100 {
+				#interrupt-cells = <1>;
+				compatible = "aspeed,ast2700-scu-ic2";
+				reg = <0 0x100 0 0x8>;
+				interrupts-extended = <&intc1_5 0>;
+				interrupt-controller;
 			};
 		};
 
