@@ -57,6 +57,14 @@ config MCTP_TRANSPORT_USB
 	  MCTP-over-USB interfaces are peer-to-peer, so each interface
 	  represents a physical connection to one remote MCTP endpoint.
 
+config MCTP_TRANSPORT_PCIE_VDM
+	tristate "MCTP PCIe VDM transport"
+	depends on PCI
+	select MCTP_FLOWS
+	help
+	  Provides a driver to access MCTP devices over PCIe VDM transport,
+	  from DMTF specification DSP0238.
+
 endmenu
 
 endif
