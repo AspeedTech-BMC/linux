@@ -19,6 +19,8 @@
 #define SCU0_RESET_CTRL2 0x220
 #define SCU1_RESET_CTRL1 0x200
 #define SCU1_RESET_CTRL2 0x220
+#define AST2755_SCU1_RESET_CTRL2 0x218
+#define AST2755_SCU1_RESET_CTRL3 0x230
 #define SCU1_PCIE3_CTRL 0x908
 
 struct aspeed_reset;
@@ -155,6 +157,73 @@ static const struct ast2700_reset_signal ast2700_reset1_signals[] = {
 	[SCU1_RESET_H2X] = { true, SCU1_RESET_CTRL2, BIT(30) },
 	[SCU1_RESET_I3CDMA] = { true, SCU1_RESET_CTRL2, BIT(31) },
 	[SCU1_RESET_PCIE2RST] = { false, SCU1_PCIE3_CTRL, BIT(0) },
+};
+
+static const struct ast2700_reset_signal ast2755_reset1_signals[] = {
+	[SCU1_RESET_LPC0] = { true, SCU1_RESET_CTRL1, BIT(0) },
+	[SCU1_RESET_LPC1] = { true, SCU1_RESET_CTRL1, BIT(1) },
+	[SCU1_RESET_MII] = { true, SCU1_RESET_CTRL1, BIT(2) },
+	[SCU1_RESET_PECI] = { true, SCU1_RESET_CTRL1, BIT(3) },
+	[SCU1_RESET_PWM] = { true, SCU1_RESET_CTRL1, BIT(4) },
+	[SCU1_RESET_MAC0] = { true, SCU1_RESET_CTRL1, BIT(5) },
+	[SCU1_RESET_MAC1] = { true, SCU1_RESET_CTRL1, BIT(6) },
+	[SCU1_RESET_MAC2] = { true, SCU1_RESET_CTRL1, BIT(7) },
+	[SCU1_RESET_ADC] = { true, SCU1_RESET_CTRL1, BIT(8) },
+	[SCU1_RESET_SD] = { true, SCU1_RESET_CTRL1, BIT(9) },
+	[SCU1_RESET_ESPI0] = { true, SCU1_RESET_CTRL1, BIT(10) },
+	[SCU1_RESET_ESPI1] = { true, SCU1_RESET_CTRL1, BIT(11) },
+	[SCU1_RESET_JTAG1] = { true, SCU1_RESET_CTRL1, BIT(12) },
+	[SCU1_RESET_SPI0] = { true, SCU1_RESET_CTRL1, BIT(13) },
+	[SCU1_RESET_SPI1] = { true, SCU1_RESET_CTRL1, BIT(14) },
+	[SCU1_RESET_SPI2] = { true, SCU1_RESET_CTRL1, BIT(15) },
+	[SCU1_RESET_I3C0] = { true, SCU1_RESET_CTRL1, BIT(16) },
+	[SCU1_RESET_I3C1] = { true, SCU1_RESET_CTRL1, BIT(17) },
+	[SCU1_RESET_I3C2] = { true, SCU1_RESET_CTRL1, BIT(18) },
+	[SCU1_RESET_I3C3] = { true, SCU1_RESET_CTRL1, BIT(19) },
+	[SCU1_RESET_I3C4] = { true, SCU1_RESET_CTRL1, BIT(20) },
+	[SCU1_RESET_I3C5] = { true, SCU1_RESET_CTRL1, BIT(21) },
+	[SCU1_RESET_I3C6] = { true, SCU1_RESET_CTRL1, BIT(22) },
+	[SCU1_RESET_I3C7] = { true, SCU1_RESET_CTRL1, BIT(23) },
+	[SCU1_RESET_I3C8] = { true, SCU1_RESET_CTRL1, BIT(24) },
+	[SCU1_RESET_I3C9] = { true, SCU1_RESET_CTRL1, BIT(25) },
+	[SCU1_RESET_I3C10] = { true, SCU1_RESET_CTRL1, BIT(26) },
+	[SCU1_RESET_I3C11] = { true, SCU1_RESET_CTRL1, BIT(27) },
+	[SCU1_RESET_I3C12] = { true, SCU1_RESET_CTRL1, BIT(28) },
+	[SCU1_RESET_I3C13] = { true, SCU1_RESET_CTRL1, BIT(29) },
+	[SCU1_RESET_I3C14] = { true, SCU1_RESET_CTRL1, BIT(30) },
+	[SCU1_RESET_I3C15] = { true, SCU1_RESET_CTRL1, BIT(31) },
+	[SCU1_RESET_MCU0] = { true, AST2755_SCU1_RESET_CTRL2, BIT(0) },
+	[SCU1_RESET_MCU1] = { true, AST2755_SCU1_RESET_CTRL2, BIT(1) },
+	[SCU1_RESET_H2A_SPI1] = { true, AST2755_SCU1_RESET_CTRL2, BIT(2) },
+	[SCU1_RESET_H2A_SPI2] = { true, AST2755_SCU1_RESET_CTRL2, BIT(3) },
+	[SCU1_RESET_UART0] = { true, AST2755_SCU1_RESET_CTRL2, BIT(4) },
+	[SCU1_RESET_UART1] = { true, AST2755_SCU1_RESET_CTRL2, BIT(5) },
+	[SCU1_RESET_UART2] = { true, AST2755_SCU1_RESET_CTRL2, BIT(6) },
+	[SCU1_RESET_UART3] = { true, AST2755_SCU1_RESET_CTRL2, BIT(7) },
+	[SCU1_RESET_I2C_FILTER] = { true, AST2755_SCU1_RESET_CTRL2, BIT(8) },
+	[SCU1_RESET_CALIPTRA] = { true, AST2755_SCU1_RESET_CTRL2, BIT(9) },
+	[SCU1_RESET_XDMA] = { true, AST2755_SCU1_RESET_CTRL2, BIT(10) },
+	[SCU1_RESET_FSI] = { true, AST2755_SCU1_RESET_CTRL2, BIT(12) },
+	[SCU1_RESET_CAN] = { true, AST2755_SCU1_RESET_CTRL2, BIT(13) },
+	[SCU1_RESET_MCTP] = { true, AST2755_SCU1_RESET_CTRL2, BIT(14) },
+	[SCU1_RESET_I2C] = { true, AST2755_SCU1_RESET_CTRL2, BIT(15) },
+	[SCU1_RESET_UART6] = { true, AST2755_SCU1_RESET_CTRL2, BIT(16) },
+	[SCU1_RESET_UART7] = { true, AST2755_SCU1_RESET_CTRL2, BIT(17) },
+	[SCU1_RESET_UART8] = { true, AST2755_SCU1_RESET_CTRL2, BIT(18) },
+	[SCU1_RESET_UART9] = { true, AST2755_SCU1_RESET_CTRL2, BIT(19) },
+	[SCU1_RESET_LTPI0] = { true, AST2755_SCU1_RESET_CTRL2, BIT(20) },
+	[SCU1_RESET_VGAL] = { true, AST2755_SCU1_RESET_CTRL2, BIT(21) },
+	[SCU1_RESET_LTPI1] = { true, AST2755_SCU1_RESET_CTRL2, BIT(22) },
+	[SCU1_RESET_ACE] = { true, AST2755_SCU1_RESET_CTRL2, BIT(23) },
+	[SCU1_RESET_E2M] = { true, AST2755_SCU1_RESET_CTRL2, BIT(24) },
+	[SCU1_RESET_UHCI] = { true, AST2755_SCU1_RESET_CTRL2, BIT(25) },
+	[SCU1_RESET_PORTC_USB2UART] = { true, AST2755_SCU1_RESET_CTRL2, BIT(26) },
+	[SCU1_RESET_PORTC_VHUB_EHCI] = { true, AST2755_SCU1_RESET_CTRL2, BIT(27) },
+	[SCU1_RESET_PORTD_USB2UART] = { true, AST2755_SCU1_RESET_CTRL2, BIT(28) },
+	[SCU1_RESET_PORTD_VHUB_EHCI] = { true, AST2755_SCU1_RESET_CTRL2, BIT(29) },
+	[SCU1_RESET_H2X] = { true, AST2755_SCU1_RESET_CTRL2, BIT(30) },
+	[SCU1_RESET_I3CDMA] = { true, AST2755_SCU1_RESET_CTRL2, BIT(31) },
+	[SCU1_RESET_PCIE2RST] = { false, AST2755_SCU1_RESET_CTRL2, BIT(0) },
 };
 
 static inline struct aspeed_reset *to_aspeed_reset(struct reset_controller_dev *rcdev)
@@ -304,9 +373,15 @@ static const struct aspeed_reset_info ast2700_reset1_info = {
 	.reset_init = ast2700_reset1_init,
 };
 
+static const struct aspeed_reset_info ast2755_reset1_info = {
+	.nr_resets = ARRAY_SIZE(ast2755_reset1_signals),
+	.signal = ast2755_reset1_signals,
+};
+
 static const struct auxiliary_device_id aspeed_reset_ids[] = {
 	{ .name = "reset_aspeed.reset0", .driver_data = (kernel_ulong_t)&ast2700_reset0_info },
 	{ .name = "reset_aspeed.reset1", .driver_data = (kernel_ulong_t)&ast2700_reset1_info },
+	{ .name = "reset_aspeed.reset2", .driver_data = (kernel_ulong_t)&ast2755_reset1_info },
 	{ }
 };
 MODULE_DEVICE_TABLE(auxiliary, aspeed_reset_ids);

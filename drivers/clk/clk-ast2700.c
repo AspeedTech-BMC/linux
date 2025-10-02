@@ -1369,7 +1369,7 @@ static const struct ast2700_clk_data ast2700_clk1_data = {
 };
 
 static const struct ast2700_clk_data ast2755_clk1_data = {
-	.scu = 1,
+	.scu = 2,
 	.nr_clks = ARRAY_SIZE(ast2755_scu1_clk_info),
 	.clk_info = ast2755_scu1_clk_info,
 };
