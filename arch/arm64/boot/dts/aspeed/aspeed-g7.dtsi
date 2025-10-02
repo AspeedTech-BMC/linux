@@ -2,6 +2,7 @@
 #include <dt-bindings/clock/aspeed,ast2700-scu.h>
 #include <dt-bindings/reset/aspeed,ast2700-scu.h>
 #include <dt-bindings/interrupt-controller/arm-gic.h>
+#include <dt-bindings/interrupt-controller/aspeed-scu-ic.h>
 
 / {
 	compatible = "aspeed,ast2700";
@@ -25,6 +26,8 @@
 		serial12 = &uart12;
 		serial13 = &uart13;
 		serial14 = &uart14;
+		bmcdev0 = &bmc_dev0;
+		bmcdev1 = &bmc_dev1;
 	};
 
 	cpus {
@@ -182,6 +185,29 @@
 			};
 		};
 
+		bmc_dev0: bmc-dev@12110000 {
+			compatible = "aspeed,ast2700-bmc-device";
+			reg = <0x0 0x12110000 0x0 0xb000>;
+			interrupts-extended = <&gic GIC_SPI 42 IRQ_TYPE_LEVEL_HIGH>,
+					      <&scu_ic0 ASPEED_AST2700_SCU_IC0_PCIE_PERST_LO_TO_HI>;
+			aspeed,device = <&pcie_cfg0>;
+			aspeed,e2m = <&e2m_config0>;
+			aspeed,scu = <&syscon0>;
+			pcie2lpc;
+			status = "disabled";
+		};
+
+		bmc_dev1: bmc-dev@12120000 {
+			compatible = "aspeed,ast2700-bmc-device";
+			reg = <0x0 0x12120000 0x0 0xb000>;
+			interrupts-extended = <&gic GIC_SPI 43 IRQ_TYPE_LEVEL_HIGH>,
+					      <&scu_ic1 ASPEED_AST2700_SCU_IC1_PCIE_RCRST_LO_TO_HI>;
+			aspeed,device = <&pcie_cfg1>;
+			aspeed,e2m = <&e2m_config1>;
+			aspeed,scu = <&syscon0>;
+			pcie2lpc;
+			status = "disabled";
+		};
 
 		syscon0: syscon@12c02000 {
 			compatible = "aspeed,ast2700-scu0", "syscon", "simple-mfd";
@@ -197,10 +223,36 @@
 				reg = <0 0x0 0 0x4>;
 			};
 
+			scu_ic0: interrupt-controller@1D0 {
+				#interrupt-cells = <1>;
+				compatible = "aspeed,ast2700-scu-ic0";
+				reg = <0 0x1d0 0 0xc>;
+				interrupts = <GIC_SPI 97 IRQ_TYPE_LEVEL_HIGH>;
+				interrupt-controller;
+			};
+
+			scu_ic1: interrupt-controller@1E0 {
+				#interrupt-cells = <1>;
+				compatible = "aspeed,ast2700-scu-ic1";
+				reg = <0 0x1e0 0 0xc>;
+				interrupts = <GIC_SPI 98 IRQ_TYPE_LEVEL_HIGH>;
+				interrupt-controller;
+			};
+
 			pinctrl0: pinctrl@400 {
 				compatible = "aspeed,ast2700-soc0-pinctrl";
 				reg = <0 0x400 0 0x600>;
 			};
+		};
+
+		pcie_cfg0: syscon@12c02a00 {
+			compatible = "syscon";
+			reg = <0 0x12c02a00 0 0x80>;
+		};
+
+		pcie_cfg1: syscon@12c02a80 {
+			compatible = "syscon";
+			reg = <0 0x12c02a80 0 0x80>;
 		};
 
 		gpio0: gpio@12c11000 {
@@ -224,6 +276,22 @@
 			interrupts = <GIC_SPI 8 IRQ_TYPE_LEVEL_HIGH>;
 			no-loopback-test;
 			status = "disabled";
+		};
+
+		e2m_config0: e2m-config@12c21000 {
+			compatible = "syscon", "simple-mfd";
+			reg = <0 0x12c21000 0 0x300>;
+			ranges = <0 0 0 0x12c21000 0 0x300>;
+			#address-cells = <2>;
+			#size-cells = <2>;
+		};
+
+		e2m_config1: e2m-config@12c22000 {
+			compatible = "syscon", "simple-mfd";
+			reg = <0 0x12c22000 0 0x300>;
+			ranges = <0x0 0x0 0 0x12c22000 0 0x300>;
+			#address-cells = <2>;
+			#size-cells = <2>;
 		};
 
 		mbox0: mbox@12c1c200 {
