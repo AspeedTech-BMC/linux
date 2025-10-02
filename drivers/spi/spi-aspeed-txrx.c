@@ -51,8 +51,6 @@ struct aspeed_spi_host {
 	u32				 ahb_clk;
 	u32				 ctrl_val[5];
 	void __iomem			*chip_ahb_base[5];
-	/* lock: make sure only a user can access the controller once. */
-	struct mutex			 lock;
 	u8				 cs_change;
 	const struct aspeed_spi_info	*info;
 	u32				 flag;
@@ -377,10 +375,8 @@ static int aspeed_spi_transfer(struct spi_controller *ctlr,
 	u32 ctrl_val;
 	void __iomem *ctrl_reg;
 
-	if (host->cs_change == 0) {
-		mutex_lock(&host->lock);
+	if (host->cs_change == 0)
 		aspeed_spi_start_user(spi);
-	}
 
 	cs = spi->chip_select;
 	ctrl_reg = host->ctrl_reg + SPI_CE0_CTRL + cs * 4;
@@ -445,9 +441,6 @@ static int aspeed_spi_transfer(struct spi_controller *ctlr,
 	msg->status = 0;
 
 	spi_finalize_current_message(ctlr);
-
-	if (host->cs_change == 0)
-		mutex_unlock(&host->lock);
 
 	return 0;
 }
@@ -541,8 +534,6 @@ static int aspeed_spi_probe(struct platform_device *pdev)
 	aspeed_spi_enable(host, true);
 	aspeed_spi_chip_set_type(host);
 
-	mutex_init(&host->lock);
-
 	err = devm_spi_register_controller(dev, host->ctrl);
 	if (err) {
 		dev_err(dev, "failed to register SPI controller\n");
@@ -553,7 +544,7 @@ static int aspeed_spi_probe(struct platform_device *pdev)
 
 disable_clk:
 	clk_disable_unprepare(host->clk);
-	mutex_destroy(&host->lock);
+
 	return err;
 }
 
@@ -563,7 +554,6 @@ static int aspeed_spi_remove(struct platform_device *pdev)
 
 	aspeed_spi_enable(host, false);
 	clk_disable_unprepare(host->clk);
-	mutex_destroy(&host->lock);
 
 	return 0;
 }
