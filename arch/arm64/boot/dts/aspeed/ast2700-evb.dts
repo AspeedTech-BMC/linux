@@ -343,6 +343,21 @@
 };
 #endif
 
+&mctp0 {
+	status = "okay";
+	memory-region = <&mctp0_reserved>;
+};
+
+&mctp1 {
+	status = "okay";
+	memory-region = <&mctp1_reserved>;
+};
+
+&mctp2 {
+	status = "okay";
+	memory-region = <&mctp2_reserved>;
+};
+
 #if 0
 &soc0 {
 	mbox-ssp-0 {
