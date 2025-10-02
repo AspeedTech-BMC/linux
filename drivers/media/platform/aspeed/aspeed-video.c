@@ -294,6 +294,7 @@ struct aspeed_video_perf {
  * srcs:		holds the buffer information for srcs
  * jpeg:		holds the buffer information for jpeg header
  * bcd:			holds the buffer information for bcd work
+ * dbg_src:		holds the buffer information for debug input
  * yuv420:		a flag raised if JPEG subsampling is 420
  * format:		holds the video format
  * hq_mode:		a flag raised if HQ is enabled. Only for VIDEO_FMT_ASPEED
@@ -341,6 +342,7 @@ struct aspeed_video {
 	struct aspeed_video_addr srcs[2];
 	struct aspeed_video_addr jpeg;
 	struct aspeed_video_addr bcd;
+	struct aspeed_video_addr dbg_src;
 
 	bool yuv420;
 	enum aspeed_video_format format;
@@ -519,7 +521,7 @@ static const struct v4l2_dv_timings_cap aspeed_video_timings_cap = {
 
 static const char * const format_str[] = {"Standard JPEG",
 	"Aspeed JPEG"};
-static const char * const input_str[] = {"HOST VGA", "BMC GFX"};
+static const char * const input_str[] = {"HOST VGA", "BMC GFX", "MEMORY"};
 
 static unsigned int debug;
 
@@ -650,6 +652,8 @@ static int aspeed_video_start_frame(struct aspeed_video *video)
 		// update input buffer address as gfx's
 		regmap_read(video->gfx, GFX_DISPLAY_ADDR, &val);
 		aspeed_video_write(video, VE_TGS_0, val);
+	} else if (video->input == VIDEO_INPUT_MEM) {
+		aspeed_video_write(video, VE_TGS_0, video->dbg_src.dma);
 	}
 
 	spin_lock_irqsave(&video->lock, flags);
@@ -872,7 +876,8 @@ static irqreturn_t aspeed_video_irq(int irq, void *arg)
 
 		aspeed_video_swap_src_buf(video);
 
-		if (test_bit(VIDEO_STREAMING, &video->flags) && !empty)
+		if (test_bit(VIDEO_STREAMING, &video->flags) && !empty &&
+		    video->input != VIDEO_INPUT_MEM)
 			aspeed_video_start_frame(video);
 	}
 
@@ -1188,6 +1193,12 @@ static void aspeed_video_get_resolution(struct aspeed_video *video)
 {
 	struct v4l2_bt_timings *det = &video->detected_timings;
 
+	// if input is MEM, leave resolution decided by user through set_dv_timings
+	if (video->input == VIDEO_INPUT_MEM) {
+		video->v4l2_input_status = 0;
+		return;
+	}
+
 	if (video->input == VIDEO_INPUT_GFX)
 		aspeed_video_get_resolution_gfx(video, det);
 	else
@@ -1252,6 +1263,10 @@ static void aspeed_video_set_resolution(struct aspeed_video *video)
 			if (bpp == 16)
 				ctrl |= VE_CTRL_INT_DE;
 			aspeed_video_write(video, VE_TGS_1, act->width * (bpp >> 3));
+		} else {
+			// stride should be the same with capture window width
+			val = aspeed_video_read(video, VE_CAP_WINDOW) >> 16;
+			aspeed_video_write(video, VE_TGS_1, val * 4);
 		}
 		aspeed_video_update(video, VE_CTRL,
 				    VE_CTRL_INT_DE | VE_CTRL_DIRECT_FETCH,
@@ -1544,6 +1559,18 @@ static int aspeed_video_set_input(struct file *file, void *fh, unsigned int i)
 		return -EINVAL;
 	}
 
+	// prepare memory space for user to put test batch
+	if (i == VIDEO_INPUT_MEM && !video->dbg_src.size) {
+		if (!aspeed_video_alloc_buf(video, &video->dbg_src, VE_MAX_SRC_BUFFER_SIZE)) {
+			v4l2_err(&video->v4l2_dev, "Failed to allocate buffer for debug input\n");
+			return -EINVAL;
+		}
+		v4l2_dbg(1, debug, &video->v4l2_dev, "dbg src addr(%pad) size(%d)\n",
+			 &video->dbg_src.dma, video->dbg_src.size);
+	}
+	if (i != VIDEO_INPUT_MEM && video->dbg_src.size)
+		aspeed_video_free_buf(video, &video->dbg_src);
+
 	video->input = i;
 
 	if (video->version == 6) {
@@ -1556,10 +1583,17 @@ static int aspeed_video_set_input(struct file *file, void *fh, unsigned int i)
 
 	aspeed_video_update_regs(video);
 
-	/* update signal status */
-	aspeed_video_get_resolution(video);
-	if (!video->v4l2_input_status)
-		aspeed_video_update_timings(video, &video->detected_timings);
+	// update signal status
+	if (video->input == VIDEO_INPUT_MEM) {
+		video->v4l2_input_status = 0;
+	} else {
+		aspeed_video_get_resolution(video);
+		if (!video->v4l2_input_status)
+			aspeed_video_update_timings(video, &video->detected_timings);
+	}
+
+	if (video->input == VIDEO_INPUT_MEM)
+		aspeed_video_start_frame(video);
 
 	return 0;
 }
@@ -1656,6 +1690,12 @@ static int aspeed_video_set_dv_timings(struct file *file, void *fh,
 				       struct v4l2_dv_timings *timings)
 {
 	struct aspeed_video *video = video_drvdata(file);
+
+	// if input is MEM, resolution decided by user
+	if (video->input == VIDEO_INPUT_MEM) {
+		video->detected_timings.width = timings->bt.width;
+		video->detected_timings.height = timings->bt.height;
+	}
 
 	if (timings->bt.width == video->active_timings.width &&
 	    timings->bt.height == video->active_timings.height)
@@ -1880,6 +1920,31 @@ done:
 	wake_up_interruptible_all(&video->wait);
 }
 
+/*
+ * To mmap source memory for test from memory usage.
+ * test from memory input mode requires much bigger size because it is
+ * uncompressed BGRA format. Thus, We use VM_READ to tell it is for test
+ * or v4l2 now.
+ */
+static int aspeed_video_mmap(struct file *file, struct vm_area_struct *vma)
+{
+	int rc;
+	struct aspeed_video *v = video_drvdata(file);
+	const size_t size = vma->vm_end - vma->vm_start;
+	const unsigned long pfn = __phys_to_pfn(v->dbg_src.dma);
+
+	if (v->input != VIDEO_INPUT_MEM || vma->vm_flags & VM_READ)
+		return vb2_fop_mmap(file, vma);
+
+	vma->vm_page_prot = pgprot_noncached(vma->vm_page_prot);
+	rc = remap_pfn_range(vma, vma->vm_start, pfn, size, vma->vm_page_prot);
+	if (rc) {
+		v4l2_err(&v->v4l2_dev, "remap_pfn_range failed(%d)\n", rc);
+		return -EAGAIN;
+	}
+	return 0;
+}
+
 static int aspeed_video_open(struct file *file)
 {
 	int rc;
@@ -1923,7 +1988,7 @@ static const struct v4l2_file_operations aspeed_video_v4l2_fops = {
 	.read = vb2_fop_read,
 	.poll = vb2_fop_poll,
 	.unlocked_ioctl = video_ioctl2,
-	.mmap = vb2_fop_mmap,
+	.mmap = aspeed_video_mmap,
 	.open = aspeed_video_open,
 	.release = aspeed_video_release,
 };
@@ -1971,10 +2036,13 @@ static int aspeed_video_start_streaming(struct vb2_queue *q,
 
 	aspeed_video_update_regs(video);
 
-	rc = aspeed_video_start_frame(video);
-	if (rc) {
-		aspeed_video_bufs_done(video, VB2_BUF_STATE_QUEUED);
-		return rc;
+	// if input is MEM, don't start capture until user acquire
+	if (video->input != VIDEO_INPUT_MEM) {
+		rc = aspeed_video_start_frame(video);
+		if (rc) {
+			aspeed_video_bufs_done(video, VB2_BUF_STATE_QUEUED);
+			return rc;
+		}
 	}
 
 	set_bit(VIDEO_STREAMING, &video->flags);
@@ -2022,7 +2090,8 @@ static void aspeed_video_buf_queue(struct vb2_buffer *vb)
 	spin_unlock_irqrestore(&video->lock, flags);
 
 	if (test_bit(VIDEO_STREAMING, &video->flags) &&
-	    !test_bit(VIDEO_FRAME_INPRG, &video->flags) && empty)
+	    !test_bit(VIDEO_FRAME_INPRG, &video->flags) && empty &&
+	    (video->input != VIDEO_INPUT_MEM))
 		aspeed_video_start_frame(video);
 }
 
