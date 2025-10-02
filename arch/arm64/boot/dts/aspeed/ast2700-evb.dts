@@ -4,6 +4,11 @@
 #include "aspeed-g7.dtsi"
 #include <dt-bindings/net/ti-dp83867.h>
 
+#define DUAL_NODE 0	// 1: DUAL_NODE, 0: SINGLE_NODE
+#define PCIE0_EP 1	// 1: EP, 0: RC
+#define PCIE1_EP 1	// 1: EP, 0: RC
+#define PCIE2_RC 1	// 1: RC, 0: SGMII
+
 / {
 	model = "AST2700 EVB";
 	compatible = "aspeed,ast2700-evb", "aspeed,ast2700";
@@ -15,6 +20,82 @@
 	memory@400000000 {
 		device_type = "memory";
 		reg = <0x4 0x00000000 0x0 0x40000000>;
+	};
+
+	reserved-memory {
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+
+		#include "ast2700-reserved-mem.dtsi"
+
+		video_engine_memory0: video0 {
+			size = <0x0 0x02000000>;
+			alignment = <0x0 0x00010000>;
+			compatible = "shared-dma-pool";
+			reusable;
+		};
+
+		video_engine_memory1: video1 {
+			size = <0x0 0x02000000>;
+			alignment = <0x0 0x00010000>;
+			compatible = "shared-dma-pool";
+			reusable;
+		};
+
+#if 0
+		gfx_memory: framebuffer {
+			size = <0x0 0x01000000>;
+			alignment = <0x0 0x01000000>;
+			compatible = "shared-dma-pool";
+			reusable;
+		};
+#endif
+
+		espi0_mcyc_memory: mcyc0 {
+			size = <0x0 0x01000000>;
+			alignment = <0x0 0x00010000>;
+			compatible = "shared-dma-pool";
+			reusable;
+		};
+	};
+
+	reserved-memory {
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+
+		#include "ast2700-reserved-mem.dtsi"
+
+		video_engine_memory0: video0 {
+			size = <0x0 0x02000000>;
+			alignment = <0x0 0x00010000>;
+			compatible = "shared-dma-pool";
+			reusable;
+		};
+
+		video_engine_memory1: video1 {
+			size = <0x0 0x02000000>;
+			alignment = <0x0 0x00010000>;
+			compatible = "shared-dma-pool";
+			reusable;
+		};
+
+#if 0
+		gfx_memory: framebuffer {
+			size = <0x0 0x01000000>;
+			alignment = <0x0 0x01000000>;
+			compatible = "shared-dma-pool";
+			reusable;
+		};
+#endif
+
+		espi0_mcyc_memory: mcyc0 {
+			size = <0x0 0x01000000>;
+			alignment = <0x0 0x00010000>;
+			compatible = "shared-dma-pool";
+			reusable;
+		};
 	};
 };
 
@@ -195,6 +276,22 @@
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_rgmii1_default>;
 };
+
+#if PCIE0_EP
+&bmc_dev0 {
+	status = "okay";
+	memory-region = <&bmc_dev0_memory>;
+};
+#else /* !PCIE0_EP */
+#endif /* PCIE0_EP */
+
+#if PCIE1_EP
+&bmc_dev1 {
+	status = "okay";
+	memory-region = <&bmc_dev1_memory>;
+};
+#else /* !PCIE1_EP */
+#endif /* PCIE1_EP */
 
 #if 1
 &i2c0 {
