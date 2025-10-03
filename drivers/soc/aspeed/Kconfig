@@ -91,6 +91,14 @@ config ASPEED_MCTP
 	  The MCTP controller allows the BMC to communicate with devices on
 	  the host PCIe network.
 
+config ASPEED_DISP_INTF
+	bool "ASPEED Display Interface driver"
+	select REGMAP
+	select MFD_SYSCON
+	default ARCH_ASPEED
+	help
+	  Say yes to support control the display interface of ASPEED BMC.
+
 endmenu
 
 endif
