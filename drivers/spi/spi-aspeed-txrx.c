@@ -38,8 +38,6 @@
 #define SPI_CE_INACTIVE		BIT(2)
 #define SPI_CMD_USER_MODE	(0x3)
 
-#define SPI_FULL_DUPLEX		0x00000001
-
 struct aspeed_spi_host {
 	phys_addr_t			 ahb_base_phy;
 	size_t				 ahb_window_sz;
@@ -53,7 +51,6 @@ struct aspeed_spi_host {
 	void __iomem			*chip_ahb_base[5];
 	u8				 cs_change;
 	const struct aspeed_spi_info	*info;
-	u32				 flag;
 };
 
 struct aspeed_spi_info {
@@ -343,19 +340,15 @@ static void aspeed_spi_stop_user(struct spi_device *spi)
 }
 
 static void aspeed_spi_transfer_tx(struct aspeed_spi_host *host, const u8 *tx_buf,
-				   u8 *rx_buf, void *dst, u32 len,
-				   bool *full_duplex_rx)
+				   u8 *rx_buf, void *dst, u32 len)
 {
 	u32 i;
 
 	for (i = 0; i < len; i++) {
 		writeb(tx_buf[i], dst);
 
-		if (rx_buf && ((host->flag & SPI_FULL_DUPLEX) ||
-			       tx_buf == rx_buf)) {
+		if (rx_buf && tx_buf == rx_buf)
 			rx_buf[i] = readb(host->ctrl_reg + SPI_FULL_DUPLEX_RX_REG);
-			*full_duplex_rx = true;
-		}
 	}
 }
 
@@ -368,7 +361,6 @@ static int aspeed_spi_transfer(struct spi_controller *ctlr,
 	struct spi_device *spi = msg->spi;
 	struct spi_transfer *xfer;
 	const u8 *tx_buf;
-	bool full_duplex_rx;
 	u8 *rx_buf;
 	u32 cs;
 	u32 j = 0;
@@ -394,8 +386,6 @@ static int aspeed_spi_transfer(struct spi_controller *ctlr,
 		tx_buf = xfer->tx_buf;
 		rx_buf = xfer->rx_buf;
 
-		full_duplex_rx = false;
-
 		if (tx_buf) {
 			ctrl_val &= ~SPI_IO_MASK;
 			if (spi->mode & SPI_TX_DUAL)
@@ -411,10 +401,10 @@ static int aspeed_spi_transfer(struct spi_controller *ctlr,
 
 			aspeed_spi_transfer_tx(host, tx_buf, rx_buf,
 					       (void *)host->chip_ahb_base[cs],
-					       xfer->len, &full_duplex_rx);
+					       xfer->len);
 		}
 
-		if (rx_buf && !full_duplex_rx) {
+		if (rx_buf && rx_buf != tx_buf) {
 			ctrl_val &= ~SPI_IO_MASK;
 			if (spi->mode & SPI_RX_DUAL)
 				ctrl_val |= SPI_DUAL_IO_MODE;
@@ -520,10 +510,6 @@ static int aspeed_spi_probe(struct platform_device *pdev)
 		dev_err(dev, "can not enable the clock\n");
 		return err;
 	}
-
-	host->flag = 0;
-	if (of_property_read_bool(dev->of_node, "spi-aspeed-full-duplex"))
-		host->flag |= SPI_FULL_DUPLEX;
 
 	host->ctrl->setup = aspeed_spi_setup;
 	host->ctrl->transfer_one_message = aspeed_spi_transfer;
