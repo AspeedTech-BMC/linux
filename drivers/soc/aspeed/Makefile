@@ -12,3 +12,4 @@ obj-$(CONFIG_ASPEED_MBOX)		+= aspeed-mbox.o
 obj-$(CONFIG_ASPEED_MCTP)		+= aspeed-mctp.o
 obj-$(CONFIG_ASPEED_DISP_INTF)		+= aspeed-disp-intf.o
 obj-$(CONFIG_ASPEED_UDMA)		+= aspeed-udma.o
+obj-$(CONFIG_ASPEED_PCIE_MMBI)		+= aspeed-pcie-mmbi.o
