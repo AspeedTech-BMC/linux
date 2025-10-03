@@ -3,6 +3,7 @@
 #include <dt-bindings/reset/aspeed,ast2700-scu.h>
 #include <dt-bindings/interrupt-controller/arm-gic.h>
 #include <dt-bindings/interrupt-controller/aspeed-scu-ic.h>
+#include <dt-bindings/interrupt-controller/aspeed-e2m-ic.h>
 
 / {
 	compatible = "aspeed,ast2700";
@@ -420,6 +421,56 @@
 			ranges = <0 0 0 0x12c21000 0 0x300>;
 			#address-cells = <2>;
 			#size-cells = <2>;
+			aspeed,device = <&pcie_cfg0>;
+
+			e2m_ic0: interrupt-controller@14 {
+				#interrupt-cells = <1>;
+				compatible = "aspeed,ast2700-e2m-ic";
+				reg = <0 0x14 0 0x8>;
+				interrupts-extended = <&gic GIC_SPI 116 IRQ_TYPE_LEVEL_HIGH>;
+				interrupt-names = "e2m";
+				interrupt-controller;
+			};
+
+			pcie0_mmbi0: pcie0-mmbi@0 {
+				compatible = "aspeed,ast2700-pcie-mmbi";
+				interrupts-extended = <&e2m_ic0 ASPEED_AST2700_E2M_MMBI_H2B_INT0>;
+				index = <0>;
+				pid = <3>;
+				bar = <0x3c>;
+				msi = <28>;
+				status = "disabled";
+			};
+
+			pcie0_mmbi1: pcie0-mmbi@1 {
+				compatible = "aspeed,ast2700-pcie-mmbi";
+				interrupts-extended = <&e2m_ic0 ASPEED_AST2700_E2M_MMBI_H2B_INT1>;
+				index = <1>;
+				pid = <4>;
+				bar = <0x4c>;
+				msi = <29>;
+				status = "disabled";
+			};
+
+			pcie0_mmbi2: pcie0-mmbi@2 {
+				compatible = "aspeed,ast2700-pcie-mmbi";
+				interrupts-extended = <&e2m_ic0 ASPEED_AST2700_E2M_MMBI_H2B_INT2>;
+				index = <2>;
+				pid = <5>;
+				bar = <0x5c>;
+				msi = <30>;
+				status = "disabled";
+			};
+
+			pcie0_mmbi3: pcie0-mmbi@3 {
+				compatible = "aspeed,ast2700-pcie-mmbi";
+				interrupts-extended = <&e2m_ic0 ASPEED_AST2700_E2M_MMBI_H2B_INT3>;
+				index = <3>;
+				pid = <6>;
+				bar = <0x6c>;
+				msi = <31>;
+				status = "disabled";
+			};
 		};
 
 		e2m_config1: e2m-config@12c22000 {
@@ -428,6 +479,55 @@
 			ranges = <0x0 0x0 0 0x12c22000 0 0x300>;
 			#address-cells = <2>;
 			#size-cells = <2>;
+			aspeed,device = <&pcie_cfg1>;
+
+			e2m_ic1: interrupt-controller@14 {
+				#interrupt-cells = <1>;
+				compatible = "aspeed,ast2700-e2m-ic";
+				reg = <0 0x14 0 0x8>;
+				interrupts-extended = <&gic GIC_SPI 117 IRQ_TYPE_LEVEL_HIGH>;
+				interrupt-controller;
+			};
+
+			pcie1_mmbi4: pcie1-mmbi@4 {
+				compatible = "aspeed,ast2700-pcie-mmbi";
+				interrupts-extended = <&e2m_ic1 ASPEED_AST2700_E2M_MMBI_H2B_INT4>;
+				index = <4>;
+				pid = <11>;
+				bar = <0x3c>;
+				msi = <28>;
+				status = "disabled";
+			};
+
+			pcie1_mmbi5: pcie1-mmbi@5 {
+				compatible = "aspeed,ast2700-pcie-mmbi";
+				interrupts-extended = <&e2m_ic1 ASPEED_AST2700_E2M_MMBI_H2B_INT5>;
+				index = <5>;
+				pid = <12>;
+				bar = <0x4c>;
+				msi = <29>;
+				status = "disabled";
+			};
+
+			pcie1_mmbi6: pcie1-mmbi@6 {
+				compatible = "aspeed,ast2700-pcie-mmbi";
+				interrupts-extended = <&e2m_ic1 ASPEED_AST2700_E2M_MMBI_H2B_INT6>;
+				index = <6>;
+				pid = <13>;
+				bar = <0x5c>;
+				msi = <30>;
+				status = "disabled";
+			};
+
+			pcie1_mmbi7: pcie1-mmbi@7 {
+				compatible = "aspeed,ast2700-pcie-mmbi";
+				interrupts-extended = <&e2m_ic1 ASPEED_AST2700_E2M_MMBI_H2B_INT7>;
+				index = <7>;
+				pid = <14>;
+				bar = <0x6c>;
+				msi = <31>;
+				status = "disabled";
+			};
 		};
 
 		video0: video@120a0000 {
@@ -705,6 +805,86 @@
 			clocks = <&syscon1 SCU1_CLK_GATE_MAC2CLK>;
 			resets = <&syscon1 SCU1_RESET_MAC2>;
 			status = "disabled";
+		};
+
+		e2m_config2: e2m-config@14c1d000 {
+			compatible = "syscon", "simple-mfd";
+			reg = <0 0x14c1d000 0 0x300>;
+			ranges = <0x0 0x0 0 0x14c1d000 0 0x300>;
+			#address-cells = <2>;
+			#size-cells = <2>;
+			aspeed,device = <&pcie_cfg2>;
+
+			pinctrl-0 = <&pinctrl_pcierc2_perst_default>;
+			pinctrl-names = "default";
+
+			e2m_ic2: interrupt-controller@14 {
+				#interrupt-cells = <1>;
+				compatible = "aspeed,ast2700-e2m-ic";
+				reg = <0 0x14 0 0x8>;
+				interrupts-extended = <&intc1_4 20>;
+				interrupt-controller;
+			};
+
+			pcie2_mmbi0: pcie2-mmbi@0 {
+				compatible = "aspeed,ast2700-pcie-mmbi";
+				interrupts-extended = <&e2m_ic2 ASPEED_AST2700_E2M_MMBI_H2B_INT0>;
+				index = <0>;
+				pid = <2>;
+				bar = <0x1c>;
+				msi = <1>;
+				status = "disabled";
+			};
+
+			pcie2_mmbi1: pcie2-mmbi@1 {
+				compatible = "aspeed,ast2700-pcie-mmbi";
+				interrupts-extended = <&e2m_ic2 ASPEED_AST2700_E2M_MMBI_H2B_INT1>;
+				index = <1>;
+				pid = <3>;
+				bar = <0x50>;
+				msi = <2>;
+				status = "disabled";
+			};
+
+			pcie2_mmbi2: pcie2-mmbi@2 {
+				compatible = "aspeed,ast2700-pcie-mmbi";
+				interrupts-extended = <&e2m_ic2 ASPEED_AST2700_E2M_MMBI_H2B_INT2>;
+				index = <2>;
+				pid = <4>;
+				bar = <0x3c>;
+				msi = <3>;
+				status = "disabled";
+			};
+
+			pcie2_mmbi3: pcie2-mmbi@3 {
+				compatible = "aspeed,ast2700-pcie-mmbi";
+				interrupts-extended = <&e2m_ic2 ASPEED_AST2700_E2M_MMBI_H2B_INT3>;
+				index = <3>;
+				pid = <5>;
+				bar = <0x4c>;
+				msi = <4>;
+				status = "disabled";
+			};
+
+			pcie2_mmbi4: pcie2-mmbi@4 {
+				compatible = "aspeed,ast2700-pcie-mmbi";
+				interrupts-extended = <&e2m_ic2 ASPEED_AST2700_E2M_MMBI_H2B_INT4>;
+				index = <4>;
+				pid = <6>;
+				bar = <0x5c>;
+				msi = <5>;
+				status = "disabled";
+			};
+
+			pcie2_mmbi5: pcie2-mmbi@5 {
+				compatible = "aspeed,ast2700-pcie-mmbi";
+				interrupts-extended = <&e2m_ic2 ASPEED_AST2700_E2M_MMBI_H2B_INT5>;
+				index = <5>;
+				pid = <7>;
+				bar = <0x6c>;
+				msi = <6>;
+				status = "disabled";
+			};
 		};
 
 		mctp2: mctp2@14c1a000 {
