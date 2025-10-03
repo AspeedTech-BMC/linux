@@ -302,10 +302,25 @@
 };
 #endif
 
+&video0 {
+	status = "okay";
+	memory-region = <&video_engine_memory0>;
+};
+
+&video1 {
+	status = "okay";
+	memory-region = <&video_engine_memory1>;
+};
+
 #if PCIE0_EP
 &bmc_dev0 {
 	status = "okay";
 	memory-region = <&bmc_dev0_memory>;
+};
+
+&xdma0 {
+	status = "okay";
+	memory-region = <&xdma_memory0>;
 };
 #else /* !PCIE0_EP */
 #endif /* PCIE0_EP */
@@ -314,6 +329,11 @@
 &bmc_dev1 {
 	status = "okay";
 	memory-region = <&bmc_dev1_memory>;
+};
+
+&xdma1 {
+	status = "okay";
+	memory-region = <&xdma_memory1>;
 };
 #else /* !PCIE1_EP */
 #endif /* PCIE1_EP */

@@ -31,6 +31,13 @@
 		mctp0 = &mctp0;
 		mctp1 = &mctp1;
 		mctp2 = &mctp2;
+		video0 = &video0;
+		video1 = &video1;
+		rvas0 = &rvas0;
+		rvas1 = &rvas1;
+		xdma0 = &xdma0;
+		xdma1 = &xdma1;
+		xdma2 = &xdma2;
 	};
 
 	cpus {
@@ -290,6 +297,24 @@
 			reg = <0 0x12c02a80 0 0x80>;
 		};
 
+		display_port: dp@12c0a000 {
+			compatible = "aspeed,ast2700-displayport", "syscon";
+			reg = <0x0 0x12c0a000 0x0 0x200>;
+			status = "disabled";
+		};
+
+		display_port_mcu: dpmcu@11000000 {
+			compatible = "aspeed,ast2700-displayport-mcu", "syscon";
+			reg = <0x0 0x11000000 0x0 0xf00>;
+			status = "disabled";
+		};
+
+		disp_intf: disp-intf {
+			compatible = "aspeed,ast2700-disp-intf", "syscon";
+			reg = <0x0 0x12c1d000 0x0 0x40>;
+			syscon = <&syscon0>;
+		};
+
 		gpio0: gpio@12c11000 {
 			#gpio-cells = <2>;
 			gpio-controller;
@@ -327,6 +352,86 @@
 			ranges = <0x0 0x0 0 0x12c22000 0 0x300>;
 			#address-cells = <2>;
 			#size-cells = <2>;
+		};
+
+		video0: video@120a0000 {
+			compatible = "aspeed,ast2700-video-engine", "syscon";
+			reg = <0x0 0x120a0000 0x0 0x400>, <0x0 0x14c3a800 0x0 0x400>;
+			clocks = <&syscon0 SCU0_CLK_GATE_VCLK>,
+				 <&syscon0 SCU0_CLK_GATE_ECLK>,
+				 <&syscon0 SCU0_CLK_GATE_CRT1CLK>;
+			clock-names = "vclk", "eclk", "crt2clk";
+			interrupts-extended = <&gic GIC_SPI 7 IRQ_TYPE_LEVEL_HIGH>, <&intc1_5 22>;
+			resets = <&syscon0 SCU0_RESET_VIDEO>;
+			aspeed,scu = <&syscon0>;
+			status = "disabled";
+		};
+
+		video1: video@120a1000 {
+			compatible = "aspeed,ast2700-video-engine";
+			reg = <0x0 0x120a1000 0x0 0x400>;
+			clocks = <&syscon0 SCU0_CLK_GATE_VCLK>,
+				 <&syscon0 SCU0_CLK_GATE_ECLK>,
+				 <&syscon0 SCU0_CLK_GATE_CRT1CLK>;
+			clock-names = "vclk", "eclk", "crt2clk";
+			interrupts = <GIC_SPI 114 IRQ_TYPE_LEVEL_HIGH>;
+			resets = <&syscon0 SCU0_RESET_VIDEO>;
+			aspeed,scu = <&syscon0>;
+			status = "disabled";
+		};
+
+		rvas0: rvas@120b8000 {
+			compatible = "aspeed,ast2700-rvas";
+			reg = <0x0 0x120b8000 0x0 0x800>,
+				  <0x0 0x12c14000 0x0 0x800>,
+				  <0x0 0x120a0000 0x0 0x1000>;
+			clocks = <&syscon0 SCU0_CLK_GATE_RVAS0CLK>,
+					<&syscon0 SCU0_CLK_GATE_VCLK>,
+					<&syscon0 SCU0_CLK_GATE_ECLK>;
+			clock-names = "rvasclk", "vclk", "eclk";
+			interrupts = <GIC_SPI 39 IRQ_TYPE_LEVEL_HIGH>, <GIC_SPI 52 IRQ_TYPE_LEVEL_HIGH>, <GIC_SPI 7 IRQ_TYPE_LEVEL_HIGH>;
+			resets = <&syscon0 SCU0_RESET_RVAS0>, <&syscon0 SCU0_RESET_VIDEO>;
+			status = "disabled";
+		};
+
+		rvas1: rvas@120bc000 {
+			compatible = "aspeed,ast2700-rvas";
+			reg = <0x0 0x120bc000 0x0 0x800>,
+				  <0x0 0x12c14800 0x0 0x800>,
+				  <0x0 0x120a1000 0x0 0x1000>;
+			clocks = <&syscon0 SCU0_CLK_GATE_RVAS1CLK>,
+					<&syscon0 SCU0_CLK_GATE_VCLK>,
+					<&syscon0 SCU0_CLK_GATE_ECLK>;
+			clock-names = "rvas2clk", "vclk", "eclk";
+			interrupts = <GIC_SPI 41 IRQ_TYPE_LEVEL_HIGH>, <GIC_SPI 53 IRQ_TYPE_LEVEL_HIGH>, <GIC_SPI 114 IRQ_TYPE_LEVEL_HIGH>;
+			resets = <&syscon0 SCU0_RESET_RVAS1>, <&syscon0 SCU0_RESET_VIDEO>;
+			status = "disabled";
+		};
+
+		xdma0: xdma@12c04000 {
+			compatible = "aspeed,ast2700-xdma0";
+			reg = <0x0 0x12c04000 0x0 0x100>;
+			clocks = <&syscon0 SCU0_CLK_GATE_BCLK>;
+			resets = <&syscon0 SCU0_RESET_XDMA0>;
+			reset-names = "device";
+			interrupts-extended = <&gic GIC_SPI 5 IRQ_TYPE_LEVEL_HIGH>,
+					      <&scu_ic0 ASPEED_AST2700_SCU_IC0_PCIE_PERST_LO_TO_HI>;
+			aspeed,pcie-device = "bmc";
+			aspeed,scu = <&syscon0>;
+			status = "disabled";
+		};
+
+		xdma1: xdma@12c05000 {
+			compatible = "aspeed,ast2700-xdma1";
+			reg = <0x0 0x12c05000 0x0 0x100>;
+			clocks = <&syscon0 SCU0_CLK_GATE_BCLK>;
+			resets = <&syscon0 SCU0_RESET_XDMA1>;
+			reset-names = "device";
+			interrupts-extended = <&gic GIC_SPI 6 IRQ_TYPE_LEVEL_HIGH>,
+					      <&scu_ic1 ASPEED_AST2700_SCU_IC1_PCIE_RCRST_LO_TO_HI>;
+			aspeed,pcie-device = "bmc";
+			aspeed,scu = <&syscon0>;
+			status = "disabled";
 		};
 
 		mbox0: mbox@12c1c200 {
@@ -791,6 +896,18 @@
 		pcie_phy2: phy@14c1c000 {
 			compatible = "aspeed,ast2700-pcie-phy", "syscon";
 			reg = <0x0 0x14c1c000 0x0 0x800>;
+		};
+
+		xdma2: xdma@14c19000 {
+			compatible = "aspeed,ast2700-xdma1";
+			reg = <0x0 0x14c19000 0x0 0x100>;
+			clocks = <&syscon1 SCU1_CLK_GATE_PCICLK>;
+			resets = <&syscon1 SCU1_RESET_XDMA>;
+			reset-names = "device";
+			interrupts-extended = <&intc1_4 21>, <&scu_ic2 ASPEED_AST2700_SCU_IC2_PCIE_PERST_LO_TO_HI>;
+			aspeed,pcie-device = "bmc";
+			aspeed,scu = <&syscon1>;
+			status = "disabled";
 		};
 	};
 };
