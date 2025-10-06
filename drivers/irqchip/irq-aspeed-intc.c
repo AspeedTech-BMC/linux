@@ -47,7 +47,14 @@ static void aspeed_intc0_ic_irq_handler(struct irq_desc *desc)
 	chained_irq_enter(chip, desc);
 
 	generic_handle_domain_irq(intc_ic->irq_domain, hwirq);
+
+	/*
+	 * TODO: This a WA to prevnet potential race conditions when
+	 * multiple interrupts are processed in multi-core environment.
+	 */
+	raw_spin_lock(&intc_ic->intc_lock);
 	writel(BIT(hwirq), intc_ic->base + INTC_INT_STATUS_REG);
+	raw_spin_unlock(&intc_ic->intc_lock);
 
 	chained_irq_exit(chip, desc);
 }
