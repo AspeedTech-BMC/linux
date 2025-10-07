@@ -15,7 +15,7 @@ xdma_memory0: xdma0 {
 };
 
 pcie0_mmbi0_memory: pcie0-mmbi0-memory@413a00000 {
-	reg = <0x4 0x1ba00000 0x0 0x200000>;
+	reg = <0x4 0x13a00000 0x0 0x200000>;
 	no-map;
 };
 #endif /* PCIE0_EP */
@@ -43,7 +43,7 @@ pcie2_mmbi0_memory: pcie2-mmbi0-memory@413e00000 {
 	no-map;
 };
 
-espi0_mmbi_memory: espi0-mmbi-memory@41c000000 {
+espi0_mmbi_memory: espi0-mmbi-memory@414000000 {
 	reg = <0x4 0x14000000 0x0 0x4000000>;
 	no-map;
 };
