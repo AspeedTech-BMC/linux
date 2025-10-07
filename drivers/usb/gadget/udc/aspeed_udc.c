@@ -1168,21 +1168,6 @@ static irqreturn_t ast_udc_isr(int irq, void *data)
 	/* Ack interrupts */
 	ast_udc_write(udc, isr, AST_UDC_ISR);
 
-	if (isr & UDC_IRQ_BUS_RESET) {
-		ISR_DBG(udc, "UDC_IRQ_BUS_RESET\n");
-		udc->gadget.speed = USB_SPEED_UNKNOWN;
-
-		ep = &udc->ep[1];
-		EP_DBG(ep, "dctrl:0x%x\n",
-		       ast_ep_read(ep, AST_UDC_EP_DMA_CTRL));
-
-		if (udc->driver && udc->driver->reset) {
-			spin_unlock(&udc->lock);
-			udc->driver->reset(&udc->gadget);
-			spin_lock(&udc->lock);
-		}
-	}
-
 	if (isr & UDC_IRQ_BUS_SUSPEND) {
 		ISR_DBG(udc, "UDC_IRQ_BUS_SUSPEND\n");
 		udc->suspended_from = udc->gadget.state;
@@ -1202,6 +1187,21 @@ static irqreturn_t ast_udc_isr(int irq, void *data)
 		if (udc->driver && udc->driver->resume) {
 			spin_unlock(&udc->lock);
 			udc->driver->resume(&udc->gadget);
+			spin_lock(&udc->lock);
+		}
+	}
+
+	if (isr & UDC_IRQ_BUS_RESET) {
+		ISR_DBG(udc, "UDC_IRQ_BUS_RESET\n");
+		udc->gadget.speed = USB_SPEED_UNKNOWN;
+
+		ep = &udc->ep[1];
+		EP_DBG(ep, "dctrl:0x%x\n",
+		       ast_ep_read(ep, AST_UDC_EP_DMA_CTRL));
+
+		if (udc->driver && udc->driver->reset) {
+			spin_unlock(&udc->lock);
+			udc->driver->reset(&udc->gadget);
 			spin_lock(&udc->lock);
 		}
 	}
