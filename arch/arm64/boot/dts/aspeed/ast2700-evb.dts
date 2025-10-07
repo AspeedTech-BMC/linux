@@ -7,7 +7,7 @@
 #define DUAL_NODE 0	// 1: DUAL_NODE, 0: SINGLE_NODE
 #define PCIE0_EP 1	// 1: EP, 0: RC
 #define PCIE1_EP 1	// 1: EP, 0: RC
-#define PCIE2_RC 0	// 1: RC, 0: SGMII
+#define PCIE2_RC 1	// 1: RC, 0: SGMII
 
 / {
 	model = "AST2700 EVB";
@@ -278,6 +278,9 @@
 };
 
 #if PCIE2_RC
+&pcie2 {
+	status = "okay";
+};
 #else
 &mdio2 {
 	status = "okay";
@@ -323,6 +326,9 @@
 	memory-region = <&xdma_memory0>;
 };
 #else /* !PCIE0_EP */
+&pcie0 {
+	status = "okay";
+};
 #endif /* PCIE0_EP */
 
 #if PCIE1_EP
@@ -336,6 +342,9 @@
 	memory-region = <&xdma_memory1>;
 };
 #else /* !PCIE1_EP */
+&pcie1 {
+	status = "okay";
+};
 #endif /* PCIE1_EP */
 
 #if 1
