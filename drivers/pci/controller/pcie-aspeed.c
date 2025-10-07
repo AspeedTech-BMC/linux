@@ -538,9 +538,6 @@ static int aspeed_ast2700_rd_conf(struct pci_bus *bus, unsigned int devfn,
 		writel(CFGI_TLP_FIRE, pcie->reg + H2X_CFGI_CTRL);
 		*val = readl(pcie->reg + H2X_CFGI_RET_DATA);
 	} else {
-		if (!aspeed_ast2700_get_link(pcie))
-			return PCIBIOS_DEVICE_NOT_FOUND;
-
 		bdf_offset = ((bus->number) << 24) | (PCI_SLOT(devfn) << 19) |
 			     (PCI_FUNC(devfn) << 16) | (where & ~3);
 
@@ -629,9 +626,6 @@ static int aspeed_ast2700_wr_conf(struct pci_bus *bus, unsigned int devfn,
 		writel(val, pcie->reg + H2X_CFGI_WR_DATA);
 		writel(CFGI_TLP_FIRE, pcie->reg + H2X_CFGI_CTRL);
 	} else {
-		if (!aspeed_ast2700_get_link(pcie))
-			return PCIBIOS_SET_FAILED;
-
 		bdf_offset = (bus->number << 24) | (PCI_SLOT(devfn) << 19) |
 			     (PCI_FUNC(devfn) << 16) | (where & ~3);
 		pcie->tx_tag %= 0xF;
