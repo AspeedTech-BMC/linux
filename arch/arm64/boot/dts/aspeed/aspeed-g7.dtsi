@@ -310,6 +310,19 @@
 			status = "disabled";
 		};
 
+		gfx: display@12c09000 {
+			compatible = "aspeed,ast2700-gfx", "syscon";
+			reg = <0 0x12c09000 0 0x100>;
+			reg-io-width = <4>;
+			clocks = <&syscon0 SCU0_CLK_GATE_CRT0CLK>;
+			resets = <&syscon0 SCU0_RESET_CRT0>;
+			syscon = <&syscon0>;
+			status = "disabled";
+			interrupts-extended = <&gic GIC_SPI 14 IRQ_TYPE_LEVEL_HIGH>,
+			<&scu_ic0 ASPEED_AST2700_SCU_IC0_PCIE_PERST_LO_TO_HI>,
+			<&scu_ic0 ASPEED_AST2700_SCU_IC0_PCIE_PERST_HI_TO_LO>;
+		};
+
 		disp_intf: disp-intf {
 			compatible = "aspeed,ast2700-disp-intf", "syscon";
 			reg = <0x0 0x12c1d000 0x0 0x40>;
