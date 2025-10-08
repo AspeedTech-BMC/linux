@@ -2035,11 +2035,14 @@ struct device_type aspeed_mctp_type = {
 
 static void aspeed_mctp_send_pcie_uevent(struct kobject *kobj, bool ready)
 {
-	char *pcie_not_ready_event[] = { ASPEED_MCTP_READY "=0", NULL };
-	char *pcie_ready_event[] = { ASPEED_MCTP_READY "=1", NULL };
+	char buf[32];
+	char *envp[2];
 
-	kobject_uevent_env(kobj, KOBJ_CHANGE,
-			   ready ? pcie_ready_event : pcie_not_ready_event);
+	snprintf(buf, sizeof(buf), ASPEED_MCTP_READY "=%d", ready ? 1 : 0);
+	envp[0] = buf;
+	envp[1] = NULL;
+
+	kobject_uevent_env(kobj, KOBJ_CHANGE, envp);
 }
 
 static void aspeed_mctp_irq_enable(struct aspeed_mctp *priv)
