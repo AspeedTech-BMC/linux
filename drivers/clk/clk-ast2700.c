@@ -1020,7 +1020,7 @@ static const struct clk_ops ast2700_clk_gate_ops = {
 static struct clk_hw *ast2700_clk_hw_register_gate(struct device *dev, const char *name,
 						   const struct clk_hw *parent_hw,
 						   void __iomem *reg, u8 clock_idx,
-						   unsigned long clk_gate_flags, spinlock_t *lock)
+						   unsigned long flags, spinlock_t *lock)
 {
 	struct clk_init_data init;
 	struct clk_gate *gate;
@@ -1033,7 +1033,7 @@ static struct clk_hw *ast2700_clk_hw_register_gate(struct device *dev, const cha
 
 	init.name = name;
 	init.ops = &ast2700_clk_gate_ops;
-	init.flags = clk_gate_flags;
+	init.flags = flags;
 	init.parent_names = NULL;
 	init.parent_hws = parent_hw ? &parent_hw : NULL;
 	init.parent_data = NULL;
