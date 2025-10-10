@@ -352,7 +352,8 @@ int ufshcd_negotiate_pwr_params(const struct ufs_host_params *host_params,
 	bool is_dev_sup_hs = false;
 	bool is_host_max_hs = false;
 
-	if (dev_max->pwr_rx == FAST_MODE)
+	if (dev_max->pwr_rx == FAST_MODE ||
+	    dev_max->pwr_rx == FASTAUTO_MODE)
 		is_dev_sup_hs = true;
 
 	if (host_params->desired_working_mode == UFS_HS_MODE) {
