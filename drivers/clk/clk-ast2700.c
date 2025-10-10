@@ -348,12 +348,12 @@ static const struct clk_hw *sdclk_parent_hws[ARRAY_SIZE(sdclk_parent_ids)];
 			.name = _name, \
 			.data = { \
 				.mux = { \
-					.parent_ids  = (_parent_ids), \
-					.parent_hws  = (_parent_hws), \
-					.num_parents = (_num_parents), \
+					.parent_ids  = _parent_ids, \
+					.parent_hws  = _parent_hws, \
+					.num_parents = _num_parents, \
 					.reg = (_reg), \
-					.bit_shift = (_shift), \
-					.bit_width = (_width), \
+					.bit_shift = _shift, \
+					.bit_width = _width, \
 				}, \
 			}, \
 		}
