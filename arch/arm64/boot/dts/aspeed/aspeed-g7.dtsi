@@ -191,6 +191,27 @@
 			};
 		};
 
+		ufs_controller: cnr@12c08000 {
+			compatible = "aspeed,ast2700-ufscnr";
+			reg = <0 0x12c08000 0 0x100>;
+			#address-cells = <2>;
+			#size-cells = <2>;
+			ranges = <0 0 0 0x12c08000 0 0x300>;
+			clocks = <&syscon0 SCU0_CLK_GATE_UFSCLK>;
+			resets = <&syscon0 SCU0_RESET_UFS>;
+			status = "disabled";
+
+			ufs: ufshc@12c08200 {
+				compatible = "aspeed,ast2700-ufshc";
+				reg = <0 0x200 0 0x100>;
+				interrupts = <GIC_SPI 118 IRQ_TYPE_LEVEL_HIGH>;
+				clocks = <&syscon0 SCU0_CLK_AXI1>;
+				clock-names = "core_clk";
+				freq-table-hz = <0 0>;
+				status = "disabled";
+			};
+		};
+
 		intc0: interrupt-controller@12100000 {
 			compatible = "aspeed,ast2700-intc0";
 			reg = <0 0x12100000 0 0x4000>;
