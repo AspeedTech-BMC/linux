@@ -124,13 +124,11 @@ err_clk:
  *
  * Always returns 0
  */
-static int aspeed_ufscnr_remove(struct platform_device *pdev)
+static void aspeed_ufscnr_remove(struct platform_device *pdev)
 {
 	struct aspeed_ufscnr *cnr = dev_get_drvdata(&pdev->dev);
 
 	clk_disable_unprepare(cnr->clk);
-
-	return 0;
 }
 
 /**
@@ -243,18 +241,18 @@ static int aspeed_ufshc_pre_pwr_change(struct ufs_hba *hba,
 				       struct ufs_pa_layer_attr *dev_max_params,
 				       struct ufs_pa_layer_attr *dev_req_params)
 {
-	struct ufs_dev_params host_cap;
+	struct ufs_host_params host_cap;
 	int ret;
 
-	ufshcd_init_pwr_dev_param(&host_cap);
+	ufshcd_init_host_params(&host_cap);
 	host_cap.hs_rx_gear = UFS_HS_G3;
 	host_cap.hs_tx_gear = UFS_HS_G3;
 	host_cap.rx_pwr_hs = FASTAUTO_MODE;
 	host_cap.tx_pwr_hs = FASTAUTO_MODE;
 
-	ret = ufshcd_get_pwr_dev_param(&host_cap,
-				       dev_max_params,
-				       dev_req_params);
+	ret = ufshcd_negotiate_pwr_params(&host_cap,
+					  dev_max_params,
+					  dev_req_params);
 	if (ret) {
 		pr_info("%s: failed to determine capabilities\n",
 			__func__);
@@ -358,12 +356,11 @@ static int aspeed_ufshc_probe(struct platform_device *pdev)
  *
  * Always returns 0
  */
-static int aspeed_ufshc_remove(struct platform_device *pdev)
+static void aspeed_ufshc_remove(struct platform_device *pdev)
 {
 	struct ufs_hba *hba =  platform_get_drvdata(pdev);
 
 	ufshcd_remove(hba);
-	return 0;
 }
 
 static const struct dev_pm_ops aspeed_ufshc_dev_pm_ops = {
