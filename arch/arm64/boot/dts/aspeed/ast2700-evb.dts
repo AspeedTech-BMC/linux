@@ -180,6 +180,55 @@
 	};
 };
 
+&pinctrl0 {
+	pinctrl_emmcclk_driving: emmcclk-driving {
+		pins = "AC14";
+		drive-strength = <2>;
+	};
+
+	pinctrl_emmccmd_driving: emmccmd-driving {
+		pins = "AE15";
+		drive-strength = <1>;
+	};
+	pinctrl_emmc4bit_driving: emmcdat-driving {
+		pins = "AD14", "AE14", "AF14", "AB13";
+		drive-strength = <1>;
+	};
+
+	pinctrl_emmc8bit_driving: emmcdat-driving {
+		pins = "AD14", "AE14", "AF14", "AB13", "AF13", "AC13", "AD13", "AE13";
+		drive-strength = <1>;
+	};
+};
+
+&emmc_controller {
+	status = "okay";
+	mmc-hs200-1_8v;
+};
+
+&emmc {
+	status = "okay";
+#if 1
+	bus-width = <4>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_emmc_default
+		     &pinctrl_emmcclk_driving
+		     &pinctrl_emmccmd_driving
+		     &pinctrl_emmc4bit_driving>;
+#else
+	bus-width = <8>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_emmc_default
+		     &pinctrl_emmcg8_default
+		     &pinctrl_emmcclk_driving
+		     &pinctrl_emmccmd_driving
+		     &pinctrl_emmc8bit_driving>;
+#endif
+
+	non-removable;
+	max-frequency = <200000000>;
+};
+
 &pwm_tach {
 	status = "okay";
 	pinctrl-names = "default";
