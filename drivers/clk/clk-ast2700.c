@@ -108,11 +108,11 @@ enum ast2700_clk_type {
 struct ast2700_clk_fixed_factor_data {
 	unsigned int mult;
 	unsigned int div;
-	int parent_idx;
+	int parent_id;
 };
 
 struct ast2700_clk_gate_data {
-	int parent_idx;
+	int parent_id;
 	u32 flags;
 	u32 reg;
 	u8 bit;
@@ -129,14 +129,14 @@ struct ast2700_clk_mux_data {
 
 struct ast2700_clk_div_data {
 	const struct clk_div_table *div_table;
-	unsigned int parent_idx;
+	unsigned int parent_id;
 	u8 bit_shift;
 	u8 bit_width;
 	u32 reg;
 };
 
 struct ast2700_clk_pll_data {
-	unsigned int parent_idx;
+	unsigned int parent_id;
 	u32 reg;
 };
 
@@ -330,13 +330,13 @@ static const struct clk_hw *sdclk_parent_hws[ARRAY_SIZE(sdclk_parent_ids)];
 			.data = { .display_rate = { .reg = _reg } }, \
 		}
 
-#define PLL_CLK(_id, _type, _name, _parent_idx, _reg) \
+#define PLL_CLK(_id, _type, _name, _parent_id, _reg) \
 	{ \
 		.id = _id, \
 		.type = _type, \
 		.name = _name, \
 		.data = { .pll = { \
-			.parent_idx = _parent_idx, \
+			.parent_id = _parent_id, \
 			.reg		= _reg, \
 		} }, \
 	}
@@ -358,14 +358,14 @@ static const struct clk_hw *sdclk_parent_hws[ARRAY_SIZE(sdclk_parent_ids)];
 			}, \
 		}
 
-#define DIVIDER_CLK(_id, _name, _parent_idx, _reg, _shift, _width, _div_table) \
+#define DIVIDER_CLK(_id, _name, _parent_id, _reg, _shift, _width, _div_table) \
 	{ \
 		.id = _id,	\
 		.type = CLK_DIVIDER, \
 		.name = _name, \
 		.data = { \
 			.div = { \
-				.parent_idx = _parent_idx, \
+				.parent_id = _parent_id, \
 				.reg = _reg, \
 				.bit_shift = _shift, \
 				.bit_width = _width, \
@@ -374,22 +374,22 @@ static const struct clk_hw *sdclk_parent_hws[ARRAY_SIZE(sdclk_parent_ids)];
 		}, \
 	}
 
-#define FIXED_FACTOR_CLK(_id, _name, _parent_idx, _mult, _div) \
+#define FIXED_FACTOR_CLK(_id, _name, _parent_id, _mult, _div) \
 	{ \
 		.id = _id,	\
 		.type = CLK_FIXED_FACTOR, \
 		.name = _name, \
-		.data = { .factor = { .parent_idx = _parent_idx, .mult = _mult, .div = _div, } }, \
+		.data = { .factor = { .parent_id = _parent_id, .mult = _mult, .div = _div, } }, \
 	}
 
-#define GATE_CLK(_id, _type, _name, _parent_idx, _reg, _bit, _flags) \
+#define GATE_CLK(_id, _type, _name, _parent_id, _reg, _bit, _flags) \
 	{ \
 		.id = _id,	\
 		.type = _type, \
 		.name = _name, \
 		.data = { \
 			.gate = { \
-				.parent_idx = _parent_idx, \
+				.parent_id = _parent_id, \
 				.reg = _reg, \
 				.bit = _bit, \
 				.flags = _flags, \
@@ -1205,7 +1205,7 @@ static int ast2700_soc_clk_probe(struct platform_device *pdev)
 		} else if (clk->type == CLK_FIXED_FACTOR) {
 			const struct ast2700_clk_fixed_factor_data *factor = &clk->data.factor;
 
-			phw = hws[factor->parent_idx];
+			phw = hws[factor->parent_id];
 			hws[id] = devm_clk_hw_register_fixed_factor_parent_hw(dev, clk->name,
 									      phw, 0, factor->mult,
 									      factor->div);
@@ -1217,19 +1217,19 @@ static int ast2700_soc_clk_probe(struct platform_device *pdev)
 			const struct ast2700_clk_pll_data *pll = &clk->data.pll;
 
 			reg = clk_ctrl->base + pll->reg;
-			phw = hws[pll->parent_idx];
+			phw = hws[pll->parent_id];
 			hws[id] = ast2700_clk_hw_register_hpll(reg, clk->name, phw, clk_ctrl);
 		} else if (clk->type == CLK_PLL) {
 			const struct ast2700_clk_pll_data *pll = &clk->data.pll;
 
 			reg = clk_ctrl->base + pll->reg;
-			phw = hws[pll->parent_idx];
+			phw = hws[pll->parent_id];
 			hws[id] = ast2700_clk_hw_register_pll(id, reg, clk->name, phw, clk_ctrl);
 		} else if (clk->type == CLK_UART_PLL) {
 			const struct ast2700_clk_pll_data *pll = &clk->data.pll;
 
 			reg = clk_ctrl->base + pll->reg;
-			phw = hws[pll->parent_idx];
+			phw = hws[pll->parent_id];
 			hws[id] = ast2700_clk_hw_register_uartpll(reg, clk->name, phw, clk_ctrl);
 		} else if (clk->type == CLK_MUX) {
 			const struct ast2700_clk_mux_data *mux = &clk->data.mux;
@@ -1251,13 +1251,13 @@ static int ast2700_soc_clk_probe(struct platform_device *pdev)
 			const struct ast2700_clk_pll_data *pll = &clk->data.pll;
 
 			reg = clk_ctrl->base + pll->reg;
-			phw = hws[pll->parent_idx];
+			phw = hws[pll->parent_id];
 			hws[id] = ast2700_clk_hw_register_misc(id, reg, clk->name, phw, clk_ctrl);
 		} else if (clk->type == CLK_DIVIDER) {
 			const struct ast2700_clk_div_data *divider = &clk->data.div;
 
 			reg = clk_ctrl->base + divider->reg;
-			phw = hws[divider->parent_idx];
+			phw = hws[divider->parent_id];
 			hws[id] = clk_hw_register_divider_table_parent_hw(dev, clk->name,
 									  phw,
 									  0, reg,
@@ -1268,14 +1268,14 @@ static int ast2700_soc_clk_probe(struct platform_device *pdev)
 		} else if (clk->type == CLK_GATE_ASPEED) {
 			const struct ast2700_clk_gate_data *gate = &clk->data.gate;
 
-			phw = get_parent_hw_or_null(hws, gate->parent_idx);
+			phw = get_parent_hw_or_null(hws, gate->parent_id);
 			reg = clk_ctrl->base + gate->reg;
 			hws[id] = ast2700_clk_hw_register_gate(dev, clk->name, phw, reg, gate->bit,
 							       gate->flags, &clk_ctrl->lock);
 		} else {
 			const struct ast2700_clk_gate_data *gate = &clk->data.gate;
 
-			phw = get_parent_hw_or_null(hws, gate->parent_idx);
+			phw = get_parent_hw_or_null(hws, gate->parent_id);
 			reg = clk_ctrl->base + gate->reg;
 			hws[id] = devm_clk_hw_register_gate_parent_hw(dev, clk->name, phw,
 								      gate->flags, reg, gate->bit,
