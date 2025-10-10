@@ -229,6 +229,16 @@
 	max-frequency = <200000000>;
 };
 
+&ufs_controller {
+	status = "okay";
+};
+
+&ufs {
+	status = "okay";
+	lanes-per-direction = <2>;
+	ref-clk-freq = <26000000>;
+};
+
 &pwm_tach {
 	status = "okay";
 	pinctrl-names = "default";
