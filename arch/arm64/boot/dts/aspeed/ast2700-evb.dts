@@ -10,7 +10,6 @@
 #define DUAL_NODE 0	// 1: DUAL_NODE, 0: SINGLE_NODE
 #define PCIE0_EP 1	// 1: EP, 0: RC
 #define PCIE1_EP 1	// 1: EP, 0: RC
-#define PCIE2_RC 1	// 1: RC, 0: SGMII
 
 / {
 	model = "AST2700 EVB";
@@ -683,6 +682,8 @@
 	pinctrl-0 = <&pinctrl_rgmii1_default &pinctrl_rgmii1_driving>;
 };
 
+#if 0			// Default to disable RC & SGMII
+#define PCIE2_RC 1	// 1: RC, 0: SGMII
 #if PCIE2_RC
 &pcie2 {
 	status = "okay";
@@ -709,6 +710,7 @@
 	phy-mode = "sgmii";
 	phy-handle = <&ethphy2>;
 };
+#endif
 #endif
 
 &syscon1 {
