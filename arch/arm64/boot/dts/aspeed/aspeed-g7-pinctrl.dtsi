@@ -1072,7 +1072,7 @@
 		groups = "DI2C11";
 	};
 
-	pinctrl_di2c12_default: id2c12-default {
+	pinctrl_di2c12_default: di2c12-default {
 		function = "I2C12";
 		groups = "DI2C12";
 	};
