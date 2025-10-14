@@ -303,6 +303,12 @@ enum i2c_version {
 	AST2700,
 };
 
+struct i2c_divisor {
+	u32 baseclk_idx;
+	u32 divisor;
+	u8 baseclk_limit;
+};
+
 struct ast2600_i2c_bus {
 	struct i2c_adapter		adap;
 	struct device			*dev;
@@ -316,6 +322,7 @@ struct ast2600_i2c_bus {
 	u8				*master_safe_buf;
 	dma_addr_t			master_dma_addr;
 	u32				apb_clk;
+	struct	i2c_divisor clk_divisor;
 	u32				timeout;
 	int				irq;
 	int				cmd_err;
@@ -345,15 +352,12 @@ struct ast2600_i2c_bus {
 #endif
 };
 
-static u32 ast2600_select_i2c_clock(struct ast2600_i2c_bus *i2c_bus)
+static void ast2600_select_i2c_divisor(struct ast2600_i2c_bus *i2c_bus)
 {
 	unsigned long base_clk[16];
 	int baseclk_idx = 0;
 	int divisor = 0;
 	u32 clk_div_reg;
-	u32 scl_low;
-	u32 scl_high;
-	u32 data;
 
 	regmap_read(i2c_bus->global_regs, AST2600_I2CG_CLK_DIV_CTRL, &clk_div_reg);
 
@@ -372,36 +376,19 @@ static u32 ast2600_select_i2c_clock(struct ast2600_i2c_bus *i2c_bus)
 			break;
 		}
 	}
-	baseclk_idx = min(baseclk_idx, 15);
-	divisor = min(divisor, 32);
-	scl_low = min(divisor * 9 / 16 - 1, 15);
-	scl_high = (divisor - scl_low - 2) & GENMASK(3, 0);
-	data = (scl_high - 1) << 20 | scl_high << 16 | scl_low << 12 | baseclk_idx;
-	if (i2c_bus->timeout) {
-		i2c_bus->timeout = min(divisor, 31);
-		data |= AST2600_I2CC_TTIMEOUT(i2c_bus->timeout);
-		data |= AST2600_I2CC_TOUTBASECLK(AST2600_I2C_TIMEOUT_CLK);
-	}
 
-	return data;
+	i2c_bus->clk_divisor.baseclk_idx = baseclk_idx;
+	i2c_bus->clk_divisor.divisor = divisor;
+	i2c_bus->clk_divisor.baseclk_limit = 15;
 }
 
-static u32 ast2700_select_i2c_clock(struct ast2600_i2c_bus *i2c_bus)
+static void ast2700_select_i2c_divisor(struct ast2600_i2c_bus *i2c_bus)
 {
 	unsigned long base_clk;
 	int baseclk_idx = 0;
 	int divisor = 0;
 	u32 clk_div_reg;
-	u32 scl_low;
-	u32 scl_high;
-	u32 data;
 	u8  divid_term = 0;
-
-	/* The i2c minmum ac-timing is 12KHz */
-	if (i2c_bus->timing_info.bus_freq_hz < AST2700_MIN_AC_TIMING) {
-		dev_err(i2c_bus->dev, "The frequency could not be lower than 12KHz.\n");
-		i2c_bus->timing_info.bus_freq_hz = AST2700_MIN_AC_TIMING;
-	}
 
 	regmap_read(i2c_bus->global_regs, AST2600_I2CG_CLK_DIV_CTRL, &clk_div_reg);
 
@@ -430,18 +417,53 @@ static u32 ast2700_select_i2c_clock(struct ast2600_i2c_bus *i2c_bus)
 		}
 	}
 
-	baseclk_idx = min(baseclk_idx, 0xff);
-	divisor = min(divisor, 32);
-	scl_low = min((DIV_ROUND_UP(divisor * 9, 16)) - 1, 15);
-	scl_high = (divisor - scl_low - 2) & GENMASK(3, 0);
-	data = (scl_high - 1) << 20 | scl_high << 16 | scl_low << 12 | baseclk_idx;
-	if (i2c_bus->timeout) {
-		i2c_bus->timeout = min(i2c_bus->timeout, 255);
-		writel(MSIC_I2C_SET_TIMEOUT(i2c_bus->timeout, 0),
-		       i2c_bus->reg_base + MSIC_CONFIG_ACTIMING1);
-		/* timeout_base set as 1ms */
-		data |= AST2600_I2CC_TOUTBASECLK(AST2700_I2C_TIMEOUT_CLK);
+	i2c_bus->clk_divisor.baseclk_idx = baseclk_idx;
+	i2c_bus->clk_divisor.divisor = divisor;
+	i2c_bus->clk_divisor.baseclk_limit = 0xff;
+}
+
+static u32 ast_select_i2c_clock(struct ast2600_i2c_bus *i2c_bus)
+{
+	int baseclk_idx = 0;
+	int divisor = 0;
+	u32 scl_low;
+	u32 scl_high;
+	u32 data = 0;
+
+	switch (i2c_bus->version) {
+	case AST2600:
+		ast2600_select_i2c_divisor(i2c_bus);
+		if (i2c_bus->timeout) {
+			i2c_bus->timeout = min(divisor, 31);
+			data = AST2600_I2CC_TTIMEOUT(i2c_bus->timeout);
+			data |= AST2600_I2CC_TOUTBASECLK(AST2600_I2C_TIMEOUT_CLK);
+		}
+		break;
+	case AST2700:
+		/* The i2c minmum ac-timing is 12KHz */
+		if (i2c_bus->timing_info.bus_freq_hz < AST2700_MIN_AC_TIMING) {
+			dev_err(i2c_bus->dev, "The frequency could not be lower than 12KHz.\n");
+			i2c_bus->timing_info.bus_freq_hz = AST2700_MIN_AC_TIMING;
+		}
+		ast2700_select_i2c_divisor(i2c_bus);
+		if (i2c_bus->timeout) {
+			i2c_bus->timeout = min(i2c_bus->timeout, 255);
+			writel(MSIC_I2C_SET_TIMEOUT(i2c_bus->timeout, 0),
+			       i2c_bus->reg_base + MSIC_CONFIG_ACTIMING1);
+			/* timeout_base set as 1ms */
+			data = AST2600_I2CC_TOUTBASECLK(AST2700_I2C_TIMEOUT_CLK);
+		}
+		break;
+	default:
+		dev_err(i2c_bus->dev, "Can't find suitable chip.\n");
+		return 0;
 	}
+
+	baseclk_idx = min(i2c_bus->clk_divisor.baseclk_idx, i2c_bus->clk_divisor.baseclk_limit);
+	divisor = min(i2c_bus->clk_divisor.divisor, 32);
+	scl_low = min(divisor * 9 / 16 - 1, 15);
+	scl_high = (divisor - scl_low - 2) & GENMASK(3, 0);
+	data |= (scl_high - 1) << 20 | scl_high << 16 | scl_low << 12 | baseclk_idx;
 
 	return data;
 }
@@ -2053,12 +2075,8 @@ static void ast2600_i2c_init(struct ast2600_i2c_bus *i2c_bus)
 	writel(0, i2c_bus->reg_base + AST2600_I2CS_ADDR_CTRL);
 
 	/* Set AC Timing */
-	if (i2c_bus->version == AST2700)
-		writel(ast2700_select_i2c_clock(i2c_bus),
-		       i2c_bus->reg_base + AST2600_I2CC_AC_TIMING);
-	else
-		writel(ast2600_select_i2c_clock(i2c_bus),
-		       i2c_bus->reg_base + AST2600_I2CC_AC_TIMING);
+	writel(ast_select_i2c_clock(i2c_bus),
+	       i2c_bus->reg_base + AST2600_I2CC_AC_TIMING);
 
 	/* Clear Interrupt */
 	writel(GENMASK(27, 0), i2c_bus->reg_base + AST2600_I2CM_ISR);
