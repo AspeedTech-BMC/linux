@@ -308,6 +308,13 @@
 			status = "disabled";
 		};
 
+		usb2ahp: usb2ahp {
+			compatible = "aspeed,ast2600-usb2ahp";
+			pinctrl-names = "default";
+			pinctrl-0 = <&pinctrl_usb2ahp_default>;
+			status = "disabled";
+		};
+
 		udc: usb@1e6a2000 {
 			compatible = "aspeed,ast2600-udc";
 			reg = <0x1e6a2000 0x300>;
@@ -315,6 +322,14 @@
 			clocks = <&syscon ASPEED_CLK_GATE_USBPORT2CLK>;
 			pinctrl-names = "default";
 			pinctrl-0 = <&pinctrl_usb2bd_default>;
+			status = "disabled";
+		};
+
+		uphyb: uphyb@1e6a2800 {
+			compatible = "aspeed,ast2600-uphyb";
+			reg = <0x1e6a2800 0x10>;
+			ctrl = <0x0 0x100>;	/* <offset, value> */
+			aspeed,scu = <&syscon>;
 			status = "disabled";
 		};
 
