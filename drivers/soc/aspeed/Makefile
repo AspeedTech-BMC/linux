@@ -20,3 +20,5 @@ obj-$(CONFIG_ASPEED_LPC_MAILBOX)	+= aspeed-lpc-mbox.o
 obj-$(CONFIG_ASPEED_LPC_PCC)		+= aspeed-lpc-pcc.o
 obj-$(CONFIG_ASPEED_UART_ROUTING)	+= aspeed-uart-routing.o
 obj-$(CONFIG_AST2700_RTC_OVER_ESPI)	+= ast2700-rtc-over-espi.o
+obj-$(CONFIG_ARCH_ASPEED)		+= aspeed-usb-hp.o
+obj-$(CONFIG_ARCH_ASPEED)		+= aspeed-usb-phy.o
