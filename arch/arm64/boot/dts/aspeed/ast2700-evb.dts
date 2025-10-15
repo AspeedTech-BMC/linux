@@ -715,6 +715,76 @@
 };
 #endif
 
+#if 0
+&ehci0 {
+	status = "okay";
+};
+
+&ehci1 {
+	status = "okay";
+};
+
+&uhci0 {
+	status = "okay";
+	memory-region = <&uhci0_reserved>;
+};
+#endif
+
+#if 1
+&uphy3a {
+	status = "okay";
+};
+
+&uphy3b {
+	status = "okay";
+};
+#endif
+
+#if 0
+&xhci0 {
+	status = "okay";
+};
+
+&xhci1 {
+	status = "okay";
+};
+#endif
+
+&vhuba0 {
+	status = "okay";
+	pinctrl-0 = <&pinctrl_usb2ahpd0_default>;
+};
+
+&usb3ahp {
+	status = "okay";
+	pinctrl-0 = <&pinctrl_usb3axhp_default &pinctrl_usb2axhp_default>;
+};
+
+&usb3bhp {
+	status = "okay";
+};
+
+&uphy2b {
+	status = "okay";
+};
+
+&vhubb1 {
+	status = "okay";
+};
+
+&vhubc {
+	status = "okay";
+};
+
+&ehci3 {
+	status = "okay";
+};
+
+&uhci1 {
+	status = "okay";
+	memory-region = <&uhci1_reserved>;
+};
+
 &mctp0 {
 	status = "okay";
 	memory-region = <&mctp0_reserved>;
