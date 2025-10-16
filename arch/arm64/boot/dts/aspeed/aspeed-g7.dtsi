@@ -1254,6 +1254,28 @@
 			status = "disabled";
 		};
 
+		sdio_controller: sdc@14080000 {
+			compatible = "aspeed,ast2600-sd-controller";
+			reg = <0 0x14080000 0 0x100>;
+			#address-cells = <2>;
+			#size-cells = <2>;
+			ranges = <0 0 0 0x14080000 0 0x10000>;
+			clocks = <&syscon1 SCU1_CLK_GATE_SDCLK>;
+			resets = <&syscon1 SCU1_RESET_SD>;
+			status = "disabled";
+
+			sdhci: sdhci@14080100 {
+				compatible = "aspeed,ast2600-sdhci", "sdhci";
+				reg = <0 0x100 0 0x100>;
+				sdhci,auto-cmd12;
+				interrupts-extended = <&intc1_5 1>;
+				clocks = <&syscon1 SCU1_CLK_GATE_SDCLK>;
+				pinctrl-names = "default";
+				pinctrl-0 = <&pinctrl_sd_default>;
+				status = "disabled";
+			};
+		};
+
 		e2m_config2: e2m-config@14c1d000 {
 			compatible = "syscon", "simple-mfd";
 			reg = <0 0x14c1d000 0 0x300>;
