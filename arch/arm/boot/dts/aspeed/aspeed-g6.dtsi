@@ -565,6 +565,7 @@
 			#size-cells = <1>;
 			ranges = <0 0x1e750000 0x10000>;
 			clocks = <&syscon ASPEED_CLK_GATE_EMMCCLK>;
+			resets = <&syscon ASPEED_RESET_EMMC>;
 			status = "disabled";
 
 			emmc: sdhci@1e750100 {
