@@ -4,6 +4,7 @@
  */
 #include <linux/bitfield.h>
 #include <linux/delay.h>
+#include <linux/kfifo.h>
 #include <linux/dma-mapping.h>
 #include <linux/interrupt.h>
 #include <linux/io.h>
@@ -60,8 +61,8 @@ enum aspeed_udma_bufsz_code {
 struct aspeed_udma_chan {
 	dma_addr_t dma_addr;
 
-	struct circ_buf *rb;
-	u32 rb_sz;
+	struct kfifo *fifo;
+	u32 fifo_sz;
 
 	aspeed_udma_cb_t cb;
 	void *cb_arg;
@@ -161,11 +162,11 @@ int aspeed_udma_free_rx_chan(u32 ch_no)
 EXPORT_SYMBOL(aspeed_udma_free_rx_chan);
 
 static int aspeed_udma_request_chan(u32 ch_no, dma_addr_t addr,
-		struct circ_buf *rb, u32 rb_sz,
+		struct kfifo *fifo, u32 fifo_sz,
 		aspeed_udma_cb_t cb, void *id, bool dis_tmout, bool is_tx)
 {
 	int retval = 0;
-	int rbsz_code;
+	int fifosz_code;
 
 	u32 reg;
 	unsigned long flags;
@@ -176,13 +177,13 @@ static int aspeed_udma_request_chan(u32 ch_no, dma_addr_t addr,
 		goto out;
 	}
 
-	if (IS_ERR_OR_NULL(rb) || IS_ERR_OR_NULL(rb->buf)) {
+	if (IS_ERR_OR_NULL(fifo) || IS_ERR_OR_NULL(fifo->kfifo.data)) {
 		retval = -EINVAL;
 		goto out;
 	}
 
-	rbsz_code = aspeed_udma_get_bufsz_code(rb_sz);
-	if (rbsz_code < 0) {
+	fifosz_code = aspeed_udma_get_bufsz_code(fifo_sz);
+	if (fifosz_code < 0) {
 		retval = -EINVAL;
 		goto out;
 	}
@@ -201,7 +202,7 @@ static int aspeed_udma_request_chan(u32 ch_no, dma_addr_t addr,
 
 		reg = FIELD_PREP(UDMA_TX_CTRL_BUF_ADDRH, (u64)addr >> 32) |
 		      ((dis_tmout) ? UDMA_TX_CTRL_TMOUT_DIS : 0) |
-		      FIELD_PREP(UDMA_TX_CTRL_BUFSZ, rbsz_code);
+		      FIELD_PREP(UDMA_TX_CTRL_BUFSZ, fifosz_code);
 		writel(reg, udma->regs + UDMA_CHX_TX_CTRL(ch_no));
 
 		writel(addr, udma->regs + UDMA_CHX_TX_BUF_ADDR(ch_no));
@@ -217,15 +218,15 @@ static int aspeed_udma_request_chan(u32 ch_no, dma_addr_t addr,
 
 		reg = FIELD_PREP(UDMA_RX_CTRL_BUF_ADDRH, (u64)addr >> 32) |
 		      ((dis_tmout) ? UDMA_RX_CTRL_TMOUT_DIS : 0) |
-		      FIELD_PREP(UDMA_RX_CTRL_BUFSZ, rbsz_code);
+		      FIELD_PREP(UDMA_RX_CTRL_BUFSZ, fifosz_code);
 		writel(reg, udma->regs + UDMA_CHX_RX_CTRL(ch_no));
 
 		writel(addr, udma->regs + UDMA_CHX_RX_BUF_ADDR(ch_no));
 	}
 
 	ch = (is_tx) ? &udma->tx_chs[ch_no] : &udma->rx_chs[ch_no];
-	ch->rb = rb;
-	ch->rb_sz = rb_sz;
+	ch->fifo = fifo;
+	ch->fifo_sz = fifo_sz;
 	ch->cb = cb;
 	ch->cb_arg = id;
 	ch->dma_addr = addr;
@@ -238,19 +239,19 @@ out:
 }
 
 int aspeed_udma_request_tx_chan(u32 ch_no, dma_addr_t addr,
-				struct circ_buf *rb, u32 rb_sz,
+				struct kfifo *fifo, u32 fifo_sz,
 				aspeed_udma_cb_t cb, void *id, bool dis_tmout)
 {
-	return aspeed_udma_request_chan(ch_no, addr, rb, rb_sz, cb, id,
+	return aspeed_udma_request_chan(ch_no, addr, fifo, fifo_sz, cb, id,
 					dis_tmout, true);
 }
 EXPORT_SYMBOL(aspeed_udma_request_tx_chan);
 
 int aspeed_udma_request_rx_chan(u32 ch_no, dma_addr_t addr,
-				struct circ_buf *rb, u32 rb_sz,
+				struct kfifo *fifo, u32 fifo_sz,
 				aspeed_udma_cb_t cb, void *id, bool dis_tmout)
 {
-	return aspeed_udma_request_chan(ch_no, addr, rb, rb_sz, cb, id,
+	return aspeed_udma_request_chan(ch_no, addr, fifo, fifo_sz, cb, id,
 					dis_tmout, false);
 }
 EXPORT_SYMBOL(aspeed_udma_request_rx_chan);
