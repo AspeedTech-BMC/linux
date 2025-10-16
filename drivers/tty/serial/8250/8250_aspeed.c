@@ -493,7 +493,7 @@ static int ast8250_probe(struct platform_device *pdev)
 	return 0;
 }
 
-static int ast8250_remove(struct platform_device *pdev)
+static void ast8250_remove(struct platform_device *pdev)
 {
     struct ast8250_data *data = platform_get_drvdata(pdev);
 
@@ -501,7 +501,6 @@ static int ast8250_remove(struct platform_device *pdev)
 		ast8250_vuart_set_enable(data, false);
 
     serial8250_unregister_port(data->line);
-	return 0;
 }
 
 static const struct dev_pm_ops ast8250_pm_ops = {

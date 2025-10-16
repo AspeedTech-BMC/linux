@@ -2251,7 +2251,7 @@ err_remove_perif:
 	return rc;
 }
 
-static int ast2700_espi_remove(struct platform_device *pdev)
+static void ast2700_espi_remove(struct platform_device *pdev)
 {
 	struct ast2700_espi *espi;
 	struct device *dev;
@@ -2281,8 +2281,6 @@ static int ast2700_espi_remove(struct platform_device *pdev)
 	rc = ast2700_espi_flash_remove(espi);
 	if (rc)
 		dev_warn(dev, "cannot remove peripheral channel, rc=%d\n", rc);
-
-	return 0;
 }
 
 static const struct of_device_id ast2700_espi_of_matches[] = {
