@@ -5,6 +5,7 @@
 #include <linux/module.h>
 #include <linux/types.h>
 #include <linux/init.h>
+#include <linux/of.h>
 #include <linux/of_device.h>
 #include <linux/of_platform.h>
 #include <linux/platform_device.h>
@@ -160,7 +161,7 @@ static int rtc_espi_sync_probe(struct platform_device *pdev)
 	return 0;
 }
 
-static int rtc_espi_sync_remove(struct platform_device *pdev)
+static void rtc_espi_sync_remove(struct platform_device *pdev)
 {
 	struct rtc_espi_sync *ctx = platform_get_drvdata(pdev);
 
@@ -169,8 +170,6 @@ static int rtc_espi_sync_remove(struct platform_device *pdev)
 
 	if (ctx->rtc_dev)
 		rtc_class_close(ctx->rtc_dev);
-
-	return 0;
 }
 
 static const struct of_device_id rtc_espi_sync_of_match[] = {

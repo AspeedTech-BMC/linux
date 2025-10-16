@@ -2233,7 +2233,7 @@ static int ast2700_espi_probe(struct platform_device *pdev)
 	reg |= ESPI_INT_EN_RST_DEASSERT;
 	writel(reg, espi->regs + ESPI_INT_EN);
 
-	dev_set_drvdata(dev, espi);
+	platform_set_drvdata(pdev, espi);
 
 	dev_info(dev, "module loaded\n");
 
@@ -2260,7 +2260,7 @@ static void ast2700_espi_remove(struct platform_device *pdev)
 
 	dev = &pdev->dev;
 
-	espi = (struct ast2700_espi *)dev_get_drvdata(dev);
+	espi = platform_get_drvdata(pdev);
 
 	reg = readl(espi->regs + ESPI_INT_EN);
 	reg &= ~ESPI_INT_EN_RST_DEASSERT;

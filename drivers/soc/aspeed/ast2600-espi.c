@@ -8,6 +8,7 @@
 #include <linux/sizes.h>
 #include <linux/module.h>
 #include <linux/bitfield.h>
+#include <linux/of.h>
 #include <linux/of_device.h>
 #include <linux/interrupt.h>
 #include <linux/platform_device.h>
@@ -2119,7 +2120,7 @@ static int ast2600_espi_probe(struct platform_device *pdev)
 
 	writel(ESPI_INT_EN_RST_DEASSERT, espi->regs + ESPI_INT_EN);
 
-	dev_set_drvdata(dev, espi);
+	platform_set_drvdata(pdev, espi);
 
 	dev_info(dev, "module loaded\n");
 
@@ -2137,7 +2138,7 @@ err_remove_perif:
 	return rc;
 }
 
-static int ast2600_espi_remove(struct platform_device *pdev)
+static void ast2600_espi_remove(struct platform_device *pdev)
 {
 	struct ast2600_espi *espi;
 	struct device *dev;
@@ -2145,7 +2146,7 @@ static int ast2600_espi_remove(struct platform_device *pdev)
 
 	dev = &pdev->dev;
 
-	espi = (struct ast2600_espi *)dev_get_drvdata(dev);
+	espi = platform_get_drvdata(pdev);
 
 	writel(ESPI_INT_EN_RST_DEASSERT, espi->regs + ESPI_INT_EN_CLR);
 
@@ -2164,8 +2165,6 @@ static int ast2600_espi_remove(struct platform_device *pdev)
 	rc = ast2600_espi_flash_remove(espi);
 	if (rc)
 		dev_warn(dev, "cannot remove peripheral channel, rc=%d\n", rc);
-
-	return 0;
 }
 
 static const struct of_device_id ast2600_espi_of_matches[] = {
