@@ -2,6 +2,7 @@
 
 /dts-v1/;
 #include "aspeed-g7.dtsi"
+#include <dt-bindings/gpio/aspeed-gpio.h>
 #include <dt-bindings/net/ti-dp83867.h>
 
 #define DUAL_NODE 0	// 1: DUAL_NODE, 0: SINGLE_NODE
@@ -226,6 +227,46 @@
 
 	non-removable;
 	max-frequency = <200000000>;
+};
+
+&sdio_controller {
+	status = "okay";
+	mmc-hs200-1_8v;
+
+	vcc_sdhci0: regulator-vcc-sdhci0 {
+		compatible = "regulator-fixed";
+		regulator-name = "SDHCI0 Vcc";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		gpios = <&gpio1 ASPEED_GPIO(G, 6) GPIO_ACTIVE_HIGH>;
+		enable-active-high;
+	};
+
+	vccq_sdhci0: regulator-vccq-sdhci0 {
+		compatible = "regulator-gpio";
+		regulator-name = "SDHCI0 VccQ";
+		regulator-min-microvolt = <1800000>;
+		regulator-max-microvolt = <3300000>;
+		gpios = <&gpio1 ASPEED_GPIO(G, 7) GPIO_ACTIVE_HIGH>;
+		gpios-states = <1>;
+		states = <3300000 1>,
+			 <1800000 0>;
+	};
+};
+
+&sdhci {
+	status = "okay";
+	bus-width = <4>;
+	max-frequency = <125000000>;
+	/* DDR50 bits in CAPA2 are not supported */
+	sdhci-caps-mask = <0x6 0x0>;
+	sdhci-drive-type = /bits/ 8 <3>;
+	post-power-on-delay-ms = <50>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_sd_default>;
+	vmmc-supply = <&vcc_sdhci0>;
+	vqmmc-supply = <&vccq_sdhci0>;
+	sd-uhs-sdr104; /* enable sdr104 to execute tuning */
 };
 
 &ufs_controller {
