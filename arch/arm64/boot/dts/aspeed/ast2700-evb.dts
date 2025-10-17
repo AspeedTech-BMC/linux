@@ -442,8 +442,6 @@
 	pinctrl-names = "default";
 	status = "okay";
 
-	spi-aspeed-full-duplex;
-
 	tpm0: tpmdev@0 {
 		compatible = "tcg,tpm_tis-spi";
 		spi-max-frequency = <25000000>;
