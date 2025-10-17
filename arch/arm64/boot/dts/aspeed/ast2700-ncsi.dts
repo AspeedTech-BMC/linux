@@ -1,0 +1,52 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
+
+/dts-v1/;
+
+#include "ast2700-evb.dts"
+
+/ {
+	model = "AST2700-NCSI";
+};
+
+&sgpios {
+	status = "disabled";
+};
+
+&mac0 {
+	status = "okay";
+
+	phy-mode = "rmii";
+	use-ncsi;
+
+	pinctrl-names = "default";
+	/* If you want to use RMII0 RCLKO as internal clock for RMII,
+	 * add &pinctrl_rmii0_rclko_default in pinctrl-0.
+	 */
+	pinctrl-0 = <&pinctrl_rmii0_default>;
+};
+
+&mac1 {
+	status = "okay";
+
+	phy-mode = "rmii";
+	use-ncsi;
+
+	pinctrl-names = "default";
+	/* If you want to use RMII1 RCLKO as internal clock for RMII,
+	 * add &pinctrl_rmii1_rclko_default in pinctrl-0.
+	 */
+	pinctrl-0 = <&pinctrl_rmii1_default>;
+};
+
+&syscon1 {
+	mac0-clk-delay = <0 0
+			  0 0
+			  0 0>;
+	mac1-clk-delay = <0 0
+			  0 0
+			  0 0>;
+	assigned-clocks = <&syscon1 SCU1_CLK_MACHCLK>,
+			  <&syscon1 SCU1_CLK_RGMII>,
+			  <&syscon1 SCU1_CLK_RMII>;
+	assigned-clock-rates = <200000000>, <125000000>, <50000000>;
+};

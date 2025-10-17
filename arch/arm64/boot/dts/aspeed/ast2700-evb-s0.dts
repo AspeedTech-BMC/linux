@@ -1,0 +1,367 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
+
+#include "ast2700-evb.dts"
+#include <dt-bindings/i2c/i2c.h>
+
+/ {
+	model = "AST2700 EVB Test S0 Test";
+};
+
+&pcie2 {
+	status = "disabled";
+};
+
+&mdio2 {
+	status = "okay";
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	ethphy2: ethernet-phy@0 {
+		compatible = "ethernet-phy-ieee802.3-c22";
+		reg = <0>;
+	};
+};
+
+&sgmii {
+	status = "okay";
+};
+
+&mac2 {
+	status = "okay";
+
+	phy-mode = "sgmii";
+	phy-handle = <&ethphy2>;
+};
+
+&sdio_controller {
+	status = "disabled";
+};
+
+&sdhci {
+	status = "disabled";
+};
+
+&espi1 {
+	status = "okay";
+	perif-dma-mode;
+#if 0 //TODO: No enough memory for espi1 MMBI
+	perif-mmbi-enable;
+	perif-mmbi-src-addr = <0x0 0xa8000000>;
+	perif-mmbi-tgt-memory = <&espi1_mmbi_memory>;
+	perif-mmbi-instance-num = <0x1>;
+#endif
+	perif-mcyc-enable;
+	perif-mcyc-src-addr = <0x0 0x98000000>;
+	perif-mcyc-size = <0x0 0x10000>;
+	oob-dma-mode;
+	flash-dma-mode;
+};
+
+&can0 {
+	status = "disabled";
+};
+
+// S0 use 0x10 as its slave address
+&i2c0 {
+	clock-frequency = <1000000>;
+	debounce-level = <4>;
+	status = "okay";
+	multi-master;
+	mctp-controller;
+	mctp@10 {
+		compatible = "mctp-i2c-controller";
+		reg = <(0x10 | I2C_OWN_SLAVE_ADDRESS)>;
+	};
+};
+
+&i2c1 {
+	clock-frequency = <1000000>;
+	debounce-level = <4>;
+	status = "okay";
+	multi-master;
+	mctp-controller;
+	mctp@10 {
+		compatible = "mctp-i2c-controller";
+		reg = <(0x10 | I2C_OWN_SLAVE_ADDRESS)>;
+	};
+};
+
+&i2c2 {
+	clock-frequency = <1000000>;
+	debounce-level = <4>;
+	status = "okay";
+	multi-master;
+	mctp-controller;
+	mctp@10 {
+		compatible = "mctp-i2c-controller";
+		reg = <(0x10 | I2C_OWN_SLAVE_ADDRESS)>;
+	};
+};
+
+&i2c3 {
+	clock-frequency = <1000000>;
+	debounce-level = <6>;
+	status = "okay";
+	multi-master;
+	mctp-controller;
+	mctp@10 {
+		compatible = "mctp-i2c-controller";
+		reg = <(0x10 | I2C_OWN_SLAVE_ADDRESS)>;
+	};
+};
+
+&i2c4 {
+	clock-frequency = <1000000>;
+	debounce-level = <4>;
+	status = "okay";
+	multi-master;
+	mctp-controller;
+	mctp@10 {
+		compatible = "mctp-i2c-controller";
+		reg = <(0x10 | I2C_OWN_SLAVE_ADDRESS)>;
+	};
+};
+
+&i2c5 {
+	clock-frequency = <1000000>;
+	debounce-level = <4>;
+	status = "okay";
+	multi-master;
+	mctp-controller;
+	mctp@10 {
+		compatible = "mctp-i2c-controller";
+		reg = <(0x10 | I2C_OWN_SLAVE_ADDRESS)>;
+	};
+};
+
+&i2c6 {
+	clock-frequency = <1000000>;
+	debounce-level = <4>;
+	status = "okay";
+	multi-master;
+	mctp-controller;
+	mctp@10 {
+		compatible = "mctp-i2c-controller";
+		reg = <(0x10 | I2C_OWN_SLAVE_ADDRESS)>;
+	};
+};
+
+&i2c7 {
+	clock-frequency = <1000000>;
+	debounce-level = <4>;
+	status = "okay";
+	multi-master;
+	mctp-controller;
+	mctp@10 {
+		compatible = "mctp-i2c-controller";
+		reg = <(0x10 | I2C_OWN_SLAVE_ADDRESS)>;
+	};
+};
+
+&i2c8 {
+	clock-frequency = <1000000>;
+	debounce-level = <4>;
+	status = "okay";
+	multi-master;
+	mctp-controller;
+	mctp@10 {
+		compatible = "mctp-i2c-controller";
+		reg = <(0x10 | I2C_OWN_SLAVE_ADDRESS)>;
+	};
+};
+
+&i2c9 {
+	clock-frequency = <1000000>;
+	debounce-level = <4>;
+	status = "okay";
+	multi-master;
+	mctp-controller;
+	mctp@10 {
+		compatible = "mctp-i2c-controller";
+		reg = <(0x10 | I2C_OWN_SLAVE_ADDRESS)>;
+	};
+};
+
+&i2c10 {
+	clock-frequency = <1000000>;
+	debounce-level = <4>;
+	status = "okay";
+	multi-master;
+	mctp-controller;
+	mctp@10 {
+		compatible = "mctp-i2c-controller";
+		reg = <(0x10 | I2C_OWN_SLAVE_ADDRESS)>;
+	};
+};
+
+&i2c11 {
+	clock-frequency = <1000000>;
+	debounce-level = <6>;
+	status = "okay";
+	multi-master;
+	mctp-controller;
+	mctp@10 {
+		compatible = "mctp-i2c-controller";
+		reg = <(0x10 | I2C_OWN_SLAVE_ADDRESS)>;
+	};
+};
+
+&i2c12 {
+	clock-frequency = <1000000>;
+	debounce-level = <4>;
+	status = "okay";
+	multi-master;
+	mctp-controller;
+	mctp@10 {
+		compatible = "mctp-i2c-controller";
+		reg = <(0x10 | I2C_OWN_SLAVE_ADDRESS)>;
+	};
+};
+
+&i2c13 {
+	clock-frequency = <1000000>;
+	debounce-level = <4>;
+	status = "okay";
+	multi-master;
+	mctp-controller;
+	mctp@10 {
+		compatible = "mctp-i2c-controller";
+		reg = <(0x10 | I2C_OWN_SLAVE_ADDRESS)>;
+	};
+};
+
+&i2c14 {
+	clock-frequency = <1000000>;
+	debounce-level = <4>;
+	status = "okay";
+	multi-master;
+	mctp-controller;
+	mctp@10 {
+		compatible = "mctp-i2c-controller";
+		reg = <(0x10 | I2C_OWN_SLAVE_ADDRESS)>;
+	};
+};
+
+&i2c15 {
+	clock-frequency = <1000000>;
+	debounce-level = <4>;
+	status = "okay";
+	multi-master;
+	mctp-controller;
+	mctp@10 {
+		compatible = "mctp-i2c-controller";
+		reg = <(0x10 | I2C_OWN_SLAVE_ADDRESS)>;
+	};
+};
+
+&i3c0 {
+	initial-role = "target";
+	pid = <0x000007ec 0x06010000>;
+	dcr = /bits/ 8 <0xcc>;
+	status = "okay";
+};
+
+&i3c1 {
+	initial-role = "target";
+	pid = <0x000007ec 0x06011000>;
+	dcr = /bits/ 8 <0xcc>;
+	status = "okay";
+};
+
+&i3c2 {
+	initial-role = "target";
+	pid = <0x000007ec 0x06012000>;
+	dcr = /bits/ 8 <0xcc>;
+	status = "okay";
+};
+
+&i3c3 {
+	initial-role = "target";
+	pid = <0x000007ec 0x06013000>;
+	dcr = /bits/ 8 <0xcc>;
+	status = "okay";
+};
+
+&i3c4 {
+	initial-role = "target";
+	pid = <0x000007ec 0x06014000>;
+	dcr = /bits/ 8 <0xcc>;
+	status = "okay";
+};
+
+&i3c5 {
+	initial-role = "target";
+	pid = <0x000007ec 0x06015000>;
+	dcr = /bits/ 8 <0xcc>;
+	status = "okay";
+};
+
+&i3c6 {
+	initial-role = "target";
+	pid = <0x000007ec 0x06016000>;
+	dcr = /bits/ 8 <0xcc>;
+	status = "okay";
+};
+
+&i3c7 {
+	initial-role = "target";
+	pid = <0x000007ec 0x06017000>;
+	dcr = /bits/ 8 <0xcc>;
+	status = "okay";
+};
+
+&i3c8 {
+	initial-role = "target";
+	pid = <0x000007ec 0x06018000>;
+	dcr = /bits/ 8 <0xcc>;
+	status = "okay";
+};
+
+&i3c9 {
+	initial-role = "target";
+	pid = <0x000007ec 0x06019000>;
+	dcr = /bits/ 8 <0xcc>;
+	status = "okay";
+};
+
+&i3c10 {
+	initial-role = "target";
+	pid = <0x000007ec 0x0601A000>;
+	dcr = /bits/ 8 <0xcc>;
+	status = "okay";
+};
+
+&i3c11 {
+	initial-role = "target";
+	pid = <0x000007ec 0x0601B000>;
+	dcr = /bits/ 8 <0xcc>;
+	status = "okay";
+};
+
+&i3c12 {
+	initial-role = "target";
+	pid = <0x000007ec 0x0601C000>;
+	dcr = /bits/ 8 <0xcc>;
+	status = "okay";
+};
+
+&i3c13 {
+	initial-role = "target";
+	pid = <0x000007ec 0x0601D000>;
+	dcr = /bits/ 8 <0xcc>;
+	status = "okay";
+};
+
+&i3c14 {
+	initial-role = "target";
+	pid = <0x000007ec 0x0601E000>;
+	dcr = /bits/ 8 <0xcc>;
+	status = "okay";
+};
+
+&i3c15 {
+	initial-role = "target";
+	pid = <0x000007ec 0x0601F000>;
+	dcr = /bits/ 8 <0xcc>;
+	status = "okay";
+};

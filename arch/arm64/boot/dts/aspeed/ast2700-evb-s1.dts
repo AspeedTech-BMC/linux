@@ -1,0 +1,465 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
+
+#include "ast2700-evb.dts"
+#include <dt-bindings/i2c/i2c.h>
+
+/ {
+	model = "AST2700 EVB Test S1 Test";
+};
+
+&bmc_dev0 {
+	status = "disabled";
+};
+
+&xdma0 {
+	status = "disabled";
+};
+
+&pcie_vuart0 {
+	status = "disabled";
+};
+
+&pcie_vuart1 {
+	status = "disabled";
+};
+
+&pcie_lpc0_kcs0 {
+	status = "disabled";
+};
+
+&pcie_lpc0_kcs1 {
+	status = "disabled";
+};
+
+&pcie_lpc0_kcs2 {
+	status = "disabled";
+};
+
+&pcie_lpc0_kcs3 {
+	status = "disabled";
+};
+
+&pcie_lpc0_ibt {
+	status = "disabled";
+};
+
+&pcie0_mmbi0 {
+	status = "disabled";
+};
+
+&pcie0 {
+	status = "okay";
+};
+
+&bmc_dev1 {
+	status = "disabled";
+};
+
+&xdma1 {
+	status = "disabled";
+};
+
+&pcie_vuart2 {
+	status = "disabled";
+};
+
+&pcie_vuart3 {
+	status = "disabled";
+};
+
+&pcie_lpc1_kcs0 {
+	status = "disabled";
+};
+
+&pcie_lpc1_kcs1 {
+	status = "disabled";
+};
+
+&pcie_lpc1_kcs2 {
+	status = "disabled";
+};
+
+&pcie_lpc1_kcs3 {
+	status = "disabled";
+};
+
+&pcie_lpc1_ibt {
+	status = "disabled";
+};
+
+&pcie1_mmbi4 {
+	status = "disabled";
+};
+
+&pcie1 {
+	status = "okay";
+};
+
+&sdio_controller {
+	status = "disabled";
+};
+
+&sdhci {
+	status = "disabled";
+};
+
+&espi1 {
+	status = "okay";
+	perif-dma-mode;
+#if 0 // TODO: No enough memory for espi1 MMBI
+	perif-mmbi-enable;
+	perif-mmbi-src-addr = <0x0 0xa8000000>;
+	perif-mmbi-tgt-memory = <&espi1_mmbi_memory>;
+	perif-mmbi-instance-num = <0x1>;
+#endif
+	perif-mcyc-enable;
+	perif-mcyc-src-addr = <0x0 0x98000000>;
+	perif-mcyc-size = <0x0 0x10000>;
+	oob-dma-mode;
+	flash-dma-mode;
+};
+
+&can0 {
+	status = "disabled";
+};
+
+// S1 use 0x12 as its slave address
+&i2c0 {
+	clock-frequency = <1000000>;
+	debounce-level = <4>;
+	status = "okay";
+	multi-master;
+	mctp-controller;
+	mctp@12 {
+		compatible = "mctp-i2c-controller";
+		reg = <(0x12 | I2C_OWN_SLAVE_ADDRESS)>;
+	};
+};
+
+&i2c1 {
+	clock-frequency = <1000000>;
+	debounce-level = <4>;
+	status = "okay";
+	multi-master;
+	mctp-controller;
+	mctp@12 {
+		compatible = "mctp-i2c-controller";
+		reg = <(0x12 | I2C_OWN_SLAVE_ADDRESS)>;
+	};
+};
+
+&i2c2 {
+	clock-frequency = <1000000>;
+	debounce-level = <4>;
+	status = "okay";
+	multi-master;
+	mctp-controller;
+	mctp@12 {
+		compatible = "mctp-i2c-controller";
+		reg = <(0x12 | I2C_OWN_SLAVE_ADDRESS)>;
+	};
+};
+
+&i2c3 {
+	clock-frequency = <1000000>;
+	debounce-level = <6>;
+	status = "okay";
+	multi-master;
+	mctp-controller;
+	mctp@12 {
+		compatible = "mctp-i2c-controller";
+		reg = <(0x12 | I2C_OWN_SLAVE_ADDRESS)>;
+	};
+};
+
+&i2c4 {
+	clock-frequency = <1000000>;
+	debounce-level = <4>;
+	status = "okay";
+	multi-master;
+	mctp-controller;
+	mctp@12 {
+		compatible = "mctp-i2c-controller";
+		reg = <(0x12 | I2C_OWN_SLAVE_ADDRESS)>;
+	};
+};
+
+&i2c5 {
+	clock-frequency = <1000000>;
+	debounce-level = <4>;
+	status = "okay";
+	multi-master;
+	mctp-controller;
+	mctp@12 {
+		compatible = "mctp-i2c-controller";
+		reg = <(0x12 | I2C_OWN_SLAVE_ADDRESS)>;
+	};
+};
+
+&i2c6 {
+	clock-frequency = <1000000>;
+	debounce-level = <4>;
+	status = "okay";
+	multi-master;
+	mctp-controller;
+	mctp@12 {
+		compatible = "mctp-i2c-controller";
+		reg = <(0x12 | I2C_OWN_SLAVE_ADDRESS)>;
+	};
+};
+
+&i2c7 {
+	clock-frequency = <1000000>;
+	debounce-level = <4>;
+	status = "okay";
+	multi-master;
+	mctp-controller;
+	mctp@12 {
+		compatible = "mctp-i2c-controller";
+		reg = <(0x12 | I2C_OWN_SLAVE_ADDRESS)>;
+	};
+};
+
+&i2c8 {
+	clock-frequency = <1000000>;
+	debounce-level = <4>;
+	status = "okay";
+	multi-master;
+	mctp-controller;
+	mctp@12 {
+		compatible = "mctp-i2c-controller";
+		reg = <(0x12 | I2C_OWN_SLAVE_ADDRESS)>;
+	};
+};
+
+&i2c9 {
+	clock-frequency = <1000000>;
+	debounce-level = <4>;
+	status = "okay";
+	multi-master;
+	mctp-controller;
+	mctp@12 {
+		compatible = "mctp-i2c-controller";
+		reg = <(0x12 | I2C_OWN_SLAVE_ADDRESS)>;
+	};
+};
+
+&i2c10 {
+	clock-frequency = <1000000>;
+	debounce-level = <4>;
+	status = "okay";
+	multi-master;
+	mctp-controller;
+	mctp@12 {
+		compatible = "mctp-i2c-controller";
+		reg = <(0x12 | I2C_OWN_SLAVE_ADDRESS)>;
+	};
+};
+
+&i2c11 {
+	clock-frequency = <1000000>;
+	debounce-level = <6>;
+	status = "okay";
+	multi-master;
+	mctp-controller;
+	mctp@12 {
+		compatible = "mctp-i2c-controller";
+		reg = <(0x12 | I2C_OWN_SLAVE_ADDRESS)>;
+	};
+};
+
+&i2c12 {
+	clock-frequency = <1000000>;
+	debounce-level = <4>;
+	status = "okay";
+	multi-master;
+	mctp-controller;
+	mctp@12 {
+		compatible = "mctp-i2c-controller";
+		reg = <(0x12 | I2C_OWN_SLAVE_ADDRESS)>;
+	};
+};
+
+&i2c13 {
+	clock-frequency = <1000000>;
+	debounce-level = <4>;
+	status = "okay";
+	multi-master;
+	mctp-controller;
+	mctp@12 {
+		compatible = "mctp-i2c-controller";
+		reg = <(0x12 | I2C_OWN_SLAVE_ADDRESS)>;
+	};
+};
+
+&i2c14 {
+	clock-frequency = <1000000>;
+	debounce-level = <4>;
+	status = "okay";
+	multi-master;
+	mctp-controller;
+	mctp@12 {
+		compatible = "mctp-i2c-controller";
+		reg = <(0x12 | I2C_OWN_SLAVE_ADDRESS)>;
+	};
+};
+
+&i2c15 {
+	clock-frequency = <1000000>;
+	debounce-level = <4>;
+	status = "okay";
+	multi-master;
+	mctp-controller;
+	mctp@12 {
+		compatible = "mctp-i2c-controller";
+		reg = <(0x12 | I2C_OWN_SLAVE_ADDRESS)>;
+	};
+};
+
+&i3c0 {
+	initial-role = "primary";
+	status = "okay";
+};
+
+&i3c1 {
+	initial-role = "primary";
+	status = "okay";
+};
+
+&i3c2 {
+	initial-role = "primary";
+	status = "okay";
+};
+
+&i3c3 {
+	initial-role = "primary";
+	status = "okay";
+};
+
+&i3c4 {
+	initial-role = "primary";
+	status = "okay";
+};
+
+&i3c5 {
+	initial-role = "primary";
+	status = "okay";
+};
+
+&i3c6 {
+	initial-role = "primary";
+	status = "okay";
+};
+
+&i3c7 {
+	initial-role = "primary";
+	status = "okay";
+};
+
+&i3c8 {
+	initial-role = "primary";
+	status = "okay";
+};
+
+&i3c9 {
+	initial-role = "primary";
+	status = "okay";
+};
+
+&i3c10 {
+	initial-role = "primary";
+	status = "okay";
+};
+
+&i3c11 {
+	initial-role = "primary";
+	status = "okay";
+};
+
+&i3c12 {
+	initial-role = "primary";
+	status = "okay";
+};
+
+&i3c13 {
+	initial-role = "primary";
+	status = "okay";
+};
+
+&i3c14 {
+	initial-role = "primary";
+	status = "okay";
+};
+
+&i3c15 {
+	initial-role = "primary";
+	status = "okay";
+};
+
+&sgpios {
+	status = "disabled";
+};
+
+&mac0 {
+	status = "okay";
+
+	phy-mode = "rmii";
+	use-ncsi;
+
+	pinctrl-names = "default";
+	/* If you want to use RMII0 RCLKO as internal clock for RMII,
+	 * add &pinctrl_rmii0_rclko_default in pinctrl-0.
+	 */
+	pinctrl-0 = <&pinctrl_rmii0_default>;
+};
+
+&mac1 {
+	status = "okay";
+
+	phy-mode = "rmii";
+	use-ncsi;
+
+	pinctrl-names = "default";
+	/* If you want to use RMII1 RCLKO as internal clock for RMII,
+	 * add &pinctrl_rmii1_rclko_default in pinctrl-0.
+	 */
+	pinctrl-0 = <&pinctrl_rmii1_default>;
+};
+
+&syscon1 {
+	mac0-clk-delay = <0 0
+			  0 0
+			  0 0>;
+	mac1-clk-delay = <0 0
+			  0 0
+			  0 0>;
+	assigned-clocks = <&syscon1 SCU1_CLK_MACHCLK>,
+			  <&syscon1 SCU1_CLK_RGMII>,
+			  <&syscon1 SCU1_CLK_RMII>;
+	assigned-clock-rates = <200000000>, <125000000>, <50000000>;
+};
+
+&vhuba0 {
+	status = "okay";
+	pinctrl-0 = <&pinctrl_usb2ad0_default>;
+};
+
+&uphy2a {
+	status = "okay";
+};
+
+&usb3ahp {
+	status = "disabled";
+};
+
+&usb3bhp {
+	status = "disabled";
+};
+
+&vhubb0 {
+	status = "okay";
+};
+
+&vhubb1 {
+	status = "disabled";
+};
