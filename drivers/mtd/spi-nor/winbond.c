@@ -286,6 +286,14 @@ static const struct flash_info winbond_nor_parts[] = {
 		.id = SNOR_ID(0xef, 0x40, 0x21),
 		.fixups = &winbond_nor_multi_die_fixups,
 	}, {
+		/* W25Q01NVQ */
+		.id = SNOR_ID(0xef, 0x60, 0x21),
+		.fixups = &winbond_nor_multi_die_fixups,
+	}, {
+		/* W25Q01JVM */
+		.id = SNOR_ID(0xef, 0x70, 0x21),
+		.fixups = &winbond_nor_multi_die_fixups,
+	}, {
 		.id = SNOR_ID(0xef, 0x50, 0x12),
 		.name = "w25q20bw",
 		.size = SZ_256K,
