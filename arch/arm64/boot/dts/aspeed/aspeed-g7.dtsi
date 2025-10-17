@@ -1724,6 +1724,28 @@
 			status = "disabled";
 		};
 
+		wdt0: watchdog@14c37000 {
+			compatible = "aspeed,ast2700-wdt";
+			reg = <0x0 0x14c37000 0x0 0x80>;
+		};
+
+		wdt1: watchdog@14c37080 {
+			compatible = "aspeed,ast2700-wdt";
+			reg = <0x0 0x14c37080 0x0 0x80>;
+		};
+
+		wdt2: watchdog@14c37100 {
+			compatible = "aspeed,ast2700-wdt";
+			reg = <0x0 0x14c37100 0x0 0x80>;
+			status = "disabled";
+		};
+
+		wdt3: watchdog@14c37180 {
+			compatible = "aspeed,ast2700-wdt";
+			reg = <0x0 0x14c37180 0x0 0x80>;
+			status = "disabled";
+		};
+
 		mbox2: mbox@14c39200 {
 			compatible = "aspeed,ast2700-mailbox";
 			reg = <0x0 0x14c39200 0x0 0x100>, <0x0 0x14c39300 0x0 0x100>;

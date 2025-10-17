@@ -828,6 +828,14 @@
 	memory-region = <&uhci1_reserved>;
 };
 
+&wdt0 {
+	status = "okay";
+};
+
+&wdt1 {
+	status = "okay";
+};
+
 &mctp0 {
 	status = "okay";
 	memory-region = <&mctp0_reserved>;
