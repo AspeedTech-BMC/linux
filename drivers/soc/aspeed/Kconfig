@@ -179,6 +179,28 @@ config AST2700_RTC_OVER_ESPI
 	  Enable driver support for Aspeed AST2700 RTC over eSPI function.
 	  Periodically copies RAM content from a RTC tm to a memory-mapped eSPI region.
 
+config ASPEED_OTP
+	tristate
+	help
+	  Enable driver support for Aspeed OTP driver. Each bit in One
+	  Time Prgrammable (OTP) memory is capable to be programmed once.
+	  The OTP driver performs basic read/program operations of
+	  OTP memory.
+
+config AST2600_OTP
+	tristate "AST2600 OTP Driver"
+	select ASPEED_OTP
+	depends on ARCH_ASPEED
+	help
+	  Enable driver support for Aspeed AST2600 OTP driver.
+
+config AST2700_OTP
+	tristate "AST2700 OTP Driver"
+	select ASPEED_OTP
+	depends on ARCH_ASPEED
+	help
+	  Enable driver support for Aspeed AST2700 OTP driver.
+
 endmenu
 
 endif

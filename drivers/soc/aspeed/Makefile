@@ -22,3 +22,5 @@ obj-$(CONFIG_ASPEED_DISP_INTF)		+= aspeed-disp-intf.o
 obj-$(CONFIG_ASPEED_PCIE_MMBI)		+= aspeed-pcie-mmbi.o
 obj-$(CONFIG_ASPEED_MBOX)		+= aspeed-mbox.o
 obj-$(CONFIG_AST2700_RTC_OVER_ESPI)	+= ast2700-rtc-over-espi.o
+obj-$(CONFIG_AST2600_OTP)		+= ast2600-otp.o
+obj-$(CONFIG_AST2700_OTP)		+= ast2700-otp.o
