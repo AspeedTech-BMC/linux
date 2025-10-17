@@ -427,6 +427,7 @@ struct spi_nor_fixups {
 			 const struct sfdp_bfpt *bfpt);
 	int (*post_sfdp)(struct spi_nor *nor);
 	int (*late_init)(struct spi_nor *nor);
+	void (*post_fixups)(struct spi_nor *nor);
 };
 
 /**
@@ -701,5 +702,7 @@ void spi_nor_debugfs_shutdown(void);
 static inline void spi_nor_debugfs_register(struct spi_nor *nor) {}
 static inline void spi_nor_debugfs_shutdown(void) {}
 #endif
+
+int spi_nor_prep_and_lock_rd(struct spi_nor *nor, loff_t start, size_t len);
 
 #endif /* __LINUX_MTD_SPI_NOR_INTERNAL_H */
