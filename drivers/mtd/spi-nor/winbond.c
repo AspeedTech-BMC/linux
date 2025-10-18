@@ -198,6 +198,10 @@ winbond_nor_multi_die_post_sfdp_fixups(struct spi_nor *nor)
 
 static const struct spi_nor_fixups winbond_nor_multi_die_fixups = {
 	.post_sfdp = winbond_nor_multi_die_post_sfdp_fixups,
+};
+
+static const struct spi_nor_fixups winbond_nor_four_die_fixups = {
+	.post_sfdp = winbond_nor_multi_die_post_sfdp_fixups,
 	.post_fixups = w25q02gjv_post_fixups,
 };
 
@@ -371,11 +375,11 @@ static const struct flash_info winbond_nor_parts[] = {
 	}, {
 		/* W25Q02JV */
 		.id = SNOR_ID(0xef, 0x70, 0x22),
-		.fixups = &winbond_nor_multi_die_fixups,
+		.fixups = &winbond_nor_four_die_fixups,
 	}, {
 		/* W25Q02NW */
 		.id = SNOR_ID(0xef, 0x80, 0x22),
-		.fixups = &winbond_nor_multi_die_fixups,
+		.fixups = &winbond_nor_four_die_fixups,
 	}, {
 		.id = SNOR_ID(0xef, 0x71, 0x19),
 		.name = "w25m512jv",
