@@ -102,6 +102,8 @@ static const struct aspeed_lpc_snoop_channel_cfg channel_cfgs[ASPEED_LPC_SNOOP_I
 	},
 };
 
+static DEFINE_IDA(aspeed_lpc_snoop_ida);
+
 static struct aspeed_lpc_snoop_channel *snoop_file_to_chan(struct file *file)
 {
 	return container_of(file->private_data,
@@ -228,7 +230,7 @@ static int aspeed_lpc_enable_snoop(struct device *dev,
 				    u16 lpc_port)
 {
 	const struct aspeed_lpc_snoop_model_data *model_data;
-	int rc = 0;
+	int rc = 0, id;
 
 	if (WARN_ON(channel->enabled))
 		return -EBUSY;
@@ -240,8 +242,12 @@ static int aspeed_lpc_enable_snoop(struct device *dev,
 	channel->miscdev.fops = &snoop_fops;
 	channel->miscdev.parent = dev;
 
+	id = ida_alloc(&aspeed_lpc_snoop_ida, GFP_KERNEL);
+	if (id < 0)
+		return id;
+
 	channel->miscdev.name =
-		devm_kasprintf(dev, GFP_KERNEL, "%s%d", DEVICE_NAME, cfg->index);
+		devm_kasprintf(dev, GFP_KERNEL, "%s%d", DEVICE_NAME, id);
 	if (!channel->miscdev.name)
 		return -ENOMEM;
 
