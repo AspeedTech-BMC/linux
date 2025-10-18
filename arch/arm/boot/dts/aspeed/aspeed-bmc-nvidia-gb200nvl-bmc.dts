@@ -1131,7 +1131,7 @@
 	};
 };
 
-&rng {
+&rng0 {
 	status = "okay";
 };
 

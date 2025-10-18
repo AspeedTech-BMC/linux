@@ -1,0 +1,497 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
+// Copyright 2023 ASPEED Tech. Corp.
+
+/dts-v1/;
+
+#include "aspeed-g6.dtsi"
+#include <dt-bindings/gpio/aspeed-gpio.h>
+
+/ {
+	model = "AST2600 DC-SCM AMD";
+	compatible = "aspeed,ast2600";
+
+	aliases {
+		serial4 = &uart5;
+	};
+
+	chosen {
+		bootargs = "console=ttyS4,115200n8";
+	};
+
+	memory@80000000 {
+		device_type = "memory";
+		reg = <0x80000000 0x80000000>;
+	};
+
+	reserved-memory {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		ranges;
+
+		video_engine_memory: video {
+			size = <0x04000000>;
+			alignment = <0x01000000>;
+			compatible = "shared-dma-pool";
+			reusable;
+		};
+
+		gfx_memory: framebuffer {
+			size = <0x01000000>;
+			alignment = <0x01000000>;
+			compatible = "shared-dma-pool";
+			reusable;
+		};
+
+		ssp_memory: ssp_memory {
+			size = <0x02000000>;
+			alignment = <0x01000000>;
+			shm-size = <0x1000>;
+			compatible = "shared-dma-pool";
+			no-map;
+		};
+
+		mctp0_reserved: mctp0_reserved@b1000000 {
+			reg = <0xb1000000 0x10000>;
+			compatible = "shared-dma-pool";
+			no-map;
+		};
+
+		mctp1_reserved: mctp1_reserved@b1010000 {
+			reg = <0xb1010000 0x10000>;
+			compatible = "shared-dma-pool";
+			no-map;
+		};
+
+		bmc_dev_memory: bmc-dev-memory@b1020000 {
+			reg = <0xb1020000 0x100000>;
+			no-map;
+		};
+	};
+};
+
+&fmc {
+	status = "okay";
+
+	flash@0 {
+		status = "okay";
+		m25p,fast-read;
+		label = "bmc";
+		spi-max-frequency = <12500000>;
+		spi-tx-bus-width = <4>;
+		spi-rx-bus-width = <4>;
+		partitions {
+			compatible = "fixed-partitions";
+			#address-cells = <1>;
+			#size-cells = <1>;
+
+			u-boot@0 {
+				reg = <0x0 0x140000>; // 1280KB
+				label = "u-boot";
+			};
+
+			u-boot-env@140000 {
+				reg = <0x140000 0x20000>; // 128KB
+				label = "u-boot-env";
+			};
+
+			kernel@160000 {
+				reg = <0x160000 0x800000>; // 8MB
+				label = "kernel";
+			};
+
+			rofs@960000 {
+				reg = <0x960000 0x24a0000>; // 36.625MB
+				label = "rofs";
+			};
+
+			rwfs@2e00000 {
+				reg = <0x2e00000 0xfe0000>; // 16256KB
+				label = "rwfs";
+			};
+
+			pfm@3de0000 {
+				reg = <0x3de0000 0x20000>; // 128KB
+				label = "pfm";
+			};
+			reserved-1@3e00000 {
+				reg = <0x3e00000 0x200000>; // 2048KB
+				label = "reserved-1";
+			};
+
+			rc-image@4000000 {
+				reg = <0x4000000 0x4000000>; // 65536KB
+				label = "rc-image";
+			};
+
+			image-stg@8000000 {
+				reg = <0x8000000 0x4000000>; // 65536KB
+				label = "img-stg";
+			};
+
+			pfr-stg@c000000 {
+				reg = <0xc000000 0x100000>; // 1024KB
+				label = "pfr-stg";
+			};
+
+			cpld-stg@c100000 {
+				reg = <0xc100000 0x400000>; // 4096KB
+				label = "cpld-stg";
+			};
+
+			reserved-2@c500000 {
+				reg = <0xc500000 0x3b00000>; // 60416KB
+				label = "reserved-2";
+			};
+		};
+	};
+
+	flash@1 {
+		status = "disabled";
+		m25p,fast-read;
+		label = "fmc0:1";
+		spi-max-frequency = <12500000>;
+		spi-tx-bus-width = <1>;
+		spi-rx-bus-width = <1>;
+	};
+
+	flash@2 {
+		status = "disabled";
+		m25p,fast-read;
+		label = "fmc0:2";
+		spi-max-frequency = <12500000>;
+		spi-tx-bus-width = <1>;
+		spi-rx-bus-width = <1>;
+	};
+};
+
+&spi1 {
+	pinctrl-0 = <&pinctrl_spi1_default &pinctrl_spi1cs1_default
+				&pinctrl_qspi1_default>;
+	status = "okay";
+
+	flash@0 {
+		status = "okay";
+		m25p,fast-read;
+		label = "spi1:0";
+		spi-max-frequency = <12500000>;
+		spi-tx-bus-width = <1>;
+		spi-rx-bus-width = <1>;
+		partitions {
+			compatible = "fixed-partitions";
+			#address-cells = <1>;
+			#size-cells = <1>;
+
+			spi1_pch_pfm@0 {
+				reg = <0x0 0x10000>;
+				label = "spi1_pch_pfm";
+			};
+
+			spi1_pch_stg@10000 {
+				reg = <0x10000 0xf00000>;
+				label = "spi1_pch_stg";
+			};
+
+			spi1_pch_reserved1@f10000 {
+				reg = <0xf10000 0x650000>;
+				label = "spi1_pch_reserved1";
+			};
+
+			// pch_gpnv 0x1560000 0x14000
+			// pch_reserved2 0x1574000 0xc000
+			spi1_pch_gpnv_reserved2@1560000 {
+				reg = <0x1560000 0x20000>;
+				label = "spi1_pch_gpnv_reserved2";
+			};
+
+			// pch_fv_whea 0x1580000 0x4000
+			// pch_fv_main 0x1584000 0x77c000
+			spi1_pch_fv_whea_main@1580000 {
+				reg = <0x1580000 0x780000>;
+				label = "spi1_pch_fv_whea_main";
+			};
+
+			spi1_pch_fv_bb@1d00000 {
+				reg = <0x1d00000 0x300000>;
+				label = "spi1_pch_fv_bb";
+			};
+
+			spi1_pch_rc@2000000 {
+				reg = <0x2000000 0x2000000>;
+				label = "spi1_pch_rc";
+			};
+		};
+	};
+
+	flash@1 {
+		status = "okay";
+		m25p,fast-read;
+		label = "spi1:1";
+		spi-max-frequency = <12500000>;
+		spi-tx-bus-width = <1>;
+		spi-rx-bus-width = <1>;
+	};
+};
+
+&spi2 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_spi2_default &pinctrl_spi2cs1_default
+				&pinctrl_spi2cs2_default &pinctrl_qspi2_default>;
+	status = "disabled";
+
+	flash@0 {
+		status = "disabled";
+		m25p,fast-read;
+		label = "spi2:0";
+		spi-max-frequency = <12500000>;
+		spi-tx-bus-width = <1>;
+		spi-rx-bus-width = <1>;
+	};
+
+	flash@1 {
+		status = "disabled";
+		m25p,fast-read;
+		label = "spi2:1";
+		spi-max-frequency = <12500000>;
+		spi-tx-bus-width = <1>;
+		spi-rx-bus-width = <1>;
+	};
+
+	flash@2 {
+		status = "disabled";
+		m25p,fast-read;
+		label = "spi2:2";
+		spi-max-frequency = <12500000>;
+		spi-tx-bus-width = <1>;
+		spi-rx-bus-width = <1>;
+	};
+
+};
+
+&i2c4 {
+	status = "okay";
+	multi-master;
+};
+
+&i2c5 {
+	status = "okay";
+};
+
+&i2c6 {
+	status = "okay";
+};
+
+&i2c7 {
+	status = "okay";
+};
+
+&i2c8 {
+	status = "okay";
+};
+
+&i2c9 {
+	status = "okay";
+};
+
+&i2c10 {
+	status = "okay";
+};
+
+&i2c11 {
+	status = "okay";
+};
+
+&i2c13 {
+	status = "okay";
+	multi-master;
+};
+
+&i2c14 {
+	status = "okay";
+};
+
+&i2c15 {
+	status = "okay";
+};
+
+&mdio1 {
+	status = "okay";
+
+	ethphy1: ethernet-phy@0 {
+		compatible = "ethernet-phy-ieee802.3-c22";
+		reg = <0>;
+	};
+};
+
+&mac1 {
+	status = "okay";
+
+	phy-mode = "rgmii-rxid";
+	phy-handle = <&ethphy1>;
+
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_rgmii2_default>;
+};
+
+&sgpiom0 {
+	status = "okay";
+	ngpios = <32>;
+	gpio-line-names =
+		"MAIN_PLD_MINOR_REV_BIT0","","MAIN_PLD_MINOR_REV_BIT1","","MAIN_PLD_MINOR_REV_BIT2","","MAIN_PLD_MINOR_REV_BIT3","",
+		"MAIN_PLD_MAJOR_REV_BIT0","","MAIN_PLD_MAJOR_REV_BIT1","","MAIN_PLD_MAJOR_REV_BIT2","","MAIN_PLD_MAJOR_REV_BIT3","",
+		"SGPIO_PLD_MAJOR_REV_BIT3","","SGPIO_PLD_MAJOR_REV_BIT2","","SGPIO_PLD_MAJOR_REV_BIT1","","SGPIO_PLD_MAJOR_REV_BIT0","",
+		"SGPIO_PLD_MINOR_REV_BIT3","","SGPIO_PLD_MINOR_REV_BIT2","","SGPIO_PLD_MINOR_REV_BIT1","","SGPIO_PLD_MINOR_REV_BIT0","";
+};
+
+&gpio0 {
+	gpio-line-names =
+		/*A0 - A7*/     "", "", "", "", "", "", "", "",
+		/*B0 - B7*/     "", "", "", "", "", "", "", "",
+		/*C0 - C7*/     "", "", "", "", "", "", "", "",
+		/*D0 - D7*/     "", "", "", "", "", "", "", "",
+		/*E0 - E7*/     "", "", "", "", "", "", "", "",
+		/*F0 - F7*/     "", "", "", "", "", "", "", "",
+		/*G0 - G7*/     "", "", "", "", "", "", "", "",
+		/*H0 - H7*/     "", "", "", "", "", "", "", "",
+		/*I0 - I7*/     "", "", "", "", "", "RESET_OUT", "POST_COMPLETE", "POWER_OUT",
+		/*J0 - J7*/     "", "", "", "", "", "", "", "",
+		/*K0 - K7*/     "", "", "", "", "", "", "", "",
+		/*L0 - L7*/     "", "", "", "", "", "", "", "",
+		/*M0 - M7*/     "", "", "", "", "", "", "", "",
+		/*N0 - N7*/     "", "", "", "", "", "", "", "",
+		/*O0 - O7*/     "", "", "", "", "", "", "", "",
+		/*P0 - P7*/     "", "", "", "", "", "", "", "",
+		/*Q0 - Q7*/     "", "", "", "", "", "", "", "",
+		/*R0 - R7*/     "", "", "", "", "", "", "", "",
+		/*S0 - S7*/     "", "", "", "", "", "", "", "",
+		/*T0 - T7*/     "", "", "", "", "", "", "", "",
+		/*U0 - U7*/     "", "", "", "", "", "", "", "",
+		/*V0 - V7*/     "", "", "", "", "", "RESET_BUTTON", "POWER_BUTTON", "",
+		/*W0 - W7*/     "", "", "", "", "", "", "", "",
+		/*X0 - X7*/     "", "", "", "", "", "", "", "",
+		/*Y0 - Y7*/     "PS_PWROK", "", "", "", "", "", "", "",
+		/*Z0 - Z7*/     "", "", "", "", "", "", "", "",
+		/*AA0 - AA7*/   "", "", "", "", "", "", "", "",
+		/*AB0 - AB7*/   "", "", "", "", "", "", "", "",
+		/*AC0 - AC7*/   "", "", "", "", "", "", "", "";
+};
+
+&i3c1 {
+	initial-role = "target";
+	pid = <0x000007ec 0x05031000>;
+	dcr = /bits/ 8 <0xcc>;
+	status = "okay";
+};
+
+&video {
+	status = "okay";
+	memory-region = <&video_engine_memory>;
+};
+
+&gfx {
+	status = "okay";
+	memory-region = <&gfx_memory>;
+};
+
+&pcie0 {
+	status = "okay";
+};
+
+&espi {
+	status = "okay";
+	perif-dma-mode;
+	oob-dma-mode;
+	flash-dma-mode;
+};
+
+&lpc_snoop {
+	status = "okay";
+	snoop-ports = <0x80>;
+};
+
+&ibt {
+	status = "okay";
+};
+
+&kcs1 {
+	kcs-io-addr = <0xca0>;
+	kcs-channel = <1>;
+	status = "okay";
+};
+
+&kcs2 {
+	kcs-io-addr = <0xca8>;
+	kcs-channel = <2>;
+	status = "okay";
+};
+
+&kcs3 {
+	status = "okay";
+	kcs-io-addr = <0xca2>;
+	kcs-channel = <3>;
+};
+
+&kcs4 {
+	status = "okay";
+	kcs-io-addr = <0xca4>;
+	kcs-channel = <4>;
+};
+
+&mbox {
+	status = "okay";
+};
+
+&pcie_kcs1 {
+	kcs-io-addr = <0x3a0>;
+	kcs-channel = <5>;
+	status = "okay";
+};
+
+&pcie_kcs2 {
+	kcs-io-addr = <0x3a8>;
+	kcs-channel = <6>;
+	status = "okay";
+};
+
+&pcie_kcs3 {
+	kcs-io-addr = <0x3a2>;
+	kcs-channel = <7>;
+	status = "okay";
+};
+
+&pcie_kcs4 {
+	kcs-io-addr = <0x3a4>;
+	kcs-channel = <8>;
+	status = "okay";
+};
+
+&hace {
+	status = "okay";
+};
+
+&acry {
+	status = "okay";
+};
+
+&uart3 {
+	status = "okay";
+};
+
+&uart4 {
+	status = "okay";
+};
+
+&uart10 {
+	status = "okay";
+};
+
+&uart11 {
+	status = "okay";
+};
+
+&uart_routing {
+	status = "okay";
+};
+
+&ssp {
+	memory-region = <&ssp_memory>;
+};
