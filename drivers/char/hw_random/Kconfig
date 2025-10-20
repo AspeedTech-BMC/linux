@@ -588,6 +588,19 @@ config HW_RANDOM_ROCKCHIP
 
 	  If unsure, say Y.
 
+config HW_RANDOM_ASPEED
+	tristate "Aspeed Random Number Generator support"
+	depends on ARCH_ASPEED
+	default HW_RANDOM
+	help
+	  This driver provides kernel-side support for the Random Number
+	  Generator hardware found on Aspeed ast2600/ast2700 devices.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called aspeed-rng.
+
+	  If unsure, say Y.
+
 endif # HW_RANDOM
 
 config UML_RANDOM
