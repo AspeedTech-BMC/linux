@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-2.0
 
-ccflags-y := -I $(srctree)/$(src)/src/trng/include \
-	-I $(srctree)/$(src)/src/pdu/linux/include
+ccflags-y := -I $(srctree)/drivers/char/hw_random/dwc/src/trng/include \
+	-I $(srctree)/drivers/char/hw_random/dwc/src/pdu/linux/include
 
 obj-$(CONFIG_HW_RANDOM_DWC) += elppdu.o
 elppdu-objs := src/pdu/linux/kernel/pdu.o \
