@@ -317,12 +317,6 @@ static int aspeed_lpc_snoop_probe(struct platform_device *pdev)
 		return -ENOMEM;
 
 	np = pdev->dev.parent->of_node;
-	if (!of_device_is_compatible(np, "aspeed,ast2400-lpc-v2") &&
-	    !of_device_is_compatible(np, "aspeed,ast2500-lpc-v2") &&
-	    !of_device_is_compatible(np, "aspeed,ast2600-lpc-v2")) {
-		dev_err(dev, "unsupported LPC device binding\n");
-		return -ENODEV;
-	}
 
 	lpc_snoop->regmap = syscon_node_to_regmap(np);
 	if (IS_ERR(lpc_snoop->regmap))
