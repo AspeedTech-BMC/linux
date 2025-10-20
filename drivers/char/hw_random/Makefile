@@ -51,3 +51,4 @@ obj-$(CONFIG_HW_RANDOM_POLARFIRE_SOC) += mpfs-rng.o
 obj-$(CONFIG_HW_RANDOM_ROCKCHIP) += rockchip-rng.o
 obj-$(CONFIG_HW_RANDOM_JH7110) += jh7110-trng.o
 obj-$(CONFIG_HW_RANDOM_ASPEED) += aspeed-rng.o
+obj-$(CONFIG_HW_RANDOM_DWC) += dwc/

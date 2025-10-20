@@ -601,6 +601,8 @@ config HW_RANDOM_ASPEED
 
 	  If unsure, say Y.
 
+source "drivers/char/hw_random/dwc/Kconfig"
+
 endif # HW_RANDOM
 
 config UML_RANDOM
