@@ -292,12 +292,29 @@
 				status = "disabled";
 			};
 
+			mctp: mctp@1e6e8000 {
+				compatible = "aspeed,ast2500-mctp";
+				reg = <0x1e6e8000 0x30>;
+				interrupts-extended = <&vic 42>, <&scu_ic ASPEED_AST2500_SCU_IC_PCIE_RESET_LO_TO_HI>;
+				interrupt-names = "mctp", "pcie";
+				resets = <&syscon ASPEED_RESET_MCTP>;
+				aspeed,scu = <&syscon>;
+				aspeed,pcieh = <&pcie_ep>;
+				status = "disabled";
+			};
+
 			adc: adc@1e6e9000 {
 				compatible = "aspeed,ast2500-adc";
 				reg = <0x1e6e9000 0xb0>;
 				clocks = <&syscon ASPEED_CLK_APB>;
 				resets = <&syscon ASPEED_RESET_ADC>;
 				#io-channel-cells = <1>;
+				status = "disabled";
+			};
+
+			pcie_ep:pcie_ep@1e6ed000 {
+				compatible = "aspeed,ast2500-pcie-ep", "syscon";
+				reg = <0x1e6ed000 0x100>;
 				status = "disabled";
 			};
 		};

@@ -629,18 +629,6 @@
 				status = "disabled";
 			};
 
-			mctp1: mctp@1e6f9000 {
-				compatible = "aspeed,ast2600-mctp";
-				reg = <0x1e6f9000 0x30>;
-				interrupts-extended = <&scu_ic0 ASPEED_AST2600_SCU_IC0_PCIE_RCRST_LO_TO_HI>;
-				interrupt-names = "pcie";
-				pcie_rc;
-				resets = <&syscon ASPEED_RESET_RC_MCTP>, <&syscon ASPEED_RESET_DEV_MCTP>;
-				aspeed,scu = <&syscon>;
-				aspeed,pcieh = <&pcie_phy1>;
-				status = "disabled";
-			};
-
 			espi: espi@1e6ee000 {
 				compatible = "aspeed,ast2600-espi";
 				reg = <0x1e6ee000 0x1000>;
@@ -663,6 +651,18 @@
 				compatible = "aspeed,ast2600-sbc";
 				reg = <0x1e6f2000 0x1000>;
 				aspeed,scu = <&syscon>;
+			};
+
+			mctp1: mctp@1e6f9000 {
+				compatible = "aspeed,ast2600-mctp";
+				reg = <0x1e6f9000 0x30>;
+				interrupts-extended = <&scu_ic0 ASPEED_AST2600_SCU_IC0_PCIE_RCRST_LO_TO_HI>;
+				interrupt-names = "pcie";
+				pcie_rc;
+				resets = <&syscon ASPEED_RESET_RC_MCTP>, <&syscon ASPEED_RESET_DEV_MCTP>;
+				aspeed,scu = <&syscon>;
+				aspeed,pcieh = <&pcie_phy1>;
+				status = "disabled";
 			};
 
 			acry: crypto@1e6fa000 {
