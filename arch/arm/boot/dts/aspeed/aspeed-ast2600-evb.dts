@@ -42,6 +42,18 @@
 			reusable;
 		};
 
+		mctp0_reserved: mctp0_reserved@b1000000 {
+			reg = <0xb1000000 0x10000>;
+			compatible = "shared-dma-pool";
+			no-map;
+		};
+
+		mctp1_reserved: mctp1_reserved@b1010000 {
+			reg = <0xb1010000 0x10000>;
+			compatible = "shared-dma-pool";
+			no-map;
+		};
+
 		bmc_dev_memory: bmc-dev-memory@b1020000 {
 			reg = <0xb1020000 0x100000>;
 			no-map;
@@ -186,6 +198,11 @@
 
 &rtc {
 	status = "okay";
+};
+
+&mctp0 {
+	status = "okay";
+	memory-region = <&mctp0_reserved>;
 };
 
 &fmc {

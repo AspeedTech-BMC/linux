@@ -38,7 +38,18 @@
 			compatible = "shared-dma-pool";
 			reusable;
 		};
+
+		mctp_reserved: mctp_reserved@8a000000 {
+			reg = <0x8a000000 0x10000>;
+			compatible = "shared-dma-pool";
+			no-map;
+		};
 	};
+};
+
+&mctp {
+	status = "okay";
+	memory-region = <&mctp_reserved>;
 };
 
 &fmc {
