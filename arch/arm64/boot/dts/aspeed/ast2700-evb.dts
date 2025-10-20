@@ -339,6 +339,10 @@
 		&pinctrl_adc14_default &pinctrl_adc15_default>;
 };
 
+&chassis {
+	status = "okay";
+};
+
 &edac {
 	status = "okay";
 };
