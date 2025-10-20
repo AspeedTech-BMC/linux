@@ -62,44 +62,6 @@
 		};
 	};
 
-	reserved-memory {
-		#address-cells = <2>;
-		#size-cells = <2>;
-		ranges;
-
-		#include "ast2700-reserved-mem.dtsi"
-
-		video_engine_memory0: video0 {
-			size = <0x0 0x02000000>;
-			alignment = <0x0 0x00010000>;
-			compatible = "shared-dma-pool";
-			reusable;
-		};
-
-		video_engine_memory1: video1 {
-			size = <0x0 0x02000000>;
-			alignment = <0x0 0x00010000>;
-			compatible = "shared-dma-pool";
-			reusable;
-		};
-
-#if 0
-		gfx_memory: framebuffer {
-			size = <0x0 0x01000000>;
-			alignment = <0x0 0x01000000>;
-			compatible = "shared-dma-pool";
-			reusable;
-		};
-#endif
-
-		espi0_mcyc_memory: mcyc0 {
-			size = <0x0 0x01000000>;
-			alignment = <0x0 0x00010000>;
-			compatible = "shared-dma-pool";
-			reusable;
-		};
-	};
-
 	fan0: pwm-fan0 {
 		compatible = "pwm-fan";
 		pwms = <&pwm_tach 0 40000 0>;   /* Target freq:25 kHz */
