@@ -804,6 +804,10 @@
 	memory-region = <&video_engine_memory1>;
 };
 
+&rtc {
+	status = "okay";
+};
+
 #if PCIE0_EP
 &bmc_dev0 {
 	status = "okay";
