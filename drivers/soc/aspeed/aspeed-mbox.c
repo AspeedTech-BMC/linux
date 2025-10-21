@@ -303,7 +303,7 @@ static struct platform_driver aspeed_mbox_driver = {
 		.of_match_table = mbox_cl_match,
 	},
 	.probe		= aspeed_mbox_probe,
-	.remove_new	= aspeed_mbox_remove,
+	.remove	= aspeed_mbox_remove,
 };
 module_platform_driver(aspeed_mbox_driver);
 

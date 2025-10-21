@@ -240,7 +240,7 @@ static const struct of_device_id aspeed_disp_intf_of_matches[] = {
 
 static struct platform_driver aspeed_disp_intf_driver = {
 	.probe		= aspeed_disp_intf_probe,
-	.remove_new	= aspeed_disp_intf_remove,
+	.remove	= aspeed_disp_intf_remove,
 	.driver		= {
 		.name	= DEVICE_NAME,
 		.of_match_table = aspeed_disp_intf_of_matches,

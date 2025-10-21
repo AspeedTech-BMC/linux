@@ -685,7 +685,7 @@ static void aspeed_bmc_device_remove(struct platform_device *pdev)
 
 static struct platform_driver aspeed_bmc_device_driver = {
 	.probe		= aspeed_bmc_device_probe,
-	.remove_new	= aspeed_bmc_device_remove,
+	.remove		= aspeed_bmc_device_remove,
 	.driver		= {
 		.name	= KBUILD_MODNAME,
 		.of_match_table = aspeed_bmc_device_of_matches,
