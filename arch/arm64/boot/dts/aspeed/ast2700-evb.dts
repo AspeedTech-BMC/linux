@@ -647,6 +647,57 @@
 #endif
 #endif
 
+&espi0 {
+	status = "okay";
+	perif-dma-mode;
+	perif-mmbi-enable;
+	perif-mmbi-src-addr = <0x0 0xa8000000>;
+	perif-mmbi-tgt-memory = <&espi0_mmbi_memory>;
+	perif-mmbi-instance-num = <0x1>;
+	perif-mcyc-enable;
+	perif-mcyc-src-addr = <0x0 0x98000000>;
+	perif-mcyc-size = <0x0 0x10000>;
+	memory-region = <&espi0_mcyc_memory>;
+	perif-rtc-enable;
+	oob-dma-mode;
+	flash-dma-mode;
+#if 0	// eDAF mode: Change 1 to enable MIX mode in Linux, but HW mode in SPL would be overwritten
+	flash-edaf-mode = <0x0>;
+	flash-edaf-tgt-addr = <&edaf0>;
+	flash-edaf-size = <0x0 0x4000000>;
+#endif
+};
+
+&rtc_over_espi0 {
+	status = "okay";
+};
+
+#if DUAL_NODE
+&espi1 {
+	status = "okay";
+	perif-dma-mode;
+	perif-mmbi-enable;
+	perif-mmbi-src-addr = <0x0 0xa8000000>;
+	perif-mmbi-tgt-memory = <&espi1_mmbi_memory>;
+	perif-mmbi-instance-num = <0x1>;
+	perif-mcyc-enable;
+	perif-mcyc-src-addr = <0x0 0x98000000>;
+	perif-mcyc-size = <0x0 0x10000>;
+	perif-rtc-enable;
+	oob-dma-mode;
+	flash-dma-mode;
+#if 0	// eDAF mode: Change 1 to enable MIX mode in Linux, but HW mode in SPL would be overwritten
+	flash-edaf-mode = <0x0>;
+	flash-edaf-tgt-addr = <&edaf1>;
+	flash-edaf-size = <0x0 0x4000000>;
+#endif
+};
+
+&rtc_over_espi1 {
+	status = "okay";
+};
+#endif /* DUAL_NODE */
+
 &lpc0_kcs0 {
 	status = "okay";
 	kcs-io-addr = <0xca0>;
