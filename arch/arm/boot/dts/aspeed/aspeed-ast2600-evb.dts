@@ -895,6 +895,7 @@
 	status = "okay";
 };
 
+#if 0
 &vuart1 {
 	virtual;
 	port = <0x3f8>;
@@ -902,6 +903,7 @@
 	sirq-polarity = <0>;
 	status = "okay";
 };
+#endif
 
 /*
  * Aspeed I3C daughter card configuration
