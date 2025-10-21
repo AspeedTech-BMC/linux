@@ -42,6 +42,14 @@
 			reusable;
 		};
 
+		ssp_memory: ssp_memory {
+			size = <0x02000000>;
+			alignment = <0x01000000>;
+			shm-size = <0x1000>;
+			compatible = "shared-dma-pool";
+			no-map;
+		};
+
 		mctp0_reserved: mctp0_reserved@b1000000 {
 			reg = <0xb1000000 0x10000>;
 			compatible = "shared-dma-pool";
@@ -99,6 +107,10 @@
 		states = <3300000 1>,
 			 <1800000 0>;
 	};
+};
+
+&chassis {
+	status = "okay";
 };
 
 &mdio0 {
@@ -471,4 +483,89 @@
 &gfx {
 	status = "okay";
 	memory-region = <&gfx_memory>;
+};
+
+&espi {
+	status = "okay";
+	perif-dma-mode;
+	oob-dma-mode;
+	flash-dma-mode;
+};
+
+#if 1
+&lpc_snoop {
+	status = "okay";
+	snoop-ports = <0x80>;
+};
+#else
+&lpc_pcc {
+	status = "okay";
+	pcc-ports = <0x80>;
+};
+#endif
+
+&ibt {
+	status = "okay";
+};
+
+&kcs1 {
+	kcs-io-addr = <0xca0>;
+	kcs-channel = <1>;
+	status = "okay";
+};
+
+&kcs2 {
+	kcs-io-addr = <0xca8>;
+	kcs-channel = <2>;
+	status = "okay";
+};
+
+&kcs3 {
+	status = "okay";
+	kcs-io-addr = <0xca2>;
+	kcs-channel = <3>;
+};
+
+&kcs4 {
+	status = "okay";
+	kcs-io-addr = <0xca4>;
+	kcs-channel = <4>;
+};
+
+&mbox {
+	status = "okay";
+};
+
+&uart3 {
+	status = "okay";
+};
+
+&uart4 {
+	status = "okay";
+};
+
+&uart10 {
+	status = "okay";
+};
+
+&uart11 {
+	status = "okay";
+};
+
+&uart_routing {
+	status = "okay";
+};
+
+#if 0
+&vuart1 {
+	virtual;
+	port = <0x3f8>;
+	sirq = <4>;
+	sirq-polarity = <0>;
+	status = "okay";
+};
+#endif
+
+&ssp {
+	memory-region = <&ssp_memory>;
 };
