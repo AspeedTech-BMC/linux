@@ -667,21 +667,21 @@
 		syscon0: syscon@12c02000 {
 			compatible = "aspeed,ast2700-scu0", "syscon", "simple-mfd";
 			reg = <0x0 0x12c02000 0x0 0x1000>;
-			ranges = <0x0 0x0 0 0x12c02000 0 0x1000>;
-			#address-cells = <2>;
-			#size-cells = <2>;
+			ranges = <0x0 0x0 0x12c02000 0x1000>;
+			#address-cells = <1>;
+			#size-cells = <1>;
 			#clock-cells = <1>;
 			#reset-cells = <1>;
 
 			silicon-id@0 {
 				compatible = "aspeed,ast2700-silicon-id", "aspeed,silicon-id";
-				reg = <0 0x0 0 0x4>;
+				reg = <0x0 0x4>;
 			};
 
 			scu_ic0: interrupt-controller@1D0 {
 				#interrupt-cells = <1>;
 				compatible = "aspeed,ast2700-scu-ic0";
-				reg = <0 0x1d0 0 0xc>;
+				reg = <0x1d0 0xc>;
 				interrupts = <GIC_SPI 97 IRQ_TYPE_LEVEL_HIGH>;
 				interrupt-controller;
 			};
@@ -689,14 +689,14 @@
 			scu_ic1: interrupt-controller@1E0 {
 				#interrupt-cells = <1>;
 				compatible = "aspeed,ast2700-scu-ic1";
-				reg = <0 0x1e0 0 0xc>;
+				reg = <0x1e0 0xc>;
 				interrupts = <GIC_SPI 98 IRQ_TYPE_LEVEL_HIGH>;
 				interrupt-controller;
 			};
 
 			pinctrl0: pinctrl@400 {
 				compatible = "aspeed,ast2700-soc0-pinctrl";
-				reg = <0 0x400 0 0x600>;
+				reg = <0x400 0x600>;
 			};
 		};
 
@@ -1514,16 +1514,16 @@
 		syscon1: syscon@14c02000 {
 			compatible = "aspeed,ast2700-scu1", "syscon", "simple-mfd";
 			reg = <0x0 0x14c02000 0x0 0x1000>;
-			ranges = <0x0 0x0 0x0 0x14c02000 0x0 0x1000>;
-			#address-cells = <2>;
-			#size-cells = <2>;
+			ranges = <0x0 0x0 0x14c02000 0x1000>;
+			#address-cells = <1>;
+			#size-cells = <1>;
 			#clock-cells = <1>;
 			#reset-cells = <1>;
 
 			scu_ic2: interrupt-controller@100 {
 				#interrupt-cells = <1>;
 				compatible = "aspeed,ast2700-scu-ic2";
-				reg = <0 0x100 0 0x8>;
+				reg = <0x100 0x8>;
 				interrupts-extended = <&intc1_5 0>;
 				interrupt-controller;
 			};
@@ -1531,14 +1531,14 @@
 			scu_ic3: interrupt-controller@108 {
 				#interrupt-cells = <1>;
 				compatible = "aspeed,ast2700-scu-ic3";
-				reg = <0 0x108 0 0x8>;
+				reg = <0x108 0x8>;
 				interrupts-extended = <&intc1_5 26>;
 				interrupt-controller;
 			};
 
 			pinctrl1: pinctrl@400 {
 				compatible = "aspeed,ast2700-soc1-pinctrl";
-				reg = <0x0 0x400 0x0 0x100>;
+				reg = <0x400 0x100>;
 			};
 		};
 
