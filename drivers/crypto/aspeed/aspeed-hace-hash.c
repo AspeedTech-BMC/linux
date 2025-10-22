@@ -77,6 +77,7 @@ static const __be64 sha512_iv[8] = {
 static void aspeed_ahash_fill_padding(struct aspeed_hace_dev *hace_dev,
 				      struct aspeed_sham_reqctx *rctx)
 {
+	struct aspeed_engine_hash *hash_engine = &hace_dev->hash_engine;
 	unsigned int index, padlen;
 	__be64 bits[2];
 
@@ -89,9 +90,9 @@ static void aspeed_ahash_fill_padding(struct aspeed_hace_dev *hace_dev,
 		bits[0] = cpu_to_be64(rctx->digcnt[0] << 3);
 		index = rctx->bufcnt & 0x3f;
 		padlen = (index < 56) ? (56 - index) : ((64 + 56) - index);
-		*(rctx->buffer + rctx->bufcnt) = 0x80;
-		memset(rctx->buffer + rctx->bufcnt + 1, 0, padlen - 1);
-		memcpy(rctx->buffer + rctx->bufcnt + padlen, bits, 8);
+		*(hash_engine->buffer_addr + rctx->bufcnt) = 0x80;
+		memset(hash_engine->buffer_addr + rctx->bufcnt + 1, 0, padlen - 1);
+		memcpy(hash_engine->buffer_addr + rctx->bufcnt + padlen, bits, 8);
 		rctx->bufcnt += padlen + 8;
 		break;
 	default:
@@ -100,9 +101,9 @@ static void aspeed_ahash_fill_padding(struct aspeed_hace_dev *hace_dev,
 				      rctx->digcnt[0] >> 61);
 		index = rctx->bufcnt & 0x7f;
 		padlen = (index < 112) ? (112 - index) : ((128 + 112) - index);
-		*(rctx->buffer + rctx->bufcnt) = 0x80;
-		memset(rctx->buffer + rctx->bufcnt + 1, 0, padlen - 1);
-		memcpy(rctx->buffer + rctx->bufcnt + padlen, bits, 16);
+		*(hash_engine->buffer_addr + rctx->bufcnt) = 0x80;
+		memset(hash_engine->buffer_addr + rctx->bufcnt + 1, 0, padlen - 1);
+		memcpy(hash_engine->buffer_addr + rctx->bufcnt + padlen, bits, 16);
 		rctx->bufcnt += padlen + 16;
 		break;
 	}
@@ -125,7 +126,7 @@ static int aspeed_ahash_dma_prepare(struct aspeed_hace_dev *hace_dev)
 	AHASH_DBG(hace_dev, "length:0x%x, remain:0x%x\n", length, remain);
 
 	if (rctx->bufcnt)
-		memcpy(hash_engine->ahash_src_addr, rctx->buffer, rctx->bufcnt);
+		memcpy(hash_engine->ahash_src_addr, hash_engine->buffer_addr, rctx->bufcnt);
 
 	if (rctx->total + rctx->bufcnt < ASPEED_CRYPTO_SRC_DMA_BUF_LEN) {
 		scatterwalk_map_and_copy(hash_engine->ahash_src_addr +
@@ -138,21 +139,13 @@ static int aspeed_ahash_dma_prepare(struct aspeed_hace_dev *hace_dev)
 		return -EINVAL;
 	}
 
-	scatterwalk_map_and_copy(rctx->buffer, rctx->src_sg,
+	scatterwalk_map_and_copy(hash_engine->buffer_addr, rctx->src_sg,
 				 rctx->offset, remain, 0);
 
 	rctx->bufcnt = remain;
-	rctx->digest_dma_addr = dma_map_single(hace_dev->dev, rctx->digest,
-					       SHA512_DIGEST_SIZE,
-					       DMA_BIDIRECTIONAL);
-	if (dma_mapping_error(hace_dev->dev, rctx->digest_dma_addr)) {
-		dev_warn(hace_dev->dev, "dma_map() rctx digest error\n");
-		return -ENOMEM;
-	}
 
 	hash_engine->src_length = length - remain;
 	hash_engine->src_dma = hash_engine->ahash_src_dma_addr;
-	hash_engine->digest_dma = rctx->digest_dma_addr;
 
 	return 0;
 }
@@ -187,30 +180,12 @@ static int aspeed_ahash_dma_prepare_sg(struct aspeed_hace_dev *hace_dev)
 	}
 
 	src_list = (struct aspeed_sg_list *)hash_engine->ahash_src_addr;
-	rctx->digest_dma_addr = dma_map_single(hace_dev->dev, rctx->digest,
-					       SHA512_DIGEST_SIZE,
-					       DMA_BIDIRECTIONAL);
-	if (dma_mapping_error(hace_dev->dev, rctx->digest_dma_addr)) {
-		dev_warn(hace_dev->dev, "dma_map() rctx digest error\n");
-		rc = -ENOMEM;
-		goto free_src_sg;
-	}
 
 	if (rctx->bufcnt != 0) {
 		u32 phy_addr;
 		u32 len;
 
-		rctx->buffer_dma_addr = dma_map_single(hace_dev->dev,
-						       rctx->buffer,
-						       rctx->block_size * 2,
-						       DMA_TO_DEVICE);
-		if (dma_mapping_error(hace_dev->dev, rctx->buffer_dma_addr)) {
-			dev_warn(hace_dev->dev, "dma_map() rctx buffer error\n");
-			rc = -ENOMEM;
-			goto free_rctx_digest;
-		}
-
-		phy_addr = rctx->buffer_dma_addr;
+		phy_addr = hash_engine->buffer_dma_addr;
 		len = rctx->bufcnt;
 		length -= len;
 
@@ -244,23 +219,15 @@ static int aspeed_ahash_dma_prepare_sg(struct aspeed_hace_dev *hace_dev)
 
 	if (length != 0) {
 		rc = -EINVAL;
-		goto free_rctx_buffer;
+		goto free_src_sg;
 	}
 
 	rctx->offset = rctx->total - remain;
 	hash_engine->src_length = rctx->total + rctx->bufcnt - remain;
 	hash_engine->src_dma = hash_engine->ahash_src_dma_addr;
-	hash_engine->digest_dma = rctx->digest_dma_addr;
 
 	return 0;
 
-free_rctx_buffer:
-	if (rctx->bufcnt != 0)
-		dma_unmap_single(hace_dev->dev, rctx->buffer_dma_addr,
-				 rctx->block_size * 2, DMA_TO_DEVICE);
-free_rctx_digest:
-	dma_unmap_single(hace_dev->dev, rctx->digest_dma_addr,
-			 SHA512_DIGEST_SIZE, DMA_BIDIRECTIONAL);
 free_src_sg:
 	dma_unmap_sg(hace_dev->dev, rctx->src_sg, rctx->src_nents,
 		     DMA_TO_DEVICE);
@@ -294,13 +261,14 @@ static int aspeed_ahash_transfer(struct aspeed_hace_dev *hace_dev)
 
 	AHASH_DBG(hace_dev, "\n");
 
-	dma_unmap_single(hace_dev->dev, rctx->digest_dma_addr,
-			 SHA512_DIGEST_SIZE, DMA_BIDIRECTIONAL);
+	memcpy(req->result, hash_engine->digest_addr, rctx->digsize);
 
-	dma_unmap_single(hace_dev->dev, rctx->buffer_dma_addr,
-			 rctx->block_size * 2, DMA_TO_DEVICE);
-
-	memcpy(req->result, rctx->digest, rctx->digsize);
+	/*
+	 * Workaround for aes engine hang: The sha configuration may cause aes
+	 * engine to hang. To address this issue, the hace engine is reset after
+	 * the hash calculation is completed.
+	 */
+	aspeed_hace_reset(hace_dev);
 
 	return aspeed_ahash_complete(hace_dev);
 }
@@ -319,7 +287,7 @@ static int aspeed_hace_ahash_trigger(struct aspeed_hace_dev *hace_dev,
 		  &hash_engine->src_dma, &hash_engine->digest_dma,
 		  hash_engine->src_length);
 
-	rctx->cmd |= HASH_CMD_INT_ENABLE;
+	rctx->cmd |= HASH_CMD_INT_ENABLE | HASH_CMD_MBUS_REQ_SYNC_EN;
 	hash_engine->resume = resume;
 
 	ast_hace_write(hace_dev, hash_engine->src_dma, ASPEED_HACE_HASH_SRC);
@@ -329,6 +297,14 @@ static int aspeed_hace_ahash_trigger(struct aspeed_hace_dev *hace_dev,
 		       ASPEED_HACE_HASH_KEY_BUFF);
 	ast_hace_write(hace_dev, hash_engine->src_length,
 		       ASPEED_HACE_HASH_DATA_LEN);
+#ifdef CONFIG_ARCH_DMA_ADDR_T_64BIT
+	ast_hace_write(hace_dev, hash_engine->src_dma >> 32,
+		       ASPEED_HACE_HASH_SRC_H);
+	ast_hace_write(hace_dev, hash_engine->digest_dma >> 32,
+		       ASPEED_HACE_HASH_DIGEST_BUFF_H);
+	ast_hace_write(hace_dev, hash_engine->digest_dma >> 32,
+		       ASPEED_HACE_HASH_KEY_BUFF_H);
+#endif
 
 	/* Memory barrier to ensure all data setup before engine starts */
 	mb();
@@ -351,55 +327,24 @@ static int aspeed_ahash_hmac_resume(struct aspeed_hace_dev *hace_dev)
 	struct crypto_ahash *tfm = crypto_ahash_reqtfm(req);
 	struct aspeed_sham_ctx *tctx = crypto_ahash_ctx(tfm);
 	struct aspeed_sha_hmac_ctx *bctx = tctx->base;
-	int rc = 0;
 
 	AHASH_DBG(hace_dev, "\n");
 
-	dma_unmap_single(hace_dev->dev, rctx->digest_dma_addr,
-			 SHA512_DIGEST_SIZE, DMA_BIDIRECTIONAL);
-
-	dma_unmap_single(hace_dev->dev, rctx->buffer_dma_addr,
-			 rctx->block_size * 2, DMA_TO_DEVICE);
-
 	/* o key pad + hash sum 1 */
-	memcpy(rctx->buffer, bctx->opad, rctx->block_size);
-	memcpy(rctx->buffer + rctx->block_size, rctx->digest, rctx->digsize);
+	memcpy(hash_engine->buffer_addr, bctx->opad, rctx->block_size);
+	memcpy(hash_engine->buffer_addr + rctx->block_size,
+	       hash_engine->digest_addr, rctx->digsize);
 
 	rctx->bufcnt = rctx->block_size + rctx->digsize;
 	rctx->digcnt[0] = rctx->block_size + rctx->digsize;
 
 	aspeed_ahash_fill_padding(hace_dev, rctx);
-	memcpy(rctx->digest, rctx->sha_iv, rctx->ivsize);
+	memcpy(hash_engine->digest_addr, rctx->sha_iv, rctx->ivsize);
 
-	rctx->digest_dma_addr = dma_map_single(hace_dev->dev, rctx->digest,
-					       SHA512_DIGEST_SIZE,
-					       DMA_BIDIRECTIONAL);
-	if (dma_mapping_error(hace_dev->dev, rctx->digest_dma_addr)) {
-		dev_warn(hace_dev->dev, "dma_map() rctx digest error\n");
-		rc = -ENOMEM;
-		goto end;
-	}
-
-	rctx->buffer_dma_addr = dma_map_single(hace_dev->dev, rctx->buffer,
-					       rctx->block_size * 2,
-					       DMA_TO_DEVICE);
-	if (dma_mapping_error(hace_dev->dev, rctx->buffer_dma_addr)) {
-		dev_warn(hace_dev->dev, "dma_map() rctx buffer error\n");
-		rc = -ENOMEM;
-		goto free_rctx_digest;
-	}
-
-	hash_engine->src_dma = rctx->buffer_dma_addr;
+	hash_engine->src_dma = hash_engine->buffer_dma_addr;
 	hash_engine->src_length = rctx->bufcnt;
-	hash_engine->digest_dma = rctx->digest_dma_addr;
 
 	return aspeed_hace_ahash_trigger(hace_dev, aspeed_ahash_transfer);
-
-free_rctx_digest:
-	dma_unmap_single(hace_dev->dev, rctx->digest_dma_addr,
-			 SHA512_DIGEST_SIZE, DMA_BIDIRECTIONAL);
-end:
-	return rc;
 }
 
 static int aspeed_ahash_req_final(struct aspeed_hace_dev *hace_dev)
@@ -407,47 +352,19 @@ static int aspeed_ahash_req_final(struct aspeed_hace_dev *hace_dev)
 	struct aspeed_engine_hash *hash_engine = &hace_dev->hash_engine;
 	struct ahash_request *req = hash_engine->req;
 	struct aspeed_sham_reqctx *rctx = ahash_request_ctx(req);
-	int rc = 0;
 
 	AHASH_DBG(hace_dev, "\n");
 
 	aspeed_ahash_fill_padding(hace_dev, rctx);
 
-	rctx->digest_dma_addr = dma_map_single(hace_dev->dev,
-					       rctx->digest,
-					       SHA512_DIGEST_SIZE,
-					       DMA_BIDIRECTIONAL);
-	if (dma_mapping_error(hace_dev->dev, rctx->digest_dma_addr)) {
-		dev_warn(hace_dev->dev, "dma_map() rctx digest error\n");
-		rc = -ENOMEM;
-		goto end;
-	}
-
-	rctx->buffer_dma_addr = dma_map_single(hace_dev->dev,
-					       rctx->buffer,
-					       rctx->block_size * 2,
-					       DMA_TO_DEVICE);
-	if (dma_mapping_error(hace_dev->dev, rctx->buffer_dma_addr)) {
-		dev_warn(hace_dev->dev, "dma_map() rctx buffer error\n");
-		rc = -ENOMEM;
-		goto free_rctx_digest;
-	}
-
-	hash_engine->src_dma = rctx->buffer_dma_addr;
+	hash_engine->src_dma = hash_engine->buffer_dma_addr;
 	hash_engine->src_length = rctx->bufcnt;
-	hash_engine->digest_dma = rctx->digest_dma_addr;
 
 	if (rctx->flags & SHA_FLAGS_HMAC)
 		return aspeed_hace_ahash_trigger(hace_dev,
 						 aspeed_ahash_hmac_resume);
 
 	return aspeed_hace_ahash_trigger(hace_dev, aspeed_ahash_transfer);
-
-free_rctx_digest:
-	dma_unmap_single(hace_dev->dev, rctx->digest_dma_addr,
-			 SHA512_DIGEST_SIZE, DMA_BIDIRECTIONAL);
-end:
-	return rc;
 }
 
 static int aspeed_ahash_update_resume_sg(struct aspeed_hace_dev *hace_dev)
@@ -461,15 +378,7 @@ static int aspeed_ahash_update_resume_sg(struct aspeed_hace_dev *hace_dev)
 	dma_unmap_sg(hace_dev->dev, rctx->src_sg, rctx->src_nents,
 		     DMA_TO_DEVICE);
 
-	if (rctx->bufcnt != 0)
-		dma_unmap_single(hace_dev->dev, rctx->buffer_dma_addr,
-				 rctx->block_size * 2,
-				 DMA_TO_DEVICE);
-
-	dma_unmap_single(hace_dev->dev, rctx->digest_dma_addr,
-			 SHA512_DIGEST_SIZE, DMA_BIDIRECTIONAL);
-
-	scatterwalk_map_and_copy(rctx->buffer, rctx->src_sg, rctx->offset,
+	scatterwalk_map_and_copy(hash_engine->buffer_addr, rctx->src_sg, rctx->offset,
 				 rctx->total - rctx->offset, 0);
 
 	rctx->bufcnt = rctx->total - rctx->offset;
@@ -489,9 +398,6 @@ static int aspeed_ahash_update_resume(struct aspeed_hace_dev *hace_dev)
 
 	AHASH_DBG(hace_dev, "\n");
 
-	dma_unmap_single(hace_dev->dev, rctx->digest_dma_addr,
-			 SHA512_DIGEST_SIZE, DMA_BIDIRECTIONAL);
-
 	if (rctx->flags & SHA_FLAGS_FINUP)
 		return aspeed_ahash_req_final(hace_dev);
 
@@ -508,12 +414,12 @@ static int aspeed_ahash_req_update(struct aspeed_hace_dev *hace_dev)
 
 	AHASH_DBG(hace_dev, "\n");
 
-	if (hace_dev->version == AST2600_VERSION) {
-		rctx->cmd |= HASH_CMD_HASH_SRC_SG_CTRL;
-		resume = aspeed_ahash_update_resume_sg;
+	if (hace_dev->version == AST2500_VERSION) {
+		resume = aspeed_ahash_update_resume;
 
 	} else {
-		resume = aspeed_ahash_update_resume;
+		rctx->cmd |= HASH_CMD_HASH_SRC_SG_CTRL;
+		resume = aspeed_ahash_update_resume_sg;
 	}
 
 	ret = hash_engine->dma_prepare(hace_dev);
@@ -566,10 +472,10 @@ static void aspeed_ahash_prepare_request(struct crypto_engine *engine,
 	hash_engine = &hace_dev->hash_engine;
 	hash_engine->req = req;
 
-	if (hace_dev->version == AST2600_VERSION)
-		hash_engine->dma_prepare = aspeed_ahash_dma_prepare_sg;
-	else
+	if (hace_dev->version == AST2500_VERSION)
 		hash_engine->dma_prepare = aspeed_ahash_dma_prepare;
+	else
+		hash_engine->dma_prepare = aspeed_ahash_dma_prepare_sg;
 }
 
 static int aspeed_ahash_do_one(struct crypto_engine *engine, void *areq)
@@ -584,6 +490,7 @@ static int aspeed_sham_update(struct ahash_request *req)
 	struct crypto_ahash *tfm = crypto_ahash_reqtfm(req);
 	struct aspeed_sham_ctx *tctx = crypto_ahash_ctx(tfm);
 	struct aspeed_hace_dev *hace_dev = tctx->hace_dev;
+	struct aspeed_engine_hash *hash_engine = &hace_dev->hash_engine;
 
 	AHASH_DBG(hace_dev, "req->nbytes: %d\n", req->nbytes);
 
@@ -598,7 +505,7 @@ static int aspeed_sham_update(struct ahash_request *req)
 		rctx->digcnt[1]++;
 
 	if (rctx->bufcnt + rctx->total < rctx->block_size) {
-		scatterwalk_map_and_copy(rctx->buffer + rctx->bufcnt,
+		scatterwalk_map_and_copy(hash_engine->buffer_addr + rctx->bufcnt,
 					 rctx->src_sg, rctx->offset,
 					 rctx->total, 0);
 		rctx->bufcnt += rctx->total;
@@ -665,6 +572,7 @@ static int aspeed_sham_init(struct ahash_request *req)
 	struct aspeed_sham_ctx *tctx = crypto_ahash_ctx(tfm);
 	struct aspeed_hace_dev *hace_dev = tctx->hace_dev;
 	struct aspeed_sha_hmac_ctx *bctx = tctx->base;
+	struct aspeed_engine_hash *hash_engine = &hace_dev->hash_engine;
 
 	AHASH_DBG(hace_dev, "%s: digest size:%d\n",
 		  crypto_tfm_alg_name(&tfm->base),
@@ -681,7 +589,7 @@ static int aspeed_sham_init(struct ahash_request *req)
 		rctx->block_size = SHA1_BLOCK_SIZE;
 		rctx->sha_iv = sha1_iv;
 		rctx->ivsize = 32;
-		memcpy(rctx->digest, sha1_iv, rctx->ivsize);
+		memcpy(hash_engine->digest_addr, sha1_iv, rctx->ivsize);
 		break;
 	case SHA224_DIGEST_SIZE:
 		rctx->cmd |= HASH_CMD_SHA224 | HASH_CMD_SHA_SWAP;
@@ -690,7 +598,7 @@ static int aspeed_sham_init(struct ahash_request *req)
 		rctx->block_size = SHA224_BLOCK_SIZE;
 		rctx->sha_iv = sha224_iv;
 		rctx->ivsize = 32;
-		memcpy(rctx->digest, sha224_iv, rctx->ivsize);
+		memcpy(hash_engine->digest_addr, sha224_iv, rctx->ivsize);
 		break;
 	case SHA256_DIGEST_SIZE:
 		rctx->cmd |= HASH_CMD_SHA256 | HASH_CMD_SHA_SWAP;
@@ -699,7 +607,7 @@ static int aspeed_sham_init(struct ahash_request *req)
 		rctx->block_size = SHA256_BLOCK_SIZE;
 		rctx->sha_iv = sha256_iv;
 		rctx->ivsize = 32;
-		memcpy(rctx->digest, sha256_iv, rctx->ivsize);
+		memcpy(hash_engine->digest_addr, sha256_iv, rctx->ivsize);
 		break;
 	case SHA384_DIGEST_SIZE:
 		rctx->cmd |= HASH_CMD_SHA512_SER | HASH_CMD_SHA384 |
@@ -709,7 +617,7 @@ static int aspeed_sham_init(struct ahash_request *req)
 		rctx->block_size = SHA384_BLOCK_SIZE;
 		rctx->sha_iv = (const __be32 *)sha384_iv;
 		rctx->ivsize = 64;
-		memcpy(rctx->digest, sha384_iv, rctx->ivsize);
+		memcpy(hash_engine->digest_addr, sha384_iv, rctx->ivsize);
 		break;
 	case SHA512_DIGEST_SIZE:
 		rctx->cmd |= HASH_CMD_SHA512_SER | HASH_CMD_SHA512 |
@@ -719,7 +627,7 @@ static int aspeed_sham_init(struct ahash_request *req)
 		rctx->block_size = SHA512_BLOCK_SIZE;
 		rctx->sha_iv = (const __be32 *)sha512_iv;
 		rctx->ivsize = 64;
-		memcpy(rctx->digest, sha512_iv, rctx->ivsize);
+		memcpy(hash_engine->digest_addr, sha512_iv, rctx->ivsize);
 		break;
 	default:
 		dev_warn(tctx->hace_dev->dev, "digest size %d not support\n",
@@ -731,12 +639,13 @@ static int aspeed_sham_init(struct ahash_request *req)
 	rctx->total = 0;
 	rctx->digcnt[0] = 0;
 	rctx->digcnt[1] = 0;
+	hash_engine->digest_dma = hash_engine->digest_dma_addr;
 
 	/* HMAC init */
 	if (tctx->flags & SHA_FLAGS_HMAC) {
 		rctx->digcnt[0] = rctx->block_size;
 		rctx->bufcnt = rctx->block_size;
-		memcpy(rctx->buffer, bctx->ipad, rctx->block_size);
+		memcpy(hash_engine->buffer_addr, bctx->ipad, rctx->block_size);
 		rctx->flags |= SHA_FLAGS_HMAC;
 	}
 
@@ -1196,7 +1105,7 @@ void aspeed_unregister_hace_hash_algs(struct aspeed_hace_dev *hace_dev)
 	for (i = 0; i < ARRAY_SIZE(aspeed_ahash_algs); i++)
 		crypto_engine_unregister_ahash(&aspeed_ahash_algs[i].alg.ahash);
 
-	if (hace_dev->version != AST2600_VERSION)
+	if (hace_dev->version == AST2500_VERSION)
 		return;
 
 	for (i = 0; i < ARRAY_SIZE(aspeed_ahash_algs_g6); i++)
@@ -1218,7 +1127,7 @@ void aspeed_register_hace_hash_algs(struct aspeed_hace_dev *hace_dev)
 		}
 	}
 
-	if (hace_dev->version != AST2600_VERSION)
+	if (hace_dev->version == AST2500_VERSION)
 		return;
 
 	for (i = 0; i < ARRAY_SIZE(aspeed_ahash_algs_g6); i++) {
@@ -1229,4 +1138,72 @@ void aspeed_register_hace_hash_algs(struct aspeed_hace_dev *hace_dev)
 				  aspeed_ahash_algs_g6[i].alg.ahash.base.halg.base.cra_name);
 		}
 	}
+}
+
+static void aspeed_hace_hash_done_task(unsigned long data)
+{
+	struct aspeed_hace_dev *hace_dev = (struct aspeed_hace_dev *)data;
+	struct aspeed_engine_hash *hash_engine = &hace_dev->hash_engine;
+
+	hash_engine->resume(hace_dev);
+}
+
+int aspeed_hace_hash_init(struct aspeed_hace_dev *hace_dev)
+{
+	struct aspeed_engine_hash *hash_engine;
+	int rc;
+
+	hash_engine = &hace_dev->hash_engine;
+
+	/* Initialize crypto hardware engine structure for hash */
+	hace_dev->crypt_engine_hash = crypto_engine_alloc_init(hace_dev->dev,
+							       true);
+	if (!hace_dev->crypt_engine_hash) {
+		rc = -ENOMEM;
+		goto end;
+	}
+
+	rc = crypto_engine_start(hace_dev->crypt_engine_hash);
+	if (rc)
+		goto err_engine_hash_start;
+
+	tasklet_init(&hash_engine->done_task, aspeed_hace_hash_done_task,
+		     (unsigned long)hace_dev);
+
+	/* Allocate DMA buffer for hash engine input used */
+	hash_engine->ahash_src_addr =
+		dmam_alloc_coherent(hace_dev->dev,
+				    ASPEED_HASH_SRC_DMA_BUF_LEN,
+				    &hash_engine->ahash_src_dma_addr,
+				    GFP_KERNEL);
+	if (!hash_engine->ahash_src_addr) {
+		dev_err(hace_dev->dev, "Failed to allocate dma buffer\n");
+		rc = -ENOMEM;
+		goto err_engine_hash_start;
+	}
+
+	hash_engine->buffer_addr = dmam_alloc_coherent(hace_dev->dev, SHA512_BLOCK_SIZE * 2,
+						       &hash_engine->buffer_dma_addr,
+						       GFP_KERNEL);
+	if (!hash_engine->buffer_addr) {
+		dev_err(hace_dev->dev, "Failed to allocate DMA buffer\n");
+		rc = -ENOMEM;
+		goto err_engine_hash_start;
+	}
+
+	hash_engine->digest_addr = dmam_alloc_coherent(hace_dev->dev, SHA512_DIGEST_SIZE,
+						       &hash_engine->digest_dma_addr,
+						       GFP_KERNEL);
+	if (!hash_engine->digest_addr) {
+		dev_err(hace_dev->dev, "Failed to allocate DMA digest buffer\n");
+		rc = -ENOMEM;
+		goto err_engine_hash_start;
+	}
+
+	return 0;
+
+err_engine_hash_start:
+	crypto_engine_exit(hace_dev->crypt_engine_hash);
+end:
+	return rc;
 }

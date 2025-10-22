@@ -6,15 +6,18 @@
 #include "aspeed-hace.h"
 #include <crypto/engine.h>
 #include <linux/clk.h>
+#include <linux/reset.h>
 #include <linux/dma-mapping.h>
 #include <linux/err.h>
 #include <linux/interrupt.h>
 #include <linux/io.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
+#include <linux/of_address.h>
+#include <linux/of_device.h>
+#include <linux/of_irq.h>
 #include <linux/of.h>
 #include <linux/platform_device.h>
-#include <linux/property.h>
 
 #ifdef CONFIG_CRYPTO_DEV_ASPEED_DEBUG
 #define HACE_DBG(d, fmt, ...)	\
@@ -23,6 +26,45 @@
 #define HACE_DBG(d, fmt, ...)	\
 	dev_dbg((d)->dev, "%s() " fmt, __func__, ##__VA_ARGS__)
 #endif
+
+static unsigned char *dummy_key1;
+static unsigned char *dummy_key2;
+
+int find_dummy_key(const char *key, int keylen)
+{
+	int ret = 0;
+
+	if (dummy_key1 && memcmp(key, dummy_key1, keylen) == 0)
+		ret = 1;
+	else if (dummy_key2 && memcmp(key, dummy_key2, keylen) == 0)
+		ret = 2;
+
+	return ret;
+}
+
+int aspeed_hace_reset(struct aspeed_hace_dev *hace_dev)
+{
+	int rc;
+
+	HACE_DBG(hace_dev, "\n");
+
+	if (!hace_dev->rst)
+		return -ENODEV;
+
+	rc = reset_control_assert(hace_dev->rst);
+	if (rc) {
+		dev_err(hace_dev->dev, "Hace reset failed (assert).\n");
+		return rc;
+	}
+
+	rc = reset_control_deassert(hace_dev->rst);
+	if (rc) {
+		dev_err(hace_dev->dev, "Hace reset failed (deassert).\n");
+		return rc;
+	}
+
+	return 0;
+}
 
 /* HACE interrupt service routine */
 static irqreturn_t aspeed_hace_irq(int irq, void *dev)
@@ -51,23 +93,9 @@ static irqreturn_t aspeed_hace_irq(int irq, void *dev)
 			dev_warn(hace_dev->dev, "CRYPTO no active requests.\n");
 	}
 
+	HACE_DBG(hace_dev, "handled\n");
+
 	return IRQ_HANDLED;
-}
-
-static void aspeed_hace_crypto_done_task(unsigned long data)
-{
-	struct aspeed_hace_dev *hace_dev = (struct aspeed_hace_dev *)data;
-	struct aspeed_engine_crypto *crypto_engine = &hace_dev->crypto_engine;
-
-	crypto_engine->resume(hace_dev);
-}
-
-static void aspeed_hace_hash_done_task(unsigned long data)
-{
-	struct aspeed_hace_dev *hace_dev = (struct aspeed_hace_dev *)data;
-	struct aspeed_engine_hash *hash_engine = &hace_dev->hash_engine;
-
-	hash_engine->resume(hace_dev);
 }
 
 static void aspeed_hace_register(struct aspeed_hace_dev *hace_dev)
@@ -93,30 +121,32 @@ static void aspeed_hace_unregister(struct aspeed_hace_dev *hace_dev)
 static const struct of_device_id aspeed_hace_of_matches[] = {
 	{ .compatible = "aspeed,ast2500-hace", .data = (void *)5, },
 	{ .compatible = "aspeed,ast2600-hace", .data = (void *)6, },
+	{ .compatible = "aspeed,ast2700-hace", .data = (void *)7, },
 	{},
 };
 
 static int aspeed_hace_probe(struct platform_device *pdev)
 {
-	struct aspeed_engine_crypto *crypto_engine;
-	struct aspeed_engine_hash *hash_engine;
+	const struct of_device_id *hace_dev_id;
 	struct aspeed_hace_dev *hace_dev;
+	struct device_node *sec_node;
+	struct device *dev = &pdev->dev;
 	int rc;
+	int err;
 
 	hace_dev = devm_kzalloc(&pdev->dev, sizeof(struct aspeed_hace_dev),
 				GFP_KERNEL);
 	if (!hace_dev)
 		return -ENOMEM;
 
-	hace_dev->version = (uintptr_t)device_get_match_data(&pdev->dev);
-	if (!hace_dev->version) {
+	hace_dev_id = of_match_device(aspeed_hace_of_matches, &pdev->dev);
+	if (!hace_dev_id) {
 		dev_err(&pdev->dev, "Failed to match hace dev id\n");
 		return -EINVAL;
 	}
 
 	hace_dev->dev = &pdev->dev;
-	hash_engine = &hace_dev->hash_engine;
-	crypto_engine = &hace_dev->crypto_engine;
+	hace_dev->version = (unsigned long)hace_dev_id->data;
 
 	platform_set_drvdata(pdev, hace_dev);
 
@@ -149,100 +179,74 @@ static int aspeed_hace_probe(struct platform_device *pdev)
 		return rc;
 	}
 
-	/* Initialize crypto hardware engine structure for hash */
-	hace_dev->crypt_engine_hash = crypto_engine_alloc_init(hace_dev->dev,
-							       true);
-	if (!hace_dev->crypt_engine_hash) {
-		rc = -ENOMEM;
-		goto clk_exit;
+	hace_dev->rst = devm_reset_control_get_shared(dev, NULL);
+	if (IS_ERR(hace_dev->rst)) {
+		dev_err(&pdev->dev, "Failed to get hace reset\n");
+		return PTR_ERR(hace_dev->rst);
 	}
 
-	rc = crypto_engine_start(hace_dev->crypt_engine_hash);
-	if (rc)
-		goto err_engine_hash_start;
-
-	tasklet_init(&hash_engine->done_task, aspeed_hace_hash_done_task,
-		     (unsigned long)hace_dev);
-
-	/* Initialize crypto hardware engine structure for crypto */
-	hace_dev->crypt_engine_crypto = crypto_engine_alloc_init(hace_dev->dev,
-								 true);
-	if (!hace_dev->crypt_engine_crypto) {
-		rc = -ENOMEM;
-		goto err_engine_hash_start;
+	rc = reset_control_deassert(hace_dev->rst);
+	if (rc) {
+		dev_err(&pdev->dev, "Deassert hace reset failed\n");
+		return rc;
 	}
 
-	rc = crypto_engine_start(hace_dev->crypt_engine_crypto);
-	if (rc)
-		goto err_engine_crypto_start;
-
-	tasklet_init(&crypto_engine->done_task, aspeed_hace_crypto_done_task,
-		     (unsigned long)hace_dev);
-
-	/* Allocate DMA buffer for hash engine input used */
-	hash_engine->ahash_src_addr =
-		dmam_alloc_coherent(&pdev->dev,
-				    ASPEED_HASH_SRC_DMA_BUF_LEN,
-				    &hash_engine->ahash_src_dma_addr,
-				    GFP_KERNEL);
-	if (!hash_engine->ahash_src_addr) {
-		dev_err(&pdev->dev, "Failed to allocate dma buffer\n");
-		rc = -ENOMEM;
-		goto err_engine_crypto_start;
+	rc = dma_set_mask_and_coherent(&pdev->dev, DMA_BIT_MASK(64));
+	if (rc) {
+		dev_warn(&pdev->dev, "No suitable DMA available\n");
+		return rc;
 	}
 
-	/* Allocate DMA buffer for crypto engine context used */
-	crypto_engine->cipher_ctx =
-		dmam_alloc_coherent(&pdev->dev,
-				    PAGE_SIZE,
-				    &crypto_engine->cipher_ctx_dma,
-				    GFP_KERNEL);
-	if (!crypto_engine->cipher_ctx) {
-		dev_err(&pdev->dev, "Failed to allocate cipher ctx dma\n");
-		rc = -ENOMEM;
-		goto err_engine_crypto_start;
+#ifdef CONFIG_CRYPTO_DEV_ASPEED_HACE_HASH
+	rc = aspeed_hace_hash_init(hace_dev);
+	if (rc) {
+		dev_err(&pdev->dev, "Hash init failed\n");
+		return rc;
+	}
+#endif
+#ifdef CONFIG_CRYPTO_DEV_ASPEED_HACE_CRYPTO
+	rc = aspeed_hace_crypto_init(hace_dev);
+	if (rc) {
+		dev_err(&pdev->dev, "Crypto init failed\n");
+		return rc;
 	}
 
-	/* Allocate DMA buffer for crypto engine input used */
-	crypto_engine->cipher_addr =
-		dmam_alloc_coherent(&pdev->dev,
-				    ASPEED_CRYPTO_SRC_DMA_BUF_LEN,
-				    &crypto_engine->cipher_dma_addr,
-				    GFP_KERNEL);
-	if (!crypto_engine->cipher_addr) {
-		dev_err(&pdev->dev, "Failed to allocate cipher addr dma\n");
-		rc = -ENOMEM;
-		goto err_engine_crypto_start;
-	}
-
-	/* Allocate DMA buffer for crypto engine output used */
-	if (hace_dev->version == AST2600_VERSION) {
-		crypto_engine->dst_sg_addr =
-			dmam_alloc_coherent(&pdev->dev,
-					    ASPEED_CRYPTO_DST_DMA_BUF_LEN,
-					    &crypto_engine->dst_sg_dma_addr,
-					    GFP_KERNEL);
-		if (!crypto_engine->dst_sg_addr) {
-			dev_err(&pdev->dev, "Failed to allocate dst_sg dma\n");
-			rc = -ENOMEM;
-			goto err_engine_crypto_start;
+	if (of_find_property(dev->of_node, "dummy-key1", NULL)) {
+		dummy_key1 = kzalloc(DUMMY_KEY_SIZE, GFP_KERNEL);
+		if (dummy_key1) {
+			err = of_property_read_u8_array(dev->of_node, "dummy-key1", dummy_key1, DUMMY_KEY_SIZE);
+			if (err)
+				dev_err(dev, "error of reading dummy_key 1\n");
+		} else {
+			dev_err(dev, "error dummy_key1 allocation\n");
 		}
 	}
 
+	if (of_find_property(dev->of_node, "dummy-key2", NULL)) {
+		dummy_key2 = kzalloc(DUMMY_KEY_SIZE, GFP_KERNEL);
+		if (dummy_key2) {
+			err = of_property_read_u8_array(dev->of_node, "dummy-key2", dummy_key2, DUMMY_KEY_SIZE);
+			if (err)
+				dev_err(dev, "error of reading dummy_key 2\n");
+		} else {
+			dev_err(dev, "error dummy_key2 allocation\n");
+		}
+	}
+
+	sec_node = of_find_compatible_node(NULL, NULL, "aspeed,ast2600-sbc");
+	if (!sec_node) {
+		dev_err(dev, "cannot find sbc node\n");
+	} else {
+		hace_dev->sec_regs = of_iomap(sec_node, 0);
+		if (!hace_dev->sec_regs)
+			dev_err(dev, "failed to map SBC registers\n");
+	}
+#endif
 	aspeed_hace_register(hace_dev);
 
 	dev_info(&pdev->dev, "Aspeed Crypto Accelerator successfully registered\n");
 
 	return 0;
-
-err_engine_crypto_start:
-	crypto_engine_exit(hace_dev->crypt_engine_crypto);
-err_engine_hash_start:
-	crypto_engine_exit(hace_dev->crypt_engine_hash);
-clk_exit:
-	clk_disable_unprepare(hace_dev->clk);
-
-	return rc;
 }
 
 static void aspeed_hace_remove(struct platform_device *pdev)
@@ -253,12 +257,14 @@ static void aspeed_hace_remove(struct platform_device *pdev)
 
 	aspeed_hace_unregister(hace_dev);
 
+#ifdef CONFIG_CRYPTO_DEV_ASPEED_HACE_HASH
 	crypto_engine_exit(hace_dev->crypt_engine_hash);
-	crypto_engine_exit(hace_dev->crypt_engine_crypto);
-
 	tasklet_kill(&hash_engine->done_task);
+#endif
+#ifdef CONFIG_CRYPTO_DEV_ASPEED_HACE_CRYPTO
+	crypto_engine_exit(hace_dev->crypt_engine_crypto);
 	tasklet_kill(&crypto_engine->done_task);
-
+#endif
 	clk_disable_unprepare(hace_dev->clk);
 }
 
@@ -266,7 +272,7 @@ MODULE_DEVICE_TABLE(of, aspeed_hace_of_matches);
 
 static struct platform_driver aspeed_hace_driver = {
 	.probe		= aspeed_hace_probe,
-	.remove_new	= aspeed_hace_remove,
+	.remove		= aspeed_hace_remove,
 	.driver         = {
 		.name   = KBUILD_MODNAME,
 		.of_match_table = aspeed_hace_of_matches,

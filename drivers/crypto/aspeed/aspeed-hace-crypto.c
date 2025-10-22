@@ -24,6 +24,11 @@
 	dev_dbg((h)->dev, "%s() " fmt, __func__, ##__VA_ARGS__)
 #endif
 
+#define ASPEED_SEC_PROTECTION		0x0
+#define SEC_UNLOCK_PASSWORD		0x349fe38a
+#define ASPEED_VAULT_KEY_CTRL		0x80C
+#define SEC_VK_CTRL_VK_SELECTION	BIT(0)
+
 static int aspeed_crypto_do_fallback(struct skcipher_request *areq)
 {
 	struct aspeed_cipher_reqctx *rctx = skcipher_request_ctx(areq);
@@ -210,6 +215,13 @@ static int aspeed_sk_start(struct aspeed_hace_dev *hace_dev)
 		       ASPEED_HACE_SRC);
 	ast_hace_write(hace_dev, crypto_engine->cipher_dma_addr,
 		       ASPEED_HACE_DEST);
+#ifdef CONFIG_ARCH_DMA_ADDR_T_64BIT
+	ast_hace_write(hace_dev, crypto_engine->cipher_dma_addr >> 32,
+		       ASPEED_HACE_SRC_H);
+	ast_hace_write(hace_dev, crypto_engine->cipher_dma_addr >> 32,
+		       ASPEED_HACE_DEST_H);
+#endif
+
 	ast_hace_write(hace_dev, req->cryptlen, ASPEED_HACE_DATA_LEN);
 	ast_hace_write(hace_dev, rctx->enc_cmd, ASPEED_HACE_CMD);
 
@@ -222,20 +234,64 @@ static int aspeed_sk_start_sg(struct aspeed_hace_dev *hace_dev)
 	struct aspeed_sg_list *src_list, *dst_list;
 	dma_addr_t src_dma_addr, dst_dma_addr;
 	struct aspeed_cipher_reqctx *rctx;
+	struct crypto_skcipher *cipher;
+	struct aspeed_cipher_ctx *ctx;
 	struct skcipher_request *req;
 	struct scatterlist *s;
+	int use_vault_key = 0;
 	int src_sg_len;
 	int dst_sg_len;
 	int total, i;
 	int rc;
+	u32 val;
 
 	CIPHER_DBG(hace_dev, "\n");
 
 	req = crypto_engine->req;
+	cipher = crypto_skcipher_reqtfm(req);
+	ctx = crypto_skcipher_ctx(cipher);
 	rctx = skcipher_request_ctx(req);
 
 	rctx->enc_cmd |= HACE_CMD_DES_SG_CTRL | HACE_CMD_SRC_SG_CTRL |
 			 HACE_CMD_AES_KEY_HW_EXP | HACE_CMD_MBUS_REQ_SYNC_EN;
+
+	if (crypto_engine->load_vault_key) {
+		writel(SEC_UNLOCK_PASSWORD, hace_dev->sec_regs + ASPEED_SEC_PROTECTION);
+		CIPHER_DBG(hace_dev, "unlock SB, SEC000=0x%x\n", readl(hace_dev->sec_regs + ASPEED_SEC_PROTECTION));
+		val = readl(hace_dev->sec_regs + ASPEED_VAULT_KEY_CTRL);
+		if (val & BIT(2)) {
+			if (ctx->dummy_key == 1 && !(val & BIT(0))) {
+				use_vault_key = 1;
+				CIPHER_DBG(hace_dev, "Use Vault key 1\n");
+			} else if (ctx->dummy_key == 2 && (val & BIT(0))) {
+				use_vault_key = 1;
+				CIPHER_DBG(hace_dev, "Use Vault key 2\n");
+			} else {
+				use_vault_key = 0;
+			}
+		} else {
+			if (ctx->dummy_key == 1) {
+				use_vault_key = 1;
+				val &= ~SEC_VK_CTRL_VK_SELECTION;
+				writel(val, hace_dev->sec_regs + ASPEED_VAULT_KEY_CTRL);
+				CIPHER_DBG(hace_dev, "Set Vault key 1\n");
+			} else if (ctx->dummy_key == 2) {
+				use_vault_key = 1;
+				val |= SEC_VK_CTRL_VK_SELECTION;
+				writel(val, hace_dev->sec_regs + ASPEED_VAULT_KEY_CTRL);
+				CIPHER_DBG(hace_dev, "Set Vault key 2\n");
+			} else {
+				use_vault_key = 0;
+			}
+		}
+		writel(0x0, hace_dev->sec_regs + ASPEED_SEC_PROTECTION);
+		CIPHER_DBG(hace_dev, "lock SB, SEC000=0x%x\n", readl(hace_dev->sec_regs + ASPEED_SEC_PROTECTION));
+
+		if (use_vault_key)
+			rctx->enc_cmd |= HACE_CMD_AES_KEY_FROM_OTP;
+		else
+			rctx->enc_cmd &= ~HACE_CMD_AES_KEY_FROM_OTP;
+	}
 
 	/* BIDIRECTIONAL */
 	if (req->dst == req->src) {
@@ -334,6 +390,12 @@ static int aspeed_sk_start_sg(struct aspeed_hace_dev *hace_dev)
 	/* Trigger engines */
 	ast_hace_write(hace_dev, src_dma_addr, ASPEED_HACE_SRC);
 	ast_hace_write(hace_dev, dst_dma_addr, ASPEED_HACE_DEST);
+
+#ifdef CONFIG_ARCH_DMA_ADDR_T_64BIT
+	ast_hace_write(hace_dev, src_dma_addr >> 32, ASPEED_HACE_SRC_H);
+	ast_hace_write(hace_dev, dst_dma_addr >> 32, ASPEED_HACE_DEST_H);
+#endif
+
 	ast_hace_write(hace_dev, req->cryptlen, ASPEED_HACE_DATA_LEN);
 	ast_hace_write(hace_dev, rctx->enc_cmd, ASPEED_HACE_CMD);
 
@@ -382,6 +444,10 @@ static int aspeed_hace_skcipher_trigger(struct aspeed_hace_dev *hace_dev)
 
 	ast_hace_write(hace_dev, crypto_engine->cipher_ctx_dma,
 		       ASPEED_HACE_CONTEXT);
+#ifdef CONFIG_ARCH_DMA_ADDR_T_64BIT
+	ast_hace_write(hace_dev, crypto_engine->cipher_ctx_dma >> 32,
+		       ASPEED_HACE_CONTEXT_H);
+#endif
 
 	if (rctx->enc_cmd & HACE_CMD_IV_REQUIRE) {
 		if (rctx->enc_cmd & HACE_CMD_DES_SELECT)
@@ -392,7 +458,8 @@ static int aspeed_hace_skcipher_trigger(struct aspeed_hace_dev *hace_dev)
 			       AES_BLOCK_SIZE);
 	}
 
-	if (hace_dev->version == AST2600_VERSION) {
+	if (hace_dev->version == AST2600_VERSION ||
+	    hace_dev->version == AST2700_VERSION) {
 		memcpy(crypto_engine->cipher_ctx + 16, ctx->key, ctx->key_len);
 
 		return aspeed_sk_start_sg(hace_dev);
@@ -473,6 +540,30 @@ static int aspeed_tdes_ctr_encrypt(struct skcipher_request *req)
 				HACE_CMD_TRIPLE_DES);
 }
 
+static int aspeed_tdes_ofb_decrypt(struct skcipher_request *req)
+{
+	return aspeed_des_crypt(req, HACE_CMD_DECRYPT | HACE_CMD_OFB |
+				HACE_CMD_TRIPLE_DES);
+}
+
+static int aspeed_tdes_ofb_encrypt(struct skcipher_request *req)
+{
+	return aspeed_des_crypt(req, HACE_CMD_ENCRYPT | HACE_CMD_OFB |
+				HACE_CMD_TRIPLE_DES);
+}
+
+static int aspeed_tdes_cfb_decrypt(struct skcipher_request *req)
+{
+	return aspeed_des_crypt(req, HACE_CMD_DECRYPT | HACE_CMD_CFB |
+				HACE_CMD_TRIPLE_DES);
+}
+
+static int aspeed_tdes_cfb_encrypt(struct skcipher_request *req)
+{
+	return aspeed_des_crypt(req, HACE_CMD_ENCRYPT | HACE_CMD_CFB |
+				HACE_CMD_TRIPLE_DES);
+}
+
 static int aspeed_tdes_cbc_decrypt(struct skcipher_request *req)
 {
 	return aspeed_des_crypt(req, HACE_CMD_DECRYPT | HACE_CMD_CBC |
@@ -506,6 +597,30 @@ static int aspeed_des_ctr_decrypt(struct skcipher_request *req)
 static int aspeed_des_ctr_encrypt(struct skcipher_request *req)
 {
 	return aspeed_des_crypt(req, HACE_CMD_ENCRYPT | HACE_CMD_CTR |
+				HACE_CMD_SINGLE_DES);
+}
+
+static int aspeed_des_ofb_decrypt(struct skcipher_request *req)
+{
+	return aspeed_des_crypt(req, HACE_CMD_DECRYPT | HACE_CMD_OFB |
+				HACE_CMD_SINGLE_DES);
+}
+
+static int aspeed_des_ofb_encrypt(struct skcipher_request *req)
+{
+	return aspeed_des_crypt(req, HACE_CMD_ENCRYPT | HACE_CMD_OFB |
+				HACE_CMD_SINGLE_DES);
+}
+
+static int aspeed_des_cfb_decrypt(struct skcipher_request *req)
+{
+	return aspeed_des_crypt(req, HACE_CMD_DECRYPT | HACE_CMD_CFB |
+				HACE_CMD_SINGLE_DES);
+}
+
+static int aspeed_des_cfb_encrypt(struct skcipher_request *req)
+{
+	return aspeed_des_crypt(req, HACE_CMD_ENCRYPT | HACE_CMD_CFB |
 				HACE_CMD_SINGLE_DES);
 }
 
@@ -580,6 +695,8 @@ static int aspeed_aes_setkey(struct crypto_skcipher *cipher, const u8 *key,
 
 	CIPHER_DBG(hace_dev, "keylen: %d bits\n", (keylen * 8));
 
+	ctx->dummy_key = find_dummy_key(key, keylen);
+
 	if (keylen != AES_KEYSIZE_128 && keylen != AES_KEYSIZE_192 &&
 	    keylen != AES_KEYSIZE_256)
 		return -EINVAL;
@@ -609,6 +726,26 @@ static int aspeed_aes_ctr_decrypt(struct skcipher_request *req)
 static int aspeed_aes_ctr_encrypt(struct skcipher_request *req)
 {
 	return aspeed_aes_crypt(req, HACE_CMD_ENCRYPT | HACE_CMD_CTR);
+}
+
+static int aspeed_aes_ofb_decrypt(struct skcipher_request *req)
+{
+	return aspeed_aes_crypt(req, HACE_CMD_DECRYPT | HACE_CMD_OFB);
+}
+
+static int aspeed_aes_ofb_encrypt(struct skcipher_request *req)
+{
+	return aspeed_aes_crypt(req, HACE_CMD_ENCRYPT | HACE_CMD_OFB);
+}
+
+static int aspeed_aes_cfb_decrypt(struct skcipher_request *req)
+{
+	return aspeed_aes_crypt(req, HACE_CMD_DECRYPT | HACE_CMD_CFB);
+}
+
+static int aspeed_aes_cfb_encrypt(struct skcipher_request *req)
+{
+	return aspeed_aes_crypt(req, HACE_CMD_ENCRYPT | HACE_CMD_CFB);
 }
 
 static int aspeed_aes_cbc_decrypt(struct skcipher_request *req)
@@ -724,6 +861,60 @@ static struct aspeed_hace_alg aspeed_crypto_algs[] = {
 	},
 	{
 		.alg.skcipher.base = {
+			.ivsize		= AES_BLOCK_SIZE,
+			.min_keysize	= AES_MIN_KEY_SIZE,
+			.max_keysize	= AES_MAX_KEY_SIZE,
+			.setkey		= aspeed_aes_setkey,
+			.encrypt	= aspeed_aes_cfb_encrypt,
+			.decrypt	= aspeed_aes_cfb_decrypt,
+			.init		= aspeed_crypto_cra_init,
+			.exit		= aspeed_crypto_cra_exit,
+			.base = {
+				.cra_name		= "cfb(aes)",
+				.cra_driver_name	= "aspeed-cfb-aes",
+				.cra_priority		= 300,
+				.cra_flags		= CRYPTO_ALG_KERN_DRIVER_ONLY |
+							  CRYPTO_ALG_ASYNC |
+							  CRYPTO_ALG_NEED_FALLBACK,
+				.cra_blocksize		= 1,
+				.cra_ctxsize		= sizeof(struct aspeed_cipher_ctx),
+				.cra_alignmask		= 0x0f,
+				.cra_module		= THIS_MODULE,
+			}
+		},
+		.alg.skcipher.op = {
+			.do_one_request = aspeed_crypto_do_request,
+		},
+	},
+	{
+		.alg.skcipher.base = {
+			.ivsize		= AES_BLOCK_SIZE,
+			.min_keysize	= AES_MIN_KEY_SIZE,
+			.max_keysize	= AES_MAX_KEY_SIZE,
+			.setkey		= aspeed_aes_setkey,
+			.encrypt	= aspeed_aes_ofb_encrypt,
+			.decrypt	= aspeed_aes_ofb_decrypt,
+			.init		= aspeed_crypto_cra_init,
+			.exit		= aspeed_crypto_cra_exit,
+			.base = {
+				.cra_name		= "ofb(aes)",
+				.cra_driver_name	= "aspeed-ofb-aes",
+				.cra_priority		= 300,
+				.cra_flags		= CRYPTO_ALG_KERN_DRIVER_ONLY |
+							  CRYPTO_ALG_ASYNC |
+							  CRYPTO_ALG_NEED_FALLBACK,
+				.cra_blocksize		= 1,
+				.cra_ctxsize		= sizeof(struct aspeed_cipher_ctx),
+				.cra_alignmask		= 0x0f,
+				.cra_module		= THIS_MODULE,
+			}
+		},
+		.alg.skcipher.op = {
+			.do_one_request = aspeed_crypto_do_request,
+		},
+	},
+	{
+		.alg.skcipher.base = {
 			.min_keysize	= DES_KEY_SIZE,
 			.max_keysize	= DES_KEY_SIZE,
 			.setkey		= aspeed_des_setkey,
@@ -777,6 +968,60 @@ static struct aspeed_hace_alg aspeed_crypto_algs[] = {
 	},
 	{
 		.alg.skcipher.base = {
+			.ivsize		= DES_BLOCK_SIZE,
+			.min_keysize	= DES_KEY_SIZE,
+			.max_keysize	= DES_KEY_SIZE,
+			.setkey		= aspeed_des_setkey,
+			.encrypt	= aspeed_des_cfb_encrypt,
+			.decrypt	= aspeed_des_cfb_decrypt,
+			.init		= aspeed_crypto_cra_init,
+			.exit		= aspeed_crypto_cra_exit,
+			.base = {
+				.cra_name		= "cfb(des)",
+				.cra_driver_name	= "aspeed-cfb-des",
+				.cra_priority		= 300,
+				.cra_flags		= CRYPTO_ALG_KERN_DRIVER_ONLY |
+							  CRYPTO_ALG_ASYNC |
+							  CRYPTO_ALG_NEED_FALLBACK,
+				.cra_blocksize		= DES_BLOCK_SIZE,
+				.cra_ctxsize		= sizeof(struct aspeed_cipher_ctx),
+				.cra_alignmask		= 0x0f,
+				.cra_module		= THIS_MODULE,
+			}
+		},
+		.alg.skcipher.op = {
+			.do_one_request = aspeed_crypto_do_request,
+		},
+	},
+	{
+		.alg.skcipher.base = {
+			.ivsize		= DES_BLOCK_SIZE,
+			.min_keysize	= DES_KEY_SIZE,
+			.max_keysize	= DES_KEY_SIZE,
+			.setkey		= aspeed_des_setkey,
+			.encrypt	= aspeed_des_ofb_encrypt,
+			.decrypt	= aspeed_des_ofb_decrypt,
+			.init		= aspeed_crypto_cra_init,
+			.exit		= aspeed_crypto_cra_exit,
+			.base = {
+				.cra_name		= "ofb(des)",
+				.cra_driver_name	= "aspeed-ofb-des",
+				.cra_priority		= 300,
+				.cra_flags		= CRYPTO_ALG_KERN_DRIVER_ONLY |
+							  CRYPTO_ALG_ASYNC |
+							  CRYPTO_ALG_NEED_FALLBACK,
+				.cra_blocksize		= DES_BLOCK_SIZE,
+				.cra_ctxsize		= sizeof(struct aspeed_cipher_ctx),
+				.cra_alignmask		= 0x0f,
+				.cra_module		= THIS_MODULE,
+			}
+		},
+		.alg.skcipher.op = {
+			.do_one_request = aspeed_crypto_do_request,
+		},
+	},
+	{
+		.alg.skcipher.base = {
 			.min_keysize	= DES3_EDE_KEY_SIZE,
 			.max_keysize	= DES3_EDE_KEY_SIZE,
 			.setkey		= aspeed_des_setkey,
@@ -814,6 +1059,60 @@ static struct aspeed_hace_alg aspeed_crypto_algs[] = {
 			.base = {
 				.cra_name		= "cbc(des3_ede)",
 				.cra_driver_name	= "aspeed-cbc-tdes",
+				.cra_priority		= 300,
+				.cra_flags		= CRYPTO_ALG_KERN_DRIVER_ONLY |
+							  CRYPTO_ALG_ASYNC |
+							  CRYPTO_ALG_NEED_FALLBACK,
+				.cra_blocksize		= DES_BLOCK_SIZE,
+				.cra_ctxsize		= sizeof(struct aspeed_cipher_ctx),
+				.cra_alignmask		= 0x0f,
+				.cra_module		= THIS_MODULE,
+			}
+		},
+		.alg.skcipher.op = {
+			.do_one_request = aspeed_crypto_do_request,
+		},
+	},
+	{
+		.alg.skcipher.base = {
+			.ivsize		= DES_BLOCK_SIZE,
+			.min_keysize	= DES3_EDE_KEY_SIZE,
+			.max_keysize	= DES3_EDE_KEY_SIZE,
+			.setkey		= aspeed_des_setkey,
+			.encrypt	= aspeed_tdes_cfb_encrypt,
+			.decrypt	= aspeed_tdes_cfb_decrypt,
+			.init		= aspeed_crypto_cra_init,
+			.exit		= aspeed_crypto_cra_exit,
+			.base = {
+				.cra_name		= "cfb(des3_ede)",
+				.cra_driver_name	= "aspeed-cfb-tdes",
+				.cra_priority		= 300,
+				.cra_flags		= CRYPTO_ALG_KERN_DRIVER_ONLY |
+							  CRYPTO_ALG_ASYNC |
+							  CRYPTO_ALG_NEED_FALLBACK,
+				.cra_blocksize		= DES_BLOCK_SIZE,
+				.cra_ctxsize		= sizeof(struct aspeed_cipher_ctx),
+				.cra_alignmask		= 0x0f,
+				.cra_module		= THIS_MODULE,
+			}
+		},
+		.alg.skcipher.op = {
+			.do_one_request = aspeed_crypto_do_request,
+		},
+	},
+	{
+		.alg.skcipher.base = {
+			.ivsize		= DES_BLOCK_SIZE,
+			.min_keysize	= DES3_EDE_KEY_SIZE,
+			.max_keysize	= DES3_EDE_KEY_SIZE,
+			.setkey		= aspeed_des_setkey,
+			.encrypt	= aspeed_tdes_ofb_encrypt,
+			.decrypt	= aspeed_tdes_ofb_decrypt,
+			.init		= aspeed_crypto_cra_init,
+			.exit		= aspeed_crypto_cra_exit,
+			.base = {
+				.cra_name		= "ofb(des3_ede)",
+				.cra_driver_name	= "aspeed-ofb-tdes",
 				.cra_priority		= 300,
 				.cra_flags		= CRYPTO_ALG_KERN_DRIVER_ONLY |
 							  CRYPTO_ALG_ASYNC |
@@ -919,18 +1218,48 @@ void aspeed_unregister_hace_crypto_algs(struct aspeed_hace_dev *hace_dev)
 	for (i = 0; i < ARRAY_SIZE(aspeed_crypto_algs); i++)
 		crypto_engine_unregister_skcipher(&aspeed_crypto_algs[i].alg.skcipher);
 
-	if (hace_dev->version != AST2600_VERSION)
+	if (hace_dev->version == AST2500_VERSION)
 		return;
 
 	for (i = 0; i < ARRAY_SIZE(aspeed_crypto_algs_g6); i++)
 		crypto_engine_unregister_skcipher(&aspeed_crypto_algs_g6[i].alg.skcipher);
 }
 
+#ifdef CONFIG_AST2600_OTP
+static void find_vault_key(struct aspeed_hace_dev *hace_dev)
+{
+	struct aspeed_engine_crypto *crypto_engine = &hace_dev->crypto_engine;
+	u32 otp_data[16];
+	int i;
+
+	crypto_engine->load_vault_key = 0;
+
+	otp_read_data_buf(0, otp_data, 16);
+	for (i = 0; i < 16; i++) {
+		CIPHER_DBG(hace_dev, "OTPDATA%d=%x\n", i, otp_data[i]);
+		if (((otp_data[i] >> 14) & 0xf) == 1) {
+			CIPHER_DBG(hace_dev, "Found vault key in OTP\n");
+			crypto_engine->load_vault_key = 1;
+			return;
+		}
+		if (otp_data[i] & BIT(13))
+			break;
+	}
+	CIPHER_DBG(hace_dev, "Not found vault key in OTP\n");
+}
+#endif
+
 void aspeed_register_hace_crypto_algs(struct aspeed_hace_dev *hace_dev)
 {
 	int rc, i;
 
 	CIPHER_DBG(hace_dev, "\n");
+
+#ifdef CONFIG_AST2600_OTP
+	find_vault_key(hace_dev);
+#else
+	hace_dev->crypto_engine.load_vault_key = 0;
+#endif
 
 	for (i = 0; i < ARRAY_SIZE(aspeed_crypto_algs); i++) {
 		aspeed_crypto_algs[i].hace_dev = hace_dev;
@@ -941,7 +1270,7 @@ void aspeed_register_hace_crypto_algs(struct aspeed_hace_dev *hace_dev)
 		}
 	}
 
-	if (hace_dev->version != AST2600_VERSION)
+	if (hace_dev->version == AST2500_VERSION)
 		return;
 
 	for (i = 0; i < ARRAY_SIZE(aspeed_crypto_algs_g6); i++) {
@@ -952,4 +1281,81 @@ void aspeed_register_hace_crypto_algs(struct aspeed_hace_dev *hace_dev)
 				   aspeed_crypto_algs_g6[i].alg.skcipher.base.base.cra_name);
 		}
 	}
+}
+
+static void aspeed_hace_crypto_done_task(unsigned long data)
+{
+	struct aspeed_hace_dev *hace_dev = (struct aspeed_hace_dev *)data;
+	struct aspeed_engine_crypto *crypto_engine = &hace_dev->crypto_engine;
+
+	crypto_engine->resume(hace_dev);
+}
+
+int aspeed_hace_crypto_init(struct aspeed_hace_dev *hace_dev)
+{
+	struct aspeed_engine_crypto *crypto_engine;
+	int rc;
+
+	crypto_engine = &hace_dev->crypto_engine;
+
+	/* Initialize crypto hardware engine structure for crypto */
+	hace_dev->crypt_engine_crypto = crypto_engine_alloc_init(hace_dev->dev,
+								 true);
+	if (!hace_dev->crypt_engine_crypto) {
+		rc = -ENOMEM;
+		goto end;
+	}
+
+	rc = crypto_engine_start(hace_dev->crypt_engine_crypto);
+	if (rc)
+		goto err_engine_crypto_start;
+
+	tasklet_init(&crypto_engine->done_task, aspeed_hace_crypto_done_task,
+		     (unsigned long)hace_dev);
+
+	/* Allocate DMA buffer for crypto engine context used */
+	crypto_engine->cipher_ctx =
+		dmam_alloc_coherent(hace_dev->dev,
+				    PAGE_SIZE,
+				    &crypto_engine->cipher_ctx_dma,
+				    GFP_KERNEL);
+	if (!crypto_engine->cipher_ctx) {
+		dev_err(hace_dev->dev, "Failed to allocate cipher ctx dma\n");
+		rc = -ENOMEM;
+		goto err_engine_crypto_start;
+	}
+
+	/* Allocate DMA buffer for crypto engine input used */
+	crypto_engine->cipher_addr =
+		dmam_alloc_coherent(hace_dev->dev,
+				    ASPEED_CRYPTO_SRC_DMA_BUF_LEN,
+				    &crypto_engine->cipher_dma_addr,
+				    GFP_KERNEL);
+	if (!crypto_engine->cipher_addr) {
+		dev_err(hace_dev->dev, "Failed to allocate cipher addr dma\n");
+		rc = -ENOMEM;
+		goto err_engine_crypto_start;
+	}
+
+	/* Allocate DMA buffer for crypto engine output used */
+	if (hace_dev->version == AST2600_VERSION ||
+	    hace_dev->version == AST2700_VERSION) {
+		crypto_engine->dst_sg_addr =
+			dmam_alloc_coherent(hace_dev->dev,
+					    ASPEED_CRYPTO_DST_DMA_BUF_LEN,
+					    &crypto_engine->dst_sg_dma_addr,
+					    GFP_KERNEL);
+		if (!crypto_engine->dst_sg_addr) {
+			dev_err(hace_dev->dev, "Failed to allocate dst_sg dma\n");
+			rc = -ENOMEM;
+			goto err_engine_crypto_start;
+		}
+	}
+
+	return 0;
+
+err_engine_crypto_start:
+	crypto_engine_exit(hace_dev->crypt_engine_crypto);
+end:
+	return rc;
 }
