@@ -826,6 +826,10 @@
 	status = "okay";
 };
 
+&ecdsa {
+	status = "okay";
+};
+
 #if PCIE0_EP
 &bmc_dev0 {
 	status = "okay";
