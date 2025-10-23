@@ -2838,6 +2838,7 @@ static int __init tcrypt_mod_init(void)
 		pr_err("one or more tests failed!\n");
 		goto err_free_tv;
 	} else {
+		pr_info("alg:%s, mode:%d tests passed\n", alg, mode);
 		pr_debug("all tests passed\n");
 	}
 
