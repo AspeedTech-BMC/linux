@@ -536,6 +536,10 @@
 	status = "okay";
 };
 
+&acry {
+	status = "okay";
+};
+
 &uart3 {
 	status = "okay";
 };
