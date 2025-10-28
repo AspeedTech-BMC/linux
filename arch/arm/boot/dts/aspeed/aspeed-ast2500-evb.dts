@@ -151,11 +151,6 @@
 	status = "okay";
 };
 
-&gfx {
-     status = "okay";
-     memory-region = <&gfx_memory>;
-};
-
 &video {
 	status = "okay";
 	memory-region = <&video_engine_memory>;

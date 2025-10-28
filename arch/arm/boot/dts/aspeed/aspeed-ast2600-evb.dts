@@ -480,11 +480,6 @@
 	memory-region = <&video_engine_memory>;
 };
 
-&gfx {
-	status = "okay";
-	memory-region = <&gfx_memory>;
-};
-
 &espi {
 	status = "okay";
 	perif-dma-mode;
