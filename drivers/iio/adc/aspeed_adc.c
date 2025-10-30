@@ -849,12 +849,12 @@ static const struct aspeed_adc_trim_locate ast2600_adc1_trim = {
 };
 
 static const struct aspeed_adc_trim_locate ast2700_adc0_trim = {
-	.offset = 0x828,
+	.offset = 0x820,
 	.field = GENMASK(3, 0),
 };
 
 static const struct aspeed_adc_trim_locate ast2700_adc1_trim = {
-	.offset = 0x828,
+	.offset = 0x820,
 	.field = GENMASK(7, 4),
 };
 
