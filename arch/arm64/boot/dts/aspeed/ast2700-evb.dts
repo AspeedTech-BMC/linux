@@ -331,10 +331,6 @@
 	status = "okay";
 };
 
-&sgpios {
-	status = "okay";
-};
-
 &adc0 {
 	aspeed,int-vref-microvolt = <2500000>;
 	status = "okay";
