@@ -244,6 +244,8 @@ struct aspeed_xdma_chip {
 	u32 control;
 	u32 scu_bmc_class;
 	u32 scu_misc_ctrl;
+	u32 scu_misc_mask;
+	u32 scu_disable_mask;
 	u32 scu_pcie_conf;
 	u32 scu_pcie_ctrl;
 	unsigned int queue_entry_size;
@@ -979,19 +981,12 @@ static int aspeed_xdma_init_scu(struct aspeed_xdma *ctx, struct device *dev)
 				   selection);
 
 		if (ctx->chip->scu_misc_ctrl) {
-			u32 mask = (ctx->chip->regs.bmc_cmdq_addr_ext)
-				 ? SCU_AST2700_MISC_CTRL_XDMA_CLIENT
-				 : SCU_AST2600_MISC_CTRL_XDMA_BMC;
-			u32 disable = DEBUG_CTRL_AST2600_XDMA_DISABLE;
-
-			if (ctx->chip->regs.bmc_cmdq_addr_ext)
-				disable |= DEBUG_CTRL_AST2700_XDMA_DISABLE;
-
 			regmap_update_bits(scu, ctx->chip->scu_misc_ctrl,
-					   mask, mask);
+					   ctx->chip->scu_misc_mask,
+					   ctx->chip->scu_misc_mask);
 
 			regmap_update_bits(scu, SCU_AST2600_DEBUG_CTRL,
-					   disable, 0);
+					   ctx->chip->scu_disable_mask, 0);
 		}
 
 		if (ctx->chip->scu_pcie_ctrl) {
@@ -1331,6 +1326,8 @@ static const struct aspeed_xdma_chip aspeed_ast2600_xdma_chip = {
 		XDMA_AST2600_CTRL_DS_DIRTY | XDMA_AST2600_CTRL_DS_SIZE_256,
 	.scu_bmc_class = SCU_AST2600_BMC_CLASS_REV,
 	.scu_misc_ctrl = SCU_AST2600_MISC_CTRL,
+	.scu_misc_mask = SCU_AST2600_MISC_CTRL_XDMA_BMC,
+	.scu_disable_mask = DEBUG_CTRL_AST2600_XDMA_DISABLE,
 	.scu_pcie_conf = SCU_AST2600_PCIE_CONF,
 	.scu_pcie_ctrl = 0,
 	.queue_entry_size = XDMA_AST2600_QUEUE_ENTRY_SIZE,
@@ -1356,6 +1353,8 @@ static const struct aspeed_xdma_chip aspeed_ast2700_xdma0_chip = {
 		XDMA_AST2700_CTRL_DS_DIRTY,
 	.scu_bmc_class = SCU_AST2700_PCIE0_BMC_CLASS_REV,
 	.scu_misc_ctrl = SCU_AST2600_MISC_CTRL,
+	.scu_misc_mask = SCU_AST2700_MISC_CTRL_XDMA_CLIENT,
+	.scu_disable_mask = DEBUG_CTRL_AST2600_XDMA_DISABLE | DEBUG_CTRL_AST2700_XDMA_DISABLE,
 	.scu_pcie_conf = SCU_AST2700_PCIE0_CONF,
 	.scu_pcie_ctrl = SCU_AST2700_PCIE0_CTRL,
 	.queue_entry_size = XDMA_AST2700_QUEUE_ENTRY_SIZE,
@@ -1381,6 +1380,8 @@ static const struct aspeed_xdma_chip aspeed_ast2700_xdma1_chip = {
 		XDMA_AST2700_CTRL_DS_DIRTY,
 	.scu_bmc_class = SCU_AST2700_PCIE1_BMC_CLASS_REV,
 	.scu_misc_ctrl = SCU_AST2600_MISC_CTRL,
+	.scu_misc_mask = SCU_AST2700_MISC_CTRL_XDMA_CLIENT,
+	.scu_disable_mask = DEBUG_CTRL_AST2600_XDMA_DISABLE | DEBUG_CTRL_AST2700_XDMA_DISABLE,
 	.scu_pcie_conf = SCU_AST2700_PCIE1_CONF,
 	.scu_pcie_ctrl = SCU_AST2700_PCIE1_CTRL,
 	.queue_entry_size = XDMA_AST2700_QUEUE_ENTRY_SIZE,
