@@ -27,6 +27,7 @@
 #define SPI_CTRL		0x04
 #define SPI_CE0_CTRL		0x10
 #define SPI_DECODE_ADDR_REG	0x30
+#define SPI_MISC_CTRL		0x54
 
 #define SPI_FULL_DUPLEX_RX_REG	0x1e4
 
@@ -362,7 +363,7 @@ static int aspeed_spi_transfer(struct spi_controller *ctlr,
 	u8 *rx_buf;
 	u32 cs;
 	u32 j = 0;
-	u32 ctrl_val;
+	u32 ctrl_val, normal_mode;
 	void __iomem *ctrl_reg;
 
 	if (host->cs_change == 0)
@@ -371,6 +372,9 @@ static int aspeed_spi_transfer(struct spi_controller *ctlr,
 	cs = spi_get_chipselect(spi, 0);
 	ctrl_reg = host->ctrl_reg + SPI_CE0_CTRL + cs * 4;
 	ctrl_val = readl(ctrl_reg);
+
+	normal_mode = readl(host->ctrl_reg + SPI_MISC_CTRL);
+	writel(0x0, host->ctrl_reg + SPI_MISC_CTRL);
 
 	dev_dbg(dev, "cs: %d\n", cs);
 
@@ -427,6 +431,8 @@ static int aspeed_spi_transfer(struct spi_controller *ctlr,
 		aspeed_spi_stop_user(spi);
 
 	msg->status = 0;
+
+	writel(normal_mode, host->ctrl_reg + SPI_MISC_CTRL);
 
 	spi_finalize_current_message(ctlr);
 
