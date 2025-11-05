@@ -186,5 +186,3 @@ err_free_ic:
 }
 
 IRQCHIP_DECLARE(ast2700_intc_ic, "aspeed,ast2700-intc-ic", aspeed_intc_ic_of_init);
-IRQCHIP_DECLARE(ast2700_intc0_ic, "aspeed,ast2700-intc0-ic", aspeed_intc_ic_of_init);
-IRQCHIP_DECLARE(ast2700_intc1_ic, "aspeed,ast2700-intc1-ic", aspeed_intc_ic_of_init);

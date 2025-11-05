@@ -94,12 +94,6 @@ config AL_FIC
 	help
 	  Support Amazon's Annapurna Labs Fabric Interrupt Controller.
 
-config AST2700_INTC
-	tristate "AST2700 Interrupt Controller"
-	depends on ARCH_ASPEED
-	help
-	  Support AST2700 Interrupt Controller.
-
 config ATMEL_AIC_IRQ
 	bool
 	select GENERIC_IRQ_CHIP
