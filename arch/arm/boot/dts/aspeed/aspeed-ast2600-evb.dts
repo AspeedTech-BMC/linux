@@ -29,8 +29,8 @@
 		ranges;
 
 		video_engine_memory: video {
-			size = <0x04000000>;
-			alignment = <0x01000000>;
+			size = <0x02000000>;
+			alignment = <0x00010000>;
 			compatible = "shared-dma-pool";
 			reusable;
 		};
