@@ -198,6 +198,16 @@
 		always-on;
 	};
 
+	gic: interrupt-controller@12200000 {
+		compatible = "arm,gic-v3";
+		reg = <0 0x12200000 0 0x10000>, /* GICD */
+			<0 0x12280000 0 0x80000>, /* GICR */
+			<0 0x40440000 0 0x1000>;  /* GICC */
+		interrupts = <GIC_PPI 9 (GIC_CPU_MASK_SIMPLE(4) | IRQ_TYPE_LEVEL_HIGH)>;
+		#interrupt-cells = <3>;
+		interrupt-controller;
+	};
+
 	soc0: soc@10000000 {
 		compatible = "simple-bus";
 		#address-cells = <2>;
@@ -638,16 +648,6 @@
 			aspeed,scu = <&syscon0>;
 			pcie2lpc;
 			status = "disabled";
-		};
-
-		gic: interrupt-controller@12200000 {
-			compatible = "arm,gic-v3";
-			reg = <0 0x12200000 0 0x10000>, /* GICD */
-				<0 0x12280000 0 0x80000>, /* GICR */
-				<0 0x40440000 0 0x1000>;  /* GICC */
-			interrupts = <GIC_PPI 9 (GIC_CPU_MASK_SIMPLE(4) | IRQ_TYPE_LEVEL_HIGH)>;
-			#interrupt-cells = <3>;
-			interrupt-controller;
 		};
 
 		edac: sdram@12c00000 {
