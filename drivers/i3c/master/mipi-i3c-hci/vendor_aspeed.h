@@ -349,6 +349,11 @@
 #define PHY_PULLUP_EN_DDR_SCL	GENMASK(6, 4)
 #define PHY_PULLUP_EN_DDR_SDA	GENMASK(2, 0)
 
+#define PHY_I3C_OD_CTRL4	0xD8
+// SDA drive high (push-pull) time After tCBP
+#define PHY_I3C_OD_CTRL4_DAP	GENMASK(26, 16)
+#define PHY_I3C_OD_DEFAULT_DAP_NS 12
+
 static inline unsigned int aspeed_get_avail_tx_entries(struct i3c_hci *hci)
 {
 	unsigned int queue_ptr, entries;
