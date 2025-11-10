@@ -129,11 +129,14 @@ static int aspeed_hace_probe(struct platform_device *pdev)
 {
 	const struct of_device_id *hace_dev_id;
 	struct aspeed_hace_dev *hace_dev;
-	struct device_node *sec_node;
 	struct device *dev = &pdev->dev;
 	int rc;
+#ifdef CONFIG_CRYPTO_DEV_ASPEED_HACE_CRYPTO
+	struct device_node *sec_node;
 	int err;
+#endif
 
+	/* Allocate and register hace driver in linux kernel */
 	hace_dev = devm_kzalloc(&pdev->dev, sizeof(struct aspeed_hace_dev),
 				GFP_KERNEL);
 	if (!hace_dev)
@@ -179,6 +182,7 @@ static int aspeed_hace_probe(struct platform_device *pdev)
 		return rc;
 	}
 
+	/* Get rst and de-assert reset */
 	hace_dev->rst = devm_reset_control_get_shared(dev, NULL);
 	if (IS_ERR(hace_dev->rst)) {
 		dev_err(&pdev->dev, "Failed to get hace reset\n");
@@ -196,6 +200,9 @@ static int aspeed_hace_probe(struct platform_device *pdev)
 		dev_warn(&pdev->dev, "No suitable DMA available\n");
 		return rc;
 	}
+
+	/* Init mutex lock for supporting hace concurrent*/
+	mutex_init(&hace_dev->lock);
 
 #ifdef CONFIG_CRYPTO_DEV_ASPEED_HACE_HASH
 	rc = aspeed_hace_hash_init(hace_dev);
@@ -252,19 +259,17 @@ static int aspeed_hace_probe(struct platform_device *pdev)
 static void aspeed_hace_remove(struct platform_device *pdev)
 {
 	struct aspeed_hace_dev *hace_dev = platform_get_drvdata(pdev);
-	struct aspeed_engine_crypto *crypto_engine = &hace_dev->crypto_engine;
-	struct aspeed_engine_hash *hash_engine = &hace_dev->hash_engine;
 
 	aspeed_hace_unregister(hace_dev);
 
 #ifdef CONFIG_CRYPTO_DEV_ASPEED_HACE_HASH
-	crypto_engine_exit(hace_dev->crypt_engine_hash);
-	tasklet_kill(&hash_engine->done_task);
+	aspeed_hace_hash_remove(hace_dev);
 #endif
+
 #ifdef CONFIG_CRYPTO_DEV_ASPEED_HACE_CRYPTO
-	crypto_engine_exit(hace_dev->crypt_engine_crypto);
-	tasklet_kill(&crypto_engine->done_task);
+	aspeed_hace_crypto_remove(hace_dev);
 #endif
+
 	clk_disable_unprepare(hace_dev->clk);
 }
 

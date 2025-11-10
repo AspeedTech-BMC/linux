@@ -210,7 +210,12 @@ struct aspeed_sham_reqctx {
 	size_t			ivsize;
 	const __be32		*sha_iv;
 
+	/* remain data buffer */
+	u8			buffer[SHA512_BLOCK_SIZE * 2];
 	size_t			bufcnt;		/* buffer counter */
+
+	/* output buffer */
+	u8			digest[SHA512_DIGEST_SIZE];
 	u64			digcnt[2];
 };
 
@@ -265,6 +270,9 @@ struct aspeed_hace_dev {
 	struct reset_control		*rst;
 	unsigned long			version;
 
+	/* Protects hace operation enqueue in order */
+	struct mutex lock;
+
 	struct crypto_engine		*crypt_engine_hash;
 	struct crypto_engine		*crypt_engine_crypto;
 
@@ -299,7 +307,9 @@ void aspeed_unregister_hace_hash_algs(struct aspeed_hace_dev *hace_dev);
 void aspeed_register_hace_crypto_algs(struct aspeed_hace_dev *hace_dev);
 void aspeed_unregister_hace_crypto_algs(struct aspeed_hace_dev *hace_dev);
 int aspeed_hace_hash_init(struct aspeed_hace_dev *hace_dev);
+void aspeed_hace_hash_remove(struct aspeed_hace_dev *hace_dev);
 int aspeed_hace_crypto_init(struct aspeed_hace_dev *hace_dev);
+void aspeed_hace_crypto_remove(struct aspeed_hace_dev *hace_dev);
 int find_dummy_key(const char *key, int keylen);
 int aspeed_hace_reset(struct aspeed_hace_dev *dev);
 

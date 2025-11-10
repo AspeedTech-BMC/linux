@@ -1359,3 +1359,11 @@ err_engine_crypto_start:
 end:
 	return rc;
 }
+
+void aspeed_hace_crypto_remove(struct aspeed_hace_dev *hace_dev)
+{
+	struct aspeed_engine_crypto *crypto_engine = &hace_dev->crypto_engine;
+
+	crypto_engine_exit(hace_dev->crypt_engine_crypto);
+	tasklet_kill(&crypto_engine->done_task);
+}
