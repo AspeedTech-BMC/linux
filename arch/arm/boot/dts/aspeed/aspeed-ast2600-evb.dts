@@ -628,10 +628,6 @@
 	status = "okay";
 };
 
-&fsim0 {
-	status = "okay";
-};
-
 #if 0
 &ehci0 {
 	status = "okay";
