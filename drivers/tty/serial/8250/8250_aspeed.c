@@ -441,6 +441,9 @@ static int ast8250_probe(struct platform_device *pdev)
 
 	data->use_dma = of_property_read_bool(dev->of_node, "dma-mode");
 	if (data->use_dma) {
+		dev_warn(dev, "DMA mode not ready\n");
+		data->use_dma = false;
+		/*
 		rc = of_property_read_u32(dev->of_node, "dma-channel", &data->dma.ch);
 		if (rc) {
 			dev_err(dev, "failed to get DMA channel\n");
@@ -449,6 +452,7 @@ static int ast8250_probe(struct platform_device *pdev)
 
 		data->dma.tx_tmout_dis = of_property_read_bool(dev->of_node, "dma-tx-timeout-disable");
 		data->dma.rx_tmout_dis = of_property_read_bool(dev->of_node, "dma-rx-timeout-disable");
+		*/
 	}
 
 	spin_lock_init(&port->lock);
