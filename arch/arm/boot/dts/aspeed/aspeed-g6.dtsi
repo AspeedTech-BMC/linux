@@ -60,7 +60,6 @@
 		mdio3 = &mdio3;
 	};
 
-
 	cpus {
 		#address-cells = <1>;
 		#size-cells = <0>;
@@ -86,6 +85,7 @@
 			     <GIC_PPI 14 (GIC_CPU_MASK_SIMPLE(2) | IRQ_TYPE_LEVEL_LOW)>,
 			     <GIC_PPI 11 (GIC_CPU_MASK_SIMPLE(2) | IRQ_TYPE_LEVEL_LOW)>,
 			     <GIC_PPI 10 (GIC_CPU_MASK_SIMPLE(2) | IRQ_TYPE_LEVEL_LOW)>;
+		clocks = <&syscon ASPEED_CLK_HPLL>;
 		arm,cpu-registers-not-fw-configured;
 		always-on;
 	};
@@ -149,9 +149,9 @@
 			aspeed,scu = <&syscon>;
 		};
 
-		ahbc: ahbc@1e600000 {
+		ahbc: bus@1e600000 {
 			compatible = "aspeed,ast2600-ahbc", "syscon";
-			reg = < 0x1e600000 0x100>;
+			reg = <0x1e600000 0x100>;
 		};
 
 		cvic: copro-interrupt-controller@1e6c0000 {
@@ -473,63 +473,6 @@
 				reg = <0x1e6e2530 0x8>;
 			};
 
-			pcie_phy0: pcie-phy@1e6ed000 {
-				compatible = "aspeed,ast2600-pcie-phy", "syscon";
-				reg = <0x1e6ed000 0x100>;
-			};
-
-			pcie_phy1: pcie-phy@1e6ed200 {
-				compatible = "aspeed,ast2600-pcie-phy", "syscon";
-				reg = <0x1e6ed200 0x100>;
-			};
-
-			pcie_cfg: pcie-cfg@1e770000 {
-				compatible = "aspeed,ast2600-pcie-cfg", "syscon";
-				reg = <0x1e770000 0x80>;
-			};
-
-			pcie0: pcie@1e7700c0 {
-				compatible = "aspeed,ast2600-pcie";
-				device_type = "pci";
-				reg = <0x1e7700c0 0x40>;
-				linux,pci-domain = <0>;
-				#address-cells = <3>;
-				#size-cells = <2>;
-				interrupts = <GIC_SPI 168 IRQ_TYPE_LEVEL_HIGH>;
-				bus-range = <0x80 0xff>;
-
-				ranges = <0x01000000 0x0 0x00018000 0x00018000 0x0 0x00008000
-					  0x02000000 0x0 0x70000000 0x70000000 0x0 0x10000000>;
-
-				status = "disabled";
-
-				resets = <&syscon ASPEED_RESET_H2X>,
-					 <&syscon ASPEED_RESET_PCIE_RC_O>;
-				reset-names = "h2x", "perst";
-				clocks = <&syscon ASPEED_CLK_GATE_BCLK>;
-				pinctrl-names = "default";
-				pinctrl-0 = <&pinctrl_pcierc1_default>;
-
-				#interrupt-cells = <1>;
-				msi-parent = <&pcie0>;
-				msi-controller;
-
-				aspeed,ahbc = <&ahbc>;
-				aspeed,pciecfg = <&pcie_cfg>;
-				aspeed,pciephy = <&pcie_phy1>;
-
-				interrupt-map-mask = <0 0 0 7>;
-				interrupt-map = <0 0 0 1 &pcie_intc0 0>,
-						<0 0 0 2 &pcie_intc0 1>,
-						<0 0 0 3 &pcie_intc0 2>,
-						<0 0 0 4 &pcie_intc0 3>;
-				pcie_intc0: interrupt-controller {
-					interrupt-controller;
-					#address-cells = <0>;
-					#interrupt-cells = <1>;
-				};
-			};
-
 			jtag0: jtag@1e6e4000 {
 				compatible = "aspeed,ast2600-jtag";
 				reg= <0x1e6e4000 0x20>;
@@ -626,6 +569,63 @@
 				#io-channel-cells = <1>;
 				aspeed,scu = <&syscon>;
 				status = "disabled";
+			};
+
+			pcie_phy0: pcie-phy@1e6ed000 {
+				compatible = "aspeed,ast2600-pcie-phy", "syscon";
+				reg = <0x1e6ed000 0x100>;
+			};
+
+			pcie_phy1: pcie-phy@1e6ed200 {
+				compatible = "aspeed,ast2600-pcie-phy", "syscon";
+				reg = <0x1e6ed200 0x100>;
+			};
+
+			pcie_cfg: pcie-cfg@1e770000 {
+				compatible = "aspeed,ast2600-pcie-cfg", "syscon";
+				reg = <0x1e770000 0x80>;
+			};
+
+			pcie0: pcie@1e7700c0 {
+				compatible = "aspeed,ast2600-pcie";
+				device_type = "pci";
+				reg = <0x1e7700c0 0x40>;
+				linux,pci-domain = <0>;
+				#address-cells = <3>;
+				#size-cells = <2>;
+				interrupts = <GIC_SPI 168 IRQ_TYPE_LEVEL_HIGH>;
+				bus-range = <0x80 0xff>;
+
+				ranges = <0x01000000 0x0 0x00018000 0x00018000 0x0 0x00008000
+					  0x02000000 0x0 0x70000000 0x70000000 0x0 0x10000000>;
+
+				status = "disabled";
+
+				resets = <&syscon ASPEED_RESET_H2X>,
+					 <&syscon ASPEED_RESET_PCIE_RC_O>;
+				reset-names = "h2x", "perst";
+				clocks = <&syscon ASPEED_CLK_GATE_BCLK>;
+				pinctrl-names = "default";
+				pinctrl-0 = <&pinctrl_pcierc1_default>;
+
+				#interrupt-cells = <1>;
+				msi-parent = <&pcie0>;
+				msi-controller;
+
+				aspeed,ahbc = <&ahbc>;
+				aspeed,pciecfg = <&pcie_cfg>;
+				aspeed,pciephy = <&pcie_phy1>;
+
+				interrupt-map-mask = <0 0 0 7>;
+				interrupt-map = <0 0 0 1 &pcie_intc0 0>,
+						<0 0 0 2 &pcie_intc0 1>,
+						<0 0 0 3 &pcie_intc0 2>,
+						<0 0 0 4 &pcie_intc0 3>;
+				pcie_intc0: interrupt-controller {
+					interrupt-controller;
+					#address-cells = <0>;
+					#interrupt-cells = <1>;
+				};
 			};
 
 			espi: espi@1e6ee000 {
@@ -1271,7 +1271,7 @@
 				status = "disabled";
 			};
 
-			udma: uart-dma@1e79e000 {
+			udma: dma-controller@1e79e000 {
 				compatible = "aspeed,ast2600-udma";
 				reg = <0x1e79e000 0x1000>;
 				interrupts = <GIC_SPI 56 IRQ_TYPE_LEVEL_HIGH>;
@@ -1311,10 +1311,9 @@
 		reg = <0x0 0x80>;
 	};
 
-	i2c0: i2c-bus@80 {
+	i2c0: i2c@80 {
 		#address-cells = <1>;
 		#size-cells = <0>;
-		#interrupt-cells = <1>;
 		reg = <0x80 0x80>, <0xC00 0x20>;
 		compatible = "aspeed,ast2600-i2cv2";
 		aspeed,global-regs = <&i2c_global>;
@@ -1327,10 +1326,9 @@
 		status = "disabled";
 	};
 
-	i2c1: i2c-bus@100 {
+	i2c1: i2c@100 {
 		#address-cells = <1>;
 		#size-cells = <0>;
-		#interrupt-cells = <1>;
 		reg = <0x100 0x80>, <0xC20 0x20>;
 		compatible = "aspeed,ast2600-i2cv2";
 		aspeed,global-regs = <&i2c_global>;
@@ -1343,10 +1341,9 @@
 		status = "disabled";
 	};
 
-	i2c2: i2c-bus@180 {
+	i2c2: i2c@180 {
 		#address-cells = <1>;
 		#size-cells = <0>;
-		#interrupt-cells = <1>;
 		reg = <0x180 0x80>, <0xC40 0x20>;
 		compatible = "aspeed,ast2600-i2cv2";
 		aspeed,global-regs = <&i2c_global>;
@@ -1359,10 +1356,9 @@
 		status = "disabled";
 	};
 
-	i2c3: i2c-bus@200 {
+	i2c3: i2c@200 {
 		#address-cells = <1>;
 		#size-cells = <0>;
-		#interrupt-cells = <1>;
 		reg = <0x200 0x80>, <0xC60 0x20>;
 		compatible = "aspeed,ast2600-i2cv2";
 		aspeed,global-regs = <&i2c_global>;
@@ -1375,10 +1371,9 @@
 		status = "disabled";
 	};
 
-	i2c4: i2c-bus@280 {
+	i2c4: i2c@280 {
 		#address-cells = <1>;
 		#size-cells = <0>;
-		#interrupt-cells = <1>;
 		reg = <0x280 0x80>, <0xC80 0x20>;
 		compatible = "aspeed,ast2600-i2cv2";
 		aspeed,global-regs = <&i2c_global>;
@@ -1391,10 +1386,9 @@
 		status = "disabled";
 	};
 
-	i2c5: i2c-bus@300 {
+	i2c5: i2c@300 {
 		#address-cells = <1>;
 		#size-cells = <0>;
-		#interrupt-cells = <1>;
 		reg = <0x300 0x80>, <0xCA0 0x20>;
 		compatible = "aspeed,ast2600-i2cv2";
 		aspeed,global-regs = <&i2c_global>;
@@ -1407,10 +1401,9 @@
 		status = "disabled";
 	};
 
-	i2c6: i2c-bus@380 {
+	i2c6: i2c@380 {
 		#address-cells = <1>;
 		#size-cells = <0>;
-		#interrupt-cells = <1>;
 		reg = <0x380 0x80>, <0xCC0 0x20>;
 		compatible = "aspeed,ast2600-i2cv2";
 		aspeed,global-regs = <&i2c_global>;
@@ -1423,10 +1416,9 @@
 		status = "disabled";
 	};
 
-	i2c7: i2c-bus@400 {
+	i2c7: i2c@400 {
 		#address-cells = <1>;
 		#size-cells = <0>;
-		#interrupt-cells = <1>;
 		reg = <0x400 0x80>, <0xCE0 0x20>;
 		compatible = "aspeed,ast2600-i2cv2";
 		aspeed,global-regs = <&i2c_global>;
@@ -1439,10 +1431,9 @@
 		status = "disabled";
 	};
 
-	i2c8: i2c-bus@480 {
+	i2c8: i2c@480 {
 		#address-cells = <1>;
 		#size-cells = <0>;
-		#interrupt-cells = <1>;
 		reg = <0x480 0x80>, <0xD00 0x20>;
 		compatible = "aspeed,ast2600-i2cv2";
 		aspeed,global-regs = <&i2c_global>;
@@ -1455,10 +1446,9 @@
 		status = "disabled";
 	};
 
-	i2c9: i2c-bus@500 {
+	i2c9: i2c@500 {
 		#address-cells = <1>;
 		#size-cells = <0>;
-		#interrupt-cells = <1>;
 		reg = <0x500 0x80>, <0xD20 0x20>;
 		compatible = "aspeed,ast2600-i2cv2";
 		aspeed,global-regs = <&i2c_global>;
@@ -1471,10 +1461,9 @@
 		status = "disabled";
 	};
 
-	i2c10: i2c-bus@580 {
+	i2c10: i2c@580 {
 		#address-cells = <1>;
 		#size-cells = <0>;
-		#interrupt-cells = <1>;
 		reg = <0x580 0x80>, <0xD40 0x20>;
 		compatible = "aspeed,ast2600-i2cv2";
 		aspeed,global-regs = <&i2c_global>;
@@ -1487,10 +1476,9 @@
 		status = "disabled";
 	};
 
-	i2c11: i2c-bus@600 {
+	i2c11: i2c@600 {
 		#address-cells = <1>;
 		#size-cells = <0>;
-		#interrupt-cells = <1>;
 		reg = <0x600 0x80>, <0xD60 0x20>;
 		compatible = "aspeed,ast2600-i2cv2";
 		aspeed,global-regs = <&i2c_global>;
@@ -1503,10 +1491,9 @@
 		status = "disabled";
 	};
 
-	i2c12: i2c-bus@680 {
+	i2c12: i2c@680 {
 		#address-cells = <1>;
 		#size-cells = <0>;
-		#interrupt-cells = <1>;
 		reg = <0x680 0x80>, <0xD80 0x20>;
 		compatible = "aspeed,ast2600-i2cv2";
 		aspeed,global-regs = <&i2c_global>;
@@ -1519,10 +1506,9 @@
 		status = "disabled";
 	};
 
-	i2c13: i2c-bus@700 {
+	i2c13: i2c@700 {
 		#address-cells = <1>;
 		#size-cells = <0>;
-		#interrupt-cells = <1>;
 		reg = <0x700 0x80>, <0xDA0 0x20>;
 		compatible = "aspeed,ast2600-i2cv2";
 		aspeed,global-regs = <&i2c_global>;
@@ -1535,10 +1521,9 @@
 		status = "disabled";
 	};
 
-	i2c14: i2c-bus@780 {
+	i2c14: i2c@780 {
 		#address-cells = <1>;
 		#size-cells = <0>;
-		#interrupt-cells = <1>;
 		reg = <0x780 0x80>, <0xDC0 0x20>;
 		compatible = "aspeed,ast2600-i2cv2";
 		aspeed,global-regs = <&i2c_global>;
@@ -1551,10 +1536,9 @@
 		status = "disabled";
 	};
 
-	i2c15: i2c-bus@800 {
+	i2c15: i2c@800 {
 		#address-cells = <1>;
 		#size-cells = <0>;
-		#interrupt-cells = <1>;
 		reg = <0x800 0x80>, <0xDE0 0x20>;
 		compatible = "aspeed,ast2600-i2cv2";
 		aspeed,global-regs = <&i2c_global>;
@@ -1578,7 +1562,6 @@
 	i3c0: i3c@2000 {
 		#address-cells = <3>;
 		#size-cells = <0>;
-		#interrupt-cells = <1>;
 
 		reg = <0x2000 0x1000>;
 		compatible = "aspeed,ast2600-i3c";
@@ -1604,7 +1587,6 @@
 	i3c1: i3c@3000 {
 		#address-cells = <3>;
 		#size-cells = <0>;
-		#interrupt-cells = <1>;
 
 		reg = <0x3000 0x1000>;
 		compatible = "aspeed,ast2600-i3c";
@@ -1630,7 +1612,6 @@
 	i3c2: i3c@4000 {
 		#address-cells = <3>;
 		#size-cells = <0>;
-		#interrupt-cells = <1>;
 
 		reg = <0x4000 0x1000>;
 		compatible = "aspeed,ast2600-i3c";
@@ -1654,7 +1635,6 @@
 	i3c3: i3c@5000 {
 		#address-cells = <3>;
 		#size-cells = <0>;
-		#interrupt-cells = <1>;
 
 		reg = <0x5000 0x1000>;
 		compatible = "aspeed,ast2600-i3c";
@@ -1678,7 +1658,6 @@
 	i3c4: i3c@6000 {
 		#address-cells = <3>;
 		#size-cells = <0>;
-		#interrupt-cells = <1>;
 
 		reg = <0x6000 0x1000>;
 		compatible = "aspeed,ast2600-i3c";
@@ -1704,7 +1683,6 @@
 	i3c5: i3c@7000 {
 		#address-cells = <3>;
 		#size-cells = <0>;
-		#interrupt-cells = <1>;
 
 		reg = <0x7000 0x1000>;
 		compatible = "aspeed,ast2600-i3c";
