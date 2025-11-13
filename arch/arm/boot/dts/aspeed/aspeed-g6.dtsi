@@ -60,7 +60,6 @@
 		mdio3 = &mdio3;
 	};
 
-
 	cpus {
 		#address-cells = <1>;
 		#size-cells = <0>;
@@ -111,10 +110,10 @@
 			interrupt-controller;
 			interrupt-parent = <&gic>;
 			reg = <0x40461000 0x1000>,
-			    <0x40462000 0x1000>,
-			    <0x40464000 0x2000>,
-			    <0x40466000 0x2000>;
-			};
+			      <0x40462000 0x1000>,
+			      <0x40464000 0x2000>,
+			      <0x40466000 0x2000>;
+		};
 
 		sram: sram@10000000 {
 			compatible = "mmio-sram";
@@ -539,6 +538,17 @@
 				status = "disabled";
 			};
 
+			mctp0: mctp@1e6e8000 {
+				compatible = "aspeed,ast2600-mctp";
+				reg = <0x1e6e8000 0x30>;
+				interrupts-extended = <&gic GIC_SPI 26 IRQ_TYPE_LEVEL_HIGH>, <&scu_ic0 ASPEED_AST2600_SCU_IC0_PCIE_PERST_LO_TO_HI>;
+				interrupt-names = "mctp", "pcie";
+				resets = <&syscon ASPEED_RESET_DEV_MCTP>;
+				aspeed,scu = <&syscon>;
+				aspeed,pcieh = <&pcie_phy0>;
+				status = "disabled";
+			};
+
 			adc0: adc@1e6e9000 {
 				compatible = "aspeed,ast2600-adc0";
 				reg = <0x1e6e9000 0x100>;
@@ -616,17 +626,6 @@
 					#address-cells = <0>;
 					#interrupt-cells = <1>;
 				};
-			};
-
-			mctp0: mctp@1e6e8000 {
-				compatible = "aspeed,ast2600-mctp";
-				reg = <0x1e6e8000 0x30>;
-				interrupts-extended = <&gic GIC_SPI 26 IRQ_TYPE_LEVEL_HIGH>, <&scu_ic0 ASPEED_AST2600_SCU_IC0_PCIE_PERST_LO_TO_HI>;
-				interrupt-names = "mctp", "pcie";
-				resets = <&syscon ASPEED_RESET_DEV_MCTP>;
-				aspeed,scu = <&syscon>;
-				aspeed,pcieh = <&pcie_phy0>;
-				status = "disabled";
 			};
 
 			espi: espi@1e6ee000 {
@@ -832,7 +831,7 @@
 				clocks = <&syscon ASPEED_CLK_APB1>;
 				clock-names = "PCLK";
 				status = "disabled";
-                        };
+			};
 
 			uart1: serial@1e783000 {
 				compatible = "ns16550a";
@@ -1284,9 +1283,6 @@
 				compatible = "aspeed,ast2600-udma";
 				reg = <0x1e79e000 0x1000>;
 				interrupts = <GIC_SPI 56 IRQ_TYPE_LEVEL_HIGH>;
-				dma-channels = <28>;
-				#dma-cells = <1>;
-				status = "disabled";
 			};
 
 			rvas: rvas@1e7c8000 {
