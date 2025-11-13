@@ -1356,4 +1356,44 @@
 		function = "USB2D";
 		groups = "USB2DH";
 	};
+
+	pinctrl_wdtrst0n_default: wdtrst0n-default {
+		function = "WDTRST0N";
+		groups = "WDTRST0N";
+	};
+
+	pinctrl_wdtrst1n_default: wdtrst1n-default {
+		function = "WDTRST1N";
+		groups = "WDTRST1N";
+	};
+
+	pinctrl_wdtrst2n_default: wdtrst2n-default {
+		function = "WDTRST2N";
+		groups = "WDTRST2N";
+	};
+
+	pinctrl_wdtrst3n_default: wdtrst3n-default {
+		function = "WDTRST3N";
+		groups = "WDTRST3N";
+	};
+
+	pinctrl_wdtrst4n_default: wdtrst4n-default {
+		function = "WDTRST4N";
+		groups = "WDTRST4N";
+	};
+
+	pinctrl_wdtrst5n_default: wdtrst5n-default {
+		function = "WDTRST5N";
+		groups = "WDTRST5N";
+	};
+
+	pinctrl_wdtrst6n_default: wdtrst6n-default {
+		function = "WDTRST6N";
+		groups = "WDTRST6N";
+	};
+
+	pinctrl_wdtrst7n_default: wdtrst7n-default {
+		function = "WDTRST7N";
+		groups = "WDTRST7N";
+	};
 };
