@@ -110,8 +110,9 @@
 
 #define SG_LAST_LIST			BIT(31)
 
-#define SHA_OP_UPDATE			1
-#define SHA_OP_FINAL			2
+#define SHA_OP_INIT			BIT(0)
+#define SHA_OP_UPDATE			BIT(1)
+#define SHA_OP_FINAL			BIT(2)
 
 #define ASPEED_HASH_SRC_DMA_BUF_LEN	0xa000
 
@@ -145,6 +146,9 @@ struct aspeed_engine_sha3 {
 	struct tasklet_struct		done_task;
 	unsigned long			flags;
 	struct ahash_request		*req;
+
+	/* Protects sha3 engine operation enqueue in order */
+	struct mutex			queue_lock;
 
 	/* input buffer for SG */
 	void				*ahash_src_addr;
@@ -239,12 +243,13 @@ struct aspeed_sha3_reqctx {
 
 	size_t				digsize;
 	size_t				blksize;
-	size_t				ivsize;
 
 	/* remain data buffer */
+	u8				buffer[SHA3_512_BLOCK_SIZE * 2];
 	size_t				bufcnt;		/* buffer counter */
 
 	/* output buffer */
+	u8				digest[SHA3_512_DIGEST_SIZE];
 	u64				digcnt[2];
 };
 

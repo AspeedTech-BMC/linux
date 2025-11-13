@@ -45,7 +45,7 @@ static int aspeed_sha3_dma_prepare(struct aspeed_rsss_dev *rsss_dev)
 		 "remain", remain);
 
 	if (rctx->bufcnt)
-		memcpy(sha3_engine->ahash_src_addr, sha3_engine->buffer_addr,
+		memcpy(sha3_engine->ahash_src_addr, rctx->buffer,
 		       rctx->bufcnt);
 
 	if (length < ASPEED_HASH_SRC_DMA_BUF_LEN) {
@@ -60,7 +60,7 @@ static int aspeed_sha3_dma_prepare(struct aspeed_rsss_dev *rsss_dev)
 	}
 
 	/* Copy remain data into buffer */
-	scatterwalk_map_and_copy(sha3_engine->buffer_addr, rctx->src_sg,
+	scatterwalk_map_and_copy(rctx->buffer, rctx->src_sg,
 				 rctx->offset, remain, 0);
 	rctx->bufcnt = remain;
 
@@ -262,6 +262,9 @@ static int aspeed_sha3_trigger(struct aspeed_rsss_dev *rsss_dev,
 	rctx = ahash_request_ctx(req);
 	sha3_engine->resume = resume;
 
+	memcpy(sha3_engine->digest_addr, rctx->digest, rctx->digsize);
+	memcpy(sha3_engine->buffer_addr, rctx->buffer, rctx->bufcnt);
+
 	ast_rsss_write(rsss_dev, sha3_engine->src_dma,
 		       ASPEED_SHA3_SRC_LO);
 	/* TODO - SRC_HI */
@@ -312,7 +315,7 @@ static int aspeed_sha3_req_final(struct aspeed_rsss_dev *rsss_dev)
 		/* SW padding */
 		RSSS_DBG(rsss_dev, "Use SW padding, pad size:0x%x\n",
 			 remain_pad);
-		src = (u8 *)sha3_engine->buffer_addr;
+		src = (u8 *)rctx->buffer;
 		src[rctx->bufcnt] = 0x06;
 		memset(src + rctx->bufcnt + 1, 0, remain_pad - 1);
 		src[rctx->bufcnt + remain_pad - 1] |= 0x80;
@@ -362,6 +365,7 @@ static int aspeed_sha3_update_resume(struct aspeed_rsss_dev *rsss_dev)
 
 	rctx = ahash_request_ctx(req);
 
+	memcpy(rctx->digest, sha3_engine->digest_addr, rctx->digsize);
 	rctx->cmd &= ~SHA3_CMD_TRIG;
 
 	if (rctx->flags & SHA3_FLAGS_FINUP)
@@ -380,6 +384,8 @@ static int aspeed_sha3_update_resume_sg(struct aspeed_rsss_dev *rsss_dev)
 	RSSS_DBG(rsss_dev, "\n");
 
 	rctx = ahash_request_ctx(req);
+
+	memcpy(rctx->digest, sha3_engine->digest_addr, rctx->digsize);
 	remain = rctx->total - rctx->offset;
 
 	RSSS_DBG(rsss_dev, "Copy remain data from 0x%x, size:0x%x\n",
@@ -388,7 +394,7 @@ static int aspeed_sha3_update_resume_sg(struct aspeed_rsss_dev *rsss_dev)
 	dma_unmap_sg(rsss_dev->dev, rctx->src_sg, rctx->src_nents,
 		     DMA_TO_DEVICE);
 
-	scatterwalk_map_and_copy(sha3_engine->buffer_addr, rctx->src_sg, rctx->offset,
+	scatterwalk_map_and_copy(rctx->buffer, rctx->src_sg, rctx->offset,
 				 remain, 0);
 
 	rctx->bufcnt = remain;
@@ -462,7 +468,23 @@ static int aspeed_sha3_do_request(struct crypto_engine *engine, void *areq)
 static int aspeed_sha3_handle_queue(struct aspeed_rsss_dev *rsss_dev,
 				    struct ahash_request *req)
 {
-	return crypto_transfer_hash_request_to_engine(rsss_dev->crypt_engine_sha3, req);
+	struct aspeed_sha3_reqctx *rctx = ahash_request_ctx(req);
+	struct aspeed_engine_sha3 *sha3_engine = &rsss_dev->sha3_engine;
+	int ret = 0;
+
+	if (rctx->op & SHA_OP_INIT) {
+		mutex_lock(&sha3_engine->queue_lock);
+		return 0;
+	}
+
+	ret = crypto_transfer_hash_request_to_engine(rsss_dev->crypt_engine_sha3,
+						     req);
+
+	/* The last request is enqueued, release the lock */
+	if (rctx->op & SHA_OP_FINAL || rctx->flags & SHA3_FLAGS_FINUP)
+		mutex_unlock(&sha3_engine->queue_lock);
+
+	return ret;
 }
 
 static int aspeed_sha3_update(struct ahash_request *req)
@@ -490,7 +512,7 @@ static int aspeed_sha3_update(struct ahash_request *req)
 		rctx->digcnt[1]++;
 
 	if (rctx->bufcnt + rctx->total < rctx->blksize) {
-		scatterwalk_map_and_copy(sha3_engine->buffer_addr + rctx->bufcnt,
+		scatterwalk_map_and_copy(rctx->buffer + rctx->bufcnt,
 					 rctx->src_sg, rctx->offset,
 					 rctx->total, 0);
 		rctx->bufcnt += rctx->total;
@@ -546,13 +568,13 @@ static int aspeed_sha3_init(struct ahash_request *req)
 	struct crypto_ahash *tfm = crypto_ahash_reqtfm(req);
 	struct aspeed_sha3_ctx *tctx = crypto_ahash_ctx(tfm);
 	struct aspeed_rsss_dev *rsss_dev = tctx->rsss_dev;
-	struct aspeed_engine_sha3 *sha3_engine = &rsss_dev->sha3_engine;
 
 	RSSS_DBG(rsss_dev, "%s: digest size:%d\n",
 		 crypto_tfm_alg_name(&tfm->base),
 		 crypto_ahash_digestsize(tfm));
 
 	rctx->cmd = SHA3_CMD_ACC;
+	rctx->op = SHA_OP_INIT;
 	rctx->flags = 0;
 
 	switch (crypto_ahash_digestsize(tfm)) {
@@ -591,9 +613,9 @@ static int aspeed_sha3_init(struct ahash_request *req)
 	rctx->digcnt[0] = 0;
 	rctx->digcnt[1] = 0;
 
-	memset(sha3_engine->digest_addr, 0x0, SHA3_512_DIGEST_SIZE);
+	memset(rctx->digest, 0x0, SHA3_512_DIGEST_SIZE);
 
-	return 0;
+	return aspeed_sha3_handle_queue(rsss_dev, req);
 }
 
 static int aspeed_sha3_digest(struct ahash_request *req)
@@ -858,6 +880,9 @@ int aspeed_rsss_sha3_init(struct aspeed_rsss_dev *rsss_dev)
 	rc = aspeed_sha3_self_test(rsss_dev);
 	if (rc)
 		goto err_engine_sha3_start;
+
+	/* Sha3 engine hardware init done, prepare queue lock */
+	mutex_init(&sha3_engine->queue_lock);
 
 	/* Enable SHA3 interrupt */
 	val = ast_rsss_read(rsss_dev, ASPEED_RSSS_INT_EN);
