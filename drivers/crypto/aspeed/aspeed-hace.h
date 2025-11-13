@@ -10,6 +10,7 @@
 #include <linux/compiler_attributes.h>
 #include <linux/interrupt.h>
 #include <linux/types.h>
+#include <linux/semaphore.h>
 #include <linux/soc/aspeed/aspeed-otp.h>
 
 /*****************************
@@ -119,8 +120,9 @@
 
 #define CRYPTO_FLAGS_BUSY		BIT(1)
 
-#define SHA_OP_UPDATE			1
-#define SHA_OP_FINAL			2
+#define SHA_OP_INIT			BIT(0)
+#define SHA_OP_UPDATE			BIT(1)
+#define SHA_OP_FINAL			BIT(2)
 
 #define SHA_FLAGS_SHA1			BIT(0)
 #define SHA_FLAGS_SHA224		BIT(1)
@@ -158,6 +160,9 @@ struct aspeed_engine_hash {
 	struct tasklet_struct		done_task;
 	unsigned long			flags;
 	struct ahash_request		*req;
+
+	/* Protects hash engine operation enqueue in order */
+	struct mutex			queue_lock;
 
 	/* input buffer */
 	void				*ahash_src_addr;
@@ -270,8 +275,8 @@ struct aspeed_hace_dev {
 	struct reset_control		*rst;
 	unsigned long			version;
 
-	/* Protects hace operation enqueue in order */
-	struct mutex lock;
+	/* Protects hace register access */
+	struct semaphore lock;
 
 	struct crypto_engine		*crypt_engine_hash;
 	struct crypto_engine		*crypt_engine_crypto;

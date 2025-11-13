@@ -268,6 +268,7 @@ static int aspeed_ahash_transfer(struct aspeed_hace_dev *hace_dev)
 	 * the hash calculation is completed.
 	 */
 	aspeed_hace_reset(hace_dev);
+	up(&hace_dev->lock);
 
 	return aspeed_ahash_complete(hace_dev);
 }
@@ -293,6 +294,7 @@ static int aspeed_hace_ahash_trigger(struct aspeed_hace_dev *hace_dev,
 	rctx->cmd |= HASH_CMD_INT_ENABLE | HASH_CMD_MBUS_REQ_SYNC_EN;
 	hash_engine->resume = resume;
 
+	/* Trigger engines */
 	ast_hace_write(hace_dev, hash_engine->src_dma, ASPEED_HACE_HASH_SRC);
 	ast_hace_write(hace_dev, hash_engine->digest_dma,
 		       ASPEED_HACE_HASH_DIGEST_BUFF);
@@ -437,24 +439,33 @@ static int aspeed_ahash_req_update(struct aspeed_hace_dev *hace_dev)
 	return aspeed_hace_ahash_trigger(hace_dev, resume);
 }
 
-static void aspeed_hace_hash_prepare_queue(struct aspeed_hace_dev *hace_dev)
-{
-	/* Hash engine is ready to process requests, lock the work queue */
-	mutex_lock(&hace_dev->lock);
-}
-
 static int aspeed_hace_hash_handle_queue(struct aspeed_hace_dev *hace_dev,
 				  struct ahash_request *req)
 {
 	struct aspeed_sham_reqctx *rctx = ahash_request_ctx(req);
+	struct aspeed_engine_hash *hash_engine = &hace_dev->hash_engine;
 	int ret = 0;
+	static bool init_req;
+
+	/* The first request is enqueued, lock the queue */
+	if (rctx->op & SHA_OP_INIT) {
+		mutex_lock(&hash_engine->queue_lock);
+		init_req = true;
+		return 0;
+	}
+
+	/* The previous request is init request, enqueue the request with init flag */
+	if (init_req) {
+		rctx->op |= SHA_OP_INIT;
+		init_req = false;
+	}
 
 	ret = crypto_transfer_hash_request_to_engine(hace_dev->crypt_engine_hash,
 						     req);
 
 	/* The last request is enqueued, release the lock */
-	if (rctx->op == SHA_OP_FINAL || rctx->flags & SHA_FLAGS_FINUP)
-		mutex_unlock(&hace_dev->lock);
+	if (rctx->op & SHA_OP_FINAL || rctx->flags & SHA_FLAGS_FINUP)
+		mutex_unlock(&hash_engine->queue_lock);
 
 	return ret;
 }
@@ -472,9 +483,14 @@ static int aspeed_ahash_do_request(struct crypto_engine *engine, void *areq)
 	hash_engine = &hace_dev->hash_engine;
 	hash_engine->flags |= CRYPTO_FLAGS_BUSY;
 
-	if (rctx->op == SHA_OP_UPDATE)
+	/* If the update/final is the first request, lock hace engine */
+	if (rctx->op & SHA_OP_INIT)
+		down(&hace_dev->lock);
+
+	/* Do the update/final operation no matter what */
+	if (rctx->op & SHA_OP_UPDATE)
 		ret = aspeed_ahash_req_update(hace_dev);
-	else if (rctx->op == SHA_OP_FINAL)
+	else if (rctx->op & SHA_OP_FINAL)
 		ret = aspeed_ahash_req_final(hace_dev);
 
 	if (ret != -EINPROGRESS)
@@ -600,6 +616,7 @@ static int aspeed_sham_init(struct ahash_request *req)
 		  crypto_ahash_digestsize(tfm));
 
 	rctx->cmd = HASH_CMD_ACC_MODE;
+	rctx->op = SHA_OP_INIT;
 	rctx->flags = 0;
 
 	switch (crypto_ahash_digestsize(tfm)) {
@@ -669,10 +686,7 @@ static int aspeed_sham_init(struct ahash_request *req)
 		rctx->flags |= SHA_FLAGS_HMAC;
 	}
 
-	/* All hash contexts are ready, lock the hash queue */
-	aspeed_hace_hash_prepare_queue(hace_dev);
-
-	return 0;
+	return aspeed_hace_hash_handle_queue(hace_dev, req);
 }
 
 static int aspeed_sham_digest(struct ahash_request *req)
@@ -1222,6 +1236,9 @@ int aspeed_hace_hash_init(struct aspeed_hace_dev *hace_dev)
 		rc = -ENOMEM;
 		goto err_engine_hash_start;
 	}
+
+	/* Hash engine hardware initial done, prepare queue lock */
+	mutex_init(&hash_engine->queue_lock);
 
 	return 0;
 

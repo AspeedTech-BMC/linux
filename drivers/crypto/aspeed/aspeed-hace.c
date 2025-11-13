@@ -202,7 +202,7 @@ static int aspeed_hace_probe(struct platform_device *pdev)
 	}
 
 	/* Init mutex lock for supporting hace concurrent*/
-	mutex_init(&hace_dev->lock);
+	sema_init(&hace_dev->lock, 1);
 
 #ifdef CONFIG_CRYPTO_DEV_ASPEED_HACE_HASH
 	rc = aspeed_hace_hash_init(hace_dev);

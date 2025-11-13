@@ -148,6 +148,7 @@ static int aspeed_sk_transfer_sg(struct aspeed_hace_dev *hace_dev)
 		dma_unmap_sg(dev, req->src, rctx->src_nents, DMA_TO_DEVICE);
 		dma_unmap_sg(dev, req->dst, rctx->dst_nents, DMA_FROM_DEVICE);
 	}
+	up(&hace_dev->lock);
 
 	return aspeed_sk_complete(hace_dev, 0);
 }
@@ -211,11 +212,15 @@ static int aspeed_sk_start(struct aspeed_hace_dev *hace_dev)
 	crypto_engine->resume = aspeed_sk_transfer;
 
 	/* Trigger engines */
+	ast_hace_write(hace_dev, crypto_engine->cipher_ctx_dma,
+		       ASPEED_HACE_CONTEXT);
 	ast_hace_write(hace_dev, crypto_engine->cipher_dma_addr,
 		       ASPEED_HACE_SRC);
 	ast_hace_write(hace_dev, crypto_engine->cipher_dma_addr,
 		       ASPEED_HACE_DEST);
 #ifdef CONFIG_ARCH_DMA_ADDR_T_64BIT
+	ast_hace_write(hace_dev, crypto_engine->cipher_ctx_dma >> 32,
+		       ASPEED_HACE_CONTEXT_H);
 	ast_hace_write(hace_dev, crypto_engine->cipher_dma_addr >> 32,
 		       ASPEED_HACE_SRC_H);
 	ast_hace_write(hace_dev, crypto_engine->cipher_dma_addr >> 32,
@@ -388,10 +393,15 @@ static int aspeed_sk_start_sg(struct aspeed_hace_dev *hace_dev)
 	mb();
 
 	/* Trigger engines */
+	down(&hace_dev->lock);
+	ast_hace_write(hace_dev, crypto_engine->cipher_ctx_dma,
+		       ASPEED_HACE_CONTEXT);
 	ast_hace_write(hace_dev, src_dma_addr, ASPEED_HACE_SRC);
 	ast_hace_write(hace_dev, dst_dma_addr, ASPEED_HACE_DEST);
 
 #ifdef CONFIG_ARCH_DMA_ADDR_T_64BIT
+	ast_hace_write(hace_dev, crypto_engine->cipher_ctx_dma >> 32,
+		       ASPEED_HACE_CONTEXT_H);
 	ast_hace_write(hace_dev, src_dma_addr >> 32, ASPEED_HACE_SRC_H);
 	ast_hace_write(hace_dev, dst_dma_addr >> 32, ASPEED_HACE_DEST_H);
 #endif
@@ -441,13 +451,6 @@ static int aspeed_hace_skcipher_trigger(struct aspeed_hace_dev *hace_dev)
 
 	rctx->dst_nents = sg_nents(req->dst);
 	rctx->src_nents = sg_nents(req->src);
-
-	ast_hace_write(hace_dev, crypto_engine->cipher_ctx_dma,
-		       ASPEED_HACE_CONTEXT);
-#ifdef CONFIG_ARCH_DMA_ADDR_T_64BIT
-	ast_hace_write(hace_dev, crypto_engine->cipher_ctx_dma >> 32,
-		       ASPEED_HACE_CONTEXT_H);
-#endif
 
 	if (rctx->enc_cmd & HACE_CMD_IV_REQUIRE) {
 		if (rctx->enc_cmd & HACE_CMD_DES_SELECT)
