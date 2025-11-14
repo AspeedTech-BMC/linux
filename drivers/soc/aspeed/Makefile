@@ -15,6 +15,7 @@ obj-$(CONFIG_ASPEED_XDMA)		+= aspeed-xdma.o
 obj-$(CONFIG_AST2500_ESPI)		+= ast2500-espi.o
 obj-$(CONFIG_AST2600_ESPI)		+= ast2600-espi.o
 obj-$(CONFIG_AST2700_ESPI)		+= ast2700-espi.o
+obj-$(CONFIG_ASPEED_RVAS)		+= rvas/
 obj-$(CONFIG_ARCH_ASPEED)		+= aspeed-usb-phy.o
 obj-$(CONFIG_ARCH_ASPEED)		+= aspeed-usb-hp.o
 obj-$(CONFIG_ASPEED_MCTP)		+= aspeed-mctp.o
