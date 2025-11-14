@@ -528,16 +528,6 @@ static struct clk_hw *aspeed_g6_clk_hw_register_gate(struct device *dev,
 	return hw;
 }
 
-static const char *const emmc_extclk_parent_names[] = {
-	"emmc_extclk_hpll_in",
-	"mpll",
-};
-
-static const char *const sd_extclk_parent_names[] = {
-	"ahb",
-	"apll",
-};
-
 static const char * const vclk_parent_names[] = {
 	"dpll",
 	"d1pll",
@@ -607,56 +597,48 @@ static int aspeed_g6_clk_probe(struct platform_device *pdev)
 		return PTR_ERR(hw);
 	aspeed_g6_clk_data->hws[ASPEED_CLK_UARTX] = hw;
 
-	/* EMMC ext clock */
-	hw = clk_hw_register_fixed_factor(dev, "emmc_extclk_hpll_in", "hpll",
-					  0, 1, 2);
+	/* EMMC ext clock divider */
+	hw = clk_hw_register_gate(dev, "emmc_extclk_gate", "mpll", 0,
+				  scu_g6_base + ASPEED_G6_CLK_SELECTION1, 15, 0,
+				  &aspeed_g6_clk_lock);
 	if (IS_ERR(hw))
 		return PTR_ERR(hw);
 
-	hw = clk_hw_register_mux(dev, "emmc_extclk_mux",
-				 emmc_extclk_parent_names,
-				 ARRAY_SIZE(emmc_extclk_parent_names), 0,
-				 scu_g6_base + ASPEED_G6_CLK_SELECTION1, 11, 1,
-				 0, &aspeed_g6_clk_lock);
-	if (IS_ERR(hw))
-		return PTR_ERR(hw);
-
-	hw = clk_hw_register_gate(dev, "emmc_extclk_gate", "emmc_extclk_mux",
-				  0, scu_g6_base + ASPEED_G6_CLK_SELECTION1,
-				  15, 0, &aspeed_g6_clk_lock);
-	if (IS_ERR(hw))
-		return PTR_ERR(hw);
-
-	hw = clk_hw_register_divider_table(dev, "emmc_extclk",
-					   "emmc_extclk_gate", 0,
-					   scu_g6_base +
-						ASPEED_G6_CLK_SELECTION1, 12,
-					   3, 0, ast2600_emmc_extclk_div_table,
+	//ast2600 emmc clk should under 200Mhz
+	hw = clk_hw_register_divider_table(dev, "emmc_extclk", "emmc_extclk_gate", 0,
+					   scu_g6_base + ASPEED_G6_CLK_SELECTION1, 12, 3, 0,
+					   ast2600_emmc_extclk_div_table,
 					   &aspeed_g6_clk_lock);
 	if (IS_ERR(hw))
 		return PTR_ERR(hw);
 	aspeed_g6_clk_data->hws[ASPEED_CLK_EMMC] = hw;
 
-	/* SD/SDIO clock divider and gate */
-	hw = clk_hw_register_mux(dev, "sd_extclk_mux",
-				 sd_extclk_parent_names,
-				 ARRAY_SIZE(sd_extclk_parent_names), 0,
-				 scu_g6_base + ASPEED_G6_CLK_SELECTION4, 8, 1,
-				 0, &aspeed_g6_clk_lock);
+	clk_hw_register_fixed_rate(NULL, "hclk", NULL, 0, 200000000);
+
+	regmap_read(map, 0x310, &val);
+	if (val & BIT(8)) {
+		/* SD/SDIO clock divider and gate */
+		hw = clk_hw_register_gate(dev, "sd_extclk_gate", "apll", 0,
+					  scu_g6_base + ASPEED_G6_CLK_SELECTION4, 31, 0,
+					  &aspeed_g6_clk_lock);
+		if (IS_ERR(hw))
+			return PTR_ERR(hw);
+	} else {
+		/* SD/SDIO clock divider and gate */
+		hw = clk_hw_register_gate(dev, "sd_extclk_gate", "hclk", 0,
+					  scu_g6_base + ASPEED_G6_CLK_SELECTION4, 31, 0,
+					  &aspeed_g6_clk_lock);
+		if (IS_ERR(hw))
+			return PTR_ERR(hw);
+	}
+
+	hw = clk_hw_register_divider_table(dev, "sd_extclk", "sd_extclk_gate",
+				0, scu_g6_base + ASPEED_G6_CLK_SELECTION4, 28, 3, 0,
+				ast2600_sd_div_table,
+				&aspeed_g6_clk_lock);
 	if (IS_ERR(hw))
 		return PTR_ERR(hw);
 
-	hw = clk_hw_register_gate(dev, "sd_extclk_gate", "sd_extclk_mux",
-				  0, scu_g6_base + ASPEED_G6_CLK_SELECTION4,
-				  31, 0, &aspeed_g6_clk_lock);
-	if (IS_ERR(hw))
-		return PTR_ERR(hw);
-	hw = clk_hw_register_divider_table(dev, "sd_extclk", "sd_extclk_gate",
-			0, scu_g6_base + ASPEED_G6_CLK_SELECTION4, 28, 3, 0,
-			ast2600_sd_div_table,
-			&aspeed_g6_clk_lock);
-	if (IS_ERR(hw))
-		return PTR_ERR(hw);
 	aspeed_g6_clk_data->hws[ASPEED_CLK_SDIO] = hw;
 
 	/* MAC1/2 RMII 50MHz RCLK */
