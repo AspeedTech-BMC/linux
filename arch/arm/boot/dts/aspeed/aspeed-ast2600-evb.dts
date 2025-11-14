@@ -5,6 +5,7 @@
 
 #include "aspeed-g6.dtsi"
 #include <dt-bindings/gpio/aspeed-gpio.h>
+#include <dt-bindings/i2c/i2c.h>
 
 / {
 	model = "AST2600 EVB";
@@ -400,7 +401,6 @@
 	pinctrl-0 = <&pinctrl_rgmii1_default>;
 };
 
-
 &mac1 {
 	status = "okay";
 
@@ -431,6 +431,21 @@
 	pinctrl-0 = <&pinctrl_rgmii4_default>;
 };
 
+&syscon {
+	mac0-clk-delay = <0x10 0x0a
+			  0x10 0x10
+			  0x10 0x10>;
+	mac1-clk-delay = <0x10 0x0a
+			  0x10 0x10
+			  0x10 0x10>;
+	mac2-clk-delay = <0x08 0x04
+			  0x08 0x04
+			  0x08 0x04>;
+	mac3-clk-delay = <0x08 0x04
+			  0x08 0x04
+			  0x08 0x04>;
+};
+
 &emmc_controller {
 	status = "okay";
 	mmc-hs200-1_8v;
@@ -453,21 +468,11 @@
 	status = "okay";
 };
 
-&peci0 {
-	status = "okay";
-};
-
-&jtag1 {
-	status = "okay";
-};
-
-&mctp0 {
-	status = "okay";
-	memory-region = <&mctp0_reserved>;
-};
-
 &fmc {
 	status = "okay";
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_fwqspi_default>;
+
 	flash@0 {
 		status = "okay";
 		m25p,fast-read;
@@ -497,18 +502,28 @@
 	};
 };
 
+&peci0 {
+	status = "okay";
+};
+
+&mctp0 {
+	status = "okay";
+	memory-region = <&mctp0_reserved>;
+};
+
 &spi1 {
 	status = "okay";
 	pinctrl-names = "default";
-	pinctrl-0 = <&pinctrl_spi1_default &pinctrl_qspi1_default>;
+	pinctrl-0 = <&pinctrl_spi1_default &pinctrl_spi1cs1_default
+				 &pinctrl_qspi1_default>;
 
 	flash@0 {
 		status = "okay";
 		m25p,fast-read;
-		label = "pnor";
+		label = "spi1:0";
 		spi-rx-bus-width = <4>;
 		spi-tx-bus-width = <4>;
-		spi-max-frequency = <100000000>;
+		spi-max-frequency = <50000000>;
 	};
 
 	flash@1 {
@@ -522,10 +537,10 @@
 };
 
 &spi2 {
-	status = "okay";
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_spi2_default &pinctrl_spi2cs1_default
-				 &pinctrl_spi2cs2_default &pinctrl_qspi2_default>;
+				&pinctrl_spi2cs2_default &pinctrl_qspi2_default>;
+	status = "okay";
 
 	flash@0 {
 		status = "okay";
@@ -555,40 +570,85 @@
 	};
 };
 
-&uart5 {
-	// Workaround for A0
-	compatible = "snps,dw-apb-uart";
+#if 0
+&pcie_vuart0 {
+	port = <0x3f8>;
+	sirq = <4>;
+	sirq-polarity = <0>;
+
+	status = "okay";
 };
 
-#if 0
+&pcie_vuart1 {
+	port = <0x2f8>;
+	sirq = <3>;
+	sirq-polarity = <0>;
+
+	status = "okay";
+};
+
+&pcie_kcs1 {
+	kcs-io-addr = <0x3a0>;
+	kcs-channel = <5>;
+	status = "okay";
+};
+
+&pcie_kcs2 {
+	kcs-io-addr = <0x3a8>;
+	kcs-channel = <6>;
+	status = "okay";
+};
+
+&pcie_kcs3 {
+	kcs-io-addr = <0x3a2>;
+	kcs-channel = <7>;
+	status = "okay";
+};
+
+&pcie_kcs4 {
+	kcs-io-addr = <0x3a4>;
+	kcs-channel = <8>;
+	status = "okay";
+};
+
+&pcie_ibt {
+	status = "okay";
+};
+
 &bmc_dev {
 	status = "okay";
 	memory-region = <&bmc_dev_memory>;
 };
 #endif
 
-&pcie0 {
-	status = "okay";
-};
-
-&i2c0 {
-	status = "okay";
-};
-
-&i2c1 {
-	status = "okay";
-};
-
 &i2c4 {
 	status = "okay";
+	multi-master;
+	mctp-controller;
+	mctp@10 {
+		compatible = "mctp-i2c-controller";
+		reg = <(0x10 | I2C_OWN_SLAVE_ADDRESS)>;
+	};
 };
 
 &i2c5 {
 	status = "okay";
+	multi-master;
+	mctp-controller;
+	mctp@12 {
+		compatible = "mctp-i2c-controller";
+		reg = <(0x12 | I2C_OWN_SLAVE_ADDRESS)>;
+	};
 };
 
 &i2c6 {
 	status = "okay";
+
+	ipmb@12 {
+		compatible = "ipmb-dev";
+		reg = <0x12>;
+		i2c-protocol;
+	};
 };
 
 &i2c7 {
@@ -619,19 +679,7 @@
 	status = "okay";
 };
 
-&i2c12 {
-	status = "okay";
-};
-
-&i2c13 {
-	status = "okay";
-};
-
-&i2c14 {
-	status = "okay";
-};
-
-&i2c15 {
+&jtag1 {
 	status = "okay";
 };
 
@@ -671,6 +719,7 @@
 
 &sdc {
 	status = "okay";
+	mmc-hs200-1_8v;
 };
 
 /*
@@ -693,11 +742,11 @@
 	bus-width = <4>;
 	max-frequency = <100000000>;
 	sdhci-drive-type = /bits/ 8 <3>;
-	sdhci-caps-mask = <0x7 0x0>;
+	sdhci-caps-mask = <0x6 0x0>;
 	sdhci,wp-inverted;
+	sd-uhs-sdr104; /* enable sdr104 to execute tuning */
 	vmmc-supply = <&vcc_sdhci0>;
 	vqmmc-supply = <&vccq_sdhci0>;
-	clk-phase-sd-hs = <7>, <200>;
 };
 
 &sdhci1 {
@@ -705,11 +754,11 @@
 	bus-width = <4>;
 	max-frequency = <100000000>;
 	sdhci-drive-type = /bits/ 8 <3>;
-	sdhci-caps-mask = <0x7 0x0>;
+	sdhci-caps-mask = <0x6 0x0>;
 	sdhci,wp-inverted;
+	sd-uhs-sdr104; /* enable sdr104 to execute tuning */
 	vmmc-supply = <&vcc_sdhci1>;
 	vqmmc-supply = <&vccq_sdhci1>;
-	clk-phase-sd-hs = <7>, <200>;
 };
 
 #if 1
@@ -724,12 +773,20 @@
 };
 #endif
 
+&disp_intf {
+	status = "okay";
+};
+
 #if 0
 &gfx {
 	status = "okay";
 	memory-region = <&gfx_memory>;
 };
 #endif
+
+&pcie0 {
+	status = "okay";
+};
 
 &espi {
 	status = "okay";
@@ -782,6 +839,30 @@
 	status = "okay";
 };
 
+&pcie_kcs1 {
+	kcs-io-addr = <0x3a0>;
+	kcs-channel = <5>;
+	status = "okay";
+};
+
+&pcie_kcs2 {
+	kcs-io-addr = <0x3a8>;
+	kcs-channel = <6>;
+	status = "okay";
+};
+
+&pcie_kcs3 {
+	kcs-io-addr = <0x3a2>;
+	kcs-channel = <7>;
+	status = "okay";
+};
+
+&pcie_kcs4 {
+	kcs-io-addr = <0x3a4>;
+	kcs-channel = <8>;
+	status = "okay";
+};
+
 &hace {
 	status = "okay";
 	dummy-key1 = /bits/ 8 <0x15 0x89 0x87 0x89 0xFA 0x42 0xA2 0x1D 0xCE 0x85 0x78 0x1A 0x39 0xFA 0xD7 0x5B 0xFD 0x65 0x32 0xC5 0x25 0x6B 0x34 0xCC 0xEE 0x70 0x03 0x23 0x29 0x06 0x57 0xD0>;
@@ -812,6 +893,7 @@
 	status = "okay";
 };
 
+#if 0
 &vuart1 {
 	virtual;
 	port = <0x3f8>;
@@ -819,6 +901,7 @@
 	sirq-polarity = <0>;
 	status = "okay";
 };
+#endif
 
 /*
  * Aspeed I3C daughter card configuration

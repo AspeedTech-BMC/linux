@@ -834,7 +834,7 @@
 			};
 
 			uart1: serial@1e783000 {
-				compatible = "ns16550a";
+				compatible = "aspeed,ast2600-uart";
 				reg = <0x1e783000 0x20>;
 				reg-shift = <2>;
 				reg-io-width = <4>;
@@ -848,7 +848,7 @@
 			};
 
 			uart5: serial@1e784000 {
-				compatible = "ns16550a";
+				compatible = "aspeed,ast2600-uart";
 				reg = <0x1e784000 0x1000>;
 				reg-shift = <2>;
 				interrupts = <GIC_SPI 8 IRQ_TYPE_LEVEL_HIGH>;
@@ -1106,7 +1106,7 @@
 			};
 
 			uart2: serial@1e78d000 {
-				compatible = "ns16550a";
+				compatible = "aspeed,ast2600-uart";
 				reg = <0x1e78d000 0x20>;
 				reg-shift = <2>;
 				reg-io-width = <4>;
@@ -1120,7 +1120,7 @@
 			};
 
 			uart3: serial@1e78e000 {
-				compatible = "ns16550a";
+				compatible = "aspeed,ast2600-uart";
 				reg = <0x1e78e000 0x20>;
 				reg-shift = <2>;
 				reg-io-width = <4>;
@@ -1134,7 +1134,7 @@
 			};
 
 			uart4: serial@1e78f000 {
-				compatible = "ns16550a";
+				compatible = "aspeed,ast2600-uart";
 				reg = <0x1e78f000 0x20>;
 				reg-shift = <2>;
 				reg-io-width = <4>;
@@ -1156,7 +1156,7 @@
 			ranges;
 
 			uart6: serial@1e790000 {
-				compatible = "ns16550a";
+				compatible = "aspeed,ast2600-uart";
 				reg = <0x1e790000 0x20>;
 				reg-shift = <2>;
 				reg-io-width = <4>;
@@ -1170,7 +1170,7 @@
 			};
 
 			uart7: serial@1e790100 {
-				compatible = "ns16550a";
+				compatible = "aspeed,ast2600-uart";
 				reg = <0x1e790100 0x20>;
 				reg-shift = <2>;
 				reg-io-width = <4>;
@@ -1184,7 +1184,7 @@
 			};
 
 			uart8: serial@1e790200 {
-				compatible = "ns16550a";
+				compatible = "aspeed,ast2600-uart";
 				reg = <0x1e790200 0x20>;
 				reg-shift = <2>;
 				reg-io-width = <4>;
@@ -1198,7 +1198,7 @@
 			};
 
 			uart9: serial@1e790300 {
-				compatible = "ns16550a";
+				compatible = "aspeed,ast2600-uart";
 				reg = <0x1e790300 0x20>;
 				reg-shift = <2>;
 				reg-io-width = <4>;
