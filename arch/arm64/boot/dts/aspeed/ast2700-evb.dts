@@ -282,8 +282,13 @@
 		pins = "AE15";
 		drive-strength = <1>;
 	};
-	pinctrl_emmcdat_driving: emmcdat-driving {
+	pinctrl_emmc4bit_driving: emmcdat-driving {
 		pins = "AD14", "AE14", "AF14", "AB13";
+		drive-strength = <1>;
+	};
+
+	pinctrl_emmc8bit_driving: emmcdat-driving {
+		pins = "AD14", "AE14", "AF14", "AB13", "AF13", "AC13", "AD13", "AE13";
 		drive-strength = <1>;
 	};
 };
@@ -613,13 +618,20 @@
 	status = "okay";
 #if 1
 	bus-width = <4>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_emmc_default
+		     &pinctrl_emmcclk_driving
+		     &pinctrl_emmccmd_driving
+		     &pinctrl_emmc4bit_driving>;
 #else
 	bus-width = <8>;
-	pinctrl-0 = <&pinctrl_emmc_default
-		     &pinctrl_emmcg8_default>;
-#endif
 	pinctrl-names = "default";
-	pinctrl-0 = <&pinctrl_emmc_default &pinctrl_emmcclk_driving &pinctrl_emmccmd_driving &pinctrl_emmcdat_driving>;
+	pinctrl-0 = <&pinctrl_emmc_default
+		     &pinctrl_emmcg8_default
+		     &pinctrl_emmcclk_driving
+		     &pinctrl_emmccmd_driving
+		     &pinctrl_emmc8bit_driving>;
+#endif
 
 	non-removable;
 	max-frequency = <200000000>;
