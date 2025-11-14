@@ -26,7 +26,7 @@
 		ranges;
 
 		video_engine_memory: video {
-			size = <0x04000000>;
+			size = <0x02000000>;
 			alignment = <0x01000000>;
 			compatible = "shared-dma-pool";
 			reusable;
@@ -153,11 +153,6 @@
 
 &uhci {
 	status = "okay";
-};
-
-&gfx {
-     status = "okay";
-     memory-region = <&gfx_memory>;
 };
 
 &video {
