@@ -107,6 +107,9 @@ struct aspeed_ecdsa_dev {
 	struct reset_control		*rst;
 	int				irq;
 
+	/* Support ecdsa256/384 execution concurrent */
+	struct mutex lock;
+
 	struct crypto_engine		*crypt_engine_ecdsa;
 	struct aspeed_engine_ecdsa	ecdsa_engine;
 };
