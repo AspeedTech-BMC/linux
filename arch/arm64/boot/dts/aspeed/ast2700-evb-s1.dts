@@ -463,19 +463,3 @@
 &vhubb1 {
 	status = "disabled";
 };
-
-&vhubc {
-	status = "disabled";
-};
-
-&vhubd {
-	status = "okay";
-};
-
-&ehci2 {
-	status = "okay";
-};
-
-&ehci3 {
-	status = "disabled";
-};
