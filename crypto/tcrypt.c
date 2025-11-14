@@ -1853,6 +1853,13 @@ static int do_test(const char *alg, u32 type, u32 mask, int m, u32 num_mb)
 		break;
 	case 193:
 		ret = min(ret, tcrypt_test("ffdhe2048(dh)"));
+		ret = min(ret, tcrypt_test("rsa"));
+		break;
+	case 194:
+		ret = min(ret, tcrypt_test("ecdsa-nist-p256"));
+		break;
+	case 195:
+		ret = min(ret, tcrypt_test("ecdsa-nist-p384"));
 		break;
 	case 200:
 		test_cipher_speed("ecb(aes)", ENCRYPT, sec, NULL, 0,
