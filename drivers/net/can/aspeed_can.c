@@ -1472,7 +1472,6 @@ static const struct net_device_ops aspeed_can_netdev_ops = {
 	.ndo_stop	= aspeed_can_close,
 	.ndo_start_xmit	= aspeed_can_start_xmit,
 	.ndo_change_mtu	= can_change_mtu,
-	/* TODO: ioctl here */
 };
 
 static const struct ethtool_ops aspeed_can_ethtool_ops = {
