@@ -35,6 +35,13 @@
 			reusable;
 		};
 
+		rvas_memory: rvas {
+			size = <0x04000000>;
+			alignment = <0x01000000>;
+			compatible = "shared-dma-pool";
+			reusable;
+		};
+
 		gfx_memory: framebuffer {
 			size = <0x01000000>;
 			alignment = <0x01000000>;
@@ -705,10 +712,24 @@
 	clk-phase-sd-hs = <7>, <200>;
 };
 
+#if 1
 &video {
 	status = "okay";
 	memory-region = <&video_engine_memory>;
 };
+#else
+&rvas {
+	status = "okay";
+	memory-region = <&rvas_memory>;
+};
+#endif
+
+#if 0
+&gfx {
+	status = "okay";
+	memory-region = <&gfx_memory>;
+};
+#endif
 
 &espi {
 	status = "okay";
@@ -791,7 +812,6 @@
 	status = "okay";
 };
 
-#if 0
 &vuart1 {
 	virtual;
 	port = <0x3f8>;
@@ -799,7 +819,6 @@
 	sirq-polarity = <0>;
 	status = "okay";
 };
-#endif
 
 /*
  * Aspeed I3C daughter card configuration
