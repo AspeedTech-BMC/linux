@@ -1459,10 +1459,11 @@ static int aspeed_can_get_berr_counter(const struct net_device *ndev,
 
 static int aspeed_can_get_auto_tdcv(const struct net_device *ndev, u32 *tdcv)
 {
-	(void)ndev;
+	struct aspeed_can_priv *priv = netdev_priv(ndev);
+	u32 reg;
 
-	/* need to fix on A1 */
-	*tdcv = 0x52;
+	reg = readl(priv->reg_base + CAN_BITITME);
+	*tdcv = (reg & CAN_TIMING_FD_SSPOFF_MASK) >> CAN_TIMING_FD_SSPOFF_BITOFF;
 
 	return 0;
 }
