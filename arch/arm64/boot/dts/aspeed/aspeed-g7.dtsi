@@ -1295,7 +1295,7 @@
 			status = "disabled";
 		};
 
-		sgmii: phy@14C01000 {
+		sgmii: phy@14c01000 {
 			compatible = "aspeed,ast2700-sgmii";
 			reg = <0x0 0x14c01000 0x0 0x40>;
 
