@@ -87,7 +87,7 @@ static void aspeed_intc_irq_mask(struct irq_data *data)
 	struct aspeed_intc_ic *intc_ic = irq_data_get_irq_chip_data(data);
 	unsigned int mask;
 
-	guard(raw_spinlock)(&intc_ic->intc_lock);
+	guard(raw_spinlock_irqsave)(&intc_ic->intc_lock);
 	mask = readl(intc_ic->base + INTC_INT_ENABLE_REG) & ~BIT(data->hwirq);
 	writel(mask, intc_ic->base + INTC_INT_ENABLE_REG);
 }
@@ -97,7 +97,7 @@ static void aspeed_intc_irq_unmask(struct irq_data *data)
 	struct aspeed_intc_ic *intc_ic = irq_data_get_irq_chip_data(data);
 	unsigned int unmask;
 
-	guard(raw_spinlock)(&intc_ic->intc_lock);
+	guard(raw_spinlock_irqsave)(&intc_ic->intc_lock);
 	unmask = readl(intc_ic->base + INTC_INT_ENABLE_REG) | BIT(data->hwirq);
 	writel(unmask, intc_ic->base + INTC_INT_ENABLE_REG);
 }
