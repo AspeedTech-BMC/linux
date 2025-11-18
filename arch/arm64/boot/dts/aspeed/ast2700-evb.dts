@@ -749,7 +749,6 @@
 #if 0	// eDAF mode: Change 1 to enable MIX mode in Linux, but HW mode in SPL would be overwritten
 	flash-edaf-mode = <0x0>;
 	flash-edaf-tgt-addr = <&edaf0>;
-	flash-edaf-size = <0x0 0x4000000>;
 #endif
 };
 
@@ -774,7 +773,6 @@
 #if 0	// eDAF mode: Change 1 to enable MIX mode in Linux, but HW mode in SPL would be overwritten
 	flash-edaf-mode = <0x0>;
 	flash-edaf-tgt-addr = <&edaf1>;
-	flash-edaf-size = <0x0 0x4000000>;
 #endif
 };
 
