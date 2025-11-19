@@ -756,6 +756,19 @@
 	status = "okay";
 };
 
+/* Enable UART2 and UART9 for obmc-console. */
+&uart2 {
+	/delete-property/ pinctrl-names;
+	/delete-property/ pinctrl-0;
+	status = "okay";
+};
+
+&uart9 {
+	/delete-property/ pinctrl-names;
+	/delete-property/ pinctrl-0;
+	status = "okay";
+};
+
 #if DUAL_NODE
 &espi1 {
 	status = "okay";
@@ -777,6 +790,19 @@
 };
 
 &rtc_over_espi1 {
+	status = "okay";
+};
+
+/* Enable UART7 and UART10 for obmc-console. */
+&uart7 {
+	/delete-property/ pinctrl-names;
+	/delete-property/ pinctrl-0;
+	status = "okay";
+};
+
+&uart10 {
+	/delete-property/ pinctrl-names;
+	/delete-property/ pinctrl-0;
 	status = "okay";
 };
 #endif /* DUAL_NODE */
