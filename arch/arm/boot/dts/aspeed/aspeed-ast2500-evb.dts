@@ -160,6 +160,14 @@
 	memory-region = <&video_engine_memory>;
 };
 
+&uart3 {
+	status = "okay";
+};
+
+&uart4 {
+	status = "okay";
+};
+
 &kcs1 {
 	kcs_addr = <0xca0>;
 	status = "okay";
