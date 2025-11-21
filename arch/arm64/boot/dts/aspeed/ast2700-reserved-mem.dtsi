@@ -3,46 +3,30 @@
 /* AST2700 reserved memories with no-map property */
 
 #if DUAL_NODE
-espi1_mmbi_memory: espi1-mmbi-memory@413800000 {
-	reg = <0x4 0x13800000 0x0 0x4000000>;
+espi1_mmbi_memory: espi1-mmbi-memory@418000000 {
+	reg = <0x4 0x18000000 0x0 0x4000000>;
 	no-map;
 };
 
-#if EDAF_128MB
-// This area used for eDAF DDR mode even in MIX mode or HW mode(enabled in SPL)
-edaf1: edaf1-memory@417800000 {
-	reg = <0x4 0x17800000 0x0 0x8000000>;
-	no-map;
-};
-#else
-edaf1: edaf1-memory@41b800000 {
-	reg = <0x4 0x1b800000 0x0 0x4000000>;
-	no-map;
-};
-#endif
-#endif
-
-#if EDAF_128MB
-// This area used for eDAF DDR mode even in MIX mode or HW mode(enabled in SPL)
-edaf0: eadf0-memory@41f800000 {
-	reg = <0x4 0x1f800000 0x0 0x8000000>;
-	no-map;
-};
-#else
-edaf0: eadf0-memory@423800000 {
-	reg = <0x4 0x23800000 0x0 0x4000000>;
+edaf1: edaf1-memory@41c000000 {
+	reg = <0x4 0x1c000000 0x0 0x4000000>;
 	no-map;
 };
 #endif
 
-espi0_mmbi_memory: espi0-mmbi-memory@427800000 {
-	reg = <0x4 0x27800000 0x0 0x4000000>;
+edaf0: eadf0-memory@428000000 {
+	reg = <0x4 0x28000000 0x0 0x4000000>;
+	no-map;
+};
+
+espi0_mmbi_memory: espi0-mmbi-memory@424000000 {
+	reg = <0x4 0x24000000 0x0 0x4000000>;
 	no-map;
 };
 
 #if PCIE0_EP
-bmc_dev0_memory: bmc-dev0-memory@42b800000 {
-	reg = <0x4 0x2b800000 0x0 0x100000>;
+bmc_dev0_memory: bmc-dev0-memory@423800000 {
+	reg = <0x4 0x23800000 0x0 0x100000>;
 	no-map;
 };
 
@@ -52,15 +36,15 @@ xdma_memory0: xdma0 {
 	no-map;
 };
 
-pcie0_mmbi0_memory: pcie0-mmbi0-memory@42ba00000 {
-	reg = <0x4 0x2ba00000 0x0 0x200000>;
+pcie0_mmbi0_memory: pcie0-mmbi0-memory@423a00000 {
+	reg = <0x4 0x23a00000 0x0 0x200000>;
 	no-map;
 };
 #endif
 
 #if PCIE1_EP
-bmc_dev1_memory: bmc-dev1-memory@42b900000 {
-	reg = <0x4 0x2b900000 0x0 0x100000>;
+bmc_dev1_memory: bmc-dev1-memory@423900000 {
+	reg = <0x4 0x23900000 0x0 0x100000>;
 	no-map;
 };
 
@@ -70,14 +54,14 @@ xdma_memory1: xdma1 {
 	no-map;
 };
 
-pcie1_mmbi4_memory: pcie1-mmbi4-memory@42bc00000 {
-	reg = <0x4 0x2bc00000 0x0 0x200000>;
+pcie1_mmbi4_memory: pcie1-mmbi4-memory@423c00000 {
+	reg = <0x4 0x23c00000 0x0 0x200000>;
 	no-map;
 };
 #endif
 
-pcie2_mmbi0_memory: pcie2-mmbi0-memory@42be00000 {
-	reg = <0x4 0x2be00000 0x0 0x200000>;
+pcie2_mmbi0_memory: pcie2-mmbi0-memory@423e00000 {
+	reg = <0x4 0x23e00000 0x0 0x200000>;
 	no-map;
 };
 
