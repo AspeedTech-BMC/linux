@@ -293,6 +293,11 @@
 
 #define AST2600_I2C_TARGET_COUNT		0x3
 
+#define HIGH_MIN_DIV		100000000
+#define STANDARD_HIGH_MIN_400NS		400
+#define FAST_HIGH_MIN_60NS			60
+#define FAST_PLUS_HIGH_MIN_26NS		26
+
 enum xfer_mode {
 	BYTE_MODE,
 	BUFF_MODE,
@@ -353,6 +358,23 @@ struct ast2600_i2c_bus {
 #endif
 };
 
+static u32 i2c_cal_high_min_config(struct ast2600_i2c_bus *i2c_bus, u64 base_clk)
+{
+	u64 cal, spec_high_min = STANDARD_HIGH_MIN_400NS;
+
+	/* fill the spec high min value */
+	if (i2c_bus->timing_info.bus_freq_hz <= I2C_MAX_FAST_MODE_FREQ &&
+	    i2c_bus->timing_info.bus_freq_hz > I2C_MAX_STANDARD_MODE_FREQ)
+		spec_high_min = FAST_HIGH_MIN_60NS;
+	else if (i2c_bus->timing_info.bus_freq_hz <= I2C_MAX_FAST_MODE_PLUS_FREQ &&
+		 i2c_bus->timing_info.bus_freq_hz > I2C_MAX_FAST_MODE_FREQ)
+		spec_high_min = FAST_PLUS_HIGH_MIN_26NS;
+
+	/* round down high minimum value to minimize the impact on the clock high time */
+	cal = base_clk * spec_high_min;
+	return (u32)DIV_ROUND_DOWN_ULL(cal, HIGH_MIN_DIV);
+}
+
 static void ast2600_i2c_ac_timing_config(struct ast2600_i2c_bus *i2c_bus)
 {
 	unsigned long base_clk[16];
@@ -361,6 +383,7 @@ static void ast2600_i2c_ac_timing_config(struct ast2600_i2c_bus *i2c_bus)
 	u32 clk_div_reg;
 	u32 scl_low;
 	u32 scl_high;
+	u32 scl_high_min;
 	u32 data;
 
 	regmap_read(i2c_bus->global_regs, AST2600_I2CG_CLK_DIV_CTRL, &clk_div_reg);
@@ -376,6 +399,9 @@ static void ast2600_i2c_ac_timing_config(struct ast2600_i2c_bus *i2c_bus)
 		if ((base_clk[i] / i2c_bus->timing_info.bus_freq_hz) <= 32) {
 			baseclk_idx = i;
 			divisor = DIV_ROUND_UP(base_clk[i], i2c_bus->timing_info.bus_freq_hz);
+			/* calculate the high min value */
+			scl_high_min = i2c_cal_high_min_config(i2c_bus, (u64)base_clk[i]);
+			dev_dbg(i2c_bus->dev, "scl_high_min: %d\n", scl_high_min);
 			break;
 		}
 	}
@@ -384,7 +410,7 @@ static void ast2600_i2c_ac_timing_config(struct ast2600_i2c_bus *i2c_bus)
 	divisor = min(divisor, 32);
 	scl_low = min(divisor * 9 / 16 - 1, 15);
 	scl_high = (divisor - scl_low - 2) & GENMASK(3, 0);
-	data = (scl_high - 1) << 20 | scl_high << 16 | scl_low << 12 | baseclk_idx;
+	data = scl_high_min << 20 | scl_high << 16 | scl_low << 12 | baseclk_idx;
 
 	if (i2c_bus->timeout) {
 		i2c_bus->timeout = min(i2c_bus->timeout, 31);
@@ -403,6 +429,7 @@ static void ast2700_i2c_ac_timing_config(struct ast2600_i2c_bus *i2c_bus)
 	u32 clk_div_reg;
 	u32 scl_low;
 	u32 scl_high;
+	u32 scl_high_min;
 	u32 data;
 	u8  divid_term = 0;
 
@@ -437,11 +464,15 @@ static void ast2700_i2c_ac_timing_config(struct ast2600_i2c_bus *i2c_bus)
 		}
 	}
 
+	/* calculate the high min value */
+	scl_high_min = i2c_cal_high_min_config(i2c_bus, (u64)base_clk);
+	dev_dbg(i2c_bus->dev, "scl_high_min: %d\n", scl_high_min);
+
 	baseclk_idx = min(baseclk_idx, 0xff);
 	divisor = min(divisor, 32);
 	scl_low = min((DIV_ROUND_UP(divisor * 9, 16)) - 1, 15);
 	scl_high = (divisor - scl_low - 2) & GENMASK(3, 0);
-	data = (scl_high - 1) << 20 | scl_high << 16 | scl_low << 12 | baseclk_idx;
+	data = scl_high_min << 20 | scl_high << 16 | scl_low << 12 | baseclk_idx;
 
 	if (i2c_bus->timeout) {
 		i2c_bus->timeout = min(i2c_bus->timeout, 255);
