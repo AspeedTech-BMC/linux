@@ -295,7 +295,7 @@ static const struct of_device_id mbox_cl_match[] = {
 	{ .compatible = "aspeed,aspeed-mbox" },
 	{},
 };
-MODULE_DEVICE_TABLE(of, mbox_test_match);
+MODULE_DEVICE_TABLE(of, mbox_cl_match);
 
 static struct platform_driver aspeed_mbox_driver = {
 	.driver = {
