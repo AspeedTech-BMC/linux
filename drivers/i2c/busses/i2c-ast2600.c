@@ -298,6 +298,8 @@
 #define FAST_HIGH_MIN_60NS			60
 #define FAST_PLUS_HIGH_MIN_26NS		26
 
+#define DATAHOLD_MAX_LEVEL 3
+
 enum xfer_mode {
 	BYTE_MODE,
 	BUFF_MODE,
@@ -341,6 +343,8 @@ struct ast2600_i2c_bus {
 	enum i2c_version		version;
 	bool				multi_master;
 	u32					debounce_level;
+	u32					manual_min_high;
+	u32					manual_data_hold;
 	/* Buffer mode */
 	void __iomem			*buf_base;
 	/* smbus alert */
@@ -381,10 +385,11 @@ static void ast2600_i2c_ac_timing_config(struct ast2600_i2c_bus *i2c_bus)
 	int baseclk_idx = 0;
 	int divisor = 0;
 	u32 clk_div_reg;
-	u32 scl_low;
-	u32 scl_high;
-	u32 scl_high_min;
-	u32 data;
+	u32 scl_low = 0;
+	u32 scl_high = 0;
+	u32 scl_high_min = 0;
+	u32 sda_data_hold = 0;
+	u32 data = 0;
 
 	regmap_read(i2c_bus->global_regs, AST2600_I2CG_CLK_DIV_CTRL, &clk_div_reg);
 
@@ -410,13 +415,30 @@ static void ast2600_i2c_ac_timing_config(struct ast2600_i2c_bus *i2c_bus)
 	divisor = min(divisor, 32);
 	scl_low = min(divisor * 9 / 16 - 1, 15);
 	scl_high = (divisor - scl_low - 2) & GENMASK(3, 0);
-	data = scl_high_min << 20 | scl_high << 16 | scl_low << 12 | baseclk_idx;
+
+	if (i2c_bus->manual_min_high) {
+		if (i2c_bus->manual_min_high > scl_high)
+			dev_info(i2c_bus->dev, "invalid manual high min: %d\n", i2c_bus->manual_min_high);
+		else
+			scl_high_min = i2c_bus->manual_min_high;
+	}
+
+	if (i2c_bus->manual_data_hold) {
+		if (i2c_bus->manual_data_hold > DATAHOLD_MAX_LEVEL)
+			dev_info(i2c_bus->dev, "invalid manual data hold: %d\n", i2c_bus->manual_data_hold);
+		else
+			sda_data_hold = i2c_bus->manual_data_hold;
+	}
+
+	data = baseclk_idx;
+	data |= scl_high_min << 20 | scl_high << 16 | scl_low << 12 | sda_data_hold << 10;
 
 	if (i2c_bus->timeout) {
 		i2c_bus->timeout = min(i2c_bus->timeout, 31);
 		data |= AST2600_I2CC_TTIMEOUT(i2c_bus->timeout);
 		data |= AST2600_I2CC_TOUTBASECLK(AST2600_I2C_TIMEOUT_CLK);
 	}
+	dev_dbg(i2c_bus->dev, "ac: 0x%x\n", data);
 
 	writel(data, i2c_bus->reg_base + AST2600_I2CC_AC_TIMING);
 }
@@ -426,11 +448,12 @@ static void ast2700_i2c_ac_timing_config(struct ast2600_i2c_bus *i2c_bus)
 	unsigned long base_clk;
 	int baseclk_idx = 0;
 	int divisor = 0;
-	u32 clk_div_reg;
-	u32 scl_low;
-	u32 scl_high;
-	u32 scl_high_min;
-	u32 data;
+	u32 clk_div_reg = 0;
+	u32 scl_low = 0;
+	u32 scl_high = 0;
+	u32 scl_high_min = 0;
+	u32 sda_data_hold = 0;
+	u32 data = 0;
 	u8  divid_term = 0;
 
 	/* The i2c minmum ac-timing is 12KHz */
@@ -472,7 +495,25 @@ static void ast2700_i2c_ac_timing_config(struct ast2600_i2c_bus *i2c_bus)
 	divisor = min(divisor, 32);
 	scl_low = min((DIV_ROUND_UP(divisor * 9, 16)) - 1, 15);
 	scl_high = (divisor - scl_low - 2) & GENMASK(3, 0);
-	data = scl_high_min << 20 | scl_high << 16 | scl_low << 12 | baseclk_idx;
+
+	/* fill manual min high value */
+	if (i2c_bus->manual_min_high) {
+		if (i2c_bus->manual_min_high > scl_high)
+			dev_info(i2c_bus->dev, "invalid manual high min: %d\n", i2c_bus->manual_min_high);
+		else
+			scl_high_min = i2c_bus->manual_min_high;
+	}
+
+	/* fill manual sda hold value */
+	if (i2c_bus->manual_data_hold) {
+		if (i2c_bus->manual_data_hold > DATAHOLD_MAX_LEVEL)
+			dev_info(i2c_bus->dev, "invalid manual data hold: %d\n", i2c_bus->manual_data_hold);
+		else
+			sda_data_hold = i2c_bus->manual_data_hold;
+	}
+
+	data = baseclk_idx;
+	data |= scl_high_min << 20 | scl_high << 16 | scl_low << 12 | sda_data_hold << 10;
 
 	if (i2c_bus->timeout) {
 		i2c_bus->timeout = min(i2c_bus->timeout, 255);
@@ -481,6 +522,7 @@ static void ast2700_i2c_ac_timing_config(struct ast2600_i2c_bus *i2c_bus)
 		/* timeout_base set as 1ms */
 		data |= AST2600_I2CC_TOUTBASECLK(AST2700_I2C_TIMEOUT_CLK);
 	}
+	dev_dbg(i2c_bus->dev, "ac: 0x%x\n", data);
 
 	writel(data, i2c_bus->reg_base + AST2600_I2CC_AC_TIMING);
 }
@@ -2061,6 +2103,16 @@ static void ast2600_i2c_init(struct ast2600_i2c_bus *i2c_bus)
 	i2c_bus->multi_master = device_property_read_bool(&pdev->dev, "multi-master");
 	if (!i2c_bus->multi_master)
 		fun_ctrl |= AST2600_I2CC_MULTI_MASTER_DIS;
+
+	/* I2C manual minimum SCL high */
+	if (device_property_read_u32(&pdev->dev, "manual-min-high",
+				     &i2c_bus->manual_min_high))
+		i2c_bus->manual_min_high = 0;
+
+	/* I2C manual data hold */
+	if (device_property_read_u32(&pdev->dev, "manual-data-hold",
+				     &i2c_bus->manual_data_hold))
+		i2c_bus->manual_data_hold = 0;
 
 	/* I2C Debounce level */
 	if (i2c_bus->version != AST2600) {
