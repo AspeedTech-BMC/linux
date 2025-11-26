@@ -95,3 +95,33 @@
 &pcie1 {
 	status = "okay";
 };
+
+&mdio0 {
+	status = "disabled";
+};
+
+&mac0 {
+	status = "disabled";
+};
+
+&mdio2 {
+	status = "okay";
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	ethphy2: ethernet-phy@0 {
+		compatible = "ethernet-phy-ieee802.3-c22";
+		reg = <0>;
+	};
+};
+
+&sgmii {
+	status = "okay";
+};
+
+&mac2 {
+	status = "okay";
+
+	phy-mode = "sgmii";
+	phy-handle = <&ethphy2>;
+};
