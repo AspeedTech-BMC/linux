@@ -1044,7 +1044,7 @@ static bool hci_pio_prep_new_ibi(struct i3c_hci *hci, struct hci_pio_data *pio)
 	ibi->seg_cnt = ibi->seg_len;
 
 	dev = i3c_hci_addr_to_dev(hci, ibi->addr);
-	if (!dev) {
+	if (!dev || dev == hci->master.this) {
 		dev_err(&hci->master.dev,
 			"IBI for unknown device %#x\n", ibi->addr);
 		return true;
