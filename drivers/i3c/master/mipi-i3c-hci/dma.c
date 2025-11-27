@@ -756,7 +756,7 @@ static void hci_dma_process_ibi(struct i3c_hci *hci, struct hci_rh_data *rh)
 
 		/* determine who this is for */
 		dev = i3c_hci_addr_to_dev(hci, ibi_addr);
-		if (!dev) {
+		if (!dev || dev == hci->master.this) {
 			dev_err(&hci->master.dev,
 				"IBI for unknown device %#x\n", ibi_addr);
 			goto done;
