@@ -55,6 +55,7 @@
 #define AST2600_I2CCG_DIV_CTRL 0xC6411208
 #define AST2700_I2CCG_DIV_CTRL 0xC6220904
 #define AST2700_MIN_AC_TIMING 12000
+#define AST_DEFAULT_AC_TIMING 100000
 
 /* 0x00 : I2CC Controller/Target Function Control Register  */
 #define AST2600_I2CC_FUN_CTRL		0x00
@@ -391,6 +392,12 @@ static void ast2600_i2c_ac_timing_config(struct ast2600_i2c_bus *i2c_bus)
 	u32 sda_data_hold = 0;
 	u32 data = 0;
 
+	/* Check the maxmum i2c bus frequency */
+	if (i2c_bus->timing_info.bus_freq_hz > I2C_MAX_ULTRA_FAST_MODE_FREQ) {
+		dev_err(i2c_bus->dev, "The frequency over spec. Set to 100KHz.\n");
+		i2c_bus->timing_info.bus_freq_hz = AST_DEFAULT_AC_TIMING;
+	}
+
 	regmap_read(i2c_bus->global_regs, AST2600_I2CG_CLK_DIV_CTRL, &clk_div_reg);
 
 	for (int i = 0; i < ARRAY_SIZE(base_clk); i++) {
@@ -456,8 +463,12 @@ static void ast2700_i2c_ac_timing_config(struct ast2600_i2c_bus *i2c_bus)
 	u32 data = 0;
 	u8  divid_term = 0;
 
+	/* Check the maxmum i2c bus frequency */
 	/* The i2c minmum ac-timing is 12KHz */
-	if (i2c_bus->timing_info.bus_freq_hz < AST2700_MIN_AC_TIMING) {
+	if (i2c_bus->timing_info.bus_freq_hz > I2C_MAX_ULTRA_FAST_MODE_FREQ) {
+		dev_err(i2c_bus->dev, "The frequency over spec. Set to 100KHz.\n");
+		i2c_bus->timing_info.bus_freq_hz = AST_DEFAULT_AC_TIMING;
+	} else if (i2c_bus->timing_info.bus_freq_hz < AST2700_MIN_AC_TIMING) {
 		dev_err(i2c_bus->dev, "The frequency could not be lower than 12KHz.\n");
 		i2c_bus->timing_info.bus_freq_hz = AST2700_MIN_AC_TIMING;
 	}
