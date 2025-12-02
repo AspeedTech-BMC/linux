@@ -63,7 +63,7 @@ aspeed_crypt_get_alg(const char *algo_name)
 	return NULL;
 }
 
-static int aspeed_crypt_run_tests(char *alg_name)
+static __maybe_unused int aspeed_crypt_run_tests(char *alg_name)
 {
 	const struct aspeed_crypt_test *ts;
 	int ret = 0;
@@ -88,6 +88,14 @@ static int aspeed_crypt_run_tests(char *alg_name)
 	return ret;
 }
 
+#ifdef CONFIG_CRYPTO_MANAGER_DISABLE_TESTS
+static ssize_t aspeed_crypt_write(struct file *file, const char __user *ubuf,
+				  size_t count, loff_t *ppos)
+{
+	pr_err("Crypto tests are disabled\n");
+	return -EOPNOTSUPP;
+}
+#else
 static ssize_t aspeed_crypt_write(struct file *file, const char __user *ubuf,
 				  size_t count, loff_t *ppos)
 {
@@ -107,6 +115,7 @@ static ssize_t aspeed_crypt_write(struct file *file, const char __user *ubuf,
 
 	return min(count, sizeof(kbuf));
 }
+#endif
 
 static const struct file_operations fops = {
 	.owner = THIS_MODULE,
