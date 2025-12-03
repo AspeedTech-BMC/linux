@@ -279,14 +279,14 @@ static int ast8250_startup(struct uart_port *port)
 		}
 
 		rc = aspeed_udma_request_tx_chan(dma->ch, dma->tx_addr,
-				dma->tx_rb, dma->tx_rbsz, ast8250_dma_tx_complete, port, dma->tx_tmout_dis);
+				dma->tx_rbsz, ast8250_dma_tx_complete, port, dma->tx_tmout_dis);
 		if (rc) {
 			dev_err(port->dev, "failed to request DMA TX channel\n");
 			goto free_dma_n_out;
 		}
 
 		rc = aspeed_udma_request_rx_chan(dma->ch, dma->rx_addr,
-				dma->rx_rb, dma->rx_rbsz, ast8250_dma_rx_complete, port, dma->rx_tmout_dis);
+				dma->rx_rbsz, ast8250_dma_rx_complete, port, dma->rx_tmout_dis);
 		if (rc) {
 			dev_err(port->dev, "failed to request DMA RX channel\n");
 			goto free_dma_n_out;

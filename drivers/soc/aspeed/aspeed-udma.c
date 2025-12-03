@@ -60,7 +60,6 @@ enum aspeed_udma_bufsz_code {
 struct aspeed_udma_chan {
 	dma_addr_t dma_addr;
 
-	struct circ_buf *rb;
 	u32 rb_sz;
 
 	aspeed_udma_cb_t cb;
@@ -160,9 +159,9 @@ int aspeed_udma_free_rx_chan(u32 ch_no)
 }
 EXPORT_SYMBOL(aspeed_udma_free_rx_chan);
 
-static int aspeed_udma_request_chan(u32 ch_no, dma_addr_t addr,
-		struct circ_buf *rb, u32 rb_sz,
-		aspeed_udma_cb_t cb, void *id, bool dis_tmout, bool is_tx)
+static int aspeed_udma_request_chan(u32 ch_no, dma_addr_t addr, u32 rb_sz,
+				    aspeed_udma_cb_t cb, void *id,
+				    bool dis_tmout, bool is_tx)
 {
 	int retval = 0;
 	int rbsz_code;
@@ -172,11 +171,6 @@ static int aspeed_udma_request_chan(u32 ch_no, dma_addr_t addr,
 	struct aspeed_udma_chan *ch;
 
 	if (ch_no > UDMA_MAX_CHANNEL) {
-		retval = -EINVAL;
-		goto out;
-	}
-
-	if (IS_ERR_OR_NULL(rb) || IS_ERR_OR_NULL(rb->buf)) {
 		retval = -EINVAL;
 		goto out;
 	}
@@ -224,7 +218,6 @@ static int aspeed_udma_request_chan(u32 ch_no, dma_addr_t addr,
 	}
 
 	ch = (is_tx) ? &udma->tx_chs[ch_no] : &udma->rx_chs[ch_no];
-	ch->rb = rb;
 	ch->rb_sz = rb_sz;
 	ch->cb = cb;
 	ch->cb_arg = id;
@@ -237,20 +230,18 @@ out:
 	return 0;
 }
 
-int aspeed_udma_request_tx_chan(u32 ch_no, dma_addr_t addr,
-				struct circ_buf *rb, u32 rb_sz,
+int aspeed_udma_request_tx_chan(u32 ch_no, dma_addr_t addr, u32 rb_sz,
 				aspeed_udma_cb_t cb, void *id, bool dis_tmout)
 {
-	return aspeed_udma_request_chan(ch_no, addr, rb, rb_sz, cb, id,
+	return aspeed_udma_request_chan(ch_no, addr, rb_sz, cb, id,
 					dis_tmout, true);
 }
 EXPORT_SYMBOL(aspeed_udma_request_tx_chan);
 
-int aspeed_udma_request_rx_chan(u32 ch_no, dma_addr_t addr,
-				struct circ_buf *rb, u32 rb_sz,
+int aspeed_udma_request_rx_chan(u32 ch_no, dma_addr_t addr, u32 rb_sz,
 				aspeed_udma_cb_t cb, void *id, bool dis_tmout)
 {
-	return aspeed_udma_request_chan(ch_no, addr, rb, rb_sz, cb, id,
+	return aspeed_udma_request_chan(ch_no, addr, rb_sz, cb, id,
 					dis_tmout, false);
 }
 EXPORT_SYMBOL(aspeed_udma_request_rx_chan);
