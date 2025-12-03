@@ -13,4 +13,12 @@ dtb-$(CONFIG_ARCH_ASPEED) += \
 	ast2700-evb-256-abr.dtb \
 	ast2700-slt.dtb \
 	ast2700-fpga.dtb \
-	ast2700-ci-host.dtb
+	ast2700-ci-host.dtb \
+	ast2700a1-evb.dtb \
+	ast2700a1-raw.dtb \
+	ast2700a1-ncsi.dtb \
+	ast2700a1-dcscm.dtb \
+	ast2700a1-dcscm_ast1700a1-evb.dtb \
+	ast2700a1-dcscm_ast1700a1-evb-dual.dtb \
+	ast2700a1-dcscm_ast1800-evb.dtb \
+	ast2700a1-evb-256-abr.dtb
