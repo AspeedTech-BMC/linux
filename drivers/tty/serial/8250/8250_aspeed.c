@@ -14,6 +14,7 @@
 #include <linux/clk.h>
 #include <linux/reset.h>
 #include <linux/dma-mapping.h>
+#include <linux/circ_buf.h>
 #include <linux/tty_flip.h>
 #include <linux/pm_runtime.h>
 #include <linux/soc/aspeed/aspeed-udma.h>
@@ -55,14 +56,14 @@ struct ast8250_vuart {
 struct ast8250_udma {
 	u32 ch;
 
-	u32 tx_fifosz;
-	u32 rx_fifosz;
+	u32 tx_rbsz;
+	u32 rx_rbsz;
 
 	dma_addr_t tx_addr;
 	dma_addr_t rx_addr;
 
-	struct kfifo *tx_fifo;
-	struct kfifo *rx_fifo;
+	struct circ_buf *tx_rb;
+	struct circ_buf *rx_rb;
 
 	bool tx_tmout_dis;
 	bool rx_tmout_dis;
@@ -83,48 +84,58 @@ struct ast8250_data {
 	struct ast8250_udma dma;
 };
 
-static void ast8250_dma_tx_complete(int tx_fifo_rptr, void *id)
+static void ast8250_dma_tx_complete(int tx_rb_rptr, void *id)
 {
+	u32 count;
     unsigned long flags;
 	struct uart_port *port = (struct uart_port*)id;
 	struct ast8250_data *data = port->private_data;
-	struct kfifo *tx_fifo = data->dma.tx_fifo;
-	unsigned int len;
 
     spin_lock_irqsave(&port->lock, flags);
 
-	len = kfifo_out(tx_fifo, NULL, tx_fifo_rptr);
-	port->icount.tx += len;
+	count = CIRC_CNT(tx_rb_rptr, port->state->xmit.tail, data->dma.tx_rbsz);
+	port->state->xmit.tail = tx_rb_rptr;
+	port->icount.tx += count;
 
-	if (kfifo_len(tx_fifo) < WAKEUP_CHARS)
-		uart_write_wakeup(port);
+    if (uart_circ_chars_pending(&port->state->xmit) < WAKEUP_CHARS)
+        uart_write_wakeup(port);
 
     spin_unlock_irqrestore(&port->lock, flags);
 }
 
-static void ast8250_dma_rx_complete(int rx_fifo_wptr, void *id)
+static void ast8250_dma_rx_complete(int rx_rb_wptr, void *id)
 {
 	unsigned long flags;
 	struct uart_port *up = (struct uart_port*)id;
 	struct tty_port *tp = &up->state->port;
 	struct ast8250_data *data = up->private_data;
 	struct ast8250_udma *dma = &data->dma;
-	struct kfifo *rx_fifo = dma->rx_fifo;
-	u32 len = 0;
-	u8 buf[128];
+	struct circ_buf *rx_rb = dma->rx_rb;
+	u32 rx_rbsz = dma->rx_rbsz;
+	u32 count = 0;
 
 	spin_lock_irqsave(&up->lock, flags);
 
-	dma_sync_single_for_cpu(up->dev,
-			dma->rx_addr, dma->rx_fifosz, DMA_FROM_DEVICE);
+	rx_rb->head = rx_rb_wptr;
 
-	while (!kfifo_is_empty(rx_fifo)) {
-		len = kfifo_out(rx_fifo, buf, sizeof(buf));
-		tty_insert_flip_string(tp, buf, len);
-		up->icount.rx += len;
+	dma_sync_single_for_cpu(up->dev,
+			dma->rx_addr, dma->rx_rbsz, DMA_FROM_DEVICE);
+
+	while (CIRC_CNT(rx_rb->head, rx_rb->tail, rx_rbsz)) {
+		count = CIRC_CNT_TO_END(rx_rb->head, rx_rb->tail, rx_rbsz);
+
+		tty_insert_flip_string(tp, rx_rb->buf + rx_rb->tail, count);
+
+		rx_rb->tail += count;
+		rx_rb->tail %= rx_rbsz;
+
+        up->icount.rx += count;
 	}
 
-	tty_flip_buffer_push(tp);
+	if (count) {
+		aspeed_udma_set_rx_rptr(data->dma.ch, rx_rb->tail);
+		tty_flip_buffer_push(tp);
+	}
 
 	spin_unlock_irqrestore(&up->lock, flags);
 }
@@ -133,12 +144,12 @@ static void ast8250_dma_start_tx(struct uart_port *port)
 {
 	struct ast8250_data *data = port->private_data;
 	struct ast8250_udma *dma = &data->dma;
-	struct kfifo *tx_fifo = dma->tx_fifo;
+	struct circ_buf *tx_rb = dma->tx_rb;
 
 	dma_sync_single_for_device(port->dev,
-				   dma->tx_addr, dma->tx_fifosz, DMA_TO_DEVICE);
+			dma->tx_addr, dma->tx_rbsz, DMA_TO_DEVICE);
 
-	aspeed_udma_set_tx_wptr(dma->ch, kfifo_len(tx_fifo));
+	aspeed_udma_set_tx_wptr(dma->ch, tx_rb->head);
 }
 
 static void ast8250_dma_pops_hook(struct uart_port *port)
@@ -232,49 +243,53 @@ static int ast8250_startup(struct uart_port *port)
 	if (data->use_dma) {
 		dma = &data->dma;
 
-		dma->tx_fifosz = DMA_TX_BUFSZ;
-		dma->rx_fifosz = DMA_RX_BUFSZ;
+		dma->tx_rbsz = DMA_TX_BUFSZ;
+		dma->rx_rbsz = DMA_RX_BUFSZ;
 
-		if (kfifo_alloc(dma->tx_fifo, dma->tx_fifosz, GFP_KERNEL)) {
-			dev_err(port->dev, "failed to allocate TX DMA ring buffer\n");
+		/*
+		 * We take the xmit buffer passed from upper layers as
+		 * the DMA TX buffer and allocate a new buffer for the
+		 * RX use.
+		 *
+		 * To keep the TX/RX operation consistency, we use the
+		 * streaming DMA interface instead of the coherent one
+		 */
+		dma->tx_rb = &port->state->xmit;
+		dma->rx_rb->buf = kzalloc(data->dma.rx_rbsz, GFP_KERNEL);
+		if (IS_ERR_OR_NULL(dma->rx_rb->buf)) {
+			dev_err(port->dev, "failed to allcoate RX DMA buffer\n");
 			rc = -ENOMEM;
 			goto out;
 		}
 
-		if (kfifo_alloc(dma->rx_fifo, dma->rx_fifosz, GFP_KERNEL)) {
-			dev_err(port->dev, "failed to allocate RX DMA ring buffer\n");
-			rc = -ENOMEM;
-			goto free_tx_fifo;
-		}
-
-		dma->tx_addr = dma_map_single(port->dev, dma->tx_fifo->kfifo.data,
-					      dma->tx_fifosz, DMA_TO_DEVICE);
+		dma->tx_addr = dma_map_single(port->dev, dma->tx_rb->buf,
+				dma->tx_rbsz, DMA_TO_DEVICE);
 		if (dma_mapping_error(port->dev, dma->tx_addr)) {
 			dev_err(port->dev, "failed to map streaming TX DMA region\n");
 			rc = -ENOMEM;
-			goto free_rx_fifo;
+			goto free_dma_n_out;
 		}
 
-		dma->rx_addr = dma_map_single(port->dev, dma->rx_fifo->kfifo.data,
-					      dma->rx_fifosz, DMA_FROM_DEVICE);
+		dma->rx_addr = dma_map_single(port->dev, dma->rx_rb->buf,
+				dma->rx_rbsz, DMA_FROM_DEVICE);
 		if (dma_mapping_error(port->dev, dma->rx_addr)) {
 			dev_err(port->dev, "failed to map streaming RX DMA region\n");
 			rc = -ENOMEM;
-			goto free_rx_fifo;
+			goto free_dma_n_out;
 		}
 
 		rc = aspeed_udma_request_tx_chan(dma->ch, dma->tx_addr,
-				dma->tx_fifo, dma->tx_fifosz, ast8250_dma_tx_complete, port, dma->tx_tmout_dis);
+				dma->tx_rb, dma->tx_rbsz, ast8250_dma_tx_complete, port, dma->tx_tmout_dis);
 		if (rc) {
 			dev_err(port->dev, "failed to request DMA TX channel\n");
-			goto free_rx_fifo;
+			goto free_dma_n_out;
 		}
 
 		rc = aspeed_udma_request_rx_chan(dma->ch, dma->rx_addr,
-				dma->rx_fifo, dma->rx_fifosz, ast8250_dma_rx_complete, port, dma->rx_tmout_dis);
+				dma->rx_rb, dma->rx_rbsz, ast8250_dma_rx_complete, port, dma->rx_tmout_dis);
 		if (rc) {
 			dev_err(port->dev, "failed to request DMA RX channel\n");
-			goto free_rx_fifo;
+			goto free_dma_n_out;
 		}
 
 		ast8250_dma_pops_hook(port);
@@ -286,12 +301,8 @@ static int ast8250_startup(struct uart_port *port)
 	memset(&port->icount, 0, sizeof(port->icount));
 	return serial8250_do_startup(port);
 
-free_rx_fifo:
-	kfifo_free(dma->rx_fifo);
-
-free_tx_fifo:
-	kfifo_free(dma->tx_fifo);
-
+free_dma_n_out:
+	kfree(dma->rx_rb->buf);
 out:
 	return rc;
 }
@@ -320,12 +331,12 @@ static void ast8250_shutdown(struct uart_port *port)
 			dev_err(port->dev, "failed to free DMA TX channel, rc=%d\n", rc);
 
 		dma_unmap_single(port->dev, dma->tx_addr,
-				dma->tx_fifosz, DMA_TO_DEVICE);
+				dma->tx_rbsz, DMA_TO_DEVICE);
 		dma_unmap_single(port->dev, dma->rx_addr,
-				dma->rx_fifosz, DMA_FROM_DEVICE);
+				dma->rx_rbsz, DMA_FROM_DEVICE);
 
-		kfree(dma->tx_fifo);
-		kfree(dma->rx_fifo);
+		if (dma->rx_rb->buf)
+			kfree(dma->rx_rb->buf);
 	}
 
 	if (data->is_vuart)
@@ -370,8 +381,8 @@ static int ast8250_probe(struct platform_device *pdev)
 	if (data == NULL)
 	    return -ENOMEM;
 
-	data->dma.rx_fifo = devm_kzalloc(dev, sizeof(data->dma.rx_fifo), GFP_KERNEL);
-	if (!data->dma.rx_fifo)
+	data->dma.rx_rb = devm_kzalloc(dev, sizeof(data->dma.rx_rb), GFP_KERNEL);
+	if (data->dma.rx_rb == NULL)
 		return -ENOMEM;
 
 	irq = platform_get_irq(pdev, 0);
