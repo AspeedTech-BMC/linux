@@ -41,7 +41,6 @@
 #define VUART_GCRG	0x38
 #define   VUART_GCRG_CHARACTER_TIMEOUT_TIME_CONTROL	BIT(1)
 
-#define DMA_TX_BUFSZ	PAGE_SIZE
 #define DMA_RX_BUFSZ	(64 * 1024)
 
 struct uart_ops ast8250_pops;
@@ -62,7 +61,7 @@ struct ast8250_udma {
 	dma_addr_t tx_addr;
 	dma_addr_t rx_addr;
 
-	struct circ_buf *tx_rb;
+	struct tty_port *tport;
 	struct circ_buf *rx_rb;
 
 	bool tx_tmout_dis;
@@ -86,21 +85,24 @@ struct ast8250_data {
 
 static void ast8250_dma_tx_complete(int tx_rb_rptr, void *id)
 {
-	u32 count;
-    unsigned long flags;
-	struct uart_port *port = (struct uart_port*)id;
+	unsigned long flags;
+	struct uart_port *port = id;
 	struct ast8250_data *data = port->private_data;
+	unsigned int count, tail;
 
-    spin_lock_irqsave(&port->lock, flags);
+	spin_lock_irqsave(&port->lock, flags);
 
-	count = CIRC_CNT(tx_rb_rptr, port->state->xmit.tail, data->dma.tx_rbsz);
-	port->state->xmit.tail = tx_rb_rptr;
+	count = kfifo_out_linear(&data->dma.tport->xmit_fifo, &tail, data->dma.tx_rbsz);
+	count = CIRC_CNT(tx_rb_rptr, tail, data->dma.tx_rbsz);
+	if (!count)
+		count = data->dma.tx_rbsz;
+	kfifo_dma_out_finish(&data->dma.tport->xmit_fifo, count);
 	port->icount.tx += count;
 
-    if (uart_circ_chars_pending(&port->state->xmit) < WAKEUP_CHARS)
-        uart_write_wakeup(port);
+	if (kfifo_len(&data->dma.tport->xmit_fifo) < WAKEUP_CHARS)
+		uart_write_wakeup(port);
 
-    spin_unlock_irqrestore(&port->lock, flags);
+	spin_unlock_irqrestore(&port->lock, flags);
 }
 
 static void ast8250_dma_rx_complete(int rx_rb_wptr, void *id)
@@ -144,12 +146,13 @@ static void ast8250_dma_start_tx(struct uart_port *port)
 {
 	struct ast8250_data *data = port->private_data;
 	struct ast8250_udma *dma = &data->dma;
-	struct circ_buf *tx_rb = dma->tx_rb;
+	typeof(&dma->tport->xmit_fifo) tmp = &dma->tport->xmit_fifo;
+	struct __kfifo *tx_rb = &tmp->kfifo;
 
 	dma_sync_single_for_device(port->dev,
 			dma->tx_addr, dma->tx_rbsz, DMA_TO_DEVICE);
 
-	aspeed_udma_set_tx_wptr(dma->ch, tx_rb->head);
+	aspeed_udma_set_tx_wptr(dma->ch, tx_rb->in);
 }
 
 static void ast8250_dma_pops_hook(struct uart_port *port)
@@ -243,7 +246,7 @@ static int ast8250_startup(struct uart_port *port)
 	if (data->use_dma) {
 		dma = &data->dma;
 
-		dma->tx_rbsz = DMA_TX_BUFSZ;
+		dma->tx_rbsz = UART_XMIT_SIZE;
 		dma->rx_rbsz = DMA_RX_BUFSZ;
 
 		/*
@@ -254,7 +257,7 @@ static int ast8250_startup(struct uart_port *port)
 		 * To keep the TX/RX operation consistency, we use the
 		 * streaming DMA interface instead of the coherent one
 		 */
-		dma->tx_rb = &port->state->xmit;
+		dma->tport = &port->state->port;
 		dma->rx_rb->buf = kzalloc(data->dma.rx_rbsz, GFP_KERNEL);
 		if (IS_ERR_OR_NULL(dma->rx_rb->buf)) {
 			dev_err(port->dev, "failed to allcoate RX DMA buffer\n");
@@ -262,7 +265,7 @@ static int ast8250_startup(struct uart_port *port)
 			goto out;
 		}
 
-		dma->tx_addr = dma_map_single(port->dev, dma->tx_rb->buf,
+		dma->tx_addr = dma_map_single(port->dev, dma->tport->xmit_buf,
 				dma->tx_rbsz, DMA_TO_DEVICE);
 		if (dma_mapping_error(port->dev, dma->tx_addr)) {
 			dev_err(port->dev, "failed to map streaming TX DMA region\n");
@@ -485,6 +488,11 @@ static int ast8250_probe(struct platform_device *pdev)
 		dev_err(dev, "failed to register 8250 port\n");
 		return data->line;
 	}
+
+	dev_info(dev, "ttyS%d%s%s\n",
+		 data->line,
+		 data->is_vuart ? " (VUART)" : "",
+		 data->use_dma ? " (DMA mode)" : "");
 
 	pm_runtime_set_active(&pdev->dev);
 	pm_runtime_enable(&pdev->dev);
