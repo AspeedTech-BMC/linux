@@ -844,6 +844,7 @@
 				no-loopback-test;
 				pinctrl-names = "default";
 				pinctrl-0 = <&pinctrl_txd1_default &pinctrl_rxd1_default>;
+				dma-channel = <0>;
 				status = "disabled";
 			};
 
@@ -896,6 +897,7 @@
 				interrupts = <GIC_SPI 147 IRQ_TYPE_LEVEL_HIGH>;
 				clocks = <&syscon ASPEED_CLK_APB1>;
 				virtual;
+				dma-channel = <12>;
 				status = "disabled";
 			};
 
@@ -914,6 +916,7 @@
 				interrupts = <GIC_SPI 148 IRQ_TYPE_LEVEL_HIGH>;
 				clocks = <&syscon ASPEED_CLK_APB1>;
 				virtual;
+				dma-channel = <13>;
 				status = "disabled";
 			};
 
@@ -1108,6 +1111,7 @@
 				no-loopback-test;
 				pinctrl-names = "default";
 				pinctrl-0 = <&pinctrl_txd2_default &pinctrl_rxd2_default>;
+				dma-channel = <1>;
 				status = "disabled";
 			};
 
@@ -1122,6 +1126,7 @@
 				no-loopback-test;
 				pinctrl-names = "default";
 				pinctrl-0 = <&pinctrl_txd3_default &pinctrl_rxd3_default>;
+				dma-channel = <2>;
 				status = "disabled";
 			};
 
@@ -1136,6 +1141,7 @@
 				no-loopback-test;
 				pinctrl-names = "default";
 				pinctrl-0 = <&pinctrl_txd4_default &pinctrl_rxd4_default>;
+				dma-channel = <3>;
 				status = "disabled";
 			};
 		};
@@ -1157,6 +1163,7 @@
 				no-loopback-test;
 				pinctrl-names = "default";
 				pinctrl-0 = <&pinctrl_uart6_default>;
+				dma-channel = <4>;
 
 				status = "disabled";
 			};
@@ -1171,6 +1178,7 @@
 				no-loopback-test;
 				pinctrl-names = "default";
 				pinctrl-0 = <&pinctrl_uart7_default>;
+				dma-channel = <5>;
 
 				status = "disabled";
 			};
@@ -1185,6 +1193,7 @@
 				no-loopback-test;
 				pinctrl-names = "default";
 				pinctrl-0 = <&pinctrl_uart8_default>;
+				dma-channel = <6>;
 
 				status = "disabled";
 			};
@@ -1199,6 +1208,7 @@
 				no-loopback-test;
 				pinctrl-names = "default";
 				pinctrl-0 = <&pinctrl_uart9_default>;
+				dma-channel = <7>;
 
 				status = "disabled";
 			};
@@ -1211,6 +1221,7 @@
 				pinctrl-names = "default";
 				pinctrl-0 = <&pinctrl_uart10_default>;
 				no-loopback-test;
+				dma-channel = <8>;
 				status = "disabled";
 			};
 
@@ -1222,6 +1233,7 @@
 				pinctrl-names = "default";
 				pinctrl-0 = <&pinctrl_uart11_default>;
 				no-loopback-test;
+				dma-channel = <9>;
 				status = "disabled";
 			};
 
@@ -1233,6 +1245,7 @@
 				pinctrl-names = "default";
 				pinctrl-0 = <&pinctrl_uart12g1_default>;
 				no-loopback-test;
+				dma-channel = <10>;
 				status = "disabled";
 			};
 
@@ -1244,6 +1257,7 @@
 				pinctrl-names = "default";
 				pinctrl-0 = <&pinctrl_uart13g1_default>;
 				no-loopback-test;
+				dma-channel = <11>;
 				status = "disabled";
 			};
 
