@@ -1052,6 +1052,12 @@ static bool hci_pio_prep_new_ibi(struct i3c_hci *hci, struct hci_pio_data *pio)
 
 	dev_data = i3c_dev_get_master_data(dev);
 	dev_ibi = dev_data->ibi_data;
+	if (!dev_ibi) {
+		dev_err(&hci->master.dev,
+			"IBI received for device %#x without IBI setup\n",
+			ibi_addr);
+		return true;
+	}
 	ibi->max_len = dev_ibi->max_len;
 
 	if (ibi->seg_len > ibi->max_len) {
