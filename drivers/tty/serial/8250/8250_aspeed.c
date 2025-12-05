@@ -72,6 +72,7 @@ struct ast8250_udma {
 struct ast8250_data {
 	int line;
 
+	struct resource *res;
 	u8 __iomem *regs;
 
 	bool is_vuart;
@@ -87,26 +88,26 @@ struct ast8250_data {
 static void ast8250_dma_tx_complete(int tx_rb_rptr, void *id)
 {
 	u32 count;
-    unsigned long flags;
-	struct uart_port *port = (struct uart_port*)id;
+	unsigned long flags;
+	struct uart_port *port = id;
 	struct ast8250_data *data = port->private_data;
 
-    spin_lock_irqsave(&port->lock, flags);
+	uart_port_lock_irqsave(port, &flags);
 
 	count = CIRC_CNT(tx_rb_rptr, port->state->xmit.tail, data->dma.tx_rbsz);
 	port->state->xmit.tail = tx_rb_rptr;
 	port->icount.tx += count;
 
-    if (uart_circ_chars_pending(&port->state->xmit) < WAKEUP_CHARS)
-        uart_write_wakeup(port);
+	if (uart_circ_chars_pending(&port->state->xmit) < WAKEUP_CHARS)
+		uart_write_wakeup(port);
 
-    spin_unlock_irqrestore(&port->lock, flags);
+	uart_port_unlock_irqrestore(port, flags);
 }
 
 static void ast8250_dma_rx_complete(int rx_rb_wptr, void *id)
 {
 	unsigned long flags;
-	struct uart_port *up = (struct uart_port*)id;
+	struct uart_port *up = id;
 	struct tty_port *tp = &up->state->port;
 	struct ast8250_data *data = up->private_data;
 	struct ast8250_udma *dma = &data->dma;
@@ -114,7 +115,7 @@ static void ast8250_dma_rx_complete(int rx_rb_wptr, void *id)
 	u32 rx_rbsz = dma->rx_rbsz;
 	u32 count = 0;
 
-	spin_lock_irqsave(&up->lock, flags);
+	uart_port_lock_irqsave(up, &flags);
 
 	rx_rb->head = rx_rb_wptr;
 
@@ -129,7 +130,7 @@ static void ast8250_dma_rx_complete(int rx_rb_wptr, void *id)
 		rx_rb->tail += count;
 		rx_rb->tail %= rx_rbsz;
 
-        up->icount.rx += count;
+		up->icount.rx += count;
 	}
 
 	if (count) {
@@ -137,7 +138,7 @@ static void ast8250_dma_rx_complete(int rx_rb_wptr, void *id)
 		tty_flip_buffer_push(tp);
 	}
 
-	spin_unlock_irqrestore(&up->lock, flags);
+	uart_port_unlock_irqrestore(up, flags);
 }
 
 static void ast8250_dma_start_tx(struct uart_port *port)
@@ -359,46 +360,19 @@ static int __maybe_unused ast8250_resume(struct device *dev)
 	return 0;
 }
 
-static int ast8250_probe(struct platform_device *pdev)
+static int ast8250_probe_of(struct platform_device *pdev, struct uart_port *p,
+			    struct ast8250_data *data)
 {
-	int rc;
-	struct uart_8250_port uart = {};
-	struct uart_port *port = &uart.port;
 	struct device *dev = &pdev->dev;
-	struct ast8250_data *data;
-	uint32_t plat = (unsigned long)of_device_get_match_data(dev);
+	int rc;
 
-	struct resource *res;
-	u32 irq;
-
-	rc = dma_set_mask_and_coherent(dev, DMA_BIT_MASK(64));
-	if (rc) {
-		dev_err(dev, "cannot set 64-bits DMA mask\n");
-		return rc;
-	}
-
-	data = devm_kzalloc(dev, sizeof(*data), GFP_KERNEL);
-	if (data == NULL)
-	    return -ENOMEM;
-
-	data->dma.rx_rb = devm_kzalloc(dev, sizeof(data->dma.rx_rb), GFP_KERNEL);
-	if (data->dma.rx_rb == NULL)
-		return -ENOMEM;
-
-	irq = platform_get_irq(pdev, 0);
-	if (irq < 0) {
-		if (irq != -EPROBE_DEFER)
-			dev_err(dev, "failed to get IRQ number\n");
-		return irq;
-	}
-
-	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-	if (res == NULL) {
+	data->res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	if (!data->res) {
 		dev_err(dev, "failed to get register base\n");
 		return -ENODEV;
 	}
 
-	data->regs = devm_ioremap(dev, res->start, resource_size(res));
+	data->regs = devm_ioremap(dev, data->res->start, resource_size(data->res));
 	if (IS_ERR(data->regs)) {
 		dev_err(dev, "failed to map registers\n");
 		return PTR_ERR(data->regs);
@@ -410,18 +384,12 @@ static int ast8250_probe(struct platform_device *pdev)
 		return -ENODEV;
 	}
 
-	rc = clk_prepare_enable(data->clk);
-	if (rc) {
-		dev_err(dev, "failed to enable clock\n");
-		return rc;
-	}
-
 	data->rst = devm_reset_control_get_optional_exclusive(dev, NULL);
-	if (!IS_ERR(data->rst))
-		reset_control_deassert(data->rst);
 
 	data->is_vuart = of_property_read_bool(dev->of_node, "virtual");
 	if (data->is_vuart) {
+		u32 plat = (unsigned long)of_device_get_match_data(dev);
+
 		rc = of_property_read_u32(dev->of_node, "port", &data->vuart.port);
 		if (rc) {
 			dev_err(dev, "failed to get VUART port address\n");
@@ -444,10 +412,6 @@ static int ast8250_probe(struct platform_device *pdev)
 			data->vuart.character_timeout_time_en = true;
 		else
 			data->vuart.character_timeout_time_en = false;
-
-		ast8250_vuart_init(data);
-		ast8250_vuart_set_host_tx_discard(data, true);
-		ast8250_vuart_set_enable(data, true);
 	}
 
 	data->use_dma = of_property_read_bool(dev->of_node, "dma-mode");
@@ -462,23 +426,68 @@ static int ast8250_probe(struct platform_device *pdev)
 		data->dma.rx_tmout_dis = of_property_read_bool(dev->of_node, "dma-rx-timeout-disable");
 	}
 
+	return 0;
+}
+
+static int ast8250_probe(struct platform_device *pdev)
+{
+	int rc;
+	struct uart_8250_port uart = {};
+	struct uart_port *port = &uart.port;
+	struct device *dev = &pdev->dev;
+	struct ast8250_data *data;
+
+	rc = dma_set_mask_and_coherent(dev, DMA_BIT_MASK(64));
+	if (rc) {
+		dev_err(dev, "cannot set 64-bits DMA mask\n");
+		return rc;
+	}
+
+	data = devm_kzalloc(dev, sizeof(*data), GFP_KERNEL);
+	if (!data)
+		return -ENOMEM;
+
+	data->dma.rx_rb = devm_kzalloc(dev, sizeof(data->dma.rx_rb), GFP_KERNEL);
+	if (!data->dma.rx_rb)
+		return -ENOMEM;
+
+	rc = ast8250_probe_of(pdev, port, data);
+	if (rc)
+		return rc;
+
+	rc = clk_prepare_enable(data->clk);
+	if (rc) {
+		dev_err(dev, "failed to enable clock\n");
+		return rc;
+	}
+
+	if (!IS_ERR(data->rst))
+		reset_control_deassert(data->rst);
+
+	if (data->is_vuart) {
+		ast8250_vuart_init(data);
+		ast8250_vuart_set_host_tx_discard(data, true);
+		ast8250_vuart_set_enable(data, true);
+	}
+
 	spin_lock_init(&port->lock);
 	port->dev = dev;
-	port->type = PORT_16550A;
-	port->irq = irq;
-	port->line = of_alias_get_id(dev->of_node, "serial");
-	port->handle_irq = ast8250_handle_irq;
-	port->mapbase = res->start;
-	port->mapsize = resource_size(res);
+	port->mapbase = data->res->start;
+	port->mapsize = resource_size(data->res);
 	port->membase = data->regs;
-	port->uartclk = clk_get_rate(data->clk);
-	port->regshift = 2;
-	port->iotype = UPIO_MEM32;
 	port->flags = UPF_FIXED_TYPE | UPF_FIXED_PORT | UPF_SHARE_IRQ;
 	port->startup = ast8250_startup;
 	port->shutdown = ast8250_shutdown;
 	port->private_data = data;
 	uart.bugs |= UART_BUG_TXRACE;
+
+	rc = uart_read_port_properties(port);
+	if (rc)
+		return rc;
+
+	port->type = PORT_16550A;
+	port->handle_irq = ast8250_handle_irq;
+	port->uartclk = clk_get_rate(data->clk);
 
 	data->line = serial8250_register_8250_port(&uart);
 	if (data->line < 0) {
@@ -495,12 +504,12 @@ static int ast8250_probe(struct platform_device *pdev)
 
 static int ast8250_remove(struct platform_device *pdev)
 {
-    struct ast8250_data *data = platform_get_drvdata(pdev);
+	struct ast8250_data *data = platform_get_drvdata(pdev);
 
 	if (data->is_vuart)
 		ast8250_vuart_set_enable(data, false);
 
-    serial8250_unregister_port(data->line);
+	serial8250_unregister_port(data->line);
 	return 0;
 }
 
