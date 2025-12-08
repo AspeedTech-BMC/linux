@@ -1158,9 +1158,11 @@ static void aspeed_i3c_master_end_xfer_locked(struct aspeed_i3c_master *master, 
 		switch (xfer->cmds[i].error) {
 		case RESPONSE_NO_ERROR:
 			break;
+		case RESPONSE_ERROR_TRANSF_ABORT:
+			ret = -EINTR;
+			break;
 		case RESPONSE_ERROR_PARITY:
 		case RESPONSE_ERROR_IBA_NACK:
-		case RESPONSE_ERROR_TRANSF_ABORT:
 		case RESPONSE_ERROR_CRC:
 		case RESPONSE_ERROR_FRAME:
 		case RESPONSE_ERROR_PEC_ERR:
@@ -1180,7 +1182,7 @@ static void aspeed_i3c_master_end_xfer_locked(struct aspeed_i3c_master *master, 
 	xfer->ret = ret;
 	complete(&xfer->comp);
 
-	if (ret < 0) {
+	if (ret < 0 && ret != -EINTR) {
 		/* Enter halt guarantee by the HW */
 		aspeed_i3c_master_enter_halt(master, false);
 		aspeed_i3c_master_dequeue_xfer_locked(master, xfer);
