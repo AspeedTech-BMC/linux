@@ -1134,11 +1134,28 @@ static void aspeed_i3c_master_end_xfer_locked(struct aspeed_i3c_master *master, 
 	int i, ret = 0;
 	u32 nresp;
 
-	if (!xfer)
-		return;
-
 	nresp = readl(master->regs + QUEUE_STATUS_LEVEL);
 	nresp = QUEUE_STATUS_LEVEL_RESP(nresp);
+
+	if (!xfer) {
+		u32 err_resp;
+		u8 error;
+
+		dev_err(&master->base.dev,
+			"Handle %d response when xfer is NULL\n", nresp);
+		for (i = 0; i < nresp; i++) {
+			err_resp = readl(master->regs + RESPONSE_QUEUE_PORT);
+			error = RESPONSE_PORT_ERR_STATUS(err_resp);
+			dev_err(&master->base.dev,
+				"err_resp: %x xfer error: %x\n", err_resp,
+				error);
+			if (error != RESPONSE_NO_ERROR &&
+			    error != RESPONSE_ERROR_TRANSF_ABORT) {
+				aspeed_i3c_master_resume(master);
+			}
+		}
+		return;
+	}
 
 	for (i = 0; i < nresp; i++) {
 		struct aspeed_i3c_cmd *cmd;
