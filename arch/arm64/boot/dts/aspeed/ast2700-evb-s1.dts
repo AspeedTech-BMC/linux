@@ -463,3 +463,7 @@
 &vhubb1 {
 	status = "disabled";
 };
+
+&pcie2 {
+	status = "okay";
+};
