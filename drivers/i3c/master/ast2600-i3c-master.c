@@ -519,13 +519,28 @@ static void aspeed_i3c_gen_stop_to_internal(struct aspeed_i3c_master *master)
 			  SDA_IN_SW_MODE_VAL, SDA_IN_SW_MODE_VAL);
 }
 
+static void aspeed_i3c_drain_ibi_queue(struct aspeed_i3c_master *master)
+{
+	/*
+	 * Clear the IBI queue to avoid any stale IBI data when
+	 * re-enabling the controller.
+	 */
+	u32 ibi_status = readl(master->regs + IBI_QUEUE_STATUS);
+	u8 length = IBI_QUEUE_STATUS_DATA_LEN(ibi_status);
+	int i, nwords = (length + 3) >> 2;
+
+	for (i = 0; i < nwords; i++)
+		readl(master->regs + IBI_QUEUE_DATA);
+}
+
 static bool aspeed_i3c_fsm_exit_serv_ibi(struct aspeed_i3c_master *master)
 {
 	/*
 	 * Clear the IBI queue to enable the hardware to generate SCL and
 	 * begin detecting the T-bit low to stop reading IBI data.
 	 */
-	readl(master->regs + IBI_QUEUE_DATA);
+	aspeed_i3c_drain_ibi_queue(master);
+
 	if (FIELD_GET(CM_TFR_STS, readl(master->regs + PRESENT_STATE)) ==
 	    CM_TFR_STS_MASTER_SERV_IBI)
 		return false;
@@ -534,7 +549,8 @@ static bool aspeed_i3c_fsm_exit_serv_ibi(struct aspeed_i3c_master *master)
 
 static void aspeed_i3c_gen_tbits_in(struct aspeed_i3c_master *master)
 {
-	bool is_idle;
+	bool is_halted;
+	u32 nibi, i;
 	int ret;
 
 	regmap_write_bits(master->i3cg, I3CG_REG1(master->channel),
@@ -544,16 +560,23 @@ static void aspeed_i3c_gen_tbits_in(struct aspeed_i3c_master *master)
 
 	regmap_write_bits(master->i3cg, I3CG_REG1(master->channel),
 			  SDA_IN_SW_MODE_VAL, 0);
-	ret = readx_poll_timeout_atomic(aspeed_i3c_fsm_exit_serv_ibi, master, is_idle,
-					is_idle, 0, 2000000);
+	ret = readx_poll_timeout_atomic(aspeed_i3c_fsm_exit_serv_ibi, master, is_halted,
+					is_halted, 0, 2000000);
 	regmap_write_bits(master->i3cg, I3CG_REG1(master->channel),
 			  SDA_IN_SW_MODE_EN, 0);
-	if (ret)
+	if (ret) {
 		dev_err(master->dev,
 			"Failed to exit the I3C fsm from %lx(MASTER_SERV_IBI): %d",
 			FIELD_GET(CM_TFR_STS,
 				  readl(master->regs + PRESENT_STATE)),
 			ret);
+	} else {
+		/* Clear the dummy data generated in this recovery process */
+		nibi = readl(master->regs + QUEUE_STATUS_LEVEL);
+		nibi = QUEUE_STATUS_IBI_STATUS_CNT(nibi);
+		for (i = 0; i < nibi; i++)
+			aspeed_i3c_drain_ibi_queue(master);
+	}
 }
 
 static bool aspeed_i3c_master_supports_ccc_cmd(struct i3c_master_controller *m,
@@ -1011,8 +1034,8 @@ static void aspeed_i3c_master_dequeue_xfer(struct aspeed_i3c_master *master,
 	spin_unlock_irqrestore(&master->xferqueue.lock, flags);
 }
 
-static void aspeed_i3c_master_sir_handler(struct aspeed_i3c_master *master,
-				      u32 ibi_status)
+static int aspeed_i3c_master_sir_handler(struct aspeed_i3c_master *master,
+					 u32 ibi_status)
 {
 	struct aspeed_i3c_i2c_dev_data *data = NULL;
 	struct i3c_dev_desc *dev = NULL;
@@ -1021,6 +1044,7 @@ static void aspeed_i3c_master_sir_handler(struct aspeed_i3c_master *master,
 	u8 length = IBI_QUEUE_STATUS_DATA_LEN(ibi_status);
 	u8 *buf;
 	bool data_consumed = false;
+	int ret = 0;
 
 	dev = master->ibi.slots[addr];
 	if (!dev) {
@@ -1038,7 +1062,7 @@ static void aspeed_i3c_master_sir_handler(struct aspeed_i3c_master *master,
 	master->ibi.received_ibi_len[addr] += length;
 	if (master->ibi.received_ibi_len[addr] >
 	    slot->dev->ibi->max_payload_len) {
-		pr_err("received ibi payload %d > device requested buffer %d",
+		pr_err("received ibi payload %d > device requested buffer %d\n",
 		       master->ibi.received_ibi_len[addr],
 		       slot->dev->ibi->max_payload_len);
 		goto out_unlock;
@@ -1069,10 +1093,15 @@ out:
 			readl(master->regs + IBI_QUEUE_DATA);
 		if (FIELD_GET(CM_TFR_STS,
 			      readl(master->regs + PRESENT_STATE)) ==
-		    CM_TFR_STS_MASTER_SERV_IBI)
+		    CM_TFR_STS_MASTER_SERV_IBI) {
+			aspeed_i3c_master_abort(master);
 			aspeed_i3c_gen_tbits_in(master);
+			aspeed_i3c_master_resume(master);
+			ret = -EIO;
+		}
 		master->ibi.received_ibi_len[addr] = 0;
 	}
+	return ret;
 }
 
 static void aspeed_i3c_master_demux_ibis(struct aspeed_i3c_master *master)
@@ -1109,7 +1138,8 @@ static void aspeed_i3c_master_demux_ibis(struct aspeed_i3c_master *master)
 		}
 
 		if (IBI_TYPE_SIR(status))
-			aspeed_i3c_master_sir_handler(master, status);
+			if (aspeed_i3c_master_sir_handler(master, status))
+				break;
 
 		if (IBI_TYPE_HJ(status))
 			queue_work(master->base.wq, &master->hj_work);
