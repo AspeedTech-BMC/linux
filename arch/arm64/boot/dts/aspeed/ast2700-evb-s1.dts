@@ -464,6 +464,22 @@
 	status = "disabled";
 };
 
+&vhubc {
+	status = "disabled";
+};
+
+&vhubd {
+	status = "okay";
+};
+
+&ehci2 {
+	status = "okay";
+};
+
+&ehci3 {
+	status = "disabled";
+};
+
 &pcie2 {
 	status = "okay";
 };
