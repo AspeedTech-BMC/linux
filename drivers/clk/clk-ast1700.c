@@ -25,6 +25,8 @@
 #define AST1700_UXCLK_CTRL 0x330
 #define AST1700_HUXCLK_CTRL 0x334
 
+#define CREATE_CLK_NAME(id, suffix) kasprintf(GFP_KERNEL, "ast1700_%d-%s", id, suffix)
+
 static DEFINE_IDA(ast1700_clk_ida);
 
 /* Globally visible clocks */
@@ -82,7 +84,7 @@ static const struct clk_div_table ast1700_clk_div_table2[] = {
 	{ 0 }
 };
 
-static struct clk_hw *AST1700_calc_uclk(const char *name, u32 val)
+static struct clk_hw *AST1700_calc_uclk(int id, u32 val)
 {
 	unsigned int mult, div;
 
@@ -93,10 +95,11 @@ static struct clk_hw *AST1700_calc_uclk(const char *name, u32 val)
 	mult = r;
 	div = n * 2;
 
-	return clk_hw_register_fixed_factor(NULL, name, "ast1700-uxclk", 0, mult, div);
+	return clk_hw_register_fixed_factor(NULL, CREATE_CLK_NAME(id, "uartxclk"),
+					    CREATE_CLK_NAME(id, "uxclk"), 0, mult, div);
 };
 
-static struct clk_hw *AST1700_calc_huclk(const char *name, u32 val)
+static struct clk_hw *AST1700_calc_huclk(int id, u32 val)
 {
 	unsigned int mult, div;
 
@@ -107,7 +110,8 @@ static struct clk_hw *AST1700_calc_huclk(const char *name, u32 val)
 	mult = r;
 	div = n * 2;
 
-	return clk_hw_register_fixed_factor(NULL, name, "ast1700-huxclk", 0, mult, div);
+	return clk_hw_register_fixed_factor(NULL, CREATE_CLK_NAME(id, "huartxclk"),
+					    CREATE_CLK_NAME(id, "huxclk"), 0, mult, div);
 };
 
 static struct clk_hw *AST1700_calc_pll(const char *name, const char *parent_name, u32 val)
@@ -280,8 +284,6 @@ static const char *const uxclk_sel1[] = {
 	"ast1700_1-hpll",
 };
 
-#define CREATE_CLK_NAME(id, suffix) kasprintf(GFP_KERNEL, "ast1700_%d-%s", id, suffix)
-
 static int AST1700_clk_init(struct device_node *ast1700_node)
 {
 	struct clk_hw_onecell_data *clk_data;
@@ -362,7 +364,7 @@ static int AST1700_clk_init(struct device_node *ast1700_node)
 				    0, 2, 0, &ast1700_clk_lock);
 
 	val = readl(clk_base + AST1700_UXCLK_CTRL);
-	clks[AST1700_CLK_UARTX] = AST1700_calc_uclk(CREATE_CLK_NAME(id, "uartxclk"), val);
+	clks[AST1700_CLK_UARTX] = AST1700_calc_uclk(id, val);
 
 	/* huxclk mux selection */
 	clks[AST1700_CLK_HUXCLK] =
@@ -373,7 +375,7 @@ static int AST1700_clk_init(struct device_node *ast1700_node)
 				    3, 2, 0, &ast1700_clk_lock);
 
 	val = readl(clk_base + AST1700_HUXCLK_CTRL);
-	clks[AST1700_CLK_HUARTX] = AST1700_calc_huclk(CREATE_CLK_NAME(id, "huartxclk"), val);
+	clks[AST1700_CLK_HUARTX] = AST1700_calc_huclk(id, val);
 
 	/* AHB CLK = 200Mhz */
 	clks[AST1700_CLK_AHB] =
