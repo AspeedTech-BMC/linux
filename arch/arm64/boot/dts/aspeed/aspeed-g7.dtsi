@@ -1520,6 +1520,11 @@
 			#clock-cells = <1>;
 			#reset-cells = <1>;
 
+			assigned-clocks = <&syscon1 SCU1_CLK_MACHCLK>,
+					  <&syscon1 SCU1_CLK_RGMII>,
+					  <&syscon1 SCU1_CLK_RMII>;
+			assigned-clock-rates = <200000000>, <125000000>, <50000000>;
+
 			scu_ic2: interrupt-controller@100 {
 				#interrupt-cells = <1>;
 				compatible = "aspeed,ast2700-scu-ic2";
