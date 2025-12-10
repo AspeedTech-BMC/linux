@@ -565,13 +565,6 @@
 	phy-handle = <&ethphy2>;
 };
 
-&syscon1 {
-	assigned-clocks = <&syscon1 SCU1_CLK_MACHCLK>,
-			  <&syscon1 SCU1_CLK_RGMII>,
-			  <&syscon1 SCU1_CLK_RMII>;
-	assigned-clock-rates = <200000000>, <125000000>, <50000000>;
-};
-
 &lpc0_kcs0 {
 	status = "okay";
 	kcs-io-addr = <0xca0>;
