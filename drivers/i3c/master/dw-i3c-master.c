@@ -486,6 +486,12 @@ static int dw_i3c_master_exit_halt(struct dw_i3c_master *master)
 	return ret;
 }
 
+static inline void dw_i3c_master_abort(struct dw_i3c_master *master)
+{
+	writel(readl(master->regs + DEVICE_CTRL) | DEV_CTRL_ABORT,
+	       master->regs + DEVICE_CTRL);
+}
+
 static int dw_i3c_master_enter_halt(struct dw_i3c_master *master, bool by_sw)
 {
 	u32 status;
@@ -496,8 +502,7 @@ static int dw_i3c_master_enter_halt(struct dw_i3c_master *master, bool by_sw)
 		halt_state = CM_TFR_STS_SLAVE_HALT;
 
 	if (by_sw)
-		writel(readl(master->regs + DEVICE_CTRL) | DEV_CTRL_ABORT,
-		       master->regs + DEVICE_CTRL);
+		dw_i3c_master_abort(master);
 
 	ret = readl_poll_timeout_atomic(master->regs + PRESENT_STATE, status,
 					FIELD_GET(CM_TFR_STS, status) == halt_state,
@@ -2242,8 +2247,8 @@ static void dw_i3c_master_drain_ibi_queue(struct dw_i3c_master *master,
 		readl(master->regs + IBI_QUEUE_STATUS);
 }
 
-static void dw_i3c_master_handle_ibi_sir(struct dw_i3c_master *master,
-					 u32 status)
+static int dw_i3c_master_handle_ibi_sir(struct dw_i3c_master *master,
+					u32 status)
 {
 	struct dw_i3c_i2c_dev_data *data;
 	struct i3c_ibi_slot *slot;
@@ -2252,6 +2257,7 @@ static void dw_i3c_master_handle_ibi_sir(struct dw_i3c_master *master,
 	u32 state;
 	u8 addr, len;
 	bool terminate_ibi = false;
+	int ret = 0;
 
 	addr = IBI_QUEUE_IBI_ADDR(status);
 	len = IBI_QUEUE_STATUS_DATA_LEN(status);
@@ -2301,17 +2307,23 @@ static void dw_i3c_master_handle_ibi_sir(struct dw_i3c_master *master,
 
 	spin_unlock_irqrestore(&master->devs_lock, flags);
 
-	return;
+	return ret;
 
 err_drain:
 	if (terminate_ibi)
 		i3c_generic_ibi_recycle_slot(data->ibi_pool, slot);
 	dw_i3c_master_drain_ibi_queue(master, len);
 	state = FIELD_GET(CM_TFR_STS, readl(master->regs + PRESENT_STATE));
-	if (terminate_ibi && state == CM_TFR_STS_MASTER_SERV_IBI)
+	if (terminate_ibi && state == CM_TFR_STS_MASTER_SERV_IBI) {
+		dw_i3c_master_abort(master);
 		master->platform_ops->gen_tbits_in(master);
+		dw_i3c_master_exit_halt(master);
+		ret = -EIO;
+	}
 
 	spin_unlock_irqrestore(&master->devs_lock, flags);
+
+	return ret;
 }
 
 /* "ibis": referring to In-Band Interrupts, and not
@@ -2347,7 +2359,8 @@ static void dw_i3c_master_irq_handle_ibis(struct dw_i3c_master *master)
 		}
 
 		if (IBI_TYPE_SIRQ(reg)) {
-			dw_i3c_master_handle_ibi_sir(master, reg);
+			if (dw_i3c_master_handle_ibi_sir(master, reg))
+				break;
 		} else if (IBI_TYPE_HJ(reg)) {
 			queue_work(master->base.wq, &master->hj_work);
 		} else {
