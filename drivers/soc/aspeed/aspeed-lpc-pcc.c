@@ -73,6 +73,9 @@ static DEFINE_IDA(aspeed_pcc_ida);
 
 #define PCC_DMA_BUFSZ	(256 * SZ_1K)
 
+/* Except for the 1-byte threshold, the rest represent fractions of the FIFO.
+ * Ex. PCC_FIFO_THR_1_EIGHTH means 1/8th of the FIFO size.
+ */
 enum pcc_fifo_threshold {
 	PCC_FIFO_THR_1_BYTE,
 	PCC_FIFO_THR_1_EIGHTH,
@@ -82,7 +85,6 @@ enum pcc_fifo_threshold {
 	PCC_FIFO_THR_5_EIGHTH,
 	PCC_FIFO_THR_6_EIGHTH,
 	PCC_FIFO_THR_7_EIGHTH,
-	PCC_FIFO_THR_8_EIGHTH,
 };
 
 enum pcc_record_mode {
@@ -116,6 +118,7 @@ struct aspeed_pcc_ctrl {
 	wait_queue_head_t wq;
 	struct miscdevice mdev;
 	int mdev_id;
+	spinlock_t lock;	/* protects access to the FIFO and DMA pointer */
 };
 
 static inline bool is_valid_rec_mode(uint32_t mode)
@@ -176,22 +179,26 @@ static irqreturn_t aspeed_pcc_dma_isr(int irq, void *arg)
 	struct aspeed_pcc_ctrl *pcc = (struct aspeed_pcc_ctrl *)arg;
 	struct kfifo *fifo = &pcc->fifo;
 
+	spin_lock(&pcc->lock);
 	regmap_write_bits(pcc->regmap, PCCR2, PCCR2_INT_STATUS_DMA_DONE, PCCR2_INT_STATUS_DMA_DONE);
 
 	regmap_read(pcc->regmap, PCCR6, &reg);
 	wptr = (reg & PCCR6_DMA_CUR_ADDR) - (pcc->dma.addr & PCCR6_DMA_CUR_ADDR);
 	rptr = pcc->dma.rptr;
 
-	do {
-		if (kfifo_is_full(fifo))
-			kfifo_skip(fifo);
+	/* If kfifo is empty or has enough space, insert new data;
+	 * otherwise, discard the new data.
+	 */
+	if (rptr <= wptr) {
+		kfifo_in(fifo, pcc->dma.virt + rptr, wptr - rptr);
+	} else {
+		/* Handle wrap-around case */
+		kfifo_in(fifo, pcc->dma.virt + rptr, pcc->dma.size - rptr);
+		kfifo_in(fifo, pcc->dma.virt, wptr);
+	}
 
-		kfifo_put(fifo, pcc->dma.virt[rptr]);
-
-		rptr = (rptr + 1) % pcc->dma.size;
-	} while (rptr != wptr);
-
-	pcc->dma.rptr = rptr;
+	pcc->dma.rptr = wptr;
+	spin_unlock(&pcc->lock);
 
 	wake_up_interruptible(&pcc->wq);
 
@@ -284,6 +291,10 @@ static int aspeed_pcc_enable(struct aspeed_pcc_ctrl *pcc, struct device *dev)
 			   PCCR0_EN_DMA_INT | PCCR0_EN_DMA_MODE,
 			   PCCR0_EN_DMA_INT | PCCR0_EN_DMA_MODE);
 
+	regmap_update_bits(pcc->regmap, PCCR0,
+			   PCCR0_RX_TRIG_LVL_MASK,
+			   PCC_FIFO_THR_2_EIGHTH << PCCR0_RX_TRIG_LVL_SHIFT);
+
 	regmap_update_bits(pcc->regmap, PCCR0, PCCR0_EN, PCCR0_EN);
 
 	return 0;
@@ -346,6 +357,8 @@ static int aspeed_pcc_probe(struct platform_device *pdev)
 	rc = kfifo_alloc(&pcc->fifo, fifo_size, GFP_KERNEL);
 	if (rc)
 		return rc;
+
+	spin_lock_init(&pcc->lock);
 
 	/* Disable PCC to clean up DMA buffer before request IRQ. */
 	rc = aspeed_pcc_disable(pcc);
