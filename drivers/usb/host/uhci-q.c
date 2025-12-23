@@ -1022,6 +1022,7 @@ static int uhci_submit_common(struct uhci_hcd *uhci, struct urb *urb,
 	struct scatterlist  *sg;
 	int i;
 	bool aspeed_out_xfer = usb_pipeout(urb->pipe) && uhci_is_aspeed(uhci);
+	int aspeed_in_all_spd = usb_pipein(urb->pipe) && uhci_is_aspeed(uhci);
 
 	if (len < 0)
 		return -EINVAL;
@@ -1063,7 +1064,9 @@ static int uhci_submit_common(struct uhci_hcd *uhci, struct urb *urb,
 
 		if (len <= pktsze) {		/* The last packet */
 			pktsze = len;
-			if (!(urb->transfer_flags & URB_SHORT_NOT_OK))
+			/* ASPEED UHCI keeps all the IN TD with SPD as workaround */
+			if (!(urb->transfer_flags & URB_SHORT_NOT_OK) &&
+			    !aspeed_in_all_spd)
 				status &= ~TD_CTRL_SPD;
 		}
 
@@ -1135,9 +1138,11 @@ static int uhci_submit_common(struct uhci_hcd *uhci, struct urb *urb,
 				     bi->safe_dma);
 			bi->len = pktsze;
 			list_add_tail(&bi->list, &urbp->bounce_list);
-			dev_dbg(uhci_dev(uhci), "Bounce TD at DMA safe: %pad len %u offset 0x%x\n",
+			dev_dbg(uhci_dev(uhci), "Add Bounce TD at DMA safe: %pad len %u offset 0x%x\n",
 				&bi->safe_dma, pktsze, offset);
 		} else {
+			dev_dbg(uhci_dev(uhci), "[%d](%x) Add TD (%pad) at DMA: %pad len %u offset 0x%x\n",
+				aspeed_out_xfer, uhci_readw(uhci, USBFRNUM), &td->dma_handle, &data, pktsze, offset);
 			uhci_fill_td(uhci, td, status,
 				     destination | uhci_explen(pktsze) |
 				     (toggle << TD_TOKEN_TOGGLE_SHIFT),
@@ -1337,6 +1342,7 @@ static int uhci_result_common(struct uhci_hcd *uhci, struct urb *urb)
 	struct uhci_td *td, *tmp;
 	unsigned status;
 	int ret = 0;
+	int aspeed_in_all_spd = usb_pipein(urb->pipe) && uhci_is_aspeed(uhci);
 
 	list_for_each_entry_safe(td, tmp, &urbp->td_list, list) {
 		unsigned int ctrlstat;
@@ -1384,7 +1390,17 @@ static int uhci_result_common(struct uhci_hcd *uhci, struct urb *urb)
 			/* Fixup needed only if this isn't the URB's last TD */
 			else if (&td->list != urbp->td_list.prev)
 				ret = 1;
+
+			/* Because ASPEED UHCI sets SPD for "all" BULK/INT IN TDs as workaround,
+			 * the URB's last TD may be a short packet and need short transfer fixup
+			 */
+			else if (aspeed_in_all_spd) {
+				dev_dbg(uhci_dev(uhci), "AST UHCI SPD Fixup\n");
+				ret = 1;
+			}
 		}
+		dev_dbg(uhci_dev(uhci), "[%d](%x) Remove TD (%pad) at DMA: %pad len %u\n",
+			usb_pipeout(urb->pipe), uhci_readw(uhci, USBFRNUM), &td->dma_handle, &td->buffer, len);
 
 		uhci_remove_td_from_urbp(td);
 		if (qh->post_td)
