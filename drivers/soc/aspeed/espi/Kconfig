@@ -1,0 +1,28 @@
+config AST2500_ESPI
+        tristate
+        depends on ASPEED_ESPI
+        help
+          Enable driver support for Aspeed AST2500 eSPI engine.
+
+config AST2600_ESPI
+        tristate "ASPEED AST2600 eSPI slave driver"
+        help
+          Enable driver support for Aspeed AST2600 eSPI engine. The eSPI engine
+          plays as a slave device in BMC to communicate with the Host over
+          the eSPI interface. The four eSPI channels, namely peripheral,
+          virtual wire, out-of-band, and flash are supported.
+
+config AST2700_ESPI
+        tristate "ASPEED AST2700 eSPI slave driver"
+        help
+          Enable driver support for Aspeed AST2700 eSPI engine. The eSPI engine
+          plays as a slave device in BMC to communicate with the Host over
+          the eSPI interface. The four eSPI channels, namely peripheral,
+          virtual wire, out-of-band, and flash are supported.
+
+config AST2700_RTC_OVER_ESPI
+        tristate "ASPEED AST2700 RTC over eSPI drvier"
+        depends on HAS_IOMEM
+        help
+          Enable driver support for Aspeed AST2700 RTC over eSPI function.
+          Periodically copies RAM content from a RTC tm to a memory-mapped eSPI region.
