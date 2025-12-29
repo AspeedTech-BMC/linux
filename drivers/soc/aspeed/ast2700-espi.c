@@ -1311,7 +1311,7 @@ static int ast2700_espi_vw_probe(struct ast2700_espi *espi)
 		vw->pltrst_mdev.parent = dev;
 		vw->pltrst_mdev.minor = MISC_DYNAMIC_MINOR;
 		vw->pltrst_mdev.name =
-			devm_kasprintf(dev, GFP_KERNEL, "%s-vw-pltrst%d",
+			devm_kasprintf(dev, GFP_KERNEL, "%s-pltrstn%d",
 				       DEVICE_NAME, espi->dev_id);
 		vw->pltrst_mdev.fops = &ast2700_espi_vw_pltrst_fops;
 		rc = misc_register(&vw->pltrst_mdev);
