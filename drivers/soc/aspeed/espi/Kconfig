@@ -1,6 +1,5 @@
 config AST2500_ESPI
         tristate
-        depends on ASPEED_ESPI
         help
           Enable driver support for Aspeed AST2500 eSPI engine.
 
