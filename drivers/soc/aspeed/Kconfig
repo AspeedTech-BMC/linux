@@ -143,12 +143,6 @@ config ASPEED_UDMA
 config ASPEED_PCIE_MMBI
 	tristate "ASPEED PCIE MMBI"
 
-config ASPEED_ESPI
-	tristate "ASPEED eSPI slave driver"
-	select AST2500_ESPI if MACH_ASPEED_G5
-	select AST2600_ESPI if MACH_ASPEED_G6
-	default n
-
 config ASPEED_OTP
 	tristate
 	help
