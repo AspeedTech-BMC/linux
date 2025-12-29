@@ -737,6 +737,7 @@
 	perif-mcyc-size = <0x0 0x10000>;
 	memory-region = <&espi0_mcyc_memory>;
 	perif-rtc-enable;
+	vw-pltrst-monitor;
 	oob-dma-mode;
 	flash-dma-mode;
 #if 0	// eDAF mode: Change 1 to enable MIX mode in Linux, but HW mode in SPL would be overwritten
