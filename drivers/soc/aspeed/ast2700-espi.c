@@ -2,6 +2,12 @@
 /*
  * Copyright 2023 Aspeed Technology Inc.
  */
+#include "linux/fs.h"
+#include "linux/printk.h"
+#include "linux/spinlock.h"
+#include "linux/spinlock_types.h"
+#include "linux/stddef.h"
+#include "linux/wait.h"
 #include <linux/io.h>
 #include <linux/irq.h>
 #include <linux/clk.h>
@@ -104,6 +110,15 @@ struct ast2700_espi_vw {
 		uint32_t val1;
 	} gpio;
 
+	struct {
+		bool enabled;
+		spinlock_t pltrst_lock; // protects pltrst_status
+		wait_queue_head_t pltrst_wq;
+		char pltrst_status;
+		bool pltrst_avail;
+	} pltrst;
+
+	struct miscdevice pltrst_mdev;
 	struct miscdevice mdev;
 };
 
@@ -1114,10 +1129,103 @@ static const struct file_operations ast2700_espi_vw_fops = {
 	.unlocked_ioctl = ast2700_espi_vw_ioctl,
 };
 
+static inline struct ast2700_espi_vw *to_ast2700_espi_pltrst(struct file *filp)
+{
+	return container_of(filp->private_data, struct ast2700_espi_vw,
+			    pltrst_mdev);
+}
+
+static int ast2700_espi_vw_pltrst_open(struct inode *inode, struct file *filp)
+{
+	struct ast2700_espi_vw *priv = to_ast2700_espi_pltrst(filp);
+
+	if ((filp->f_flags & O_ACCMODE) != O_RDONLY)
+		return -EACCES;
+	priv->pltrst.pltrst_avail = true ; /*Setting true returns first data after file open*/
+
+	return 0;
+}
+
+static ssize_t ast2700_espi_vw_pltrst_read(struct file *filp, char __user *buf,
+					   size_t count, loff_t *offset)
+{
+	struct ast2700_espi_vw *vw = to_ast2700_espi_pltrst(filp);
+	DECLARE_WAITQUEUE(wait, current);
+	char data, old_sample;
+	int ret = 0;
+
+	spin_lock_irq(&vw->pltrst.pltrst_lock);
+
+	if (filp->f_flags & O_NONBLOCK) {
+		if (!vw->pltrst.pltrst_avail) {
+			ret = -EAGAIN;
+			goto out_unlock;
+		}
+		data = vw->pltrst.pltrst_status;
+		vw->pltrst.pltrst_avail = false;
+	} else {
+		add_wait_queue(&vw->pltrst.pltrst_wq, &wait);
+		set_current_state(TASK_INTERRUPTIBLE);
+
+		old_sample = vw->pltrst.pltrst_status;
+
+		do {
+			if (old_sample != vw->pltrst.pltrst_status) {
+				data = vw->pltrst.pltrst_status;
+				vw->pltrst.pltrst_avail = false;
+				break;
+			}
+
+			if (signal_pending(current)) {
+				ret = -ERESTARTSYS;
+			} else {
+				spin_unlock_irq(&vw->pltrst.pltrst_lock);
+				schedule();
+				spin_lock_irq(&vw->pltrst.pltrst_lock);
+			}
+		} while (!ret);
+
+		remove_wait_queue(&vw->pltrst.pltrst_wq, &wait);
+		set_current_state(TASK_RUNNING);
+	}
+out_unlock:
+	spin_unlock_irq(&vw->pltrst.pltrst_lock);
+	if (ret)
+		return ret;
+
+	ret = put_user(data, buf);
+	if (!ret)
+		ret = sizeof(data);
+
+	return ret;
+}
+
+static unsigned int ast2700_espi_vw_pltrst_poll(struct file *file,
+						poll_table *wait)
+{
+	struct ast2700_espi_vw *vw = to_ast2700_espi_pltrst(file);
+	unsigned int mask = 0;
+
+	poll_wait(file, &vw->pltrst.pltrst_wq, wait);
+	if (vw->pltrst.pltrst_avail)
+		mask |= POLLIN;
+	return mask;
+}
+
+static const struct file_operations ast2700_espi_vw_pltrst_fops = {
+	.owner = THIS_MODULE,
+	.open = ast2700_espi_vw_pltrst_open,
+	.read = ast2700_espi_vw_pltrst_read,
+	.poll = ast2700_espi_vw_pltrst_poll,
+};
+
 static void ast2700_espi_vw_isr(struct ast2700_espi *espi)
 {
 	struct ast2700_espi_vw *vw;
-	uint32_t sts;
+	u32 sts;
+	u32 sts_evt0;
+	u32 evt0;
+	unsigned long flags;
 
 	vw = &espi->vw;
 
@@ -1127,6 +1235,23 @@ static void ast2700_espi_vw_isr(struct ast2700_espi *espi)
 		vw->gpio.val0 = readl(espi->regs + ESPI_CH1_GPIO_VAL0);
 		vw->gpio.val1 = readl(espi->regs + ESPI_CH1_GPIO_VAL1);
 		writel(ESPI_CH1_INT_STS_GPIO, espi->regs + ESPI_CH1_INT_STS);
+	}
+
+	if (sts & ESPI_CH1_INT_STS_EVT0) {
+		sts_evt0 = readl(espi->regs + ESPI_CH1_EVT0_INT_STS);
+		evt0 = readl(espi->regs + ESPI_CH1_EVT0);
+		if (sts_evt0 & ESPI_CH1_EVT0_INT_STS_PLTRSTN || vw->pltrst.pltrst_status == 'U') {
+			spin_lock_irqsave(&vw->pltrst.pltrst_lock, flags);
+			vw->pltrst.pltrst_status = (evt0 & ESPI_CH1_EVT0_PLTRSTN) ? '1' : '0';
+			vw->pltrst.pltrst_avail = true;
+			spin_unlock_irqrestore(&vw->pltrst.pltrst_lock, flags);
+
+			writel(ESPI_CH1_EVT0_INT_STS_PLTRSTN,
+			       espi->regs + ESPI_CH1_EVT0_INT_STS);
+
+			wake_up_interruptible(&vw->pltrst.pltrst_wq);
+		}
+		writel(ESPI_CH1_INT_STS_EVT0, espi->regs + ESPI_CH1_INT_STS);
 	}
 }
 
@@ -1145,7 +1270,20 @@ static void ast2700_espi_vw_reset(struct ast2700_espi *espi)
 	vw->gpio.val0 = readl(espi->regs + ESPI_CH1_GPIO_VAL0);
 	vw->gpio.val1 = readl(espi->regs + ESPI_CH1_GPIO_VAL1);
 
-	writel(ESPI_CH1_INT_EN_GPIO, espi->regs + ESPI_CH1_INT_EN);
+	if (vw->pltrst.enabled) {
+		spin_lock(&vw->pltrst.pltrst_lock);
+		vw->pltrst.pltrst_status = 'U'; /* Unknown */
+		vw->pltrst.pltrst_avail = true;
+		spin_unlock(&vw->pltrst.pltrst_lock);
+
+		writel(ESPI_CH1_EVT0_INT_T2_PLTRSTN,
+		       espi->regs + ESPI_CH1_EVT0_INT_T2);
+		writel(ESPI_CH1_EVT0_INT_EN_PLTRSTN, espi->regs + ESPI_CH1_EVT0_INT_EN);
+		writel(ESPI_CH1_INT_EN_GPIO | ESPI_CH1_INT_EN_SYS_EVT0,
+		       espi->regs + ESPI_CH1_INT_EN);
+	} else {
+		writel(ESPI_CH1_INT_EN_GPIO, espi->regs + ESPI_CH1_INT_EN);
+	}
 
 	reg = readl(espi->regs + ESPI_CH1_CTRL)
 	      | ((vw->gpio.hw_mode) ? ESPI_CH1_CTRL_GPIO_HW : 0)
@@ -1163,6 +1301,25 @@ static int ast2700_espi_vw_probe(struct ast2700_espi *espi)
 	of_property_read_u32(dev->of_node, "vw-gpio-group", &vw->gpio.grp);
 	of_property_read_u32_index(dev->of_node, "vw-gpio-direction", 0, &vw->gpio.dir0);
 	of_property_read_u32_index(dev->of_node, "vw-gpio-direction", 1, &vw->gpio.dir1);
+
+	vw->pltrst.enabled = of_property_read_bool(dev->of_node, "vw-pltrst-monitor");
+	if (vw->pltrst.enabled) {
+		spin_lock_init(&vw->pltrst.pltrst_lock);
+		init_waitqueue_head(&vw->pltrst.pltrst_wq);
+		vw->pltrst.pltrst_status = 'U'; /* Unknown */
+		vw->pltrst.pltrst_avail = false;
+		vw->pltrst_mdev.parent = dev;
+		vw->pltrst_mdev.minor = MISC_DYNAMIC_MINOR;
+		vw->pltrst_mdev.name =
+			devm_kasprintf(dev, GFP_KERNEL, "%s-vw-pltrst%d",
+				       DEVICE_NAME, espi->dev_id);
+		vw->pltrst_mdev.fops = &ast2700_espi_vw_pltrst_fops;
+		rc = misc_register(&vw->pltrst_mdev);
+		if (rc) {
+			dev_err(dev, "cannot register device %s\n", vw->pltrst_mdev.name);
+			return rc;
+		}
+	}
 
 	vw->mdev.parent = dev;
 	vw->mdev.minor = MISC_DYNAMIC_MINOR;
