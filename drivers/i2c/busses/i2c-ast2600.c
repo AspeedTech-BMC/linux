@@ -623,7 +623,7 @@ static void ast2700_i2c_target_packet_dma_irq(struct ast2600_i2c_bus *i2c_bus, u
 		       i2c_bus->reg_base + AST2600_I2CS_DMA_LEN);
 		writel(cmd, i2c_bus->reg_base + AST2600_I2CS_CMD_STS);
 		/* clear sirq log */
-		while (readl(i2c_bus->reg_base + AST2700_I2CC_SIRQ_LOG)) {
+		while ((sirq_log = readl(i2c_bus->reg_base + AST2700_I2CC_SIRQ_LOG))) {
 			/* assign the target client*/
 			if (sirq_log & SADDR_HIT) {
 				if (!i2c_bus->target)
@@ -645,7 +645,7 @@ static void ast2700_i2c_target_packet_dma_irq(struct ast2600_i2c_bus *i2c_bus, u
 		       i2c_bus->reg_base + AST2600_I2CS_DMA_LEN);
 		writel(cmd, i2c_bus->reg_base + AST2600_I2CS_CMD_STS);
 		/* clear sirq log */
-		while (readl(i2c_bus->reg_base + AST2700_I2CC_SIRQ_LOG)) {
+		while ((sirq_log = readl(i2c_bus->reg_base + AST2700_I2CC_SIRQ_LOG))) {
 			/* assign the target client*/
 			if (sirq_log & SADDR_HIT) {
 				if (!i2c_bus->target)
