@@ -32,8 +32,8 @@ struct ast2500_espi_perif {
 		bool enable;
 		void *virt;
 		dma_addr_t taddr;
-		uint32_t saddr;
-		uint32_t size;
+		u32 saddr;
+		u32 size;
 	} mcyc;
 
 	struct {
@@ -49,10 +49,10 @@ struct ast2500_espi_perif {
 	bool rx_ready;
 	wait_queue_head_t wq;
 
-	spinlock_t lock;
-	struct mutex np_tx_mtx;
-	struct mutex pc_tx_mtx;
-	struct mutex pc_rx_mtx;
+	spinlock_t lock; // peripheral channel lock
+	struct mutex np_tx_mtx; // non-posted TX mutex
+	struct mutex pc_tx_mtx; // posted TX mutex
+	struct mutex pc_rx_mtx; // posted RX mutex
 
 	struct miscdevice mdev;
 };
@@ -60,7 +60,7 @@ struct ast2500_espi_perif {
 struct ast2500_espi_vw {
 	struct {
 		bool hw_mode;
-		uint32_t val;
+		u32 val;
 	} gpio;
 
 	struct miscdevice mdev;
@@ -78,18 +78,18 @@ struct ast2500_espi_oob {
 	bool rx_ready;
 	wait_queue_head_t wq;
 
-	spinlock_t lock;
-	struct mutex tx_mtx;
-	struct mutex rx_mtx;
+	spinlock_t lock; // oob channel lock
+	struct mutex tx_mtx; // oob channel tx mutex
+	struct mutex rx_mtx; // oob channel rx mutex
 
 	struct miscdevice mdev;
 };
 
 struct ast2500_espi_flash {
 	struct {
-		uint32_t mode;
+		u32 mode;
 		phys_addr_t taddr;
-		uint32_t size;
+		u32 size;
 	} safs;
 
 	struct {
@@ -103,9 +103,9 @@ struct ast2500_espi_flash {
 	bool rx_ready;
 	wait_queue_head_t wq;
 
-	spinlock_t lock;
-	struct mutex rx_mtx;
-	struct mutex tx_mtx;
+	spinlock_t lock; // flash channel lock
+	struct mutex rx_mtx; // flash rx mutex
+	struct mutex tx_mtx; // flash tx mutex
 
 	struct miscdevice mdev;
 };
@@ -127,12 +127,12 @@ static long ast2500_espi_perif_pc_get_rx(struct file *fp,
 					 struct ast2500_espi_perif *perif,
 					 struct aspeed_espi_ioc *ioc)
 {
-	uint32_t reg, cyc, tag, len;
+	u32 reg, cyc, tag, len;
 	struct ast2500_espi *espi;
 	struct espi_comm_hdr *hdr;
 	unsigned long flags;
-	uint32_t pkt_len;
-	uint8_t *pkt;
+	u32 pkt_len;
+	u8 *pkt;
 	int i, rc;
 
 	espi = container_of(perif, struct ast2500_espi, perif);
@@ -246,10 +246,10 @@ static long ast2500_espi_perif_pc_put_tx(struct file *fp,
 					 struct ast2500_espi_perif *perif,
 					 struct aspeed_espi_ioc *ioc)
 {
-	uint32_t reg, cyc, tag, len;
+	u32 reg, cyc, tag, len;
 	struct ast2500_espi *espi;
 	struct espi_comm_hdr *hdr;
-	uint8_t *pkt;
+	u8 *pkt;
 	int i, rc;
 
 	espi = container_of(perif, struct ast2500_espi, perif);
@@ -313,10 +313,10 @@ static long ast2500_espi_perif_np_put_tx(struct file *fp,
 					 struct ast2500_espi_perif *perif,
 					 struct aspeed_espi_ioc *ioc)
 {
-	uint32_t reg, cyc, tag, len;
+	u32 reg, cyc, tag, len;
 	struct ast2500_espi *espi;
 	struct espi_comm_hdr *hdr;
-	uint8_t *pkt;
+	u8 *pkt;
 	int i, rc;
 
 	espi = container_of(perif, struct ast2500_espi, perif);
@@ -439,7 +439,7 @@ static void ast2500_espi_perif_isr(struct ast2500_espi *espi)
 {
 	struct ast2500_espi_perif *perif;
 	unsigned long flags;
-	uint32_t sts;
+	u32 sts;
 
 	perif = &espi->perif;
 
@@ -460,7 +460,7 @@ static void ast2500_espi_perif_reset(struct ast2500_espi *espi)
 {
 	struct ast2500_espi_perif *perif;
 	struct device *dev;
-	uint32_t reg, mask;
+	u32 reg, mask;
 
 	dev = espi->dev;
 
@@ -601,7 +601,7 @@ static int ast2500_espi_perif_remove(struct ast2500_espi *espi)
 {
 	struct ast2500_espi_perif *perif;
 	struct device *dev;
-	uint32_t reg;
+	u32 reg;
 
 	dev = espi->dev;
 
@@ -645,7 +645,7 @@ static long ast2500_espi_vw_ioctl(struct file *fp, unsigned int cmd, unsigned lo
 {
 	struct ast2500_espi_vw *vw;
 	struct ast2500_espi *espi;
-	uint32_t gpio;
+	u32 gpio;
 
 	vw = container_of(fp->private_data, struct ast2500_espi_vw, mdev);
 	espi = container_of(vw, struct ast2500_espi, vw);
@@ -653,11 +653,11 @@ static long ast2500_espi_vw_ioctl(struct file *fp, unsigned int cmd, unsigned lo
 
 	switch (cmd) {
 	case ASPEED_ESPI_VW_GET_GPIO_VAL:
-		if (put_user(gpio, (uint32_t __user *)arg))
+		if (put_user(gpio, (u32 __user *)arg))
 			return -EFAULT;
 		break;
 	case ASPEED_ESPI_VW_PUT_GPIO_VAL:
-		if (get_user(gpio, (uint32_t __user *)arg))
+		if (get_user(gpio, (u32 __user *)arg))
 			return -EFAULT;
 
 		writel(gpio, espi->regs + ESPI_VW_GPIO_VAL);
@@ -677,7 +677,7 @@ static const struct file_operations ast2500_espi_vw_fops = {
 static void ast2500_espi_vw_isr(struct ast2500_espi *espi)
 {
 	struct ast2500_espi_vw *vw;
-	uint32_t reg, sts, sts_sysevt;
+	u32 reg, sts, sts_sysevt;
 
 	vw = &espi->vw;
 
@@ -721,7 +721,7 @@ static void ast2500_espi_vw_isr(struct ast2500_espi *espi)
 
 static void ast2500_espi_vw_reset(struct ast2500_espi *espi)
 {
-	uint32_t reg;
+	u32 reg;
 	struct ast2500_espi_vw *vw = &espi->vw;
 
 	reg = readl(espi->regs + ESPI_INT_EN);
@@ -798,7 +798,7 @@ static int ast2500_espi_vw_probe(struct ast2500_espi *espi)
 static int ast2500_espi_vw_remove(struct ast2500_espi *espi)
 {
 	struct ast2500_espi_vw *vw;
-	uint32_t reg;
+	u32 reg;
 
 	vw = &espi->vw;
 
@@ -816,12 +816,12 @@ static long ast2500_espi_oob_get_rx(struct file *fp,
 				    struct ast2500_espi_oob *oob,
 				    struct aspeed_espi_ioc *ioc)
 {
-	uint32_t reg, cyc, tag, len;
+	u32 reg, cyc, tag, len;
 	struct ast2500_espi *espi;
 	struct espi_comm_hdr *hdr;
 	unsigned long flags;
-	uint32_t pkt_len;
-	uint8_t *pkt;
+	u32 pkt_len;
+	u8 *pkt;
 	int i, rc;
 
 	espi = container_of(oob, struct ast2500_espi, oob);
@@ -913,10 +913,10 @@ static long ast2500_espi_oob_put_tx(struct file *fp,
 				    struct ast2500_espi_oob *oob,
 				    struct aspeed_espi_ioc *ioc)
 {
-	uint32_t reg, cyc, tag, len;
+	u32 reg, cyc, tag, len;
 	struct ast2500_espi *espi;
 	struct espi_comm_hdr *hdr;
-	uint8_t *pkt;
+	u8 *pkt;
 	int i, rc;
 
 	espi = container_of(oob, struct ast2500_espi, oob);
@@ -1015,7 +1015,7 @@ static void ast2500_espi_oob_isr(struct ast2500_espi *espi)
 {
 	struct ast2500_espi_oob *oob;
 	unsigned long flags;
-	uint32_t sts;
+	u32 sts;
 
 	oob = &espi->oob;
 
@@ -1035,7 +1035,7 @@ static void ast2500_espi_oob_isr(struct ast2500_espi *espi)
 static void ast2500_espi_oob_reset(struct ast2500_espi *espi)
 {
 	struct ast2500_espi_oob *oob;
-	uint32_t reg;
+	u32 reg;
 
 	oob = &espi->oob;
 
@@ -1125,7 +1125,7 @@ static int ast2500_espi_oob_remove(struct ast2500_espi *espi)
 {
 	struct ast2500_espi_oob *oob;
 	struct device *dev;
-	uint32_t reg;
+	u32 reg;
 
 	dev = espi->dev;
 
@@ -1159,12 +1159,12 @@ static long ast2500_espi_flash_get_rx(struct file *fp,
 				      struct ast2500_espi_flash *flash,
 				      struct aspeed_espi_ioc *ioc)
 {
-	uint32_t reg, cyc, tag, len;
+	u32 reg, cyc, tag, len;
 	struct ast2500_espi *espi;
 	struct espi_comm_hdr *hdr;
 	unsigned long flags;
-	uint32_t pkt_len;
-	uint8_t *pkt;
+	u32 pkt_len;
+	u8 *pkt;
 	int i, rc;
 
 	rc = 0;
@@ -1281,10 +1281,10 @@ static long ast2500_espi_flash_put_tx(struct file *fp,
 				      struct ast2500_espi_flash *flash,
 				      struct aspeed_espi_ioc *ioc)
 {
-	uint32_t reg, cyc, tag, len;
+	u32 reg, cyc, tag, len;
 	struct ast2500_espi *espi;
 	struct espi_comm_hdr *hdr;
-	uint8_t *pkt;
+	u8 *pkt;
 	int i, rc;
 
 	espi = container_of(flash, struct ast2500_espi, flash);
@@ -1378,7 +1378,7 @@ static void ast2500_espi_flash_isr(struct ast2500_espi *espi)
 {
 	struct ast2500_espi_flash *flash;
 	unsigned long flags;
-	uint32_t sts;
+	u32 sts;
 
 	flash = &espi->flash;
 
@@ -1398,7 +1398,7 @@ static void ast2500_espi_flash_isr(struct ast2500_espi *espi)
 static void ast2500_espi_flash_reset(struct ast2500_espi *espi)
 {
 	struct ast2500_espi_flash *flash = &espi->flash;
-	uint32_t reg;
+	u32 reg;
 
 	reg = readl(espi->regs + ESPI_INT_EN);
 	reg &= ~(ESPI_INT_EN_FLASH);
@@ -1512,7 +1512,7 @@ static int ast2500_espi_flash_remove(struct ast2500_espi *espi)
 {
 	struct ast2500_espi_flash *flash;
 	struct device *dev;
-	uint32_t reg;
+	u32 reg;
 
 	dev = espi->dev;
 
@@ -1545,7 +1545,7 @@ static int ast2500_espi_flash_remove(struct ast2500_espi *espi)
 static irqreturn_t ast2500_espi_isr(int irq, void *arg)
 {
 	struct ast2500_espi *espi;
-	uint32_t sts;
+	u32 sts;
 
 	espi = (struct ast2500_espi *)arg;
 
@@ -1581,7 +1581,7 @@ static int ast2500_espi_probe(struct platform_device *pdev)
 	struct ast2500_espi *espi;
 	struct resource *res;
 	struct device *dev;
-	uint32_t reg;
+	u32 reg;
 	int rc;
 
 	dev = &pdev->dev;
@@ -1688,7 +1688,7 @@ static int ast2500_espi_remove(struct platform_device *pdev)
 {
 	struct ast2500_espi *espi;
 	struct device *dev;
-	uint32_t reg;
+	u32 reg;
 	int rc;
 
 	dev = &pdev->dev;

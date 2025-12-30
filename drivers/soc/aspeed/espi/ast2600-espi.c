@@ -52,9 +52,9 @@ struct ast2600_espi_perif {
 		int irq;
 		void *virt;
 		dma_addr_t taddr;
-		uint32_t saddr;
-		uint32_t size;
-		uint32_t inst_size;
+		u32 saddr;
+		u32 size;
+		u32 inst_size;
 		struct ast2600_espi_perif_mmbi inst[PERIF_MMBI_INST_NUM];
 	} mmbi;
 
@@ -62,8 +62,8 @@ struct ast2600_espi_perif {
 		bool enable;
 		void *virt;
 		dma_addr_t taddr;
-		uint32_t saddr;
-		uint32_t size;
+		u32 saddr;
+		u32 size;
 	} mcyc;
 
 	struct {
@@ -79,10 +79,10 @@ struct ast2600_espi_perif {
 	bool rx_ready;
 	wait_queue_head_t wq;
 
-	spinlock_t lock;
-	struct mutex np_tx_mtx;
-	struct mutex pc_tx_mtx;
-	struct mutex pc_rx_mtx;
+	spinlock_t lock; // peripheral channel lock
+	struct mutex np_tx_mtx; // non-posted TX mutex
+	struct mutex pc_tx_mtx; // posted TX mutex
+	struct mutex pc_rx_mtx; // posted RX mutex
 
 	struct miscdevice mdev;
 };
@@ -90,35 +90,35 @@ struct ast2600_espi_perif {
 struct ast2600_espi_vw {
 	struct {
 		bool hw_mode;
-		uint32_t dir;
-		uint32_t val;
+		u32 dir;
+		u32 val;
 	} gpio;
 
 	struct miscdevice mdev;
 };
 
 struct ast2600_espi_oob_dma_tx_desc {
-	uint32_t data_addr;
-	uint8_t cyc;
-	uint16_t tag : 4;
-	uint16_t len : 12;
-	uint8_t msg_type : 3;
-	uint8_t raz0 : 1;
-	uint8_t pec : 1;
-	uint8_t int_en : 1;
-	uint8_t pause : 1;
-	uint8_t raz1 : 1;
-	uint32_t raz2;
-	uint32_t raz3;
+	u32 data_addr;
+	u8 cyc;
+	u16 tag : 4;
+	u16 len : 12;
+	u8 msg_type : 3;
+	u8 raz0 : 1;
+	u8 pec : 1;
+	u8 int_en : 1;
+	u8 pause : 1;
+	u8 raz1 : 1;
+	u32 raz2;
+	u32 raz3;
 } __packed;
 
 struct ast2600_espi_oob_dma_rx_desc {
-	uint32_t data_addr;
-	uint8_t cyc;
-	uint16_t tag : 4;
-	uint16_t len : 12;
-	uint8_t raz : 7;
-	uint8_t dirty : 1;
+	u32 data_addr;
+	u8 cyc;
+	u16 tag : 4;
+	u16 len : 12;
+	u8 raz : 7;
+	u8 dirty : 1;
 } __packed;
 
 struct ast2600_espi_oob {
@@ -137,18 +137,18 @@ struct ast2600_espi_oob {
 	bool rx_ready;
 	wait_queue_head_t wq;
 
-	spinlock_t lock;
-	struct mutex tx_mtx;
-	struct mutex rx_mtx;
+	spinlock_t lock; // oob channel lock
+	struct mutex tx_mtx; // oob channel tx mutex
+	struct mutex rx_mtx; // oob channel rx mutex
 
 	struct miscdevice mdev;
 };
 
 struct ast2600_espi_flash {
 	struct {
-		uint32_t mode;
+		u32 mode;
 		phys_addr_t taddr;
-		uint32_t size;
+		u32 size;
 	} safs;
 
 	struct {
@@ -162,9 +162,9 @@ struct ast2600_espi_flash {
 	bool rx_ready;
 	wait_queue_head_t wq;
 
-	spinlock_t lock;
-	struct mutex rx_mtx;
-	struct mutex tx_mtx;
+	spinlock_t lock; // flash channel lock
+	struct mutex rx_mtx; // flash rx mutex
+	struct mutex tx_mtx; // flash tx mutex
 
 	struct miscdevice mdev;
 };
@@ -263,12 +263,12 @@ static long ast2600_espi_perif_pc_get_rx(struct file *fp,
 					 struct ast2600_espi_perif *perif,
 					 struct aspeed_espi_ioc *ioc)
 {
-	uint32_t reg, cyc, tag, len;
+	u32 reg, cyc, tag, len;
 	struct ast2600_espi *espi;
 	struct espi_comm_hdr *hdr;
 	unsigned long flags;
-	uint32_t pkt_len;
-	uint8_t *pkt;
+	u32 pkt_len;
+	u8 *pkt;
 	int i, rc;
 
 	espi = container_of(perif, struct ast2600_espi, perif);
@@ -382,10 +382,10 @@ static long ast2600_espi_perif_pc_put_tx(struct file *fp,
 					 struct ast2600_espi_perif *perif,
 					 struct aspeed_espi_ioc *ioc)
 {
-	uint32_t reg, cyc, tag, len;
+	u32 reg, cyc, tag, len;
 	struct ast2600_espi *espi;
 	struct espi_comm_hdr *hdr;
-	uint8_t *pkt;
+	u8 *pkt;
 	int i, rc;
 
 	espi = container_of(perif, struct ast2600_espi, perif);
@@ -449,10 +449,10 @@ static long ast2600_espi_perif_np_put_tx(struct file *fp,
 					 struct ast2600_espi_perif *perif,
 					 struct aspeed_espi_ioc *ioc)
 {
-	uint32_t reg, cyc, tag, len;
+	u32 reg, cyc, tag, len;
 	struct ast2600_espi *espi;
 	struct espi_comm_hdr *hdr;
-	uint8_t *pkt;
+	u8 *pkt;
 	int i, rc;
 
 	espi = container_of(perif, struct ast2600_espi, perif);
@@ -587,8 +587,8 @@ static irqreturn_t ast2600_espi_perif_mmbi_isr(int irq, void *arg)
 	struct ast2600_espi_perif_mmbi *mmbi;
 	struct ast2600_espi_perif *perif;
 	struct ast2600_espi *espi;
-	uint32_t sts, tmp;
-	uint32_t *p;
+	u32 sts, tmp;
+	u32 *p;
 	int i;
 
 	espi = (struct ast2600_espi *)arg;
@@ -605,7 +605,7 @@ static irqreturn_t ast2600_espi_perif_mmbi_isr(int irq, void *arg)
 
 		mmbi = &perif->mmbi.inst[i];
 
-		p = (uint32_t *)mmbi->h2b_virt;
+		p = (u32 *)mmbi->h2b_virt;
 		p[0] = readl(espi->regs + ESPI_MMBI_HOST_RWP(i));
 		p[1] = readl(espi->regs + ESPI_MMBI_HOST_RWP(i) + 4);
 
@@ -623,7 +623,7 @@ static void ast2600_espi_perif_isr(struct ast2600_espi *espi)
 {
 	struct ast2600_espi_perif *perif;
 	unsigned long flags;
-	uint32_t sts;
+	u32 sts;
 
 	perif = &espi->perif;
 
@@ -643,7 +643,7 @@ static void ast2600_espi_perif_isr(struct ast2600_espi *espi)
 static void ast2600_espi_perif_sw_reset(struct ast2600_espi *espi)
 {
 	struct device *dev;
-	uint32_t reg;
+	u32 reg;
 
 	dev = espi->dev;
 
@@ -671,7 +671,7 @@ static void ast2600_espi_perif_reset(struct ast2600_espi *espi)
 {
 	struct ast2600_espi_perif *perif;
 	struct device *dev;
-	uint32_t reg, mask;
+	u32 reg, mask;
 
 	dev = espi->dev;
 
@@ -907,7 +907,7 @@ static int ast2600_espi_perif_remove(struct ast2600_espi *espi)
 	struct ast2600_espi_perif_mmbi *mmbi;
 	struct ast2600_espi_perif *perif;
 	struct device *dev;
-	uint32_t reg;
+	u32 reg;
 	int i;
 
 	dev = espi->dev;
@@ -969,7 +969,7 @@ static long ast2600_espi_vw_ioctl(struct file *fp, unsigned int cmd, unsigned lo
 {
 	struct ast2600_espi_vw *vw;
 	struct ast2600_espi *espi;
-	uint32_t gpio, hw_mode;
+	u32 gpio, hw_mode;
 
 	vw = container_of(fp->private_data, struct ast2600_espi_vw, mdev);
 	espi = container_of(vw, struct ast2600_espi, vw);
@@ -983,7 +983,7 @@ static long ast2600_espi_vw_ioctl(struct file *fp, unsigned int cmd, unsigned lo
 
 	switch (cmd) {
 	case ASPEED_ESPI_VW_GET_GPIO_VAL:
-		if (put_user(gpio, (uint32_t __user *)arg)) {
+		if (put_user(gpio, (u32 __user *)arg)) {
 			dev_err(espi->dev, "failed to get vGPIO value\n");
 			return -EFAULT;
 		}
@@ -992,7 +992,7 @@ static long ast2600_espi_vw_ioctl(struct file *fp, unsigned int cmd, unsigned lo
 		break;
 
 	case ASPEED_ESPI_VW_PUT_GPIO_VAL:
-		if (get_user(gpio, (uint32_t __user *)arg)) {
+		if (get_user(gpio, (u32 __user *)arg)) {
 			dev_err(espi->dev, "failed to put vGPIO value\n");
 			return -EFAULT;
 		}
@@ -1016,7 +1016,7 @@ static const struct file_operations ast2600_espi_vw_fops = {
 static void ast2600_espi_vw_isr(struct ast2600_espi *espi)
 {
 	struct ast2600_espi_vw *vw;
-	uint32_t sts;
+	u32 sts;
 
 	vw = &espi->vw;
 
@@ -1036,7 +1036,7 @@ static void ast2600_espi_vw_isr(struct ast2600_espi *espi)
 
 static void ast2600_espi_vw_reset(struct ast2600_espi *espi)
 {
-	uint32_t reg;
+	u32 reg;
 	struct ast2600_espi_vw *vw = &espi->vw;
 
 	writel(ESPI_INT_EN_VW, espi->regs + ESPI_INT_EN_CLR);
@@ -1113,9 +1113,9 @@ static long ast2600_espi_oob_dma_get_rx(struct file *fp,
 	struct ast2600_espi_oob_dma_rx_desc *d;
 	struct ast2600_espi *espi;
 	struct espi_comm_hdr *hdr;
-	uint32_t wptr, pkt_len;
+	u32 wptr, pkt_len;
 	unsigned long flags;
-	uint8_t *pkt;
+	u8 *pkt;
 	int rc;
 
 	espi = container_of(oob, struct ast2600_espi, oob);
@@ -1173,12 +1173,12 @@ static long ast2600_espi_oob_get_rx(struct file *fp,
 				    struct ast2600_espi_oob *oob,
 				    struct aspeed_espi_ioc *ioc)
 {
-	uint32_t reg, cyc, tag, len;
+	u32 reg, cyc, tag, len;
 	struct ast2600_espi *espi;
 	struct espi_comm_hdr *hdr;
 	unsigned long flags;
-	uint32_t pkt_len;
-	uint8_t *pkt;
+	u32 pkt_len;
+	u8 *pkt;
 	int i, rc;
 
 	espi = container_of(oob, struct ast2600_espi, oob);
@@ -1274,8 +1274,8 @@ static long ast2600_espi_oob_dma_put_tx(struct file *fp,
 	struct ast2600_espi_oob_dma_tx_desc *d;
 	struct ast2600_espi *espi;
 	struct espi_comm_hdr *hdr;
-	uint32_t rptr, wptr;
-	uint8_t *pkt;
+	u32 rptr, wptr;
+	u8 *pkt;
 	int rc;
 
 	espi = container_of(oob, struct ast2600_espi, oob);
@@ -1327,10 +1327,10 @@ static long ast2600_espi_oob_put_tx(struct file *fp,
 				    struct ast2600_espi_oob *oob,
 				    struct aspeed_espi_ioc *ioc)
 {
-	uint32_t reg, cyc, tag, len;
+	u32 reg, cyc, tag, len;
 	struct ast2600_espi *espi;
 	struct espi_comm_hdr *hdr;
-	uint8_t *pkt;
+	u8 *pkt;
 	int i, rc;
 
 	espi = container_of(oob, struct ast2600_espi, oob);
@@ -1427,7 +1427,7 @@ static void ast2600_espi_oob_isr(struct ast2600_espi *espi)
 {
 	struct ast2600_espi_oob *oob;
 	unsigned long flags;
-	uint32_t sts;
+	u32 sts;
 
 	oob = &espi->oob;
 
@@ -1448,7 +1448,7 @@ static void ast2600_espi_oob_reset(struct ast2600_espi *espi)
 {
 	struct ast2600_espi_oob *oob;
 	dma_addr_t tx_addr, rx_addr;
-	uint32_t reg;
+	u32 reg;
 	int i;
 
 	writel(ESPI_INT_EN_OOB, espi->regs + ESPI_INT_EN_CLR);
@@ -1569,7 +1569,7 @@ static int ast2600_espi_oob_remove(struct ast2600_espi *espi)
 {
 	struct ast2600_espi_oob *oob;
 	struct device *dev;
-	uint32_t reg;
+	u32 reg;
 
 	dev = espi->dev;
 
@@ -1607,12 +1607,12 @@ static long ast2600_espi_flash_get_rx(struct file *fp,
 				      struct ast2600_espi_flash *flash,
 				      struct aspeed_espi_ioc *ioc)
 {
-	uint32_t reg, cyc, tag, len;
+	u32 reg, cyc, tag, len;
 	struct ast2600_espi *espi;
 	struct espi_comm_hdr *hdr;
 	unsigned long flags;
-	uint32_t pkt_len;
-	uint8_t *pkt;
+	u32 pkt_len;
+	u8 *pkt;
 	int i, rc;
 
 	rc = 0;
@@ -1729,10 +1729,10 @@ static long ast2600_espi_flash_put_tx(struct file *fp,
 				      struct ast2600_espi_flash *flash,
 				      struct aspeed_espi_ioc *ioc)
 {
-	uint32_t reg, cyc, tag, len;
+	u32 reg, cyc, tag, len;
 	struct ast2600_espi *espi;
 	struct espi_comm_hdr *hdr;
-	uint8_t *pkt;
+	u8 *pkt;
 	int i, rc;
 
 	espi = container_of(flash, struct ast2600_espi, flash);
@@ -1826,7 +1826,7 @@ static void ast2600_espi_flash_isr(struct ast2600_espi *espi)
 {
 	struct ast2600_espi_flash *flash;
 	unsigned long flags;
-	uint32_t sts;
+	u32 sts;
 
 	flash = &espi->flash;
 
@@ -1846,7 +1846,7 @@ static void ast2600_espi_flash_isr(struct ast2600_espi *espi)
 static void ast2600_espi_flash_reset(struct ast2600_espi *espi)
 {
 	struct ast2600_espi_flash *flash;
-	uint32_t reg;
+	u32 reg;
 
 	flash = &espi->flash;
 
@@ -1960,7 +1960,7 @@ static int ast2600_espi_flash_remove(struct ast2600_espi *espi)
 {
 	struct ast2600_espi_flash *flash;
 	struct device *dev;
-	uint32_t reg;
+	u32 reg;
 
 	dev = espi->dev;
 
@@ -1991,7 +1991,7 @@ static int ast2600_espi_flash_remove(struct ast2600_espi *espi)
 static irqreturn_t ast2600_espi_isr(int irq, void *arg)
 {
 	struct ast2600_espi *espi;
-	uint32_t sts;
+	u32 sts;
 
 	espi = (struct ast2600_espi *)arg;
 
