@@ -1,12 +1,14 @@
 /* SPDX-License-Identifier: GPL-2.0+ */
 /*
+ * Register definitions for Aspeed AST2500 eSPI controller
  * Copyright 2023 Aspeed Technology Inc.
  */
 #ifndef _AST2500_ESPI_H_
 #define _AST2500_ESPI_H_
 
 #include <linux/bits.h>
-#include "aspeed-espi-comm.h"
+#include <linux/irqreturn.h>
+#include "aspeed-espi.h"
 
 /* registers */
 #define ESPI_CTRL				0x000
@@ -240,11 +242,17 @@
 	 ESPI_INT_STS_FLASH_TX_CMPLT |	\
 	 ESPI_INT_STS_FLASH_RX_CMPLT)
 
-/* consistent with DTS property "flash-safs-mode" */
-enum ast2500_safs_mode {
-	SAFS_MODE_MIX = 0x0,
-	SAFS_MODE_SW,
-	SAFS_MODES,
-};
-
+/* operators for framework initialization */
+void ast2500_espi_pre_init(struct aspeed_espi *espi);
+void ast2500_espi_post_init(struct aspeed_espi *espi);
+void ast2500_espi_deinit(struct aspeed_espi *espi);
+int ast2500_espi_perif_probe(struct aspeed_espi *espi);
+int ast2500_espi_perif_remove(struct aspeed_espi *espi);
+int ast2500_espi_vw_probe(struct aspeed_espi *espi);
+int ast2500_espi_vw_remove(struct aspeed_espi *espi);
+int ast2500_espi_oob_probe(struct aspeed_espi *espi);
+int ast2500_espi_oob_remove(struct aspeed_espi *espi);
+int ast2500_espi_flash_probe(struct aspeed_espi *espi);
+int ast2500_espi_flash_remove(struct aspeed_espi *espi);
+irqreturn_t ast2500_espi_isr(int irq, void *arg);
 #endif

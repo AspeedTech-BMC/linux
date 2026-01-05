@@ -1,12 +1,13 @@
 /* SPDX-License-Identifier: GPL-2.0+ */
 /*
+ * Register definitions for Aspeed AST2700 eSPI controller
  * Copyright 2023 Aspeed Technology Inc.
  */
 #ifndef _AST2700_ESPI_H_
 #define _AST2700_ESPI_H_
 
 #include <linux/bits.h>
-#include "aspeed-espi-comm.h"
+#include "aspeed-espi.h"
 
 /* SCU regiseters */
 #define SCU1_DDR			0x0c8
@@ -279,11 +280,17 @@
 #define ESPI_MMBI_INT_EN		0x80c
 #define ESPI_MMBI_HOST_RWP(x)		(0x810 + ((x) << 3))
 
-enum ast2700_edaf_mode {
-	EDAF_MODE_MIX,
-	EDAF_MODE_SW,
-	EDAF_MODE_HW,
-	EDAF_MODES,
-};
+void ast2700_espi_pre_init(struct aspeed_espi *espi);
+void ast2700_espi_post_init(struct aspeed_espi *espi);
+void ast2700_espi_deinit(struct aspeed_espi *espi);
+int ast2700_espi_perif_probe(struct aspeed_espi *espi);
+int ast2700_espi_perif_remove(struct aspeed_espi *espi);
+int ast2700_espi_vw_probe(struct aspeed_espi *espi);
+int ast2700_espi_vw_remove(struct aspeed_espi *espi);
+int ast2700_espi_oob_probe(struct aspeed_espi *espi);
+int ast2700_espi_oob_remove(struct aspeed_espi *espi);
+int ast2700_espi_flash_probe(struct aspeed_espi *espi);
+int ast2700_espi_flash_remove(struct aspeed_espi *espi);
+irqreturn_t ast2700_espi_isr(int irq, void *arg);
 
 #endif

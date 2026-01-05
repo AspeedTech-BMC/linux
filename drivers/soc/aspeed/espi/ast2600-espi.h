@@ -1,12 +1,15 @@
 /* SPDX-License-Identifier: GPL-2.0+ */
 /*
+ * Register definitions for Aspeed AST2600 eSPI controller
  * Copyright 2023 Aspeed Technology Inc.
  */
 #ifndef _AST2600_ESPI_H_
 #define _AST2600_ESPI_H_
 
 #include <linux/bits.h>
-#include "aspeed-espi-comm.h"
+#include <linux/irqreturn.h>
+
+#include "aspeed-espi.h"
 
 /* registers */
 #define ESPI_CTRL				0x000
@@ -25,7 +28,7 @@
 #define   ESPI_CTRL_PERIF_NP_TX_DMA_EN		BIT(19)
 #define   ESPI_CTRL_PERIF_PC_TX_DMA_EN		BIT(17)
 #define   ESPI_CTRL_PERIF_PC_RX_DMA_EN		BIT(16)
-#define   ESPI_CTRL_FLASH_SAFS_MODE		GENMASK(11, 10)
+#define   ESPI_CTRL_FLASH_EDAF_MODE		GENMASK(11, 10)
 #define   ESPI_CTRL_VW_GPIO_SW			BIT(9)
 #define   ESPI_CTRL_FLASH_SW_RDY		BIT(7)
 #define   ESPI_CTRL_OOB_SW_RDY			BIT(4)
@@ -145,9 +148,9 @@
 #define ESPI_PERIF_MMBI_TADDR			ESPI_PERIF_MCYC_TADDR
 #define ESPI_PERIF_MCYC_MASK			0x08c
 #define ESPI_PERIF_MMBI_MASK			ESPI_PERIF_MCYC_MASK
-#define ESPI_FLASH_SAFS_TADDR			0x090
-#define   ESPI_FLASH_SAFS_TADDR_BASE		GENMASK(31, 24)
-#define   ESPI_FLASH_SAFS_TADDR_MASK		GENMASK(15, 8)
+#define ESPI_FLASH_EDAF_TADDR			0x090
+#define   ESPI_FLASH_EDAF_TADDR_BASE		GENMASK(31, 24)
+#define   ESPI_FLASH_EDAF_TADDR_MASK		GENMASK(15, 8)
 #define ESPI_VW_SYSEVT_INT_EN			0x094
 #define ESPI_VW_SYSEVT				0x098
 #define   ESPI_VW_SYSEVT_HOST_RST_ACK		BIT(27)
@@ -273,13 +276,6 @@
 	 ESPI_INT_STS_FLASH_TX_CMPLT |	\
 	 ESPI_INT_STS_FLASH_RX_CMPLT)
 
-/* consistent with DTS property "flash-safs-mode" */
-enum ast2600_safs_mode {
-	SAFS_MODE_MIX = 0x0,
-	SAFS_MODE_SW,
-	SAFS_MODE_HW,
-	SAFS_MODES,
-};
 
 /* consistent with DTS property "perif-mmbi-instance-size" */
 enum ast2600_mmbi_instance_size {
@@ -294,4 +290,17 @@ enum ast2600_mmbi_instance_size {
 	MMBI_INST_SIZE_TYPES,
 };
 
+/* function operators */
+void ast2600_espi_pre_init(struct aspeed_espi *espi);
+void ast2600_espi_post_init(struct aspeed_espi *espi);
+void ast2600_espi_deinit(struct aspeed_espi *espi);
+int ast2600_espi_perif_probe(struct aspeed_espi *espi);
+int ast2600_espi_perif_remove(struct aspeed_espi *espi);
+int ast2600_espi_vw_probe(struct aspeed_espi *espi);
+int ast2600_espi_vw_remove(struct aspeed_espi *espi);
+int ast2600_espi_oob_probe(struct aspeed_espi *espi);
+int ast2600_espi_oob_remove(struct aspeed_espi *espi);
+int ast2600_espi_flash_probe(struct aspeed_espi *espi);
+int ast2600_espi_flash_remove(struct aspeed_espi *espi);
+irqreturn_t ast2600_espi_isr(int irq, void *arg);
 #endif
