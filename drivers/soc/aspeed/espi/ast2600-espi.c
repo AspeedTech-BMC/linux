@@ -20,8 +20,8 @@
 #include <linux/reset.h>
 
 #include "ast2600-espi.h"
-
-#define DEVICE_NAME		"aspeed-espi"
+#include "aspeed-espi-comm.h"
+#include "aspeed-espi.h"
 
 #define PERIF_MCYC_ALIGN	SZ_64K
 #define PERIF_MMBI_ALIGN	SZ_64K
@@ -31,170 +31,22 @@
 #define OOB_DMA_DESC_NUM	8
 #define OOB_DMA_DESC_CUSTOM	0x4
 
-#define FLASH_SAFS_ALIGN	SZ_16M
-
-struct ast2600_espi_perif_mmbi {
-	void *b2h_virt;
-	void *h2b_virt;
-	dma_addr_t b2h_addr;
-	dma_addr_t h2b_addr;
-	struct miscdevice b2h_mdev;
-	struct miscdevice h2b_mdev;
-	bool host_rwp_update;
-	wait_queue_head_t wq;
-	struct ast2600_espi_perif *perif;
-};
-
-struct ast2600_espi_perif {
-	struct {
-		bool enable;
-		int irq;
-		void *virt;
-		dma_addr_t taddr;
-		u32 saddr;
-		u32 size;
-		u32 inst_size;
-		struct ast2600_espi_perif_mmbi inst[PERIF_MMBI_INST_NUM];
-	} mmbi;
-
-	struct {
-		bool enable;
-		void *virt;
-		dma_addr_t taddr;
-		u32 saddr;
-		u32 size;
-	} mcyc;
-
-	struct {
-		bool enable;
-		void *np_tx_virt;
-		dma_addr_t np_tx_addr;
-		void *pc_tx_virt;
-		dma_addr_t pc_tx_addr;
-		void *pc_rx_virt;
-		dma_addr_t pc_rx_addr;
-	} dma;
-
-	bool rx_ready;
-	wait_queue_head_t wq;
-
-	spinlock_t lock; // peripheral channel lock
-	struct mutex np_tx_mtx; // non-posted TX mutex
-	struct mutex pc_tx_mtx; // posted TX mutex
-	struct mutex pc_rx_mtx; // posted RX mutex
-
-	struct miscdevice mdev;
-};
-
-struct ast2600_espi_vw {
-	struct {
-		bool hw_mode;
-		u32 dir;
-		u32 val;
-	} gpio;
-
-	struct miscdevice mdev;
-};
-
-struct ast2600_espi_oob_dma_tx_desc {
-	u32 data_addr;
-	u8 cyc;
-	u16 tag : 4;
-	u16 len : 12;
-	u8 msg_type : 3;
-	u8 raz0 : 1;
-	u8 pec : 1;
-	u8 int_en : 1;
-	u8 pause : 1;
-	u8 raz1 : 1;
-	u32 raz2;
-	u32 raz3;
-} __packed;
-
-struct ast2600_espi_oob_dma_rx_desc {
-	u32 data_addr;
-	u8 cyc;
-	u16 tag : 4;
-	u16 len : 12;
-	u8 raz : 7;
-	u8 dirty : 1;
-} __packed;
-
-struct ast2600_espi_oob {
-	struct {
-		bool enable;
-		struct ast2600_espi_oob_dma_tx_desc *txd_virt;
-		dma_addr_t txd_addr;
-		struct ast2600_espi_oob_dma_rx_desc *rxd_virt;
-		dma_addr_t rxd_addr;
-		void *tx_virt;
-		dma_addr_t tx_addr;
-		void *rx_virt;
-		dma_addr_t rx_addr;
-	} dma;
-
-	bool rx_ready;
-	wait_queue_head_t wq;
-
-	spinlock_t lock; // oob channel lock
-	struct mutex tx_mtx; // oob channel tx mutex
-	struct mutex rx_mtx; // oob channel rx mutex
-
-	struct miscdevice mdev;
-};
-
-struct ast2600_espi_flash {
-	struct {
-		u32 mode;
-		phys_addr_t taddr;
-		u32 size;
-	} safs;
-
-	struct {
-		bool enable;
-		void *tx_virt;
-		dma_addr_t tx_addr;
-		void *rx_virt;
-		dma_addr_t rx_addr;
-	} dma;
-
-	bool rx_ready;
-	wait_queue_head_t wq;
-
-	spinlock_t lock; // flash channel lock
-	struct mutex rx_mtx; // flash rx mutex
-	struct mutex tx_mtx; // flash tx mutex
-
-	struct miscdevice mdev;
-};
-
-struct ast2600_espi {
-	struct device *dev;
-	void __iomem *regs;
-	struct reset_control *rst;
-	struct clk *clk;
-	int irq;
-
-	struct ast2600_espi_perif perif;
-	struct ast2600_espi_vw vw;
-	struct ast2600_espi_oob oob;
-	struct ast2600_espi_flash flash;
-};
+#define FLASH_EDAF_ALIGN	SZ_16M
 
 /* peripheral channel (CH0) */
 static int ast2600_espi_mmbi_b2h_mmap(struct file *fp, struct vm_area_struct *vma)
 {
-	struct ast2600_espi_perif_mmbi *mmbi;
-	struct ast2600_espi_perif *perif;
-	struct ast2600_espi *espi;
+	struct aspeed_espi_perif_mmbi *mmbi;
+	struct aspeed_espi_perif *perif;
+	struct aspeed_espi *espi;
 	unsigned long vm_size;
 	pgprot_t prot;
 
-	mmbi = container_of(fp->private_data, struct ast2600_espi_perif_mmbi, b2h_mdev);
+	mmbi = container_of(fp->private_data, struct aspeed_espi_perif_mmbi, b2h_mdev);
 
 	perif = mmbi->perif;
 
-	espi = container_of(perif, struct ast2600_espi, perif);
+	espi = container_of(perif, struct aspeed_espi, perif);
 
 	vm_size = vma->vm_end - vma->vm_start;
 	prot = vma->vm_page_prot;
@@ -214,17 +66,17 @@ static int ast2600_espi_mmbi_b2h_mmap(struct file *fp, struct vm_area_struct *vm
 
 static int ast2600_espi_mmbi_h2b_mmap(struct file *fp, struct vm_area_struct *vma)
 {
-	struct ast2600_espi_perif_mmbi *mmbi;
-	struct ast2600_espi_perif *perif;
-	struct ast2600_espi *espi;
+	struct aspeed_espi_perif_mmbi *mmbi;
+	struct aspeed_espi_perif *perif;
+	struct aspeed_espi *espi;
 	unsigned long vm_size;
 	pgprot_t prot;
 
-	mmbi = container_of(fp->private_data, struct ast2600_espi_perif_mmbi, h2b_mdev);
+	mmbi = container_of(fp->private_data, struct aspeed_espi_perif_mmbi, h2b_mdev);
 
 	perif = mmbi->perif;
 
-	espi = container_of(perif, struct ast2600_espi, perif);
+	espi = container_of(perif, struct aspeed_espi, perif);
 
 	vm_size = vma->vm_end - vma->vm_start;
 	prot = vma->vm_page_prot;
@@ -244,9 +96,9 @@ static int ast2600_espi_mmbi_h2b_mmap(struct file *fp, struct vm_area_struct *vm
 
 static __poll_t ast2600_espi_mmbi_h2b_poll(struct file *fp, struct poll_table_struct *pt)
 {
-	struct ast2600_espi_perif_mmbi *mmbi;
+	struct aspeed_espi_perif_mmbi *mmbi;
 
-	mmbi = container_of(fp->private_data, struct ast2600_espi_perif_mmbi, h2b_mdev);
+	mmbi = container_of(fp->private_data, struct aspeed_espi_perif_mmbi, h2b_mdev);
 
 	poll_wait(fp, &mmbi->wq, pt);
 
@@ -259,18 +111,18 @@ static __poll_t ast2600_espi_mmbi_h2b_poll(struct file *fp, struct poll_table_st
 }
 
 static long ast2600_espi_perif_pc_get_rx(struct file *fp,
-					 struct ast2600_espi_perif *perif,
+					 struct aspeed_espi_perif *perif,
 					 struct aspeed_espi_ioc *ioc)
 {
 	u32 reg, cyc, tag, len;
-	struct ast2600_espi *espi;
+	struct aspeed_espi *espi;
 	struct espi_comm_hdr *hdr;
 	unsigned long flags;
 	u32 pkt_len;
 	u8 *pkt;
 	int i, rc;
 
-	espi = container_of(perif, struct ast2600_espi, perif);
+	espi = container_of(perif, struct aspeed_espi, perif);
 
 	if (fp->f_flags & O_NONBLOCK) {
 		if (!mutex_trylock(&perif->pc_rx_mtx))
@@ -378,16 +230,16 @@ unlock_mtx_n_out:
 }
 
 static long ast2600_espi_perif_pc_put_tx(struct file *fp,
-					 struct ast2600_espi_perif *perif,
+					 struct aspeed_espi_perif *perif,
 					 struct aspeed_espi_ioc *ioc)
 {
 	u32 reg, cyc, tag, len;
-	struct ast2600_espi *espi;
+	struct aspeed_espi *espi;
 	struct espi_comm_hdr *hdr;
 	u8 *pkt;
 	int i, rc;
 
-	espi = container_of(perif, struct ast2600_espi, perif);
+	espi = container_of(perif, struct aspeed_espi, perif);
 
 	if (!mutex_trylock(&perif->pc_tx_mtx))
 		return -EAGAIN;
@@ -445,16 +297,16 @@ unlock_n_out:
 }
 
 static long ast2600_espi_perif_np_put_tx(struct file *fp,
-					 struct ast2600_espi_perif *perif,
+					 struct aspeed_espi_perif *perif,
 					 struct aspeed_espi_ioc *ioc)
 {
 	u32 reg, cyc, tag, len;
-	struct ast2600_espi *espi;
+	struct aspeed_espi *espi;
 	struct espi_comm_hdr *hdr;
 	u8 *pkt;
 	int i, rc;
 
-	espi = container_of(perif, struct ast2600_espi, perif);
+	espi = container_of(perif, struct aspeed_espi, perif);
 
 	if (!mutex_trylock(&perif->np_tx_mtx))
 		return -EAGAIN;
@@ -513,10 +365,10 @@ unlock_n_out:
 
 static long ast2600_espi_perif_ioctl(struct file *fp, unsigned int cmd, unsigned long arg)
 {
-	struct ast2600_espi_perif *perif;
+	struct aspeed_espi_perif *perif;
 	struct aspeed_espi_ioc ioc;
 
-	perif = container_of(fp->private_data, struct ast2600_espi_perif, mdev);
+	perif = container_of(fp->private_data, struct aspeed_espi_perif, mdev);
 
 	if (copy_from_user(&ioc, (void __user *)arg, sizeof(ioc)))
 		return -EFAULT;
@@ -540,11 +392,11 @@ static long ast2600_espi_perif_ioctl(struct file *fp, unsigned int cmd, unsigned
 
 static int ast2600_espi_perif_mmap(struct file *fp, struct vm_area_struct *vma)
 {
-	struct ast2600_espi_perif *perif;
+	struct aspeed_espi_perif *perif;
 	unsigned long vm_size;
 	pgprot_t vm_prot;
 
-	perif = container_of(fp->private_data, struct ast2600_espi_perif, mdev);
+	perif = container_of(fp->private_data, struct aspeed_espi_perif, mdev);
 	if (!perif->mcyc.enable)
 		return -EPERM;
 
@@ -583,14 +435,14 @@ static const struct file_operations ast2600_espi_perif_fops = {
 
 static irqreturn_t ast2600_espi_perif_mmbi_isr(int irq, void *arg)
 {
-	struct ast2600_espi_perif_mmbi *mmbi;
-	struct ast2600_espi_perif *perif;
-	struct ast2600_espi *espi;
+	struct aspeed_espi_perif_mmbi *mmbi;
+	struct aspeed_espi_perif *perif;
+	struct aspeed_espi *espi;
 	u32 sts, tmp;
 	u32 *p;
 	int i;
 
-	espi = (struct ast2600_espi *)arg;
+	espi = (struct aspeed_espi *)arg;
 
 	perif = &espi->perif;
 
@@ -618,9 +470,9 @@ static irqreturn_t ast2600_espi_perif_mmbi_isr(int irq, void *arg)
 	return IRQ_HANDLED;
 }
 
-static void ast2600_espi_perif_isr(struct ast2600_espi *espi)
+static void ast2600_espi_perif_isr(struct aspeed_espi *espi)
 {
-	struct ast2600_espi_perif *perif;
+	struct aspeed_espi_perif *perif;
 	unsigned long flags;
 	u32 sts;
 
@@ -639,7 +491,7 @@ static void ast2600_espi_perif_isr(struct ast2600_espi *espi)
 	}
 }
 
-static void ast2600_espi_perif_sw_reset(struct ast2600_espi *espi)
+static void ast2600_espi_perif_sw_reset(struct aspeed_espi *espi)
 {
 	struct device *dev;
 	u32 reg;
@@ -666,9 +518,9 @@ static void ast2600_espi_perif_sw_reset(struct ast2600_espi *espi)
 	writel(reg, espi->regs + ESPI_CTRL);
 }
 
-static void ast2600_espi_perif_reset(struct ast2600_espi *espi)
+static void ast2600_espi_perif_reset(struct aspeed_espi *espi)
 {
-	struct ast2600_espi_perif *perif;
+	struct aspeed_espi_perif *perif;
 	struct device *dev;
 	u32 reg, mask;
 
@@ -742,10 +594,10 @@ static void ast2600_espi_perif_reset(struct ast2600_espi *espi)
 	writel(reg, espi->regs + ESPI_CTRL);
 }
 
-static int ast2600_espi_perif_probe(struct ast2600_espi *espi)
+int ast2600_espi_perif_probe(struct aspeed_espi *espi)
 {
-	struct ast2600_espi_perif_mmbi *mmbi;
-	struct ast2600_espi_perif *perif;
+	struct aspeed_espi_perif_mmbi *mmbi;
+	struct aspeed_espi_perif *perif;
 	struct platform_device *pdev;
 	struct device *dev;
 	int i, rc;
@@ -764,7 +616,7 @@ static int ast2600_espi_perif_probe(struct ast2600_espi *espi)
 
 	perif->mmbi.enable = of_property_read_bool(dev->of_node, "perif-mmbi-enable");
 	if (perif->mmbi.enable) {
-		pdev = container_of(dev, struct platform_device, dev);
+		pdev = espi->pdev;
 
 		perif->mmbi.irq = platform_get_irq(pdev, 1);
 		if (perif->mmbi.irq < 0) {
@@ -772,13 +624,13 @@ static int ast2600_espi_perif_probe(struct ast2600_espi *espi)
 			return -ENODEV;
 		}
 
-		rc = of_property_read_u32(dev->of_node, "perif-mmbi-src-addr", &perif->mmbi.saddr);
+		rc = of_property_read_u32(dev->of_node, "perif-mmbi-src-addr", (u32 *)&perif->mmbi.saddr);
 		if (rc || !IS_ALIGNED(perif->mmbi.saddr, PERIF_MMBI_ALIGN)) {
 			dev_err(dev, "cannot get 64KB-aligned MMBI host address\n");
 			return -ENODEV;
 		}
 
-		rc = of_property_read_u32(dev->of_node, "perif-mmbi-instance-size", &perif->mmbi.inst_size);
+		rc = of_property_read_u32(dev->of_node, "perif-mmbi-instance-size", (u32 *)&perif->mmbi.inst_size);
 		if (rc || perif->mmbi.inst_size >= MMBI_INST_SIZE_TYPES) {
 			dev_err(dev, "cannot get valid MMBI instance size\n");
 			return -EINVAL;
@@ -791,6 +643,8 @@ static int ast2600_espi_perif_probe(struct ast2600_espi *espi)
 			dev_err(dev, "cannot allocate MMBI\n");
 			return -ENOMEM;
 		}
+
+		perif->mmbi.mmbi_isr = ast2600_espi_perif_mmbi_isr;
 
 		for (i = 0; i < PERIF_MMBI_INST_NUM; ++i) {
 			mmbi = &perif->mmbi.inst[i];
@@ -833,13 +687,13 @@ static int ast2600_espi_perif_probe(struct ast2600_espi *espi)
 			return -EPERM;
 		}
 
-		rc = of_property_read_u32(dev->of_node, "perif-mcyc-src-addr", &perif->mcyc.saddr);
+		rc = of_property_read_u32(dev->of_node, "perif-mcyc-src-addr", (u32 *)&perif->mcyc.saddr);
 		if (rc || !IS_ALIGNED(perif->mcyc.saddr, PERIF_MCYC_ALIGN)) {
 			dev_err(dev, "cannot get 64KB-aligned memory cycle host address\n");
 			return -ENODEV;
 		}
 
-		rc = of_property_read_u32(dev->of_node, "perif-mcyc-size", &perif->mcyc.size);
+		rc = of_property_read_u32(dev->of_node, "perif-mcyc-size", (u32 *)&perif->mcyc.size);
 		if (rc || !IS_ALIGNED(perif->mcyc.size, PERIF_MCYC_ALIGN)) {
 			dev_err(dev, "cannot get 64KB-aligned memory cycle size\n");
 			return -EINVAL;
@@ -889,22 +743,13 @@ static int ast2600_espi_perif_probe(struct ast2600_espi *espi)
 
 	ast2600_espi_perif_reset(espi);
 
-	if (perif->mmbi.enable) {
-		rc = devm_request_irq(dev, espi->perif.mmbi.irq,
-				      ast2600_espi_perif_mmbi_isr, 0, dev_name(dev), espi);
-		if (rc) {
-			dev_err(dev, "cannot request MMBI IRQ\n");
-			return rc;
-		}
-	}
-
 	return 0;
 }
 
-static int ast2600_espi_perif_remove(struct ast2600_espi *espi)
+int ast2600_espi_perif_remove(struct aspeed_espi *espi)
 {
-	struct ast2600_espi_perif_mmbi *mmbi;
-	struct ast2600_espi_perif *perif;
+	struct aspeed_espi_perif_mmbi *mmbi;
+	struct aspeed_espi_perif *perif;
 	struct device *dev;
 	u32 reg;
 	int i;
@@ -966,13 +811,13 @@ static int ast2600_espi_perif_remove(struct ast2600_espi *espi)
 /* virtual wire channel (CH1) */
 static long ast2600_espi_vw_ioctl(struct file *fp, unsigned int cmd, unsigned long arg)
 {
-	struct ast2600_espi_vw *vw;
-	struct ast2600_espi *espi;
+	struct aspeed_espi_vw *vw;
+	struct aspeed_espi *espi;
 	u32 gpio, hw_mode;
 
-	vw = container_of(fp->private_data, struct ast2600_espi_vw, mdev);
-	espi = container_of(vw, struct ast2600_espi, vw);
-	gpio = vw->gpio.val;
+	vw = container_of(fp->private_data, struct aspeed_espi_vw, mdev);
+	espi = container_of(vw, struct aspeed_espi, vw);
+	gpio = vw->gpio.val0;
 	hw_mode = vw->gpio.hw_mode;
 
 	if (hw_mode) {
@@ -1012,9 +857,9 @@ static const struct file_operations ast2600_espi_vw_fops = {
 	.unlocked_ioctl = ast2600_espi_vw_ioctl,
 };
 
-static void ast2600_espi_vw_isr(struct ast2600_espi *espi)
+static void ast2600_espi_vw_isr(struct aspeed_espi *espi)
 {
-	struct ast2600_espi_vw *vw;
+	struct aspeed_espi_vw *vw;
 	u32 sts;
 
 	vw = &espi->vw;
@@ -1022,7 +867,7 @@ static void ast2600_espi_vw_isr(struct ast2600_espi *espi)
 	sts = readl(espi->regs + ESPI_INT_STS);
 
 	if (sts & ESPI_INT_STS_VW_GPIO) {
-		vw->gpio.val = readl(espi->regs + ESPI_VW_GPIO_VAL);
+		vw->gpio.val0 = readl(espi->regs + ESPI_VW_GPIO_VAL);
 		writel(ESPI_INT_STS_VW_GPIO, espi->regs + ESPI_INT_STS);
 	} else if (sts & ESPI_INT_STS_VW_SYSEVT) {
 		/* Handle system event */
@@ -1033,17 +878,17 @@ static void ast2600_espi_vw_isr(struct ast2600_espi *espi)
 	}
 }
 
-static void ast2600_espi_vw_reset(struct ast2600_espi *espi)
+static void ast2600_espi_vw_reset(struct aspeed_espi *espi)
 {
 	u32 reg;
-	struct ast2600_espi_vw *vw = &espi->vw;
+	struct aspeed_espi_vw *vw = &espi->vw;
 
 	writel(ESPI_INT_EN_VW, espi->regs + ESPI_INT_EN_CLR);
 	writel(ESPI_INT_STS_VW, espi->regs + ESPI_INT_STS);
 
-	writel(vw->gpio.dir, espi->regs + ESPI_VW_GPIO_DIR);
+	writel(vw->gpio.dir0, espi->regs + ESPI_VW_GPIO_DIR);
 
-	vw->gpio.val = readl(espi->regs + ESPI_VW_GPIO_VAL);
+	vw->gpio.val0 = readl(espi->regs + ESPI_VW_GPIO_VAL);
 
 	reg = readl(espi->regs + ESPI_CTRL2) & ~(ESPI_CTRL2_VW_TX_SORT);
 	writel(reg, espi->regs + ESPI_CTRL2);
@@ -1067,14 +912,14 @@ static void ast2600_espi_vw_reset(struct ast2600_espi *espi)
 	writel(0x1, espi->regs + ESPI_VW_SYSEVT1_INT_T0);
 }
 
-static int ast2600_espi_vw_probe(struct ast2600_espi *espi)
+int ast2600_espi_vw_probe(struct aspeed_espi *espi)
 {
 	int rc;
 	struct device *dev = espi->dev;
-	struct ast2600_espi_vw *vw = &espi->vw;
+	struct aspeed_espi_vw *vw = &espi->vw;
 
 	vw->gpio.hw_mode = of_property_read_bool(dev->of_node, "vw-gpio-hw-mode");
-	of_property_read_u32(dev->of_node, "vw-gpio-direction", &vw->gpio.dir);
+	of_property_read_u32(dev->of_node, "vw-gpio-direction", &vw->gpio.dir0);
 
 	vw->mdev.parent = dev;
 	vw->mdev.minor = MISC_DYNAMIC_MINOR;
@@ -1091,9 +936,9 @@ static int ast2600_espi_vw_probe(struct ast2600_espi *espi)
 	return 0;
 }
 
-static int ast2600_espi_vw_remove(struct ast2600_espi *espi)
+int ast2600_espi_vw_remove(struct aspeed_espi *espi)
 {
-	struct ast2600_espi_vw *vw;
+	struct aspeed_espi_vw *vw;
 
 	vw = &espi->vw;
 
@@ -1106,22 +951,24 @@ static int ast2600_espi_vw_remove(struct ast2600_espi *espi)
 
 /* out-of-band channel (CH2) */
 static long ast2600_espi_oob_dma_get_rx(struct file *fp,
-					struct ast2600_espi_oob *oob,
+					struct aspeed_espi_oob *oob,
 					struct aspeed_espi_ioc *ioc)
 {
 	struct ast2600_espi_oob_dma_rx_desc *d;
-	struct ast2600_espi *espi;
+	struct ast2600_espi_oob_dma_rx_desc *rx_descs;
+	struct aspeed_espi *espi;
 	struct espi_comm_hdr *hdr;
 	u32 wptr, pkt_len;
 	unsigned long flags;
 	u8 *pkt;
 	int rc;
 
-	espi = container_of(oob, struct ast2600_espi, oob);
+	espi = container_of(oob, struct aspeed_espi, oob);
 
 	wptr = FIELD_PREP(ESPI_OOB_RX_DESC_WPTR_WP, readl(espi->regs + ESPI_OOB_RX_DESC_WPTR));
 
-	d = &oob->dma.rxd_virt[wptr];
+	rx_descs = (struct ast2600_espi_oob_dma_rx_desc *)oob->dma.rxd_virt;
+	d = &rx_descs[wptr];
 
 	if (!d->dirty)
 		return -EFAULT;
@@ -1156,7 +1003,7 @@ static long ast2600_espi_oob_dma_get_rx(struct file *fp,
 	writel(wptr | ESPI_OOB_RX_DESC_WPTR_RECV_EN, espi->regs + ESPI_OOB_RX_DESC_WPTR);
 
 	/* set ready flag base on the next RX descriptor */
-	oob->rx_ready = oob->dma.rxd_virt[wptr].dirty;
+	oob->rx_ready = rx_descs[wptr].dirty;
 
 	spin_unlock_irqrestore(&oob->lock, flags);
 
@@ -1169,18 +1016,18 @@ free_n_out:
 }
 
 static long ast2600_espi_oob_get_rx(struct file *fp,
-				    struct ast2600_espi_oob *oob,
+				    struct aspeed_espi_oob *oob,
 				    struct aspeed_espi_ioc *ioc)
 {
 	u32 reg, cyc, tag, len;
-	struct ast2600_espi *espi;
+	struct aspeed_espi *espi;
 	struct espi_comm_hdr *hdr;
 	unsigned long flags;
 	u32 pkt_len;
 	u8 *pkt;
 	int i, rc;
 
-	espi = container_of(oob, struct ast2600_espi, oob);
+	espi = container_of(oob, struct aspeed_espi, oob);
 
 	if (fp->f_flags & O_NONBLOCK) {
 		if (!mutex_trylock(&oob->rx_mtx))
@@ -1267,17 +1114,18 @@ unlock_mtx_n_out:
 }
 
 static long ast2600_espi_oob_dma_put_tx(struct file *fp,
-					struct ast2600_espi_oob *oob,
+					struct aspeed_espi_oob *oob,
 					struct aspeed_espi_ioc *ioc)
 {
 	struct ast2600_espi_oob_dma_tx_desc *d;
-	struct ast2600_espi *espi;
+	struct ast2600_espi_oob_dma_tx_desc *tx_descs;
+	struct aspeed_espi *espi;
 	struct espi_comm_hdr *hdr;
 	u32 rptr, wptr;
 	u8 *pkt;
 	int rc;
 
-	espi = container_of(oob, struct ast2600_espi, oob);
+	espi = container_of(oob, struct aspeed_espi, oob);
 
 	pkt = vzalloc(ioc->pkt_len);
 	if (!pkt)
@@ -1301,7 +1149,8 @@ static long ast2600_espi_oob_dma_put_tx(struct file *fp,
 		goto free_n_out;
 	}
 
-	d = &oob->dma.txd_virt[wptr];
+	tx_descs = (struct ast2600_espi_oob_dma_tx_desc *)oob->dma.txd_virt;
+	d = &tx_descs[wptr];
 	d->cyc = hdr->cyc;
 	d->tag = hdr->tag;
 	d->len = (hdr->len_h << 8) | (hdr->len_l & 0xff);
@@ -1323,16 +1172,16 @@ free_n_out:
 }
 
 static long ast2600_espi_oob_put_tx(struct file *fp,
-				    struct ast2600_espi_oob *oob,
+				    struct aspeed_espi_oob *oob,
 				    struct aspeed_espi_ioc *ioc)
 {
 	u32 reg, cyc, tag, len;
-	struct ast2600_espi *espi;
+	struct aspeed_espi *espi;
 	struct espi_comm_hdr *hdr;
 	u8 *pkt;
 	int i, rc;
 
-	espi = container_of(oob, struct ast2600_espi, oob);
+	espi = container_of(oob, struct aspeed_espi, oob);
 
 	if (!mutex_trylock(&oob->tx_mtx))
 		return -EAGAIN;
@@ -1396,10 +1245,10 @@ unlock_mtx_n_out:
 
 static long ast2600_espi_oob_ioctl(struct file *fp, unsigned int cmd, unsigned long arg)
 {
-	struct ast2600_espi_oob *oob;
+	struct aspeed_espi_oob *oob;
 	struct aspeed_espi_ioc ioc;
 
-	oob = container_of(fp->private_data, struct ast2600_espi_oob, mdev);
+	oob = container_of(fp->private_data, struct aspeed_espi_oob, mdev);
 
 	if (copy_from_user(&ioc, (void __user *)arg, sizeof(ioc)))
 		return -EFAULT;
@@ -1422,9 +1271,9 @@ static const struct file_operations ast2600_espi_oob_fops = {
 	.unlocked_ioctl = ast2600_espi_oob_ioctl,
 };
 
-static void ast2600_espi_oob_isr(struct ast2600_espi *espi)
+static void ast2600_espi_oob_isr(struct aspeed_espi *espi)
 {
-	struct ast2600_espi_oob *oob;
+	struct aspeed_espi_oob *oob;
 	unsigned long flags;
 	u32 sts;
 
@@ -1443,9 +1292,11 @@ static void ast2600_espi_oob_isr(struct ast2600_espi *espi)
 	}
 }
 
-static void ast2600_espi_oob_reset(struct ast2600_espi *espi)
+static void ast2600_espi_oob_reset(struct aspeed_espi *espi)
 {
-	struct ast2600_espi_oob *oob;
+	struct aspeed_espi_oob *oob;
+	struct ast2600_espi_oob_dma_tx_desc *tx_desc;
+	struct ast2600_espi_oob_dma_rx_desc *rx_desc;
 	dma_addr_t tx_addr, rx_addr;
 	u32 reg;
 	int i;
@@ -1472,12 +1323,15 @@ static void ast2600_espi_oob_reset(struct ast2600_espi *espi)
 		tx_addr = oob->dma.tx_addr;
 		rx_addr = oob->dma.rx_addr;
 
+		tx_desc = (struct ast2600_espi_oob_dma_tx_desc *)oob->dma.txd_virt;
+		rx_desc = (struct ast2600_espi_oob_dma_rx_desc *)oob->dma.rxd_virt;
+
 		for (i = 0; i < OOB_DMA_DESC_NUM; ++i) {
-			oob->dma.txd_virt[i].data_addr = tx_addr;
+			tx_desc[i].data_addr = tx_addr;
 			tx_addr += PAGE_SIZE;
 
-			oob->dma.rxd_virt[i].data_addr = rx_addr;
-			oob->dma.rxd_virt[i].dirty = 0;
+			rx_desc[i].data_addr = rx_addr;
+			rx_desc[i].dirty = 0;
 			rx_addr += PAGE_SIZE;
 		}
 
@@ -1506,9 +1360,9 @@ static void ast2600_espi_oob_reset(struct ast2600_espi *espi)
 	writel(reg, espi->regs + ESPI_CTRL);
 }
 
-static int ast2600_espi_oob_probe(struct ast2600_espi *espi)
+int ast2600_espi_oob_probe(struct aspeed_espi *espi)
 {
-	struct ast2600_espi_oob *oob;
+	struct aspeed_espi_oob *oob;
 	struct device *dev;
 	int rc;
 
@@ -1525,7 +1379,10 @@ static int ast2600_espi_oob_probe(struct ast2600_espi *espi)
 
 	oob->dma.enable = of_property_read_bool(dev->of_node, "oob-dma-mode");
 	if (oob->dma.enable) {
-		oob->dma.txd_virt = dmam_alloc_coherent(dev, sizeof(*oob->dma.txd_virt) * OOB_DMA_DESC_NUM, &oob->dma.txd_addr, GFP_KERNEL);
+		oob->dma.txd_virt = dmam_alloc_coherent(dev,
+							sizeof(struct ast2600_espi_oob_dma_tx_desc) *
+							OOB_DMA_DESC_NUM,
+						&oob->dma.txd_addr, GFP_KERNEL);
 		if (!oob->dma.txd_virt) {
 			dev_err(dev, "cannot allocate DMA TX descriptor\n");
 			return -ENOMEM;
@@ -1536,7 +1393,10 @@ static int ast2600_espi_oob_probe(struct ast2600_espi *espi)
 			return -ENOMEM;
 		}
 
-		oob->dma.rxd_virt = dmam_alloc_coherent(dev, sizeof(*oob->dma.rxd_virt) * OOB_DMA_DESC_NUM, &oob->dma.rxd_addr, GFP_KERNEL);
+		oob->dma.rxd_virt = dmam_alloc_coherent(dev,
+							sizeof(struct ast2600_espi_oob_dma_rx_desc) *
+							OOB_DMA_DESC_NUM,
+						&oob->dma.rxd_addr, GFP_KERNEL);
 		if (!oob->dma.rxd_virt) {
 			dev_err(dev, "cannot allocate DMA RX descriptor\n");
 			return -ENOMEM;
@@ -1564,9 +1424,9 @@ static int ast2600_espi_oob_probe(struct ast2600_espi *espi)
 	return 0;
 }
 
-static int ast2600_espi_oob_remove(struct ast2600_espi *espi)
+int ast2600_espi_oob_remove(struct aspeed_espi *espi)
 {
-	struct ast2600_espi_oob *oob;
+	struct aspeed_espi_oob *oob;
 	struct device *dev;
 	u32 reg;
 
@@ -1583,11 +1443,16 @@ static int ast2600_espi_oob_remove(struct ast2600_espi *espi)
 	writel(reg, espi->regs + ESPI_CTRL);
 
 	if (oob->dma.enable) {
-		dmam_free_coherent(dev, sizeof(*oob->dma.txd_virt) * OOB_DMA_DESC_NUM,
+		dmam_free_coherent(dev,
+				   sizeof(struct ast2600_espi_oob_dma_tx_desc) *
+					   OOB_DMA_DESC_NUM,
 				   oob->dma.txd_virt, oob->dma.txd_addr);
 		dmam_free_coherent(dev, PAGE_SIZE * OOB_DMA_DESC_NUM,
 				   oob->dma.tx_virt, oob->dma.tx_addr);
-		dmam_free_coherent(dev, sizeof(*oob->dma.rxd_virt) * OOB_DMA_DESC_NUM,
+
+		dmam_free_coherent(dev,
+				   sizeof(struct ast2600_espi_oob_dma_rx_desc) *
+					   OOB_DMA_DESC_NUM,
 				   oob->dma.rxd_virt, oob->dma.rxd_addr);
 		dmam_free_coherent(dev, PAGE_SIZE * OOB_DMA_DESC_NUM,
 				   oob->dma.rx_virt, oob->dma.rx_addr);
@@ -1603,11 +1468,11 @@ static int ast2600_espi_oob_remove(struct ast2600_espi *espi)
 
 /* flash channel (CH3) */
 static long ast2600_espi_flash_get_rx(struct file *fp,
-				      struct ast2600_espi_flash *flash,
+				      struct aspeed_espi_flash *flash,
 				      struct aspeed_espi_ioc *ioc)
 {
 	u32 reg, cyc, tag, len;
-	struct ast2600_espi *espi;
+	struct aspeed_espi *espi;
 	struct espi_comm_hdr *hdr;
 	unsigned long flags;
 	u32 pkt_len;
@@ -1616,7 +1481,7 @@ static long ast2600_espi_flash_get_rx(struct file *fp,
 
 	rc = 0;
 
-	espi = container_of(flash, struct ast2600_espi, flash);
+	espi = container_of(flash, struct aspeed_espi, flash);
 
 	if (fp->f_flags & O_NONBLOCK) {
 		if (!mutex_trylock(&flash->rx_mtx))
@@ -1725,16 +1590,16 @@ unlock_mtx_n_out:
 }
 
 static long ast2600_espi_flash_put_tx(struct file *fp,
-				      struct ast2600_espi_flash *flash,
+				      struct aspeed_espi_flash *flash,
 				      struct aspeed_espi_ioc *ioc)
 {
 	u32 reg, cyc, tag, len;
-	struct ast2600_espi *espi;
+	struct aspeed_espi *espi;
 	struct espi_comm_hdr *hdr;
 	u8 *pkt;
 	int i, rc;
 
-	espi = container_of(flash, struct ast2600_espi, flash);
+	espi = container_of(flash, struct aspeed_espi, flash);
 
 	if (!mutex_trylock(&flash->tx_mtx))
 		return -EAGAIN;
@@ -1793,10 +1658,10 @@ unlock_mtx_n_out:
 
 static long ast2600_espi_flash_ioctl(struct file *fp, unsigned int cmd, unsigned long arg)
 {
-	struct ast2600_espi_flash *flash;
+	struct aspeed_espi_flash *flash;
 	struct aspeed_espi_ioc ioc;
 
-	flash = container_of(fp->private_data, struct ast2600_espi_flash, mdev);
+	flash = container_of(fp->private_data, struct aspeed_espi_flash, mdev);
 
 	if (copy_from_user(&ioc, (void __user *)arg, sizeof(ioc)))
 		return -EFAULT;
@@ -1821,9 +1686,9 @@ static const struct file_operations ast2600_espi_flash_fops = {
 	.unlocked_ioctl = ast2600_espi_flash_ioctl,
 };
 
-static void ast2600_espi_flash_isr(struct ast2600_espi *espi)
+static void ast2600_espi_flash_isr(struct aspeed_espi *espi)
 {
-	struct ast2600_espi_flash *flash;
+	struct aspeed_espi_flash *flash;
 	unsigned long flags;
 	u32 sts;
 
@@ -1842,9 +1707,9 @@ static void ast2600_espi_flash_isr(struct ast2600_espi *espi)
 	}
 }
 
-static void ast2600_espi_flash_reset(struct ast2600_espi *espi)
+static void ast2600_espi_flash_reset(struct aspeed_espi *espi)
 {
-	struct ast2600_espi_flash *flash;
+	struct aspeed_espi_flash *flash;
 	u32 reg;
 
 	flash = &espi->flash;
@@ -1865,14 +1730,14 @@ static void ast2600_espi_flash_reset(struct ast2600_espi *espi)
 	reg |= (ESPI_CTRL_FLASH_TX_SW_RST | ESPI_CTRL_FLASH_RX_SW_RST);
 	writel(reg, espi->regs + ESPI_CTRL);
 
-	reg = readl(espi->regs + ESPI_CTRL) & ~ESPI_CTRL_FLASH_SAFS_MODE;
-	reg |= FIELD_PREP(ESPI_CTRL_FLASH_SAFS_MODE, flash->safs.mode);
+	reg = readl(espi->regs + ESPI_CTRL) & ~ESPI_CTRL_FLASH_EDAF_MODE;
+	reg |= FIELD_PREP(ESPI_CTRL_FLASH_EDAF_MODE, flash->edaf.mode);
 	writel(reg, espi->regs + ESPI_CTRL);
 
-	if (flash->safs.mode == SAFS_MODE_MIX) {
-		reg = FIELD_PREP(ESPI_FLASH_SAFS_TADDR_BASE, flash->safs.taddr >> 24)
-		      | FIELD_PREP(ESPI_FLASH_SAFS_TADDR_MASK, (~(flash->safs.size - 1)) >> 24);
-		writel(reg, espi->regs + ESPI_FLASH_SAFS_TADDR);
+	if (flash->edaf.mode == EDAF_MODE_MIX) {
+		reg = FIELD_PREP(ESPI_FLASH_EDAF_TADDR_BASE, flash->edaf.taddr >> 24)
+		      | FIELD_PREP(ESPI_FLASH_EDAF_TADDR_MASK, (~(flash->edaf.size - 1)) >> 24);
+		writel(reg, espi->regs + ESPI_FLASH_EDAF_TADDR);
 	}
 
 	if (flash->dma.enable) {
@@ -1891,9 +1756,9 @@ static void ast2600_espi_flash_reset(struct ast2600_espi *espi)
 	writel(reg, espi->regs + ESPI_CTRL);
 }
 
-static int ast2600_espi_flash_probe(struct ast2600_espi *espi)
+int ast2600_espi_flash_probe(struct aspeed_espi *espi)
 {
-	struct ast2600_espi_flash *flash;
+	struct aspeed_espi_flash *flash;
 	struct device *dev;
 	int rc;
 
@@ -1908,18 +1773,18 @@ static int ast2600_espi_flash_probe(struct ast2600_espi *espi)
 	mutex_init(&flash->tx_mtx);
 	mutex_init(&flash->rx_mtx);
 
-	flash->safs.mode = SAFS_MODE_HW;
+	flash->edaf.mode = EDAF_MODE_HW;
 
-	of_property_read_u32(dev->of_node, "flash-safs-mode", &flash->safs.mode);
-	if (flash->safs.mode == SAFS_MODE_MIX) {
-		rc = of_property_read_u32(dev->of_node, "flash-safs-tgt-addr", &flash->safs.taddr);
-		if (rc || !IS_ALIGNED(flash->safs.taddr, FLASH_SAFS_ALIGN)) {
+	of_property_read_u32(dev->of_node, "flash-safs-mode", &flash->edaf.mode);
+	if (flash->edaf.mode == EDAF_MODE_MIX) {
+		rc = of_property_read_u32(dev->of_node, "flash-safs-tgt-addr", (u32 *)&flash->edaf.taddr);
+		if (rc || !IS_ALIGNED(flash->edaf.taddr, FLASH_EDAF_ALIGN)) {
 			dev_err(dev, "cannot get 16MB-aligned SAFS target address\n");
 			return -ENODEV;
 		}
 
-		rc = of_property_read_u32(dev->of_node, "flash-safs-size", &flash->safs.size);
-		if (rc || !IS_ALIGNED(flash->safs.size, FLASH_SAFS_ALIGN)) {
+		rc = of_property_read_u32(dev->of_node, "flash-safs-size", (u32 *)&flash->edaf.size);
+		if (rc || !IS_ALIGNED(flash->edaf.size, FLASH_EDAF_ALIGN)) {
 			dev_err(dev, "cannot get 16MB-aligned SAFS size\n");
 			return -ENODEV;
 		}
@@ -1955,9 +1820,9 @@ static int ast2600_espi_flash_probe(struct ast2600_espi *espi)
 	return 0;
 }
 
-static int ast2600_espi_flash_remove(struct ast2600_espi *espi)
+int ast2600_espi_flash_remove(struct aspeed_espi *espi)
 {
-	struct ast2600_espi_flash *flash;
+	struct aspeed_espi_flash *flash;
 	struct device *dev;
 	u32 reg;
 
@@ -1987,12 +1852,12 @@ static int ast2600_espi_flash_remove(struct ast2600_espi *espi)
 }
 
 /* global control */
-static irqreturn_t ast2600_espi_isr(int irq, void *arg)
+irqreturn_t ast2600_espi_isr(int irq, void *arg)
 {
-	struct ast2600_espi *espi;
+	struct aspeed_espi *espi;
 	u32 sts;
 
-	espi = (struct ast2600_espi *)arg;
+	espi = (struct aspeed_espi *)arg;
 
 	sts = readl(espi->regs + ESPI_INT_STS);
 	if (!sts)
@@ -2028,162 +1893,17 @@ static irqreturn_t ast2600_espi_isr(int irq, void *arg)
 	return IRQ_HANDLED;
 }
 
-static int ast2600_espi_probe(struct platform_device *pdev)
+void ast2600_espi_pre_init(struct aspeed_espi *espi)
 {
-	struct ast2600_espi *espi;
-	struct resource *res;
-	struct device *dev;
-	int rc;
-
-	dev = &pdev->dev;
-
-	espi = devm_kzalloc(dev, sizeof(*espi), GFP_KERNEL);
-	if (!espi)
-		return -ENOMEM;
-
-	espi->dev = dev;
-
-	rc = dma_set_mask_and_coherent(dev, DMA_BIT_MASK(64));
-	if (rc) {
-		dev_err(dev, "cannot set 64-bits DMA mask\n");
-		return rc;
-	}
-
-	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-	if (!res) {
-		dev_err(dev, "cannot get resource\n");
-		return -ENODEV;
-	}
-
-	espi->regs = devm_ioremap_resource(dev, res);
-	if (IS_ERR(espi->regs)) {
-		dev_err(dev, "cannot map registers\n");
-		return PTR_ERR(espi->regs);
-	}
-
-	espi->irq = platform_get_irq(pdev, 0);
-	if (espi->irq < 0) {
-		dev_err(dev, "cannot get IRQ number\n");
-		return -ENODEV;
-	}
-
-	espi->rst = devm_reset_control_get_exclusive_by_index(dev, 0);
-	if (IS_ERR(espi->rst)) {
-		dev_err(dev, "cannot get reset control\n");
-		return PTR_ERR(espi->rst);
-	}
-
-	espi->clk = devm_clk_get(dev, NULL);
-	if (IS_ERR(espi->clk)) {
-		dev_err(dev, "cannot get clock control\n");
-		return PTR_ERR(espi->clk);
-	}
-
-	rc = clk_prepare_enable(espi->clk);
-	if (rc) {
-		dev_err(dev, "cannot enable clocks\n");
-		return rc;
-	}
-
 	writel(ESPI_INT_EN_RST_DEASSERT, espi->regs + ESPI_INT_EN_CLR);
+}
 
-	rc = ast2600_espi_perif_probe(espi);
-	if (rc) {
-		dev_err(dev, "cannot init peripheral channel, rc=%d\n", rc);
-		return rc;
-	}
-
-	rc = ast2600_espi_vw_probe(espi);
-	if (rc) {
-		dev_err(dev, "cannot init vw channel, rc=%d\n", rc);
-		goto err_remove_perif;
-	}
-
-	rc = ast2600_espi_oob_probe(espi);
-	if (rc) {
-		dev_err(dev, "cannot init oob channel, rc=%d\n", rc);
-		goto err_remove_vw;
-	}
-
-	rc = ast2600_espi_flash_probe(espi);
-	if (rc) {
-		dev_err(dev, "cannot init flash channel, rc=%d\n", rc);
-		goto err_remove_oob;
-	}
-
-	rc = devm_request_irq(dev, espi->irq, ast2600_espi_isr, 0, dev_name(dev), espi);
-	if (rc) {
-		dev_err(dev, "cannot request IRQ\n");
-		goto err_remove_flash;
-	}
-
+void ast2600_espi_post_init(struct aspeed_espi *espi)
+{
 	writel(ESPI_INT_EN_RST_DEASSERT, espi->regs + ESPI_INT_EN);
-
-	dev_set_drvdata(dev, espi);
-
-	dev_info(dev, "module loaded\n");
-
-	return 0;
-
-err_remove_flash:
-	ast2600_espi_flash_remove(espi);
-err_remove_oob:
-	ast2600_espi_oob_remove(espi);
-err_remove_vw:
-	ast2600_espi_vw_remove(espi);
-err_remove_perif:
-	ast2600_espi_perif_remove(espi);
-
-	return rc;
 }
 
-static int ast2600_espi_remove(struct platform_device *pdev)
+void ast2600_espi_deinit(struct aspeed_espi *espi)
 {
-	struct ast2600_espi *espi;
-	struct device *dev;
-	int rc;
-
-	dev = &pdev->dev;
-
-	espi = (struct ast2600_espi *)dev_get_drvdata(dev);
-
 	writel(ESPI_INT_EN_RST_DEASSERT, espi->regs + ESPI_INT_EN_CLR);
-
-	rc = ast2600_espi_perif_remove(espi);
-	if (rc)
-		dev_warn(dev, "cannot remove peripheral channel, rc=%d\n", rc);
-
-	rc = ast2600_espi_vw_remove(espi);
-	if (rc)
-		dev_warn(dev, "cannot remove peripheral channel, rc=%d\n", rc);
-
-	rc = ast2600_espi_oob_remove(espi);
-	if (rc)
-		dev_warn(dev, "cannot remove peripheral channel, rc=%d\n", rc);
-
-	rc = ast2600_espi_flash_remove(espi);
-	if (rc)
-		dev_warn(dev, "cannot remove peripheral channel, rc=%d\n", rc);
-
-	return 0;
 }
-
-static const struct of_device_id ast2600_espi_of_matches[] = {
-	{ .compatible = "aspeed,ast2600-espi" },
-	{ },
-};
-
-static struct platform_driver ast2600_espi_driver = {
-	.driver = {
-		.name = "ast2600-espi",
-		.of_match_table = ast2600_espi_of_matches,
-	},
-	.probe = ast2600_espi_probe,
-	.remove = ast2600_espi_remove,
-};
-
-module_platform_driver(ast2600_espi_driver);
-
-MODULE_AUTHOR("Chia-Wei Wang <chiawei_wang@aspeedtech.com>");
-MODULE_DESCRIPTION("Control of AST2600 eSPI Device");
-MODULE_LICENSE("GPL");

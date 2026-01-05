@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0+ */
 /*
+ * Aspeed eSPI protocol definitions and IOCTL methods
  * Copyright 2023 Aspeed Technology Inc.
  */
 #ifndef __ASPEED_ESPI_COMM_H__
