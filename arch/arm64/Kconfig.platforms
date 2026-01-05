@@ -42,6 +42,7 @@ config ARCH_APPLE
 
 config ARCH_ASPEED
 	bool "Aspeed SoC family"
+	select AST2700_IRQ
 	help
 	  Say yes if you intend to run on an Aspeed ast2700 or similar
 	  seventh generation Aspeed BMCs.

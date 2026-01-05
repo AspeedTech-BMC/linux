@@ -724,6 +724,9 @@ config APPLE_AIC
 	  Support for the Apple Interrupt Controller found on Apple Silicon SoCs,
 	  such as the M1.
 
+config AST2700_IRQ
+	bool
+
 config MCHP_EIC
 	bool "Microchip External Interrupt Controller"
 	depends on ARCH_AT91 || COMPILE_TEST
