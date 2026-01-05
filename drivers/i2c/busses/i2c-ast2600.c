@@ -512,7 +512,8 @@ static void ast2700_i2c_ac_timing_config(struct ast2600_i2c_bus *i2c_bus)
 	/* fill manual min high value */
 	if (i2c_bus->manual_min_high) {
 		if (i2c_bus->manual_min_high > scl_high)
-			dev_info(i2c_bus->dev, "invalid manual high min: %d\n", i2c_bus->manual_min_high);
+			dev_info(i2c_bus->dev,
+				 "invalid manual high min: %d\n", i2c_bus->manual_min_high);
 		else
 			scl_high_min = i2c_bus->manual_min_high;
 	}
@@ -520,7 +521,8 @@ static void ast2700_i2c_ac_timing_config(struct ast2600_i2c_bus *i2c_bus)
 	/* fill manual sda hold value */
 	if (i2c_bus->manual_data_hold) {
 		if (i2c_bus->manual_data_hold > DATAHOLD_MAX_LEVEL)
-			dev_info(i2c_bus->dev, "invalid manual data hold: %d\n", i2c_bus->manual_data_hold);
+			dev_info(i2c_bus->dev,
+				 "invalid manual data hold: %d\n", i2c_bus->manual_data_hold);
 		else
 			sda_data_hold = i2c_bus->manual_data_hold;
 	}
@@ -629,7 +631,8 @@ static void ast2700_i2c_target_packet_dma_irq(struct ast2600_i2c_bus *i2c_bus, u
 			/* assign the target client*/
 			if (sirq_log & SADDR_HIT) {
 				if (!i2c_bus->target)
-					ast2700_i2c_get_target(i2c_bus, sirq_log >> SLAVE_ADDR_SHIFT);
+					ast2700_i2c_get_target(i2c_bus,
+							       sirq_log >> SLAVE_ADDR_SHIFT);
 			}
 		};
 		writel(isr, i2c_bus->reg_base + AST2600_I2CS_ISR);
@@ -651,7 +654,8 @@ static void ast2700_i2c_target_packet_dma_irq(struct ast2600_i2c_bus *i2c_bus, u
 			/* assign the target client*/
 			if (sirq_log & SADDR_HIT) {
 				if (!i2c_bus->target)
-					ast2700_i2c_get_target(i2c_bus, sirq_log >> SLAVE_ADDR_SHIFT);
+					ast2700_i2c_get_target(i2c_bus,
+							       sirq_log >> SLAVE_ADDR_SHIFT);
 			}
 		};
 		writel(isr, i2c_bus->reg_base + AST2600_I2CS_ISR);
@@ -1067,7 +1071,8 @@ static void ast2700_i2c_target_packet_buff_irq(struct ast2600_i2c_bus *i2c_bus, 
 			/* assign the target client*/
 			if (sirq_log & SADDR_HIT) {
 				if (!i2c_bus->target)
-					ast2700_i2c_get_target(i2c_bus, sirq_log >> SLAVE_ADDR_SHIFT);
+					ast2700_i2c_get_target(i2c_bus,
+							       sirq_log >> SLAVE_ADDR_SHIFT);
 			}
 		};
 		writel(isr, i2c_bus->reg_base + AST2600_I2CS_ISR);
@@ -1089,7 +1094,8 @@ static void ast2700_i2c_target_packet_buff_irq(struct ast2600_i2c_bus *i2c_bus, 
 			/* assign the target client*/
 			if (sirq_log & SADDR_HIT) {
 				if (!i2c_bus->target)
-					ast2700_i2c_get_target(i2c_bus, sirq_log >> SLAVE_ADDR_SHIFT);
+					ast2700_i2c_get_target(i2c_bus,
+							       sirq_log >> SLAVE_ADDR_SHIFT);
 			}
 		};
 		writel(isr, i2c_bus->reg_base + AST2600_I2CS_ISR);
@@ -2663,20 +2669,8 @@ static int ast2600_i2c_unreg_target(struct i2c_client *client)
 				i2c_bus->multi_target[i] = NULL;
 				target_unreg = true;
 				dev_dbg(i2c_bus->dev, "un-reg [%x] from %d\n", client->addr, i);
-
 				/* remove target addr by index */
-				switch (i) {
-				case 0:
-					target_addr &= ~(AST2600_I2CS_ADDR1_MASK | AST2600_I2CS_ADDR1_ENABLE);
-					break;
-				case 1:
-					target_addr &= ~(AST2600_I2CS_ADDR2_MASK | AST2600_I2CS_ADDR2_ENABLE);
-					break;
-				case 2:
-					target_addr &= ~(AST2600_I2CS_ADDR3_MASK | AST2600_I2CS_ADDR3_ENABLE);
-					break;
-				}
-
+				target_addr &= ~(0xff << 8 * i);
 				writel(target_addr, i2c_bus->reg_base + AST2600_I2CS_ADDR_CTRL);
 				break;
 			}
