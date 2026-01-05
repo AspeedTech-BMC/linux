@@ -1,0 +1,86 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/interrupt-controller/aspeed,ast2700-intc1.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: ASPEED AST2700 Secondary Interrupt Controller (INTC1)
+
+description: |
+  The INTC1 block on the ASPEED AST2700 SoC is a banked interrupt
+  controller fed from INTC0 via INTM signals. It typically routes
+  interrupts for secondary microcontrollers (e.g. SSP/TSP/RISC-V).
+
+maintainers:
+  - ryan_chen@aspeedtech.com
+
+properties:
+  compatible:
+    const: aspeed,ast2700-intc1-ic
+
+  reg:
+    maxItems: 1
+
+  interrupt-controller: true
+
+  '#interrupt-cells':
+    const: 2
+    description:
+      The first cell encodes the bank number, the second cell
+      encodes the bit number within that bank (0-31). The mapping
+      from the linear interrupt number to (bank, bit) is
+      implementation-defined by the INTC1 hardware and driver.
+
+  aspeed,interrupt-ranges:
+    description: |
+      Describes how ranges of parent interrupts (from INTC0) are
+      routed into the INTC1 controller.
+
+      Each range is encoded as 4 cells:
+
+        <intm_pin count phandle base_irq>
+
+      where:
+        - intm_pin:  First INTC1 interrupt number in this range.
+        - count:     Number of consecutive INTC1 interrupts and parent
+                     INTC0 interrupts in this range.
+        - phandle:   Phandle to the parent interrupt controller node
+                     (typically the INTC0 controller).
+        - base_irq:  First parent interrupt number in the range.
+
+      The driver only uses entries whose phandle matches the node
+      referenced by interrupt-parent (&intc0). The base_irq value is
+      interpreted as a single-cell interrupt specifier understood by
+      the parent controller binding for INTC0.
+    $ref: /schemas/types.yaml#/definitions/uint32-array
+    minItems: 4
+    items:
+      description: 4-cell range descriptors.
+
+required:
+  - '#interrupt-cells'
+  - compatible
+  - reg
+  - interrupt-controller
+  - aspeed,interrupt-ranges
+
+additionalProperties: false
+
+examples:
+  - |
+    intc1: interrupt-controller@14c18000 {
+        compatible = "aspeed,ast2700-intc1-ic";
+        reg = <0x14c18000 0x400>;
+        interrupt-controller;
+        #interrupt-cells = <2>;
+        interrupt-parent = <&intc0>;
+
+        /*
+         * Example only: map 6 consecutive INTC1 interrupts starting at
+         * intm_pin 0 to 6 consecutive INTC0 interrupts starting at
+         * hwirq 496.
+         */
+        aspeed,interrupt-ranges =
+          <0 6 &intc0 496>;
+    };
+...
