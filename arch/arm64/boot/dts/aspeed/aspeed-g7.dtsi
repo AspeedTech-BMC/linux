@@ -1342,18 +1342,6 @@
 			status = "disabled";
 		};
 
-		sgmii: phy@14C01000 {
-			compatible = "aspeed,ast2700-sgmii";
-			reg = <0x0 0x14c01000 0x0 0x40>;
-
-			aspeed,plda = <&pcie_phy2>;
-
-			pinctrl-names = "default";
-			pinctrl-0 = <&pinctrl_sgmii_default>;
-			#phy-cells = <0>;
-			status = "disabled";
-		};
-
 		mac0: ethernet@14050000 {
 			compatible = "aspeed,ast2700-mac", "faraday,ftgmac100";
 			reg = <0x0 0x14050000 0x0 0x200>;
@@ -1547,6 +1535,18 @@
 			interrupts-extended = <&intc1 2 16>;
 			#io-channel-cells = <1>;
 			aspeed,scu = <&syscon1>;
+			status = "disabled";
+		};
+
+		sgmii: phy@14c01000 {
+			compatible = "aspeed,ast2700-sgmii";
+			reg = <0x0 0x14c01000 0x0 0x40>;
+
+			phys = <&pcie_phy2>;
+
+			pinctrl-names = "default";
+			pinctrl-0 = <&pinctrl_sgmii_default>;
+			#phy-cells = <0>;
 			status = "disabled";
 		};
 
@@ -1789,6 +1789,7 @@
 		pcie_phy2: phy@14c1c000 {
 			compatible = "aspeed,ast2700-pcie-phy", "syscon";
 			reg = <0x0 0x14c1c000 0x0 0x800>;
+			#phy-cells = <0>;
 		};
 
 		e2m_config2: e2m-config@14c1d000 {
