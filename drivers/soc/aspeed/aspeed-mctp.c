@@ -2400,8 +2400,8 @@ static int aspeed_mctp_irq_init(struct aspeed_mctp *priv)
 		aspeed_mctp_irq_enable(priv);
 	}
 	irq = platform_get_irq_byname(pdev, "pcie");
-	if (!irq)
-		return -ENODEV;
+	if (irq < 0)
+		return irq;
 
 	ret = devm_request_irq(priv->dev, irq, aspeed_mctp_pcie_rst_irq_handler,
 			       IRQF_SHARED, dev_name(&pdev->dev), priv);
