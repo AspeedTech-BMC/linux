@@ -2289,6 +2289,12 @@ static int aspeed_mctp_dma_init(struct aspeed_mctp *priv)
 	BUILD_BUG_ON(TX_PACKET_COUNT >= TX_MAX_PACKET_COUNT);
 	BUILD_BUG_ON(RX_PACKET_COUNT >= RX_MAX_PACKET_COUNT);
 
+	ret = dma_set_mask_and_coherent(priv->dev, DMA_BIT_MASK(64));
+	if (ret) {
+		dev_err(priv->dev, "cannot set 64-bits DMA mask\n");
+		return ret;
+	}
+
 	ret = of_reserved_mem_device_init(priv->dev);
 	if (ret) {
 		dev_err(priv->dev, "device does not have specific DMA pool: %d\n",
@@ -2300,12 +2306,6 @@ static int aspeed_mctp_dma_init(struct aspeed_mctp *priv)
 				       priv->dev);
 	if (ret)
 		return ret;
-
-	ret = dma_set_mask_and_coherent(priv->dev, DMA_BIT_MASK(64));
-	if (ret) {
-		dev_err(priv->dev, "cannot set 64-bits DMA mask\n");
-		return ret;
-	}
 
 	alloc_size = PAGE_ALIGN(priv->rx_packet_count * priv->match_data->packet_unit_size);
 	rx->data.vaddr =
