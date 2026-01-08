@@ -2121,8 +2121,12 @@ static void aspeed_mctp_reset_work(struct work_struct *work)
 	struct kobject *kobj = &priv->mctp_miscdev.this_device->kobj;
 
 	if (priv->pcie.need_uevent) {
-		aspeed_mctp_send_pcie_uevent(kobj, false);
-		priv->pcie.need_uevent = false;
+		if (!kobj) {
+			aspeed_mctp_send_pcie_uevent(kobj, false);
+			priv->pcie.need_uevent = false;
+		} else {
+			dev_warn(priv->dev, "kobject is NULL\n");
+		}
 	}
 
 	aspeed_mctp_pcie_setup(priv);
@@ -2518,6 +2522,13 @@ static int aspeed_mctp_probe(struct platform_device *pdev)
 	id = of_alias_get_id(priv->dev->of_node, "mctp");
 	if (id < 0)
 		return id;
+
+	ret = aspeed_mctp_irq_init(priv);
+	if (ret) {
+		dev_err(priv->dev, "Failed to init IRQ!\n");
+		goto out_dma;
+	}
+
 	priv->mctp_miscdev.parent = priv->dev;
 	priv->mctp_miscdev.minor = MISC_DYNAMIC_MINOR;
 	priv->mctp_miscdev.name = devm_kasprintf(priv->dev, GFP_KERNEL, "aspeed-mctp%d", id);
@@ -2528,12 +2539,6 @@ static int aspeed_mctp_probe(struct platform_device *pdev)
 		goto out_dma;
 	}
 	priv->mctp_miscdev.this_device->type = &aspeed_mctp_type;
-
-	ret = aspeed_mctp_irq_init(priv);
-	if (ret) {
-		dev_err(priv->dev, "Failed to init IRQ!\n");
-		goto out_dma;
-	}
 	aspeed_mctp_pcie_setup(priv);
 
 	name = devm_kasprintf(priv->dev, GFP_KERNEL, "peci-mctp%d", id);
