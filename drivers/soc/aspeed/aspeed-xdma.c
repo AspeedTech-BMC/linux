@@ -265,8 +265,6 @@ struct aspeed_xdma {
 	struct clk *clock;
 	struct device *dev;
 	void __iomem *base;
-	resource_size_t res_size;
-	resource_size_t res_start;
 	struct reset_control *reset;
 	struct reset_control *reset_rc;
 
@@ -1012,9 +1010,6 @@ static void aspeed_xdma_kobject_release(struct kobject *kobj)
 {
 	struct aspeed_xdma *ctx = container_of(kobj, struct aspeed_xdma, kobj);
 
-	if (ctx->pcie_irq >= 0)
-		free_irq(ctx->pcie_irq, ctx);
-
 	gen_pool_free(ctx->pool, (unsigned long)ctx->cmdq, XDMA_CMDQ_SIZE);
 
 	gen_pool_destroy(ctx->pool);
@@ -1025,45 +1020,11 @@ static void aspeed_xdma_kobject_release(struct kobject *kobj)
 	if (ctx->reset_rc)
 		reset_control_put(ctx->reset_rc);
 	reset_control_put(ctx->reset);
-
-	clk_put(ctx->clock);
-
-	free_irq(ctx->irq, ctx);
-
-	iounmap(ctx->base);
-	release_mem_region(ctx->res_start, ctx->res_size);
-
-	kfree(ctx);
 }
 
 static struct kobj_type aspeed_xdma_kobject_type = {
 	.release = aspeed_xdma_kobject_release,
 };
-
-static int aspeed_xdma_iomap(struct aspeed_xdma *ctx,
-			     struct platform_device *pdev)
-{
-	resource_size_t size;
-	struct resource *res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-
-	if (!res)
-		return -ENOMEM;
-
-	size = resource_size(res);
-	if (!request_mem_region(res->start, size, dev_name(ctx->dev)))
-		return -ENOMEM;
-
-	ctx->base = ioremap(res->start, size);
-	if (!ctx->base) {
-		release_mem_region(res->start, size);
-		return -ENOMEM;
-	}
-
-	ctx->res_start = res->start;
-	ctx->res_size = size;
-
-	return 0;
-}
 
 static int aspeed_xdma_probe(struct platform_device *pdev)
 {
@@ -1078,7 +1039,7 @@ static int aspeed_xdma_probe(struct platform_device *pdev)
 	if (!md)
 		return -ENODEV;
 
-	ctx = kzalloc(sizeof(*ctx), GFP_KERNEL);
+	ctx = devm_kzalloc(&pdev->dev, sizeof(*ctx), GFP_KERNEL);
 	if (!ctx)
 		return -ENOMEM;
 
@@ -1092,41 +1053,41 @@ static int aspeed_xdma_probe(struct platform_device *pdev)
 
 	rc_f = of_find_property(dev->of_node, "pcie_rc", NULL) ? 1 : 0;
 
-	rc = aspeed_xdma_iomap(ctx, pdev);
-	if (rc) {
-		dev_err(dev, "Failed to map registers.\n");
-		goto err_nomap;
-	}
+	ctx->base = devm_platform_ioremap_resource(pdev, 0);
+	if (IS_ERR(ctx->base))
+		return PTR_ERR(ctx->base);
 
 	ctx->irq = platform_get_irq(pdev, 0);
 	if (ctx->irq < 0) {
 		dev_err(dev, "Failed to find IRQ.\n");
-		rc = ctx->irq;
-		goto err_noirq;
+		return ctx->irq;
 	}
 
-	rc = request_irq(ctx->irq, aspeed_xdma_irq, 0, dev_name(dev), ctx);
+	ctx->pcie_irq = platform_get_irq(pdev, 1);
+	if (ctx->pcie_irq < 0)
+		return ctx->pcie_irq;
+
+	rc = devm_request_irq(dev, ctx->irq, aspeed_xdma_irq, 0,
+			      dev_name(dev), ctx);
 	if (rc < 0) {
 		dev_err(dev, "Failed to request IRQ %d.\n", ctx->irq);
-		goto err_noirq;
+		return rc;
 	}
 
-	ctx->clock = clk_get(dev, NULL);
+	ctx->clock = devm_clk_get(dev, NULL);
 	if (IS_ERR(ctx->clock)) {
 		dev_err(dev, "Failed to request clock.\n");
-		rc = PTR_ERR(ctx->clock);
-		goto err_noclk;
+		return PTR_ERR(ctx->clock);
 	}
 
-	ctx->reset = reset_control_get_exclusive(dev, NULL);
+	ctx->reset = devm_reset_control_get_exclusive(dev, NULL);
 	if (IS_ERR(ctx->reset)) {
 		dev_err(dev, "Failed to request reset control.\n");
-		rc = PTR_ERR(ctx->reset);
-		goto err_noreset;
+		return PTR_ERR(ctx->reset);
 	}
 
 	if (rc_f) {
-		ctx->reset_rc = reset_control_get_exclusive(dev, "root-complex");
+		ctx->reset_rc = devm_reset_control_get_exclusive(dev, "root-complex");
 		if (IS_ERR(ctx->reset_rc)) {
 			dev_dbg(dev, "Failed to request reset RC control.\n");
 			ctx->reset_rc = NULL;
@@ -1137,7 +1098,7 @@ static int aspeed_xdma_probe(struct platform_device *pdev)
 	if (!memory_region) {
 		dev_err(dev, "Failed to find memory-region.\n");
 		rc = -ENOMEM;
-		goto err_nomem;
+		return rc;
 	}
 
 	mem = of_reserved_mem_lookup(memory_region);
@@ -1145,7 +1106,7 @@ static int aspeed_xdma_probe(struct platform_device *pdev)
 	if (!mem) {
 		dev_err(dev, "Failed to find reserved memory.\n");
 		rc = -ENOMEM;
-		goto err_nomem;
+		return rc;
 	}
 
 	ctx->mem_phys = mem->base;
@@ -1154,13 +1115,13 @@ static int aspeed_xdma_probe(struct platform_device *pdev)
 	rc = of_reserved_mem_device_init(dev);
 	if (rc) {
 		dev_err(dev, "Failed to init reserved memory.\n");
-		goto err_nomem;
+		return rc;
 	}
 
 	rc = dma_set_mask_and_coherent(dev, DMA_BIT_MASK(32));
 	if (rc) {
 		dev_err(dev, "Failed to mask DMA.\n");
-		goto err_nomem;
+		return rc;
 	}
 
 	ctx->mem_virt = dma_alloc_coherent(dev, ctx->mem_size,
@@ -1168,7 +1129,7 @@ static int aspeed_xdma_probe(struct platform_device *pdev)
 	if (!ctx->mem_virt) {
 		dev_err(dev, "Failed to allocate reserved memory.\n");
 		rc = -ENOMEM;
-		goto err_nomem;
+		return rc;
 	}
 
 	ctx->pool = gen_pool_create(ilog2(PAGE_SIZE), -1);
@@ -1241,17 +1202,10 @@ static int aspeed_xdma_probe(struct platform_device *pdev)
 	 * This interrupt could fire immediately so only request it once the
 	 * engine and driver are initialized.
 	 */
-	ctx->pcie_irq = platform_get_irq(pdev, 1);
-	if (ctx->pcie_irq < 0) {
-		dev_warn(dev, "Failed to find PCI-E IRQ.\n");
-	} else {
-		rc = request_irq(ctx->pcie_irq, aspeed_xdma_pcie_irq,
-				 IRQF_SHARED, dev_name(dev), ctx);
-		if (rc < 0) {
-			dev_warn(dev, "Failed to request PCI-E IRQ %d.\n", rc);
-			ctx->pcie_irq = -1;
-		}
-	}
+	rc = devm_request_irq(dev, ctx->pcie_irq, aspeed_xdma_pcie_irq,
+			      IRQF_SHARED, dev_name(dev), ctx);
+	if (rc)
+		return rc;
 
 	kobject_init(&ctx->kobj, &aspeed_xdma_kobject_type);
 	return 0;
@@ -1270,19 +1224,6 @@ err_pool_scu_clk:
 err_nopool:
 	dma_free_coherent(ctx->dev, ctx->mem_size, ctx->mem_virt,
 			  ctx->mem_coherent);
-err_nomem:
-	if (ctx->reset_rc)
-		reset_control_put(ctx->reset_rc);
-	reset_control_put(ctx->reset);
-err_noreset:
-	clk_put(ctx->clock);
-err_noclk:
-	free_irq(ctx->irq, ctx);
-err_noirq:
-	iounmap(ctx->base);
-	release_mem_region(ctx->res_start, ctx->res_size);
-err_nomap:
-	kfree(ctx);
 	return rc;
 }
 
