@@ -1,3 +1,5 @@
+menu "ASPEED eSPI drivers"
+
 config ASPEED_ESPI
         tristate "ASPEED eSPI slave driver"
         help
@@ -12,3 +14,5 @@ config AST2700_RTC_OVER_ESPI
         help
           Enable driver support for Aspeed AST2700 RTC over eSPI function.
           Periodically copies RAM content from a RTC tm to a memory-mapped eSPI region.
+
+endmenu
