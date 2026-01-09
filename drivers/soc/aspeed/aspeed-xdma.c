@@ -257,7 +257,6 @@ struct aspeed_xdma_chip {
 struct aspeed_xdma_client;
 
 struct aspeed_xdma {
-	struct kobject kobj;
 	const struct aspeed_xdma_chip *chip;
 
 	int irq;
@@ -890,7 +889,6 @@ static int aspeed_xdma_open(struct inode *inode, struct file *file)
 	if (!client)
 		return -ENOMEM;
 
-	kobject_get(&ctx->kobj);
 	client->ctx = ctx;
 	file->private_data = client;
 	return 0;
@@ -926,7 +924,6 @@ static int aspeed_xdma_release(struct inode *inode, struct file *file)
 	}
 
 	kfree(client);
-	kobject_put(&ctx->kobj);
 	return 0;
 }
 
@@ -1003,21 +1000,17 @@ static int aspeed_xdma_init_scu(struct aspeed_xdma *ctx, struct device *dev)
 	return 0;
 }
 
-static void aspeed_xdma_kobject_release(struct kobject *kobj)
+static void aspeed_xdma_rmem_release(void *data)
 {
-	struct aspeed_xdma *ctx = container_of(kobj, struct aspeed_xdma, kobj);
-
-	gen_pool_free(ctx->pool, (unsigned long)ctx->cmdq, XDMA_CMDQ_SIZE);
-
-	gen_pool_destroy(ctx->pool);
-
-	dma_free_coherent(ctx->dev, ctx->mem_size, ctx->mem_virt,
-			  ctx->mem_coherent);
+	of_reserved_mem_device_release(data);
 }
 
-static const struct kobj_type aspeed_xdma_kobject_type = {
-	.release = aspeed_xdma_kobject_release,
-};
+static void aspeed_xdma_free_cmdq(void *data)
+{
+	struct aspeed_xdma *ctx = data;
+
+	gen_pool_free(ctx->pool, (unsigned long)ctx->cmdq, XDMA_CMDQ_SIZE);
+}
 
 static int aspeed_xdma_probe(struct platform_device *pdev)
 {
@@ -1032,7 +1025,7 @@ static int aspeed_xdma_probe(struct platform_device *pdev)
 	if (!md)
 		return -ENODEV;
 
-	ctx = devm_kzalloc(&pdev->dev, sizeof(*ctx), GFP_KERNEL);
+	ctx = devm_kzalloc(dev, sizeof(*ctx), GFP_KERNEL);
 	if (!ctx)
 		return -ENOMEM;
 
@@ -1056,9 +1049,12 @@ static int aspeed_xdma_probe(struct platform_device *pdev)
 		return ctx->irq;
 	}
 
-	ctx->pcie_irq = platform_get_irq(pdev, 1);
-	if (ctx->pcie_irq < 0)
-		return ctx->pcie_irq;
+	ctx->pcie_irq = platform_get_irq_optional(pdev, 1);
+	if (ctx->pcie_irq == -ENXIO)
+		dev_warn(dev, "No PCI-E IRQ, host reset is not handled.\n");
+	else if (ctx->pcie_irq < 0)
+		return dev_err_probe(dev, ctx->pcie_irq,
+				     "Failed to get PCI-E IRQ.\n");
 
 	rc = devm_request_irq(dev, ctx->irq, aspeed_xdma_irq, 0,
 			      dev_name(dev), ctx);
@@ -1090,16 +1086,14 @@ static int aspeed_xdma_probe(struct platform_device *pdev)
 	memory_region = of_parse_phandle(dev->of_node, "memory-region", 0);
 	if (!memory_region) {
 		dev_err(dev, "Failed to find memory-region.\n");
-		rc = -ENOMEM;
-		return rc;
+		return -ENOMEM;
 	}
 
 	mem = of_reserved_mem_lookup(memory_region);
 	of_node_put(memory_region);
 	if (!mem) {
 		dev_err(dev, "Failed to find reserved memory.\n");
-		rc = -ENOMEM;
-		return rc;
+		return -ENOMEM;
 	}
 
 	ctx->mem_phys = mem->base;
@@ -1111,6 +1105,11 @@ static int aspeed_xdma_probe(struct platform_device *pdev)
 		return rc;
 	}
 
+	/* Registered before the buffer, so it is released after it is freed */
+	rc = devm_add_action_or_reset(dev, aspeed_xdma_rmem_release, dev);
+	if (rc)
+		return rc;
+
 	if (ctx->chip->regs.bmc_cmdq_addr_ext)
 		rc = dma_set_mask_and_coherent(dev, DMA_BIT_MASK(64));
 	else
@@ -1120,43 +1119,41 @@ static int aspeed_xdma_probe(struct platform_device *pdev)
 		return rc;
 	}
 
-	ctx->mem_virt = dma_alloc_coherent(dev, ctx->mem_size,
-					   &ctx->mem_coherent, __GFP_NOWARN);
+	ctx->mem_virt = dmam_alloc_coherent(dev, ctx->mem_size,
+					    &ctx->mem_coherent, __GFP_NOWARN);
 	if (!ctx->mem_virt) {
 		dev_err(dev, "Failed to allocate reserved memory.\n");
-		rc = -ENOMEM;
-		return rc;
+		return -ENOMEM;
 	}
 
-	ctx->pool = gen_pool_create(ilog2(PAGE_SIZE), -1);
-	if (!ctx->pool) {
+	ctx->pool = devm_gen_pool_create(dev, ilog2(PAGE_SIZE), -1, NULL);
+	if (IS_ERR(ctx->pool)) {
 		dev_err(dev, "Failed to setup genalloc pool.\n");
-		rc = -ENOMEM;
-		goto err_nopool;
+		return PTR_ERR(ctx->pool);
 	}
 
 	rc = gen_pool_add_virt(ctx->pool, (unsigned long)ctx->mem_virt,
 			       ctx->mem_phys, ctx->mem_size, -1);
 	if (rc) {
 		dev_err(ctx->dev, "Failed to add memory to genalloc pool.\n");
-		goto err_pool_scu_clk;
+		return rc;
 	}
 
 	rc = aspeed_xdma_init_scu(ctx, dev);
 	if (rc)
-		goto err_pool_scu_clk;
+		return rc;
 
 	rc = clk_prepare_enable(ctx->clock);
 	if (rc) {
 		dev_err(dev, "Failed to enable the clock.\n");
-		goto err_pool_scu_clk;
+		return rc;
 	}
 
 	if (ctx->reset_rc) {
 		rc = reset_control_deassert(ctx->reset_rc);
 		if (rc) {
 			dev_err(dev, "Failed to clear the RC reset.\n");
-			goto err_reset_rc;
+			goto err_clk;
 		}
 		usleep_range(XDMA_ENGINE_SETUP_TIME_MIN_US,
 			     XDMA_ENGINE_SETUP_TIME_MAX_US);
@@ -1165,7 +1162,7 @@ static int aspeed_xdma_probe(struct platform_device *pdev)
 	rc = reset_control_deassert(ctx->reset);
 	if (rc) {
 		dev_err(dev, "Failed to clear the reset.\n");
-		goto err_reset;
+		goto err_reset_rc;
 	}
 	usleep_range(XDMA_ENGINE_SETUP_TIME_MIN_US,
 		     XDMA_ENGINE_SETUP_TIME_MAX_US);
@@ -1175,8 +1172,13 @@ static int aspeed_xdma_probe(struct platform_device *pdev)
 	if (!ctx->cmdq) {
 		dev_err(ctx->dev, "Failed to genalloc cmdq.\n");
 		rc = -ENOMEM;
-		goto err_pool;
+		goto err_reset;
 	}
+
+	/* The pool can only be destroyed once the cmdq is back in it */
+	rc = devm_add_action_or_reset(dev, aspeed_xdma_free_cmdq, ctx);
+	if (rc)
+		goto err_reset;
 
 	aspeed_xdma_init_eng(ctx);
 
@@ -1186,56 +1188,63 @@ static int aspeed_xdma_probe(struct platform_device *pdev)
 
 	ctx->misc.minor = MISC_DYNAMIC_MINOR;
 	ctx->misc.fops = &aspeed_xdma_fops;
-	ctx->misc.name = kasprintf(GFP_KERNEL, "%s%d", DEVICE_NAME, id);
+	ctx->misc.name = devm_kasprintf(dev, GFP_KERNEL, "%s%d", DEVICE_NAME,
+					id);
+	if (!ctx->misc.name) {
+		rc = -ENOMEM;
+		goto err_reset;
+	}
 	ctx->misc.parent = dev;
 	rc = misc_register(&ctx->misc);
 	if (rc) {
 		dev_err(dev, "Failed to register xdma miscdevice.\n");
-		goto err_misc;
+		goto err_reset;
 	}
 
 	/*
 	 * This interrupt could fire immediately so only request it once the
 	 * engine and driver are initialized.
 	 */
-	rc = devm_request_irq(dev, ctx->pcie_irq, aspeed_xdma_pcie_irq,
-			      IRQF_SHARED, dev_name(dev), ctx);
-	if (rc)
-		return rc;
+	if (ctx->pcie_irq >= 0) {
+		rc = devm_request_irq(dev, ctx->pcie_irq, aspeed_xdma_pcie_irq,
+				      IRQF_SHARED, dev_name(dev), ctx);
+		if (rc < 0) {
+			dev_err(dev, "Failed to request PCI-E IRQ %d.\n",
+				ctx->pcie_irq);
+			goto err_misc;
+		}
+	}
 
-	kobject_init(&ctx->kobj, &aspeed_xdma_kobject_type);
 	return 0;
 
 err_misc:
-	gen_pool_free(ctx->pool, (unsigned long)ctx->cmdq, XDMA_CMDQ_SIZE);
-err_pool:
-	reset_control_assert(ctx->reset);
+	misc_deregister(&ctx->misc);
 err_reset:
+	reset_control_assert(ctx->reset);
+err_reset_rc:
 	if (ctx->reset_rc)
 		reset_control_assert(ctx->reset_rc);
-err_reset_rc:
+err_clk:
 	clk_disable_unprepare(ctx->clock);
-err_pool_scu_clk:
-	gen_pool_destroy(ctx->pool);
-err_nopool:
-	dma_free_coherent(ctx->dev, ctx->mem_size, ctx->mem_virt,
-			  ctx->mem_coherent);
 	return rc;
 }
 
 static void aspeed_xdma_remove(struct platform_device *pdev)
 {
 	struct aspeed_xdma *ctx = platform_get_drvdata(pdev);
+	struct device *dev = &pdev->dev;
+
+	misc_deregister(&ctx->misc);
+
+	if (ctx->pcie_irq >= 0)
+		devm_free_irq(dev, ctx->pcie_irq, ctx);
+	devm_free_irq(dev, ctx->irq, ctx);
+	cancel_work_sync(&ctx->reset_work);
 
 	reset_control_assert(ctx->reset);
 	if (ctx->reset_rc)
 		reset_control_assert(ctx->reset_rc);
 	clk_disable_unprepare(ctx->clock);
-
-	aspeed_xdma_done(ctx, true);
-
-	misc_deregister(&ctx->misc);
-	kobject_put(&ctx->kobj);
 }
 
 static const struct aspeed_xdma_chip aspeed_ast2500_xdma_chip = {
@@ -1371,6 +1380,8 @@ static struct platform_driver aspeed_xdma_driver = {
 	.driver = {
 		.name = DEVICE_NAME,
 		.of_match_table = aspeed_xdma_match,
+		/* Keep unbind from happening while a file is open */
+		.suppress_bind_attrs = true,
 	},
 };
 
