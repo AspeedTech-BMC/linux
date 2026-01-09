@@ -2014,7 +2014,7 @@ controller_out:
 	return ret;
 }
 
-static void ast2600_i2c_init(struct ast2600_i2c_bus *i2c_bus)
+static int ast2600_i2c_init(struct ast2600_i2c_bus *i2c_bus)
 {
 	struct platform_device *pdev = to_platform_device(i2c_bus->dev);
 	u32 fun_ctrl = AST2600_I2CC_BUS_AUTO_RELEASE | AST2600_I2CC_MASTER_EN;
@@ -2076,7 +2076,7 @@ static void ast2600_i2c_init(struct ast2600_i2c_bus *i2c_bus)
 			dmam_alloc_coherent(i2c_bus->dev, AST2600_I2C_DMA_SIZE,
 					    &i2c_bus->controller_dma_addr, GFP_KERNEL);
 		if (!i2c_bus->controller_dma_buf)
-			return;
+			return -ENOMEM;
 		writel(lower_32_bits(i2c_bus->controller_dma_addr),
 		       i2c_bus->reg_base + AST2600_I2CM_TX_DMA);
 		writel(upper_32_bits(i2c_bus->controller_dma_addr),
@@ -2097,7 +2097,7 @@ static void ast2600_i2c_init(struct ast2600_i2c_bus *i2c_bus)
 			dmam_alloc_coherent(i2c_bus->dev, I2C_TARGET_MSG_BUF_SIZE,
 					    &i2c_bus->target_dma_addr, GFP_KERNEL);
 		if (!i2c_bus->target_dma_buf)
-			return;
+			return -ENOMEM;
 	}
 
 	writel(GENMASK(27, 0), i2c_bus->reg_base + AST2600_I2CS_ISR);
@@ -2107,6 +2107,8 @@ static void ast2600_i2c_init(struct ast2600_i2c_bus *i2c_bus)
 	else
 		writel(AST2600_I2CS_PKT_DONE, i2c_bus->reg_base + AST2600_I2CS_IER);
 #endif
+
+	return 0;
 }
 
 #if IS_ENABLED(CONFIG_I2C_SLAVE)
@@ -2372,7 +2374,9 @@ static int ast2600_i2c_probe(struct platform_device *pdev)
 	i2c_set_adapdata(&i2c_bus->adap, i2c_bus);
 	dma_set_mask_and_coherent(&pdev->dev, DMA_BIT_MASK(64));
 
-	ast2600_i2c_init(i2c_bus);
+	ret = ast2600_i2c_init(i2c_bus);
+	if (ret < 0)
+		return dev_err_probe(dev, ret, "Unable to initial i2c %d\n", ret);
 
 	ret = devm_request_irq(dev, i2c_bus->irq, ast2600_i2c_bus_irq, 0,
 			       dev_name(dev), i2c_bus);
