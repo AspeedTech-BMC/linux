@@ -2490,22 +2490,6 @@ static int aspeed_mctp_probe(struct platform_device *pdev)
 		goto out_drv;
 	}
 
-#ifdef CONFIG_MCTP_TRANSPORT_PCIE_VDM
-	struct net_device *ndev;
-	struct mctp_client *client;
-
-	/** use priv's default client to send/receive mctp packets */
-	client = aspeed_mctp_create_client(priv);
-	aspeed_mctp_register_default_handler(client);
-
-	ndev = mctp_pcie_vdm_add_dev(priv->dev, &aspeed_mctp_pcie_vdm_ops);
-	if (IS_ERR(ndev)) {
-		dev_err(priv->dev, "Failed to add mctp pcie vdm device Err %ld\n", PTR_ERR(ndev));
-		goto out_drv;
-	}
-	priv->ndev = ndev;
-#endif
-
 	ret = aspeed_mctp_dma_init(priv);
 	if (ret) {
 		dev_err(priv->dev, "Failed to init DMA\n");
@@ -2527,6 +2511,22 @@ static int aspeed_mctp_probe(struct platform_device *pdev)
 		dev_err(priv->dev, "Failed to init IRQ!\n");
 		goto out_dma;
 	}
+
+#ifdef CONFIG_MCTP_TRANSPORT_PCIE_VDM
+	struct net_device *ndev;
+	struct mctp_client *client;
+
+	/** use priv's default client to send/receive mctp packets */
+	client = aspeed_mctp_create_client(priv);
+	aspeed_mctp_register_default_handler(client);
+
+	ndev = mctp_pcie_vdm_add_dev(priv->dev, &aspeed_mctp_pcie_vdm_ops);
+	if (IS_ERR(ndev)) {
+		dev_err(priv->dev, "Failed to add mctp pcie vdm device Err %ld\n", PTR_ERR(ndev));
+		goto out_drv;
+	}
+	priv->ndev = ndev;
+#endif
 
 	priv->mctp_miscdev.parent = priv->dev;
 	priv->mctp_miscdev.minor = MISC_DYNAMIC_MINOR;
