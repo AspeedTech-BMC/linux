@@ -2124,7 +2124,7 @@ static void aspeed_mctp_reset_work(struct work_struct *work)
 			aspeed_mctp_send_pcie_uevent(kobj, false);
 			priv->pcie.need_uevent = false;
 		} else {
-			dev_warn(priv->dev, "kobject is NULL\n");
+			dev_dbg(priv->dev, "kobject is NULL\n");
 		}
 	}
 
