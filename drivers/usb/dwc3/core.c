@@ -1579,6 +1579,10 @@ static int dwc3_core_init_mode(struct dwc3 *dwc)
 
 	switch (dwc->dr_mode) {
 	case USB_DR_MODE_PERIPHERAL:
+		/* delay for AST2700 DRD controller peripheral mode */
+		if (of_device_is_compatible(dev->of_node, "aspeed,ast2700-xhci"))
+			mdelay(1);
+
 		dwc3_set_prtcap(dwc, DWC3_GCTL_PRTCAP_DEVICE, false);
 
 		if (dwc->usb2_phy)
