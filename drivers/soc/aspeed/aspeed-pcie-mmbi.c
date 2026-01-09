@@ -884,6 +884,7 @@ static int aspeed_pcie_mmbi_probe(struct platform_device *pdev)
 	mmbi->irq = platform_get_irq(pdev, 0);
 	if (mmbi->irq < 0) {
 		dev_err(&pdev->dev, "platform get of irq[=%d] failed!\n", mmbi->irq);
+		ret = mmbi->irq;
 		goto out_unmap;
 	}
 	ret = devm_request_irq(&pdev->dev, mmbi->irq, aspeed_pcie_mmbi_isr, 0, dev_name(&pdev->dev),
