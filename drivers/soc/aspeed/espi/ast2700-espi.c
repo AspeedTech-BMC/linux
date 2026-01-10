@@ -2142,7 +2142,7 @@ void ast2700_espi_pre_init(struct aspeed_espi *espi)
 	rc = regmap_update_bits(scu1, SCU1_DDR,
 				SCU1_DDR_DIS_ESPI0_AHB | SCU1_DDR_DIS_ESPI1_AHB,
 				0);
-	if (!rc) {
+	if (rc) {
 		dev_err(dev, "failed to update SCU1 regmap, error %d\n", rc);
 		return;
 	}
