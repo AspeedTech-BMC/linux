@@ -932,7 +932,7 @@ out_unmap:
 	iounmap(mmbi->mem_virt);
 out_region:
 	devm_kfree(dev, mmbi);
-	dev_warn(dev, "aspeed bmc device: driver init failed (ret=%d)!\n", ret);
+	dev_warn(dev, "aspeed pcie mmbi: driver init failed (ret=%d)!\n", ret);
 	return ret;
 }
 
