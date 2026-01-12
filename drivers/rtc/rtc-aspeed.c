@@ -301,21 +301,25 @@ static int aspeed_rtc_probe(struct platform_device *pdev)
 	 * In rtc_read_time, run aspeed_rtc_read_time and check the rtc_time.
 	 * As a result, need to enable and initialize RTC time.
 	 *
+	 * If the RTC_ENABLE has been set, it means that the RTC has been initialed
 	 * Enable and unlock RTC to initialize RTC time to 1970-01-01T01:01:01
 	 * and re-lock and ensure enable is set now that a time is programmed.
 	 */
 	ctrl = readl(rtc->base + RTC_CTRL);
-	writel(ctrl | RTC_UNLOCK, rtc->base + RTC_CTRL);
 
-	/*
-	 * Initial value set to year:70,mon:0,mday:1,hour:1,min:1,sec:1
-	 * rtc_valid_tm check whether in suitable range or not.
-	 */
-	writel(0x01010101, rtc->base + RTC_TIME);
-	writel(0x00134601, rtc->base + RTC_YEAR);
+	if (!(ctrl & RTC_ENABLE)) {
+		writel(ctrl | RTC_UNLOCK, rtc->base + RTC_CTRL);
 
-	/* Re-lock and ensure enable is set now that a time is programmed */
-	writel(ctrl | RTC_ENABLE, rtc->base + RTC_CTRL);
+		/*
+		 * Initial value set to year:70,mon:0,mday:1,hour:1,min:1,sec:1
+		 * rtc_valid_tm check whether in suitable range or not.
+		 */
+		writel(0x01010101, rtc->base + RTC_TIME);
+		writel(0x00134601, rtc->base + RTC_YEAR);
+
+		/* Re-lock and ensure enable is set now that a time is programmed */
+		writel(ctrl | RTC_ENABLE, rtc->base + RTC_CTRL);
+	}
 
 	rc = devm_rtc_register_device(rtc->rtc_dev);
 	if (rc) {
