@@ -2118,18 +2118,20 @@ static void aspeed_mctp_reset_work(struct work_struct *work)
 {
 	struct aspeed_mctp *priv = container_of(work, typeof(*priv),
 						pcie.rst_dwork.work);
-	struct kobject *kobj = &priv->mctp_miscdev.this_device->kobj;
+	struct kobject *kobj;
 
 	if (priv->pcie.need_uevent) {
-		if (!kobj) {
+		if (priv->mctp_miscdev.this_device) {
+			kobj = &priv->mctp_miscdev.this_device->kobj;
 			aspeed_mctp_send_pcie_uevent(kobj, false);
 			priv->pcie.need_uevent = false;
+			aspeed_mctp_pcie_setup(priv);
 		} else {
 			dev_dbg(priv->dev, "kobject is NULL\n");
+			schedule_delayed_work(&priv->pcie.rst_dwork,
+					      msecs_to_jiffies(1000));
 		}
 	}
-
-	aspeed_mctp_pcie_setup(priv);
 }
 
 static void aspeed_mctp_rx_detect_work(struct work_struct *work)
@@ -2483,6 +2485,11 @@ static int aspeed_mctp_probe(struct platform_device *pdev)
 	if (ret)
 		priv->rx_det_period_us = 1000;
 
+	priv->mctp_miscdev.this_device = NULL;
+	priv->mctp_miscdev.parent = priv->dev;
+	priv->mctp_miscdev.minor = MISC_DYNAMIC_MINOR;
+	priv->mctp_miscdev.fops = &aspeed_mctp_fops;
+
 	aspeed_mctp_drv_init(priv);
 
 	ret = aspeed_mctp_resources_init(priv);
@@ -2529,10 +2536,7 @@ static int aspeed_mctp_probe(struct platform_device *pdev)
 	priv->ndev = ndev;
 #endif
 
-	priv->mctp_miscdev.parent = priv->dev;
-	priv->mctp_miscdev.minor = MISC_DYNAMIC_MINOR;
 	priv->mctp_miscdev.name = devm_kasprintf(priv->dev, GFP_KERNEL, "aspeed-mctp%d", id);
-	priv->mctp_miscdev.fops = &aspeed_mctp_fops;
 	ret = misc_register(&priv->mctp_miscdev);
 	if (ret) {
 		dev_err(priv->dev, "Failed to register miscdev\n");
