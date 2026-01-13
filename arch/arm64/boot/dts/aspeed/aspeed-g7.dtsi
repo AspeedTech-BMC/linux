@@ -662,14 +662,9 @@
 			#interrupt-cells = <1>;
 			aspeed,interrupt-ranges =
 				<0 128 &gic GIC_SPI 0 IRQ_TYPE_LEVEL_HIGH>, /* linear range 1 to 1*/
-				<128 6 &gic GIC_SPI 128 IRQ_TYPE_LEVEL_HIGH>, /* a0 n->1 legacy */
-				<128 6 &gic GIC_SPI 160 IRQ_TYPE_LEVEL_HIGH>, /* a0 n->1 legacy */
-				<128 6 &gic GIC_SPI 176 IRQ_TYPE_LEVEL_HIGH>, /* a0 n->1 legacy */
 				<480 8 &gic GIC_SPI 144 IRQ_TYPE_LEVEL_HIGH>, /* sw int SSP */
 				<488 8 &gic GIC_SPI 152 IRQ_TYPE_LEVEL_HIGH>, /* sw int TSP */
-				<496 10 &gic GIC_SPI 192 IRQ_TYPE_LEVEL_HIGH>, /* M0-M9 intm */
-				<526 10 &gic GIC_SPI 208 IRQ_TYPE_LEVEL_HIGH>, /* M30 ~ M39 */
-				<536 10 &gic GIC_SPI 224 IRQ_TYPE_LEVEL_HIGH>; /* M40 ~ M49 */
+				<496 10 &gic GIC_SPI 192 IRQ_TYPE_LEVEL_HIGH>; /* M0-M9 intm */
 		};
 
 		bmc_dev0: bmc-dev@12110000 {
@@ -2094,6 +2089,8 @@
 		vuart0: serial@14c30000 {
 			compatible = "aspeed,ast2700-uart";
 			reg = <0x0 0x14c30000 0x0 0x40>;
+			reg-shift = <2>;
+			reg-io-width = <4>;
 			interrupts-extended = <&intc1 0 17>;
 			clocks = <&syscon0 SCU0_CLK_APB>;
 			virtual;
@@ -2104,6 +2101,8 @@
 		vuart1: serial@14c30100 {
 			compatible = "aspeed,ast2700-uart";
 			reg = <0x0 0x14c30100 0x0 0x40>;
+			reg-shift = <2>;
+			reg-io-width = <4>;
 			interrupts-extended = <&intc1 0 18>;
 			clocks = <&syscon0 SCU0_CLK_APB>;
 			virtual;
@@ -2114,6 +2113,8 @@
 		vuart2: serial@14c30200 {
 			compatible = "aspeed,ast2700-uart";
 			reg = <0x0 0x14c30200 0x0 0x40>;
+			reg-shift = <2>;
+			reg-io-width = <4>;
 			interrupts-extended = <&intc1 1 17>;
 			clocks = <&syscon0 SCU0_CLK_APB>;
 			virtual;
@@ -2124,6 +2125,8 @@
 		vuart3: serial@14c30300 {
 			compatible = "aspeed,ast2700-uart";
 			reg = <0x0 0x14c30300 0x0 0x40>;
+			reg-shift = <2>;
+			reg-io-width = <4>;
 			interrupts-extended = <&intc1 1 18>;
 			clocks = <&syscon0 SCU0_CLK_APB>;
 			virtual;
