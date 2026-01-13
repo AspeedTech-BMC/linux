@@ -256,18 +256,20 @@ static int aspeed_intc0_irq_domain_activate(struct irq_domain *domain,
 					    struct irq_data *data, bool reserve)
 {
 	struct aspeed_intc_ic *intc_ic = irq_data_get_irq_chip_data(data);
-	int bank = data->hwirq / 32;
-	int bit = data->hwirq % 32;
-	u32 mask = BIT(bit);
 
 	if (data->hwirq < GIC_P2P_SPI_END) {
+		int bank = data->hwirq / 32;
+		int bit = data->hwirq % 32;
+		u32 mask = BIT(bit);
+
+		guard(raw_spinlock_irqsave)(&intc_ic->intc_lock);
 		for (int i = 0; i < 3; i++) {
 			void __iomem *sel = intc_ic->base + 0x200 + bank * 4 + 0x100 * i;
 
 			if (readl(sel) & mask) {
 				writel(readl(sel) & ~mask, sel);
 				if (readl(sel) & mask)
-					return -EINVAL;
+					return -EACCES;
 			}
 		}
 	} else if (data->hwirq < INT_NUM) {
@@ -416,20 +418,40 @@ out_put:
 	return 0;
 }
 
+static void aspeed_intc0_disable_swint(struct aspeed_intc_ic *intc_ic)
+{
+	writel(0, intc_ic->base + INTC0_SWINT_IER);
+}
+
+static void aspeed_intc0_disable_intbank(struct aspeed_intc_ic *intc_ic)
+{
+	int i, j;
+
+	for (i = 0; i < INTC0_INTBANK_GROUPS; i++) {
+		for (j = 0; j < INTC0_INTBANKS_PER_GRP; j++) {
+			u32 base = INTC0_INTBANKX_IER + (0x100 * i) + (0x10 * j);
+
+			writel(0, intc_ic->base + base);
+		}
+	}
+}
+
+static void aspeed_intc0_disable_intm(struct aspeed_intc_ic *intc_ic)
+{
+	int i;
+
+	for (i = 0; i < INTC0_IMTM_BANK_NUM; i++)
+		writel(0, intc_ic->base + INTC0_IMTMX_IER + (0x10 * i));
+}
+
 static int aspeed_intc0_ic_of_init(struct device_node *node, struct device_node *parent)
 {
 	struct irq_domain *parent_domain;
 	struct aspeed_intc_ic *intc_ic;
-	int i, j, ret;
+	int ret;
 
 	if (!parent) {
 		pr_err("missing parent interrupt node\n");
-		return -ENODEV;
-	}
-
-	parent_domain = irq_find_host(parent);
-	if (!parent_domain) {
-		pr_err("unable to obtain parent domain\n");
 		return -ENODEV;
 	}
 
@@ -443,18 +465,17 @@ static int aspeed_intc0_ic_of_init(struct device_node *node, struct device_node 
 		goto err_free_ic;
 	}
 
-	writel(0, intc_ic->base + INTC0_SWINT_IER);
-	for (i = 0; i < INTC0_INTBANK_GROUPS; i++) {
-		for (j = 0; j < INTC0_INTBANKS_PER_GRP; j++) {
-			u32 base = INTC0_INTBANKX_IER + (0x100 * i) + (0x10 * j);
-
-			writel(0, intc_ic->base + base);
-		}
-	}
-	for (i = 0; i < INTC0_IMTM_BANK_NUM; i++)
-		writel(0, intc_ic->base + INTC0_IMTMX_IER + (0x10 * i));
+	aspeed_intc0_disable_swint(intc_ic);
+	aspeed_intc0_disable_intbank(intc_ic);
+	aspeed_intc0_disable_intm(intc_ic);
 
 	raw_spin_lock_init(&intc_ic->intc_lock);
+
+	parent_domain = irq_find_host(parent);
+	if (!parent_domain) {
+		pr_err("unable to obtain parent domain\n");
+		return -ENODEV;
+	}
 
 	intc_ic->irq_domain = irq_domain_create_hierarchy(parent_domain, 0, INT0_NUM,
 							  of_fwnode_handle(node),

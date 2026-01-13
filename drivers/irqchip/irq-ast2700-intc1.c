@@ -81,14 +81,10 @@ static struct irq_chip aspeed_intc_chip = {
 static int aspeed_intc1_irq_domain_translate(struct irq_domain *domain, struct irq_fwspec *fwspec,
 					     unsigned long *hwirq, unsigned int *type)
 {
-	if (fwspec->param_count != 2)
+	if (fwspec->param_count != 1)
 		return -EINVAL;
 
-	/*
-	 * fwspec->param[0] : bank
-	 * fwspec->param[1] : bit
-	 */
-	*hwirq = (fwspec->param[0] * INTC1_IRQS_PER_BANK) + fwspec->param[1];
+	*hwirq = fwspec->param[0];
 	*type = IRQ_TYPE_LEVEL_HIGH;
 	return 0;
 }
@@ -109,13 +105,14 @@ static int aspeed_intc1_irq_domain_activate(struct irq_domain *domain,
 	int bit = data->hwirq % INTC1_IRQS_PER_BANK;
 	u32 mask = BIT(bit);
 
+	guard(raw_spinlock_irqsave)(&intc_ic->intc_lock);
 	for (int i = 0; i < 3; i++) {
 		void __iomem *sel = intc_ic->base + 0x80 + bank * 4 + 0x20 * i;
 
 		if (readl(sel) & mask) {
 			writel(readl(sel) & ~mask, sel);
 			if (readl(sel) & mask)
-				return -EINVAL;
+				return -EACCES;
 		}
 	}
 
@@ -199,11 +196,16 @@ static int aspeed_intc1_interrupt_ranges(struct aspeed_intc_ic *intc_ic,
 	return 0;
 }
 
+static void aspeed_intc1_disable_int(struct aspeed_intc_ic *intc_ic)
+{
+	for (int i = 0; i < INTC1_BANK_NUM; i++)
+		writel(0x0, intc_ic->base + INTC1_IER + (0x10 * i));
+}
+
 static int aspeed_intc1_ic_of_init(struct device_node *node, struct device_node *parent)
 {
 	struct aspeed_intc_ic *intc_ic;
 	int ret = 0;
-	int i;
 
 	if (!parent) {
 		pr_err("missing parent interrupt node\n");
@@ -227,9 +229,7 @@ static int aspeed_intc1_ic_of_init(struct device_node *node, struct device_node 
 
 	raw_spin_lock_init(&intc_ic->intc_lock);
 
-	for (i = 0; i < INTC1_BANK_NUM; i++)
-		writel(0x0, intc_ic->base + INTC1_IER + (0x10 * i));
-
+	aspeed_intc1_disable_int(intc_ic);
 	intc_ic->irq_domain = irq_domain_create_linear(of_fwnode_handle(node),
 						       INTC1_BANK_NUM * INTC1_IRQS_PER_BANK,
 						       &aspeed_intc1_ic_irq_domain_ops, intc_ic);
