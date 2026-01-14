@@ -127,7 +127,14 @@ static void aspeed_intc0_irq_eoi(struct irq_data *data)
 	int bank = (data->hwirq - INTM_BASE) / INTM_IRQS_PER_BANK;
 	int bit = (data->hwirq - INTM_BASE) % INTM_IRQS_PER_BANK;
 
+	/*
+	 * TODO: This a WA to prevnet potential race conditions when
+	 * multiple interrupts are processed in multi-core environment.
+	 */
+	raw_spin_lock(&intc_ic->intc_lock);
 	writel(BIT(bit), intc_ic->base + INTC0_IMTMX_ISR + bank * 0x10);
+	raw_spin_unlock(&intc_ic->intc_lock);
+
 	irq_chip_eoi_parent(data);
 }
 
