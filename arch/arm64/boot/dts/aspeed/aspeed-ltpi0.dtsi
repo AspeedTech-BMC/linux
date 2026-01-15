@@ -76,7 +76,7 @@
 			reg = <0x0 0x30c00000 0 0x100>;
 			clocks = <&ltpi0_syscon AST1700_CLK_AHB>;
 			resets = <&ltpi0_syscon AST1700_RESET_ADC>;
-			interrupts-extended = <&ltpi0_intc1 24>;
+			interrupts-extended = <&ltpi0_intc1_0 24>;
 			#io-channel-cells = <1>;
 			aspeed,scu = <&ltpi0_syscon>;
 			status = "disabled";
@@ -87,7 +87,7 @@
 			reg = <0x0 0x30c00100 0x0 0x100>;
 			clocks = <&ltpi0_syscon AST1700_CLK_AHB>;
 			resets = <&ltpi0_syscon AST1700_RESET_ADC>;
-			interrupts-extended = <&ltpi0_intc1 24>;
+			interrupts-extended = <&ltpi0_intc1_0 24>;
 			#io-channel-cells = <1>;
 			aspeed,scu = <&ltpi0_syscon>;
 			status = "disabled";
@@ -109,13 +109,27 @@
 		};
 
 		ltpi0_intc1: interrupt-controller@30c18000 {
-			compatible = "aspeed,ast2700-intc1-ic";
+			compatible = "simple-mfd";
 			reg = <0 0x30c18000 0 0x400>;
-			interrupt-controller;
-			interrupt-parent = <&intc0>;
-			#interrupt-cells = <1>;
-			aspeed,interrupt-ranges =
-				<6 2 &intc0 502>;
+			#address-cells = <2>;
+			#size-cells = <2>;
+			ranges = <0x0 0x0 0x0 0x30c18000 0x0 0x400>;
+
+			ltpi0_intc1_0: interrupt-controller@100 {
+				#interrupt-cells = <1>;
+				interrupt-controller;
+				compatible = "aspeed,ast2700-intc-ic";
+				reg = <0x0 0x100 0x0 0x10>;
+				interrupts-extended = <&intc0_11 6>;
+			};
+
+			ltpi0_intc1_1: interrupt-controller@110 {
+				#interrupt-cells = <1>;
+				interrupt-controller;
+				compatible = "aspeed,ast2700-intc-ic";
+				reg = <0x0 0x110 0x0 0x10>;
+				interrupts-extended = <&intc0_11 7>;
+			};
 		};
 
 		ltpi0_i3c0: i3c0@30c20000 {
@@ -123,7 +137,7 @@
 			#address-cells = <1>;
 			#size-cells = <0>;
 			reg = <0x0 0x30c20000 0x0 0x1000>;
-			interrupts-extended = <&ltpi0_intc1 32>;
+			interrupts-extended = <&ltpi0_intc1_1 0>;
 			i3c-scl-hz = <1000000>;
 			clocks = <&ltpi0_syscon AST1700_CLK_GATE_I3C0CLK>;
 			resets = <&ltpi0_syscon AST1700_RESET_I3C0>, <&ltpi0_syscon AST1700_RESET_I3CDMA>;
@@ -137,7 +151,7 @@
 			#address-cells = <1>;
 			#size-cells = <0>;
 			reg = <0x0 0x30c21000 0x0 0x1000>;
-			interrupts-extended = <&ltpi0_intc1 33>;
+			interrupts-extended = <&ltpi0_intc1_1 1>;
 			i3c-scl-hz = <1000000>;
 			clocks = <&ltpi0_syscon AST1700_CLK_GATE_I3C1CLK>;
 			resets = <&ltpi0_syscon AST1700_RESET_I3C1>, <&ltpi0_syscon AST1700_RESET_I3CDMA>;
@@ -151,7 +165,7 @@
 			#address-cells = <1>;
 			#size-cells = <0>;
 			reg = <0x0 0x30c22000 0x0 0x1000>;
-			interrupts-extended = <&ltpi0_intc1 34>;
+			interrupts-extended = <&ltpi0_intc1_1 2>;
 			i3c-scl-hz = <1000000>;
 			clocks = <&ltpi0_syscon AST1700_CLK_GATE_I3C2CLK>;
 			resets = <&ltpi0_syscon AST1700_RESET_I3C2>, <&ltpi0_syscon AST1700_RESET_I3CDMA>;
@@ -165,7 +179,7 @@
 			#address-cells = <1>;
 			#size-cells = <0>;
 			reg = <0x0 0x30c23000 0x0 0x1000>;
-			interrupts-extended = <&ltpi0_intc1 35>;
+			interrupts-extended = <&ltpi0_intc1_1 3>;
 			i3c-scl-hz = <1000000>;
 			clocks = <&ltpi0_syscon AST1700_CLK_GATE_I3C3CLK>;
 			resets = <&ltpi0_syscon AST1700_RESET_I3C3>, <&ltpi0_syscon AST1700_RESET_I3CDMA>;
@@ -179,7 +193,7 @@
 			#address-cells = <1>;
 			#size-cells = <0>;
 			reg = <0x0 0x30c24000 0x0 0x1000>;
-			interrupts-extended = <&ltpi0_intc1 36>;
+			interrupts-extended = <&ltpi0_intc1_1 4>;
 			i3c-scl-hz = <1000000>;
 			clocks = <&ltpi0_syscon AST1700_CLK_GATE_I3C4CLK>;
 			resets = <&ltpi0_syscon AST1700_RESET_I3C4>, <&ltpi0_syscon AST1700_RESET_I3CDMA>;
@@ -193,7 +207,7 @@
 			#address-cells = <1>;
 			#size-cells = <0>;
 			reg = <0x0 0x30c25000 0x0 0x1000>;
-			interrupts-extended = <&ltpi0_intc1 37>;
+			interrupts-extended = <&ltpi0_intc1_1 5>;
 			i3c-scl-hz = <1000000>;
 			clocks = <&ltpi0_syscon AST1700_CLK_GATE_I3C5CLK>;
 			resets = <&ltpi0_syscon AST1700_RESET_I3C5>, <&ltpi0_syscon AST1700_RESET_I3CDMA>;
@@ -207,7 +221,7 @@
 			#address-cells = <1>;
 			#size-cells = <0>;
 			reg = <0x0 0x30c26000 0x0 0x1000>;
-			interrupts-extended = <&ltpi0_intc1 38>;
+			interrupts-extended = <&ltpi0_intc1_1 6>;
 			i3c-scl-hz = <1000000>;
 			clocks = <&ltpi0_syscon AST1700_CLK_GATE_I3C6CLK>;
 			resets = <&ltpi0_syscon AST1700_RESET_I3C6>, <&ltpi0_syscon AST1700_RESET_I3CDMA>;
@@ -221,7 +235,7 @@
 			#address-cells = <1>;
 			#size-cells = <0>;
 			reg = <0x0 0x30c27000 0x0 0x1000>;
-			interrupts-extended = <&ltpi0_intc1 39>;
+			interrupts-extended = <&ltpi0_intc1_1 7>;
 			i3c-scl-hz = <1000000>;
 			clocks = <&ltpi0_syscon AST1700_CLK_GATE_I3C7CLK>;
 			resets = <&ltpi0_syscon AST1700_RESET_I3C7>, <&ltpi0_syscon AST1700_RESET_I3CDMA>;
@@ -235,7 +249,7 @@
 			#address-cells = <1>;
 			#size-cells = <0>;
 			reg = <0x0 0x30c28000 0x0 0x1000>;
-			interrupts-extended = <&ltpi0_intc1 40>;
+			interrupts-extended = <&ltpi0_intc1_1 8>;
 			i3c-scl-hz = <1000000>;
 			clocks = <&ltpi0_syscon AST1700_CLK_GATE_I3C8CLK>;
 			resets = <&ltpi0_syscon AST1700_RESET_I3C8>, <&ltpi0_syscon AST1700_RESET_I3CDMA>;
@@ -249,7 +263,7 @@
 			#address-cells = <1>;
 			#size-cells = <0>;
 			reg = <0x0 0x30c29000 0x0 0x1000>;
-			interrupts-extended = <&ltpi0_intc1 41>;
+			interrupts-extended = <&ltpi0_intc1_1 9>;
 			i3c-scl-hz = <1000000>;
 			clocks = <&ltpi0_syscon AST1700_CLK_GATE_I3C9CLK>;
 			resets = <&ltpi0_syscon AST1700_RESET_I3C9>, <&ltpi0_syscon AST1700_RESET_I3CDMA>;
@@ -263,7 +277,7 @@
 			#address-cells = <1>;
 			#size-cells = <0>;
 			reg = <0x0 0x30c2a000 0x0 0x1000>;
-			interrupts-extended = <&ltpi0_intc1 42>;
+			interrupts-extended = <&ltpi0_intc1_1 10>;
 			i3c-scl-hz = <1000000>;
 			clocks = <&ltpi0_syscon AST1700_CLK_GATE_I3C10CLK>;
 			resets = <&ltpi0_syscon AST1700_RESET_I3C10>, <&ltpi0_syscon AST1700_RESET_I3CDMA>;
@@ -277,7 +291,7 @@
 			#address-cells = <1>;
 			#size-cells = <0>;
 			reg = <0x0 0x30c2b000 0x0 0x1000>;
-			interrupts-extended = <&ltpi0_intc1 43>;
+			interrupts-extended = <&ltpi0_intc1_1 11>;
 			i3c-scl-hz = <1000000>;
 			clocks = <&ltpi0_syscon AST1700_CLK_GATE_I3C11CLK>;
 			resets = <&ltpi0_syscon AST1700_RESET_I3C11>, <&ltpi0_syscon AST1700_RESET_I3CDMA>;
@@ -291,7 +305,7 @@
 			#address-cells = <1>;
 			#size-cells = <0>;
 			reg = <0x0 0x30c2c000 0x0 0x1000>;
-			interrupts-extended = <&ltpi0_intc1 44>;
+			interrupts-extended = <&ltpi0_intc1_1 12>;
 			i3c-scl-hz = <1000000>;
 			clocks = <&ltpi0_syscon  AST1700_CLK_GATE_I3C12CLK>;
 			resets = <&ltpi0_syscon AST1700_RESET_I3C12>, <&ltpi0_syscon AST1700_RESET_I3CDMA>;
@@ -305,7 +319,7 @@
 			#address-cells = <1>;
 			#size-cells = <0>;
 			reg = <0x0 0x30c2d000 0x0 0x1000>;
-			interrupts-extended = <&ltpi0_intc1 45>;
+			interrupts-extended = <&ltpi0_intc1_1 13>;
 			i3c-scl-hz = <1000000>;
 			clocks = <&ltpi0_syscon  AST1700_CLK_GATE_I3C13CLK>;
 			resets = <&ltpi0_syscon AST1700_RESET_I3C13>, <&ltpi0_syscon AST1700_RESET_I3CDMA>;
@@ -319,7 +333,7 @@
 			#address-cells = <1>;
 			#size-cells = <0>;
 			reg = <0x0 0x30c2e000 0x0 0x1000>;
-			interrupts-extended = <&ltpi0_intc1 46>;
+			interrupts-extended = <&ltpi0_intc1_1 14>;
 			i3c-scl-hz = <1000000>;
 			clocks = <&ltpi0_syscon  AST1700_CLK_GATE_I3C14CLK>;
 			resets = <&ltpi0_syscon AST1700_RESET_I3C14>, <&ltpi0_syscon AST1700_RESET_I3CDMA>;
@@ -333,7 +347,7 @@
 			#address-cells = <1>;
 			#size-cells = <0>;
 			reg = <0x0 0x30c2f000 0x0 0x1000>;
-			interrupts-extended = <&ltpi0_intc1 47>;
+			interrupts-extended = <&ltpi0_intc1_1 15>;
 			i3c-scl-hz = <1000000>;
 			clocks = <&ltpi0_syscon AST1700_CLK_GATE_I3C15CLK>;
 			resets = <&ltpi0_syscon AST1700_RESET_I3C15>, <&ltpi0_syscon AST1700_RESET_I3CDMA>;
@@ -380,7 +394,7 @@
 		aspeed,enable-dma;
 		clocks = <&ltpi0_syscon AST1700_CLK_APB>;
 		resets = <&ltpi0_syscon AST1700_RESET_I2C>;
-		interrupts-extended = <&ltpi0_intc1 32>;
+		interrupts-extended = <&ltpi0_intc1_0 0>;
 		clock-frequency = <100000>;
 		debounce-level = <2>;
 		pinctrl-names = "default";
@@ -397,7 +411,7 @@
 		aspeed,enable-dma;
 		clocks = <&ltpi0_syscon AST1700_CLK_APB>;
 		resets = <&ltpi0_syscon AST1700_RESET_I2C>;
-		interrupts-extended = <&ltpi0_intc1 33>;
+		interrupts-extended = <&ltpi0_intc1_0 1>;
 		clock-frequency = <100000>;
 		debounce-level = <2>;
 		pinctrl-names = "default";
@@ -414,7 +428,7 @@
 		aspeed,enable-dma;
 		clocks = <&ltpi0_syscon AST1700_CLK_APB>;
 		resets = <&ltpi0_syscon AST1700_RESET_I2C>;
-		interrupts-extended = <&ltpi0_intc1 34>;
+		interrupts-extended = <&ltpi0_intc1_0 2>;
 		clock-frequency = <100000>;
 		debounce-level = <2>;
 		pinctrl-names = "default";
@@ -431,7 +445,7 @@
 		aspeed,enable-dma;
 		clocks = <&ltpi0_syscon AST1700_CLK_APB>;
 		resets = <&ltpi0_syscon AST1700_RESET_I2C>;
-		interrupts-extended = <&ltpi0_intc1 35>;
+		interrupts-extended = <&ltpi0_intc1_0 3>;
 		clock-frequency = <100000>;
 		debounce-level = <2>;
 		pinctrl-names = "default";
@@ -448,7 +462,7 @@
 		aspeed,enable-dma;
 		clocks = <&ltpi0_syscon AST1700_CLK_APB>;
 		resets = <&ltpi0_syscon AST1700_RESET_I2C>;
-		interrupts-extended = <&ltpi0_intc1 36>;
+		interrupts-extended = <&ltpi0_intc1_0 4>;
 		clock-frequency = <100000>;
 		debounce-level = <2>;
 		pinctrl-names = "default";
@@ -465,7 +479,7 @@
 		aspeed,enable-dma;
 		clocks = <&ltpi0_syscon AST1700_CLK_APB>;
 		resets = <&ltpi0_syscon AST1700_RESET_I2C>;
-		interrupts-extended = <&ltpi0_intc1 37>;
+		interrupts-extended = <&ltpi0_intc1_0 5>;
 		clock-frequency = <100000>;
 		debounce-level = <2>;
 		pinctrl-names = "default";
@@ -482,7 +496,7 @@
 		aspeed,enable-dma;
 		clocks = <&ltpi0_syscon AST1700_CLK_APB>;
 		resets = <&ltpi0_syscon AST1700_RESET_I2C>;
-		interrupts-extended = <&ltpi0_intc1 38>;
+		interrupts-extended = <&ltpi0_intc1_0 6>;
 		clock-frequency = <100000>;
 		debounce-level = <2>;
 		pinctrl-names = "default";
@@ -499,7 +513,7 @@
 		aspeed,enable-dma;
 		clocks = <&ltpi0_syscon AST1700_CLK_APB>;
 		resets = <&ltpi0_syscon AST1700_RESET_I2C>;
-		interrupts-extended = <&ltpi0_intc1 39>;
+		interrupts-extended = <&ltpi0_intc1_0 7>;
 		clock-frequency = <100000>;
 		debounce-level = <2>;
 		pinctrl-names = "default";
@@ -516,7 +530,7 @@
 		aspeed,enable-dma;
 		clocks = <&ltpi0_syscon AST1700_CLK_APB>;
 		resets = <&ltpi0_syscon AST1700_RESET_I2C>;
-		interrupts-extended = <&ltpi0_intc1 40>;
+		interrupts-extended = <&ltpi0_intc1_0 8>;
 		clock-frequency = <100000>;
 		debounce-level = <2>;
 		pinctrl-names = "default";
@@ -533,7 +547,7 @@
 		aspeed,enable-dma;
 		clocks = <&ltpi0_syscon AST1700_CLK_APB>;
 		resets = <&ltpi0_syscon AST1700_RESET_I2C>;
-		interrupts-extended = <&ltpi0_intc1 41>;
+		interrupts-extended = <&ltpi0_intc1_0 9>;
 		clock-frequency = <100000>;
 		debounce-level = <2>;
 		pinctrl-names = "default";
@@ -550,7 +564,7 @@
 		aspeed,enable-dma;
 		clocks = <&ltpi0_syscon AST1700_CLK_APB>;
 		resets = <&ltpi0_syscon AST1700_RESET_I2C>;
-		interrupts-extended = <&ltpi0_intc1 42>;
+		interrupts-extended = <&ltpi0_intc1_0 10>;
 		clock-frequency = <100000>;
 		debounce-level = <2>;
 		pinctrl-names = "default";
@@ -567,7 +581,7 @@
 		aspeed,enable-dma;
 		clocks = <&ltpi0_syscon AST1700_CLK_APB>;
 		resets = <&ltpi0_syscon AST1700_RESET_I2C>;
-		interrupts-extended = <&ltpi0_intc1 43>;
+		interrupts-extended = <&ltpi0_intc1_0 11>;
 		clock-frequency = <100000>;
 		debounce-level = <2>;
 		pinctrl-names = "default";
@@ -584,7 +598,7 @@
 		aspeed,enable-dma;
 		clocks = <&ltpi0_syscon AST1700_CLK_APB>;
 		resets = <&ltpi0_syscon AST1700_RESET_I2C>;
-		interrupts-extended = <&ltpi0_intc1 44>;
+		interrupts-extended = <&ltpi0_intc1_0 12>;
 		clock-frequency = <100000>;
 		debounce-level = <2>;
 		pinctrl-names = "default";
@@ -601,7 +615,7 @@
 		aspeed,enable-dma;
 		clocks = <&ltpi0_syscon AST1700_CLK_APB>;
 		resets = <&ltpi0_syscon AST1700_RESET_I2C>;
-		interrupts-extended = <&ltpi0_intc1 45>;
+		interrupts-extended = <&ltpi0_intc1_0 13>;
 		clock-frequency = <100000>;
 		debounce-level = <2>;
 		pinctrl-names = "default";
@@ -618,7 +632,7 @@
 		aspeed,enable-dma;
 		clocks = <&ltpi0_syscon AST1700_CLK_APB>;
 		resets = <&ltpi0_syscon AST1700_RESET_I2C>;
-		interrupts-extended = <&ltpi0_intc1 46>;
+		interrupts-extended = <&ltpi0_intc1_0 14>;
 		clock-frequency = <100000>;
 		debounce-level = <2>;
 		pinctrl-names = "default";
@@ -635,7 +649,7 @@
 		aspeed,enable-dma;
 		clocks = <&ltpi0_syscon AST1700_CLK_APB>;
 		resets = <&ltpi0_syscon AST1700_RESET_I2C>;
-		interrupts-extended = <&ltpi0_intc1 47>;
+		interrupts-extended = <&ltpi0_intc1_0 15>;
 		clock-frequency = <100000>;
 		debounce-level = <2>;
 		pinctrl-names = "default";
