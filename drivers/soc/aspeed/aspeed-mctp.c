@@ -2535,7 +2535,7 @@ static int aspeed_mctp_probe(struct platform_device *pdev)
 	ret = aspeed_mctp_irq_init(priv);
 	if (ret) {
 		dev_err(priv->dev, "Failed to init IRQ!\n");
-		goto out_dma;
+		goto out_irq;
 	}
 	aspeed_mctp_pcie_setup(priv);
 
@@ -2546,7 +2546,11 @@ static int aspeed_mctp_probe(struct platform_device *pdev)
 		dev_err(priv->dev, "Failed to register peci-mctp device\n");
 
 	return 0;
-
+out_irq:
+	misc_deregister(&priv->mctp_miscdev);
+#ifdef CONFIG_MCTP_TRANSPORT_PCIE_VDM
+	mctp_pcie_vdm_remove_dev(priv->ndev);
+#endif
 out_dma:
 	aspeed_mctp_dma_fini(priv);
 out_drv:
