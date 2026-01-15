@@ -549,8 +549,7 @@
 				#size-cells = <2>;
 				interrupts = <GIC_SPI 167 IRQ_TYPE_LEVEL_HIGH>;
 				bus-range = <0x00 0x7f>;
-				ranges = <0x01000000 0 0x00000000 0x00000000 0x0 0x08000   /* I/O */
-					0x02000000 0x0 0x60000000 0x60000000 0 0x10000000>; /* memory */
+				ranges = <0x02000000 0x0 0x60000000 0x60000000 0 0x10000000>;
 
 				status = "disabled";
 
@@ -584,8 +583,7 @@
 				interrupts = <GIC_SPI 168 IRQ_TYPE_LEVEL_HIGH>;
 				bus-range = <0x80 0xff>;
 
-				ranges = <0x01000000 0 0x00018000 0x00018000 0x0 0x08000
-					0x02000000 0x0 0x70000000 0x70000000 0 0x10000000>; /* memory */
+				ranges = <0x02000000 0x0 0x70000000 0x70000000 0 0x10000000>;
 
 				status = "disabled";
 
