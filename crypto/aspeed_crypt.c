@@ -6,50 +6,148 @@
 #define ASPEED_CRYPT_NAME "aspeed-crypt"
 #define pr_fmt(fmt) ASPEED_CRYPT_NAME ": " fmt
 
+#include <crypto/akcipher.h>
+#include <crypto/hash.h>
+#include <crypto/sig.h>
+#include <crypto/skcipher.h>
 #include <linux/cdev.h>
 
 #include "internal.h"
 
-struct aspeed_crypt_test {
-	char *test_item;
-	int num;
-	char *algo[4];
+enum aspeed_crypt_type {
+	ASPEED_SKCIPHER_TYPE,
+	ASPEED_AHASH_TYPE,
+	ASPEED_AKCIPHER_TYPE,
+	ASPEED_SIG_TYPE,
 };
 
-#define ASPEED_DES_TEST_SUITE                            \
-	"des", 3,                                        \
-	{                                                \
-		"ecb(des)", "cbc(des)", "ctr(des)", NULL \
+struct aspeed_crypt_drv {
+	char *algo;
+	char *drv_name;
+};
+
+struct aspeed_crypt_test {
+	char *test_item;
+	enum aspeed_crypt_type type;
+	int num;
+	struct aspeed_crypt_drv *algo;
+};
+
+struct aspeed_crypt_drv aspeed_des_binding[] = {
+	{ "ecb(des)", "aspeed-ecb-des" },
+	{ "cbc(des)", "aspeed-cbc-des" },
+	{ "ctr(des)", "aspeed-ctr-des" },
+};
+
+struct aspeed_crypt_drv aspeed_tdes_binding[] = {
+	{ "ecb(des3_ede)", "aspeed-ecb-tdes" },
+	{ "cbc(des3_ede)", "aspeed-cbc-tdes" },
+	{ "ctr(des3_ede)", "aspeed-ctr-tdes" },
+};
+
+struct aspeed_crypt_drv aspeed_sha3_binding[] = {
+	{ "sha3-224", "aspeed-sha3-224" },
+	{ "sha3-256", "aspeed-sha3-256" },
+	{ "sha3-384", "aspeed-sha3-384" },
+	{ "sha3-512", "aspeed-sha3-512" },
+};
+
+struct aspeed_crypt_drv aspeed_rsa_binding[] = {
+	{ "rsa", "aspeed-rsa" },
+};
+
+struct aspeed_crypt_drv aspeed_ecdsa_binding[] = {
+	{ "ecdsa-nist-p256", "aspeed-ecdsa-nist-p256" },
+	{ "ecdsa-nist-p384", "aspeed-ecdsa-nist-p384" },
+};
+
+static bool aspeed_detect_skcipher_drv(char *drv_name)
+{
+	struct crypto_skcipher *tfm = NULL;
+	bool found = false;
+
+	tfm = crypto_alloc_skcipher(drv_name, 0, 0);
+	if (!IS_ERR(tfm)) {
+		found = true;
+		crypto_free_skcipher(tfm);
 	}
-#define ASPEED_DES3_TEST_SUITE                                          \
-	"des3", 3,                                                      \
-	{                                                               \
-		"ecb(des3_ede)", "cbc(des3_ede)", "ctr(des3_ede)", NULL \
+
+	return found;
+}
+
+static bool aspeed_detect_ahash_drv(char *drv_name)
+{
+	struct crypto_ahash *tfm = NULL;
+	bool found = false;
+
+	tfm = crypto_alloc_ahash(drv_name, 0, 0);
+	if (!IS_ERR(tfm)) {
+		found = true;
+		crypto_free_ahash(tfm);
 	}
-#define ASPEED_SHA3_TEST_SUITE                                 \
-	"sha-3", 4,                                            \
-	{                                                      \
-		"sha3-224", "sha3-256", "sha3-384", "sha3-512" \
+
+	return found;
+}
+
+static bool aspeed_detect_akcipher_drv(char *drv_name)
+{
+	struct crypto_akcipher *tfm = NULL;
+	bool found = false;
+
+	tfm = crypto_alloc_akcipher(drv_name, 0, 0);
+	if (!IS_ERR(tfm)) {
+		found = true;
+		crypto_free_akcipher(tfm);
 	}
-#define ASPEED_RSA_TEST_SUITE           \
-	"rsa", 1,                       \
-	{                               \
-		"rsa", NULL, NULL, NULL \
+
+	return found;
+}
+
+static bool aspeed_detect_sig_drv(char *drv_name)
+{
+	struct crypto_sig *tfm = NULL;
+	bool found = false;
+
+	tfm = crypto_alloc_sig(drv_name, 0, 0);
+	if (!IS_ERR(tfm)) {
+		found = true;
+		crypto_free_sig(tfm);
 	}
-#define ASPEED_ECDSA_TEST_SUITE                                  \
-	"ecdsa", 2,                                              \
-	{                                                        \
-		"ecdsa-nist-p256", "ecdsa-nist-p384", NULL, NULL \
+
+	return found;
+}
+
+static bool aspeed_detect_drv(enum aspeed_crypt_type type, char *drv_name)
+{
+	switch (type) {
+	case ASPEED_SKCIPHER_TYPE:
+		return aspeed_detect_skcipher_drv(drv_name);
+	case ASPEED_AHASH_TYPE:
+		return aspeed_detect_ahash_drv(drv_name);
+	case ASPEED_AKCIPHER_TYPE:
+		return aspeed_detect_akcipher_drv(drv_name);
+	case ASPEED_SIG_TYPE:
+		return aspeed_detect_sig_drv(drv_name);
+	default:
+		return false;
 	}
+}
 
 static const struct aspeed_crypt_test *
 aspeed_crypt_get_alg(const char *algo_name)
 {
 	int i = 0;
 	static const struct aspeed_crypt_test algo_ts[] = {
-		{ ASPEED_DES_TEST_SUITE },   { ASPEED_DES3_TEST_SUITE },
-		{ ASPEED_SHA3_TEST_SUITE },  { ASPEED_RSA_TEST_SUITE },
-		{ ASPEED_ECDSA_TEST_SUITE },
+		{ "des", ASPEED_SKCIPHER_TYPE, ARRAY_SIZE(aspeed_des_binding),
+		  aspeed_des_binding },
+		{ "des3", ASPEED_SKCIPHER_TYPE, ARRAY_SIZE(aspeed_tdes_binding),
+		  aspeed_tdes_binding },
+		{ "sha-3", ASPEED_AHASH_TYPE, ARRAY_SIZE(aspeed_sha3_binding),
+		  aspeed_sha3_binding },
+		{ "rsa", ASPEED_AKCIPHER_TYPE, ARRAY_SIZE(aspeed_rsa_binding),
+		  aspeed_rsa_binding },
+		{ "ecdsa", ASPEED_SIG_TYPE, ARRAY_SIZE(aspeed_ecdsa_binding),
+		  aspeed_ecdsa_binding },
 	};
 
 	for (i = 0; i < ARRAY_SIZE(algo_ts); i++) {
@@ -75,12 +173,13 @@ static __maybe_unused int aspeed_crypt_run_tests(char *alg_name)
 	}
 
 	for (i = 0; i < ts->num && ret == 0; i++) {
-		if (!ts->algo[i])
-			continue;
+		if (aspeed_detect_drv(ts->type, ts->algo[i].drv_name))
+			ret = alg_test(ts->algo[i].drv_name, ts->algo[i].algo,
+				       0, 0);
+		else
+			ret = -ENOENT;
 
-		ret = alg_test(ts->algo[i], ts->algo[i], 0, 0);
-
-		pr_info("alg: %s tests %s\n", ts->algo[i],
+		pr_info("alg: %s tests %s\n", ts->algo[i].algo,
 			!ret ? "passed" : "failed");
 	}
 
