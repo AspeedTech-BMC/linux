@@ -12,7 +12,7 @@
 #define PCIE1_EP 1	// 1: EP, 0: RC
 
 / {
-	model = "AST2700 A1 EVB";
+	model = "AST2700A1 EVB";
 	compatible = "aspeed,ast2700-evb", "aspeed,ast2700";
 
 	chosen {
