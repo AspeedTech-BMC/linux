@@ -2609,7 +2609,7 @@
 			reg = <0x0 0x23800000 0x0 0x94>;
 			interrupts-extended = <&intc1_5 7>;
 			pinctrl-names = "default";
-			pinctrl-0 = <&pinctrl_fsi1_default>;
+			pinctrl-0 = <&pinctrl_fsi2_default>;
 			clocks = <&syscon1 SCU1_CLK_GATE_FSICLK>;
 			resets = <&syscon1 SCU1_RESET_FSI>;
 			status = "disabled";
