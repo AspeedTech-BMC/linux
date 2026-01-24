@@ -22,3 +22,4 @@ obj-$(CONFIG_ASPEED_MBOX)		+= aspeed-mbox.o
 obj-$(CONFIG_AST2600_OTP)		+= ast2600-otp.o
 obj-$(CONFIG_AST2700_OTP)		+= ast2700-otp.o
 obj-y					+= espi/
+obj-y					+= mmbi/
