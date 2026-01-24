@@ -22,3 +22,4 @@ obj-$(CONFIG_ASPEED_MCTP)		+= $(patsubst $(src)/%.c,%.o,$(wildcard $(src)/aspeed
 obj-$(CONFIG_AST2600_OTP)		+= $(patsubst $(src)/%.c,%.o,$(wildcard $(src)/ast2600-otp.c))
 obj-$(CONFIG_AST2700_OTP)		+= $(patsubst $(src)/%.c,%.o,$(wildcard $(src)/ast2700-otp.c))
 obj-y					+= espi/
+obj-y					+= mmbi/

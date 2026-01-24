@@ -159,6 +159,8 @@ source "drivers/soc/aspeed/espi/Kconfig"
 
 source "drivers/soc/aspeed/rvas/Kconfig"
 
+source "drivers/soc/aspeed/mmbi/Kconfig"
+
 endmenu
 
 endif
