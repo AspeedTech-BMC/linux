@@ -2075,14 +2075,15 @@ static int ftgmac100_set_internal_delay(struct ftgmac100 *priv,
 	s32 rgmii_rx_delay;
 	int err;
 
+	if (of_get_property(np, "use-ncsi", NULL) ||
+	    !(of_device_is_compatible(np, "aspeed,ast2600-mac")))
+		return 0;
+
 	err = of_get_phy_mode(np, phy_intf);
 	if (err) {
 		dev_err(priv->dev, "Failed to get phy mode: %d\n", err);
 		return err;
 	}
-
-	if (!(of_device_is_compatible(np, "aspeed,ast2600-mac")))
-		return 0;
 
 	/* AST2600 needs to know if the "tx/rx-internal-delay-ps" properties
 	 * are existed in dts. If not existed, set -1 and delay is equal to 0.
