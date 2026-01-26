@@ -120,6 +120,7 @@ struct aspeed_bmc_device {
 	void __iomem *reg_base;
 	dma_addr_t bmc_mem_phy;
 	phys_addr_t bmc_mem_size;
+	void *bmc_mem_cpu;
 
 	int pcie2lpc;
 	int irq;
@@ -146,18 +147,15 @@ static int aspeed_bmc_device_mmap(struct file *file, struct vm_area_struct *vma)
 {
 	struct aspeed_bmc_device *bmc_device = file_aspeed_bmc_device(file);
 	unsigned long vsize = vma->vm_end - vma->vm_start;
-	pgprot_t prot = vma->vm_page_prot;
 
-	if (((vma->vm_pgoff << PAGE_SHIFT) + vsize) > bmc_device->bmc_mem_size)
+	if (vsize > bmc_device->bmc_mem_size)
 		return -EINVAL;
 
-	prot = pgprot_noncached(prot);
+	return dma_mmap_coherent(bmc_device->dev, vma,
+				 bmc_device->bmc_mem_cpu,
+				 bmc_device->bmc_mem_phy,
+				 bmc_device->bmc_mem_size);
 
-	if (remap_pfn_range(vma, vma->vm_start,
-			    (bmc_device->bmc_mem_phy >> PAGE_SHIFT) + vma->vm_pgoff, vsize, prot))
-		return -EAGAIN;
-
-	return 0;
 }
 
 static const struct file_operations aspeed_bmc_device_fops = {
@@ -581,42 +579,53 @@ static int aspeed_bmc_device_probe(struct platform_device *pdev)
 	bmc_device->dev = dev;
 	bmc_device->reg_base = devm_platform_ioremap_resource(pdev, 0);
 	if (IS_ERR(bmc_device->reg_base))
-		goto out_region;
+		return PTR_ERR(bmc_device->reg_base);
+
+	ret = of_reserved_mem_device_init(dev);
+	if (ret) {
+		dev_err(dev, "of_reserved_mem_device_init failed: %d\n", ret);
+		return ret;
+	}
 
 	ret = dma_set_mask_and_coherent(dev, DMA_BIT_MASK(64));
 	if (ret) {
 		dev_err(dev, "cannot set 64-bits DMA mask\n");
-		goto out_region;
+		return ret;
 	}
 
 	np = of_parse_phandle(dev->of_node, "memory-region", 0);
 	if (!np || of_address_to_resource(np, 0, &res)) {
 		dev_err(dev, "Failed to find memory-region.\n");
-		ret = -ENOMEM;
-		goto out_region;
+		return -ENOMEM;
 	}
 
 	of_node_put(np);
 
-	bmc_device->bmc_mem_phy = res.start;
 	bmc_device->bmc_mem_size = resource_size(&res);
+	bmc_device->bmc_mem_cpu = dmam_alloc_coherent(dev, bmc_device->bmc_mem_size,
+						      &bmc_device->bmc_mem_phy, GFP_KERNEL);
+	if (!bmc_device->bmc_mem_cpu) {
+		dev_err(dev, "Failed to allocate BMC memory.\n");
+		return -ENOMEM;
+	}
 
 	bmc_device->irq = platform_get_irq(pdev, 0);
 	if (bmc_device->irq < 0) {
 		dev_err(&pdev->dev, "platform get of irq[=%d] failed!\n", bmc_device->irq);
-		goto out_unmap;
+		return bmc_device->irq;
 	}
+
 	ret = devm_request_irq(&pdev->dev, bmc_device->irq, aspeed_bmc_dev_isr, 0,
 			       dev_name(&pdev->dev), bmc_device);
 	if (ret) {
 		dev_err(dev, "aspeed bmc device Unable to get IRQ");
-		goto out_unmap;
+		return ret;
 	}
 
 	ret = aspeed_bmc_device_setup_queue(pdev);
 	if (ret) {
 		dev_err(dev, "Cannot setup queue message");
-		goto out_irq;
+		goto out;
 	}
 
 	ret = aspeed_bmc_device_setup_memory_mapping(pdev);
@@ -657,12 +666,7 @@ out_free_misc:
 out_free_queue:
 	for (i = 0; i < ASPEED_QUEUE_NUM; i++)
 		sysfs_remove_bin_file(&pdev->dev.kobj, &bmc_device->queue[i].bin);
-out_irq:
-	devm_free_irq(&pdev->dev, bmc_device->irq, bmc_device);
-out_unmap:
-	iounmap(bmc_device->reg_base);
-out_region:
-	devm_kfree(&pdev->dev, bmc_device);
+out:
 	dev_warn(dev, "aspeed bmc device: driver init failed (ret=%d)!\n", ret);
 	return ret;
 }
