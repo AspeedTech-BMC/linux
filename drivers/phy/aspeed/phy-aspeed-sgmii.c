@@ -87,7 +87,10 @@ static int aspeed_sgmii_conf(struct phy *phy, bool nway, int speed)
 			       sgmii->regs + SGMII_CFG);
 	}
 
-	writel(0x0c, sgmii->regs + SGMII_FIFO_DELAY_THREHOLD);
+	if (sgmii->revision == 1)
+		writel(0x0c, sgmii->regs + SGMII_FIFO_DELAY_THREHOLD);
+	else
+		writel(0x0e, sgmii->regs + SGMII_FIFO_DELAY_THREHOLD);
 	writel(SGMII_PCTL_TX_NO_DEEMPH, sgmii->regs + SGMII_PHY_PIPE_CTL);
 
 	/* Set link timer for state change */
