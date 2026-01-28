@@ -183,14 +183,6 @@ struct aspeed_pcie {
 	DECLARE_BITMAP(msi_irq_in_use, MAX_MSI_HOST_IRQS);
 };
 
-static void aspeed_pcie_intx_ack_irq(struct irq_data *d)
-{
-	struct aspeed_pcie *pcie = irq_data_get_irq_chip_data(d);
-	int intx_en = pcie->platform->reg_intx_en;
-
-	writel(readl(pcie->reg + intx_en) | BIT(d->hwirq), pcie->reg + intx_en);
-}
-
 static void aspeed_pcie_intx_mask_irq(struct irq_data *d)
 {
 	struct aspeed_pcie *pcie = irq_data_get_irq_chip_data(d);
@@ -209,7 +201,6 @@ static void aspeed_pcie_intx_unmask_irq(struct irq_data *d)
 
 static struct irq_chip aspeed_intx_irq_chip = {
 	.name = "ASPEED:IntX",
-	.irq_ack = aspeed_pcie_intx_ack_irq,
 	.irq_mask = aspeed_pcie_intx_mask_irq,
 	.irq_unmask = aspeed_pcie_intx_unmask_irq,
 };
