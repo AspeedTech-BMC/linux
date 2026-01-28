@@ -2004,12 +2004,6 @@ static int aspeed_video_set_input(struct file *file, void *fh, unsigned int i)
 	if (i >= VIDEO_INPUT_MAX)
 		return -EINVAL;
 
-	if (i == video->input)
-		return 0;
-
-	if (vb2_is_busy(&video->queue))
-		return -EBUSY;
-
 	if (IS_ERR(video->scu)) {
 		v4l2_err(&video->v4l2_dev, "%s: scu isn't ready for input-control\n", __func__);
 		return -EINVAL;
