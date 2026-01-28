@@ -1501,6 +1501,7 @@
 			reg = <0x0 0x14c01000 0x0 0x40>;
 
 			phys = <&pcie_phy2>;
+			aspeed,scu = <&syscon1>;
 
 			pinctrl-names = "default";
 			pinctrl-0 = <&pinctrl_sgmii_default>;
