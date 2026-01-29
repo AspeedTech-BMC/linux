@@ -33,7 +33,8 @@
 #include <net/mctp.h>
 #include <net/mctpdevice.h>
 
-#define MCTP_PCIE_VDM_MIN_MTU 64
+// 64bytes mctp payload + 4bytes mctp header
+#define MCTP_PCIE_VDM_MIN_MTU (64 + 4)
 #define MCTP_PCIE_VDM_MAX_MTU 512
 /* 16byte */
 #define MCTP_PCIE_VDM_HDR_SIZE 16
