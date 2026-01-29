@@ -268,7 +268,8 @@
 	pinctrl-0 = <&pinctrl_adc8_default &pinctrl_adc9_default
 		&pinctrl_adc10_default &pinctrl_adc11_default
 		&pinctrl_adc12_default &pinctrl_adc13_default
-		&pinctrl_adc14_default &pinctrl_adc15_default>;
+		&pinctrl_adc14_default &pinctrl_adc15_default
+		&pinctrl_adc13_bias>;
 };
 
 &pinctrl0 {
@@ -353,6 +354,10 @@
 		pins = "D19", "C19", "D15", "B12", "B10", "P13",
 		       "C18", "C6", "C7", "D7", "N13", "C8";
 		drive-strength = <1>;
+	};
+	pinctrl_adc13_bias: adc13-bias {
+		pins = "W14";
+		bias-disable;
 	};
 };
 
