@@ -303,21 +303,11 @@ static int aspeed_acry_rsa_dec(struct akcipher_request *req)
 	return aspeed_acry_handle_queue(acry_dev, &req->base);
 }
 
-static u8 *aspeed_rsa_key_copy(u8 *src, size_t len)
-{
-	u8 *dst;
-
-	dst = kmemdup(src, len, GFP_DMA | GFP_KERNEL);
-	return dst;
-}
-
 static int aspeed_rsa_set_n(struct aspeed_acry_rsa_ctx *ctx, u8 *value,
 			    size_t len)
 {
 	ctx->n_sz = len;
-	ctx->n = aspeed_rsa_key_copy(value, len);
-	if (!ctx->n)
-		return -EINVAL;
+	memcpy(ctx->n, value, len);
 
 	return 0;
 }
@@ -326,19 +316,9 @@ static int aspeed_rsa_set_e(struct aspeed_acry_rsa_ctx *ctx, u8 *value,
 			    size_t len)
 {
 	ctx->e_sz = len;
-	ctx->e = aspeed_rsa_key_copy(value, len);
-	if (!ctx->e)
-		return -EINVAL;
+	memcpy(ctx->e, value, len);
 
 	return 0;
-}
-
-static void aspeed_rsa_key_free(struct aspeed_acry_rsa_ctx *ctx)
-{
-	kfree_sensitive(ctx->n);
-	kfree_sensitive(ctx->e);
-	ctx->n_sz = 0;
-	ctx->e_sz = 0;
 }
 
 static int aspeed_acry_rsa_setkey(struct crypto_akcipher *tfm, const void *key,
@@ -362,12 +342,8 @@ static int aspeed_acry_rsa_setkey(struct crypto_akcipher *tfm, const void *key,
 	if (ctx->key.n_sz > 512)
 		return -EINVAL;
 
-	ret = aspeed_rsa_set_n(ctx, (u8 *)ctx->key.n, ctx->key.n_sz) ||
-	      aspeed_rsa_set_e(ctx, (u8 *)ctx->key.e, ctx->key.e_sz);
-	if (ret) {
-		aspeed_rsa_key_free(ctx);
-		return -EINVAL;
-	}
+	aspeed_rsa_set_n(ctx, (u8 *)ctx->key.n, ctx->key.n_sz);
+	aspeed_rsa_set_e(ctx, (u8 *)ctx->key.e, ctx->key.e_sz);
 
 	return 0;
 }
