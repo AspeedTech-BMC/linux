@@ -321,6 +321,15 @@ static int aspeed_rsa_set_e(struct aspeed_acry_rsa_ctx *ctx, u8 *value,
 	return 0;
 }
 
+static int aspeed_rsa_set_d(struct aspeed_acry_rsa_ctx *ctx, u8 *value,
+			    size_t len)
+{
+	ctx->d_sz = len;
+	memcpy(ctx->d, value, len);
+
+	return 0;
+}
+
 static int aspeed_acry_rsa_setkey(struct crypto_akcipher *tfm, const void *key,
 				  unsigned int keylen, int priv)
 {
@@ -344,6 +353,8 @@ static int aspeed_acry_rsa_setkey(struct crypto_akcipher *tfm, const void *key,
 
 	aspeed_rsa_set_n(ctx, (u8 *)ctx->key.n, ctx->key.n_sz);
 	aspeed_rsa_set_e(ctx, (u8 *)ctx->key.e, ctx->key.e_sz);
+	if (priv)
+		aspeed_rsa_set_d(ctx, (u8 *)ctx->key.d, ctx->key.d_sz);
 
 	return 0;
 }
