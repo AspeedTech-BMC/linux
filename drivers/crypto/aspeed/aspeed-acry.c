@@ -114,9 +114,9 @@ struct aspeed_acry_ctx {
 
 	struct rsa_key			key;
 	int				enc;
-	u8				*n;
-	u8				*e;
-	u8				*d;
+	u8				n[ASPEED_ACRY_RSA_MAX_KEY_LEN];
+	u8				e[ASPEED_ACRY_RSA_MAX_KEY_LEN];
+	u8				d[ASPEED_ACRY_RSA_MAX_KEY_LEN];
 	size_t				n_sz;
 	size_t				e_sz;
 	size_t				d_sz;
@@ -434,18 +434,11 @@ static int aspeed_acry_rsa_dec(struct akcipher_request *req)
 	return aspeed_acry_handle_queue(acry_dev, req);
 }
 
-static u8 *aspeed_rsa_key_copy(u8 *src, size_t len)
-{
-	return kmemdup(src, len, GFP_KERNEL);
-}
-
 static int aspeed_rsa_set_n(struct aspeed_acry_ctx *ctx, u8 *value,
 			    size_t len)
 {
 	ctx->n_sz = len;
-	ctx->n = aspeed_rsa_key_copy(value, len);
-	if (!ctx->n)
-		return -ENOMEM;
+	memcpy(ctx->n, value, len);
 
 	return 0;
 }
@@ -454,9 +447,7 @@ static int aspeed_rsa_set_e(struct aspeed_acry_ctx *ctx, u8 *value,
 			    size_t len)
 {
 	ctx->e_sz = len;
-	ctx->e = aspeed_rsa_key_copy(value, len);
-	if (!ctx->e)
-		return -ENOMEM;
+	memcpy(ctx->e, value, len);
 
 	return 0;
 }
@@ -465,21 +456,9 @@ static int aspeed_rsa_set_d(struct aspeed_acry_ctx *ctx, u8 *value,
 			    size_t len)
 {
 	ctx->d_sz = len;
-	ctx->d = aspeed_rsa_key_copy(value, len);
-	if (!ctx->d)
-		return -ENOMEM;
+	memcpy(ctx->d, value, len);
 
 	return 0;
-}
-
-static void aspeed_rsa_key_free(struct aspeed_acry_ctx *ctx)
-{
-	kfree_sensitive(ctx->n);
-	kfree_sensitive(ctx->e);
-	kfree_sensitive(ctx->d);
-	ctx->n_sz = 0;
-	ctx->e_sz = 0;
-	ctx->d_sz = 0;
 }
 
 static int aspeed_acry_rsa_setkey(struct crypto_akcipher *tfm, const void *key,
@@ -506,27 +485,12 @@ static int aspeed_acry_rsa_setkey(struct crypto_akcipher *tfm, const void *key,
 	if (ctx->key.n_sz > ASPEED_ACRY_RSA_MAX_KEY_LEN)
 		return 0;
 
-	ret = aspeed_rsa_set_n(ctx, (u8 *)ctx->key.n, ctx->key.n_sz);
-	if (ret)
-		goto err;
-
-	ret = aspeed_rsa_set_e(ctx, (u8 *)ctx->key.e, ctx->key.e_sz);
-	if (ret)
-		goto err;
-
-	if (priv) {
-		ret = aspeed_rsa_set_d(ctx, (u8 *)ctx->key.d, ctx->key.d_sz);
-		if (ret)
-			goto err;
-	}
+	aspeed_rsa_set_n(ctx, (u8 *)ctx->key.n, ctx->key.n_sz);
+	aspeed_rsa_set_e(ctx, (u8 *)ctx->key.e, ctx->key.e_sz);
+	if (priv)
+		aspeed_rsa_set_d(ctx, (u8 *)ctx->key.d, ctx->key.d_sz);
 
 	return 0;
-
-err:
-	dev_err(acry_dev->dev, "rsa set key failed\n");
-	aspeed_rsa_key_free(ctx);
-
-	return ret;
 }
 
 static int aspeed_acry_rsa_set_pub_key(struct crypto_akcipher *tfm,
