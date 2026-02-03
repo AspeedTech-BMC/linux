@@ -2,7 +2,7 @@
 /*
  * ASPEED AST2600 new register set I2C controller driver
  *
- * Copyright (C) ASPEED Technology Inc.
+ * Copyright (C) 2023 ASPEED Technology Inc.
  */
 #include <linux/bits.h>
 #include <linux/clk.h>
@@ -124,7 +124,7 @@
 #define AST2600_I2CM_BUS_RECOVER_FAIL		BIT(15)
 #define AST2600_I2CM_SDA_DL_TO			BIT(14)
 #define AST2600_I2CM_BUS_RECOVER			BIT(13)
-#define AST2600_I2CM_SMBUS_ALT			BIT(12)
+#define AST2600_I2CM_SMBUS_ALERT			BIT(12)
 #define AST2700_I2CM_ABNORMAL_ACTION	BIT(8)
 
 #define AST2600_I2CM_SCL_LOW_TO			BIT(6)
@@ -324,7 +324,6 @@ struct ast2600_i2c_bus {
 	struct device			*dev;
 	void __iomem			*reg_base;
 	struct regmap			*global_regs;
-	struct reset_control		*rst;
 	struct clk			*clk;
 	struct i2c_timings		timing_info;
 	struct completion		cmd_complete;
@@ -560,7 +559,7 @@ static int ast2600_i2c_recover_bus(struct ast2600_i2c_bus *i2c_bus)
 	reinit_completion(&i2c_bus->cmd_complete);
 	i2c_bus->cmd_err = 0;
 
-	/* Check 0x14's SDA and SCL status */
+	/* Check SDA/SCL status in the status register. */
 	state = readl(i2c_bus->reg_base + AST2600_I2CC_STS_AND_BUFF);
 	if (!(state & AST2600_I2CC_SDA_LINE_STS) && (state & AST2600_I2CC_SCL_LINE_STS)) {
 		writel(AST2600_I2CM_RECOVER_CMD_EN, i2c_bus->reg_base + AST2600_I2CM_CMD_STS);
@@ -620,7 +619,7 @@ static void ast2700_i2c_target_packet_dma_irq(struct ast2600_i2c_bus *i2c_bus, u
 
 	sts = isr & ~(AST2600_I2CS_SLAVE_PENDING | AST2600_I2CS_ADDR_NAK_MASK);
 	/* Handle i2c target timeout condition */
-	if (AST2600_I2CS_INACTIVE_TO & sts) {
+	if (sts & AST2600_I2CS_INACTIVE_TO) {
 		dev_dbg(i2c_bus->dev, "The target timeout occurs isr: 0x%08x.\n", isr);
 		/* Reset timeout counter */
 		u32 ac_timing = readl(i2c_bus->reg_base + AST2600_I2CC_AC_TIMING) &
@@ -650,7 +649,7 @@ static void ast2700_i2c_target_packet_dma_irq(struct ast2600_i2c_bus *i2c_bus, u
 		return;
 	}
 
-	if (AST2600_I2CS_ABNOR_STOP & sts) {
+	if (sts & AST2600_I2CS_ABNOR_STOP) {
 		dev_err(i2c_bus->dev, "The target abnomal protocol occurs isr: 0x%08x.\n", isr);
 		cmd = TARGET_TRIGGER_CMD | AST2600_I2CS_RX_DMA_EN;
 		writel(AST2600_I2CS_SET_RX_DMA_LEN(I2C_TARGET_MSG_BUF_SIZE),
@@ -1058,7 +1057,7 @@ static void ast2600_i2c_target_packet_dma_irq(struct ast2600_i2c_bus *i2c_bus, u
 	i2c_bus->target = i2c_bus->multi_target[AST2600_I2CS_GET_TARGET(sts)];
 
 	/* Handle i2c target timeout condition */
-	if (AST2600_I2CS_INACTIVE_TO & sts) {
+	if (sts & AST2600_I2CS_INACTIVE_TO) {
 		/* Reset time out counter */
 		u32 ac_timing = readl(i2c_bus->reg_base + AST2600_I2CC_AC_TIMING) &
 				AST2600_I2CC_AC_TIMING_MASK;
@@ -1192,7 +1191,7 @@ static void ast2600_i2c_target_packet_buff_irq(struct ast2600_i2c_bus *i2c_bus, 
 	u8 value;
 	int i;
 
-	/* due to controller target share same buffer, so need force the master stop not issue */
+	/* due to controller target is common buffer, need force the master stop not issue */
 	if (readl(i2c_bus->reg_base + AST2600_I2CM_CMD_STS) & GENMASK(15, 0)) {
 		writel(0, i2c_bus->reg_base + AST2600_I2CM_CMD_STS);
 		i2c_bus->cmd_err = -EBUSY;
@@ -1204,7 +1203,7 @@ static void ast2600_i2c_target_packet_buff_irq(struct ast2600_i2c_bus *i2c_bus, 
 
 	/* Handle i2c target timeout condition */
 	if (AST2600_I2CS_INACTIVE_TO & sts) {
-		/* Reset time out counter */
+		/* Reset timeout counter */
 		u32 ac_timing = readl(i2c_bus->reg_base + AST2600_I2CC_AC_TIMING) &
 				AST2600_I2CC_AC_TIMING_MASK;
 
@@ -1361,9 +1360,9 @@ static void ast2600_i2c_target_packet_buff_irq(struct ast2600_i2c_bus *i2c_bus, 
 		AST2600_I2CS_SLAVE_MATCH | AST2600_I2CS_RX_DONE:
 	case AST2600_I2CS_SLAVE_PENDING | AST2600_I2CS_TX_NAK | AST2600_I2CS_STOP |
 		AST2600_I2CS_SLAVE_MATCH | AST2600_I2CS_RX_DONE | AST2600_I2CS_WAIT_RX_DMA:
-		cmd = TARGET_TRIGGER_CMD;
 		i2c_bus->target = i2c_bus->multi_target[i2c_bus->previous_idx];
 		i2c_slave_event(i2c_bus->target, I2C_SLAVE_STOP, &value);
+		cmd = TARGET_TRIGGER_CMD;
 		i2c_bus->target_operate = 0;
 		break;
 	case AST2600_I2CS_TX_NAK | AST2600_I2CS_STOP:
@@ -1398,7 +1397,7 @@ static void ast2600_i2c_target_byte_irq(struct ast2600_i2c_bus *i2c_bus, u32 sts
 	i2c_bus->target = i2c_bus->multi_target[AST2600_I2CS_GET_TARGET(sts)];
 
 	/* Handle i2c target timeout condition */
-	if (AST2600_I2CS_INACTIVE_TO & sts) {
+	if (sts & AST2600_I2CS_INACTIVE_TO) {
 		/* Reset time out counter */
 		u32 ac_timing = readl(i2c_bus->reg_base + AST2600_I2CC_AC_TIMING) &
 				AST2600_I2CC_AC_TIMING_MASK;
@@ -1459,7 +1458,7 @@ static int ast2600_i2c_target_irq(struct ast2600_i2c_bus *i2c_bus)
 		return 0;
 
 	/*
-	 * Target interrupt coming after Controller package done
+	 * Target interrupt coming after Controller packet done
 	 * So need handle controller first.
 	 */
 	if (readl(i2c_bus->reg_base + AST2600_I2CM_ISR) & AST2600_I2CM_PKT_DONE)
@@ -1583,7 +1582,7 @@ static int ast2600_i2c_setup_byte_tx(u32 cmd, struct ast2600_i2c_bus *i2c_bus)
 		cmd |= AST2600_I2CM_PKT_ADDR(msg->addr);
 
 	if ((i2c_bus->msgs_index + 1 == i2c_bus->msgs_count) &&
-	    xfer_len == 1)
+	    ((i2c_bus->controller_xfer_cnt + 1) == msg->len))
 		cmd |= AST2600_I2CM_STOP_CMD;
 
 	if (xfer_len) {
@@ -1661,7 +1660,7 @@ static int ast2600_i2c_setup_byte_rx(u32 cmd, struct ast2600_i2c_bus *i2c_bus)
 	if (msg->flags & I2C_M_RECV_LEN) {
 		dev_dbg(i2c_bus->dev, "smbus read\n");
 	} else if ((i2c_bus->msgs_index + 1 == i2c_bus->msgs_count) &&
-		  ((i2c_bus->controller_xfer_cnt + 1) == msg->len)) {
+		   ((i2c_bus->controller_xfer_cnt + 1) == msg->len)) {
 		cmd |= CONTROLLER_TRIGGER_LAST_STOP;
 	}
 
@@ -1724,7 +1723,7 @@ static int ast2600_i2c_irq_err_to_errno(u32 irq_status)
 	return 0;
 }
 
-static void ast2600_i2c_controller_package_irq(struct ast2600_i2c_bus *i2c_bus, u32 sts)
+static void ast2600_i2c_controller_packet_irq(struct ast2600_i2c_bus *i2c_bus, u32 sts)
 {
 	struct i2c_msg *msg = &i2c_bus->msgs[i2c_bus->msgs_index];
 	int xfer_len;
@@ -1798,7 +1797,7 @@ static void ast2600_i2c_controller_package_irq(struct ast2600_i2c_bus *i2c_bus, 
 	case AST2600_I2CM_RX_DONE:
 #if IS_ENABLED(CONFIG_I2C_SLAVE)
 		/*
-		 * Workaround for controller/target package mode enable rx done stuck issue
+		 * Workaround for controller/target packet mode enable rx done stuck issue
 		 * When controller go for first read (RX_DONE), target mode will also effect
 		 * Then controller will send nack, not operate anymore.
 		 */
@@ -1888,9 +1887,9 @@ static int ast2600_i2c_controller_irq(struct ast2600_i2c_bus *i2c_bus)
 	sts &= ~AST2600_I2CM_ISR_MASK;
 
 	if (!i2c_bus->alert_enable)
-		sts &= ~AST2600_I2CM_SMBUS_ALT;
+		sts &= ~AST2600_I2CM_SMBUS_ALERT;
 
-	if (AST2600_I2CM_BUS_RECOVER_FAIL & sts) {
+	if (sts & AST2600_I2CM_BUS_RECOVER_FAIL) {
 		writel(AST2600_I2CM_BUS_RECOVER_FAIL, i2c_bus->reg_base + AST2600_I2CM_ISR);
 		ctrl = readl(i2c_bus->reg_base + AST2600_I2CC_FUN_CTRL);
 		writel(0, i2c_bus->reg_base + AST2600_I2CC_FUN_CTRL);
@@ -1900,19 +1899,20 @@ static int ast2600_i2c_controller_irq(struct ast2600_i2c_bus *i2c_bus)
 		return 1;
 	}
 
-	if (AST2600_I2CM_BUS_RECOVER & sts) {
+	if (sts & AST2600_I2CM_BUS_RECOVER) {
 		writel(AST2600_I2CM_BUS_RECOVER, i2c_bus->reg_base + AST2600_I2CM_ISR);
 		i2c_bus->cmd_err = 0;
 		complete(&i2c_bus->cmd_complete);
 		return 1;
 	}
 
-	if (AST2600_I2CM_SMBUS_ALT & sts) {
-		if (ier & AST2600_I2CM_SMBUS_ALT) {
+	if (sts & AST2600_I2CM_SMBUS_ALERT) {
+		if (ier & AST2600_I2CM_SMBUS_ALERT) {
 			/* Disable ALT INT */
-			writel(ier & ~AST2600_I2CM_SMBUS_ALT, i2c_bus->reg_base + AST2600_I2CM_IER);
+			writel(ier & ~AST2600_I2CM_SMBUS_ALERT,
+			       i2c_bus->reg_base + AST2600_I2CM_IER);
 			i2c_handle_smbus_alert(i2c_bus->ara);
-			writel(AST2600_I2CM_SMBUS_ALT, i2c_bus->reg_base + AST2600_I2CM_ISR);
+			writel(AST2600_I2CM_SMBUS_ALERT, i2c_bus->reg_base + AST2600_I2CM_ISR);
 			dev_err(i2c_bus->dev,
 				"ast2600_controller_alert_recv bus id %d, Disable Alt, Please Imple\n",
 				i2c_bus->adap.nr);
@@ -1937,8 +1937,8 @@ static int ast2600_i2c_controller_irq(struct ast2600_i2c_bus *i2c_bus)
 		}
 	}
 
-	if (AST2600_I2CM_PKT_DONE & sts) {
-		ast2600_i2c_controller_package_irq(i2c_bus, sts);
+	if (sts & AST2600_I2CM_PKT_DONE) {
+		ast2600_i2c_controller_packet_irq(i2c_bus, sts);
 		return 1;
 	}
 
@@ -2029,7 +2029,6 @@ static int ast2600_i2c_init(struct ast2600_i2c_bus *i2c_bus)
 	/* I2C Reset */
 	writel(0, i2c_bus->reg_base + AST2600_I2CC_FUN_CTRL);
 
-	i2c_bus->multi_master = device_property_read_bool(&pdev->dev, "multi-master");
 	if (!i2c_bus->multi_master)
 		fun_ctrl |= AST2600_I2CC_MULTI_MASTER_DIS;
 
@@ -2069,7 +2068,7 @@ static int ast2600_i2c_init(struct ast2600_i2c_bus *i2c_bus)
 
 	/* Enable Controller Mode */
 	writel(fun_ctrl, i2c_bus->reg_base + AST2600_I2CC_FUN_CTRL);
-	/* Disable Target Address */
+	/* disable target address */
 	writel(0, i2c_bus->reg_base + AST2600_I2CS_ADDR_CTRL);
 
 	/* Set AC Timing */
@@ -2274,26 +2273,30 @@ static int ast2600_i2c_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
 	struct ast2600_i2c_bus *i2c_bus;
+	struct reset_control *rst;
 	const char *xfer_mode;
 	struct resource *res;
 	u32 global_ctrl;
 	int ret;
 
+	if (!device_property_present(dev, "aspeed,global-regs"))
+		return -ENODEV;
+
 	i2c_bus = devm_kzalloc(dev, sizeof(*i2c_bus), GFP_KERNEL);
 	if (!i2c_bus)
 		return -ENOMEM;
-
-	i2c_bus->version = (enum i2c_version)device_get_match_data(dev);
 
 	i2c_bus->reg_base = devm_platform_ioremap_resource(pdev, 0);
 	if (IS_ERR(i2c_bus->reg_base))
 		return PTR_ERR(i2c_bus->reg_base);
 
-	i2c_bus->rst = devm_reset_control_get_shared(dev, NULL);
-	if (IS_ERR(i2c_bus->rst))
-		return dev_err_probe(dev, PTR_ERR(i2c_bus->rst), "Missing reset ctrl\n");
+	rst = devm_reset_control_get_shared(dev, NULL);
+	if (IS_ERR(rst))
+		return dev_err_probe(dev, PTR_ERR(rst), "Missing reset ctrl\n");
 
-	reset_control_deassert(i2c_bus->rst);
+	reset_control_deassert(rst);
+
+	i2c_bus->version = (enum i2c_version)device_get_match_data(dev);
 
 	i2c_bus->global_regs =
 		syscon_regmap_lookup_by_phandle(dev_of_node(dev), "aspeed,global-regs");
@@ -2318,6 +2321,7 @@ static int ast2600_i2c_probe(struct platform_device *pdev)
 		i2c_bus->multi_target[i] = NULL;
 #endif
 	i2c_bus->dev = dev;
+	i2c_bus->multi_master = device_property_read_bool(dev, "multi-master");
 	if (i2c_bus->version == AST2600) {
 		i2c_bus->mode = BUFF_MODE;
 
@@ -2405,7 +2409,7 @@ static int ast2600_i2c_probe(struct platform_device *pdev)
 			dev_warn(dev, "Failed to register ARA client\n");
 		else
 			writel(AST2600_I2CM_PKT_DONE | AST2600_I2CM_BUS_RECOVER |
-			       AST2600_I2CM_SMBUS_ALT,
+			       AST2600_I2CM_SMBUS_ALERT,
 			       i2c_bus->reg_base + AST2600_I2CM_IER);
 	} else {
 		i2c_bus->alert_enable = false;
@@ -2429,23 +2433,22 @@ static int ast2600_i2c_remove(struct platform_device *pdev)
 	return 0;
 }
 
-static const struct of_device_id ast2600_i2c_bus_of_table[] = {
+static const struct of_device_id ast2600_i2c_of_match[] = {
 	{ .compatible = "aspeed,ast2600-i2cv2",  .data = (const void *)AST2600, },
 	{ .compatible = "aspeed,ast2700-i2c",  .data = (const void *)AST2700, },
 	{}
 };
-MODULE_DEVICE_TABLE(of, ast2600_i2c_bus_of_table);
+MODULE_DEVICE_TABLE(of, ast2600_i2c_of_match);
 
-static struct platform_driver ast2600_i2c_bus_driver = {
-	.probe = ast2600_i2c_probe,
-	.remove = ast2600_i2c_remove,
-	.driver = {
+static struct platform_driver ast2600_i2c_driver = {
+	.probe		= ast2600_i2c_probe,
+	.remove		= ast2600_i2c_remove,
+	.driver		= {
 		.name = KBUILD_MODNAME,
-		.of_match_table = ast2600_i2c_bus_of_table,
+		.of_match_table	= ast2600_i2c_of_match,
 	},
 };
-
-module_platform_driver(ast2600_i2c_bus_driver);
+module_platform_driver(ast2600_i2c_driver);
 
 MODULE_AUTHOR("Ryan Chen <ryan_chen@aspeedtech.com>");
 MODULE_DESCRIPTION("ASPEED AST2600 I2C Controller Driver");
