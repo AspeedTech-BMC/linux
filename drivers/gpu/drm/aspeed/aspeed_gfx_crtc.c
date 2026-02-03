@@ -100,8 +100,15 @@ static void aspeed_gfx_enable_controller(struct aspeed_gfx *priv)
 			regmap_update_bits(priv->scu, priv->dac_reg, priv->soc_dp_bit, priv->soc_dp_bit);
 	}
 
+    /* remove the cursor and osd usage */
+	ctrl1 &= ~(CRT_CTRL_HW_CURSOR_EN | CRT_CTRL_OSD_EN);
+
 	writel(ctrl1 | CRT_CTRL_EN, priv->base + CRT_CTRL1);
 	writel(ctrl2 | CRT_CTRL_DAC_EN, priv->base + CRT_CTRL2);
+
+	/* trigger cursor position to apply cursor disable */
+	writel(CRT_CTRL_CURSOR0, priv->base + CRT_CURSOR0);
+	writel(CRT_CTRL_CURSOR1, priv->base + CRT_CURSOR1);
 }
 
 static void aspeed_gfx_disable_controller(struct aspeed_gfx *priv)

@@ -100,6 +100,10 @@ int aspeed_gfx_create_output(struct drm_device *drm);
 #define CRT_CTRL_VBLANK_LINE(x)		(((x) << 20) & CRT_CTRL_VBLANK_LINE_MASK)
 #define CRT_CTRL_VBLANK_LINE_MASK	GENMASK(31, 20)
 
+/* CURSOR define */
+#define CRT_CTRL_CURSOR0		0x3f3f
+#define CRT_CTRL_CURSOR1		0xfff1fff
+
 /* CRT_HORIZ0 */
 #define CRT_H_TOTAL(x)			(x)
 #define CRT_H_DE(x)			((x) << 16)
