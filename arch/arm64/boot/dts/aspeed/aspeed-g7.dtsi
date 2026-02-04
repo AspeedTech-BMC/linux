@@ -1309,6 +1309,8 @@
 			clocks = <&syscon1 SCU1_CLK_GATE_MAC0CLK>;
 			resets = <&syscon1 SCU1_RESET_MAC0>;
 			status = "disabled";
+
+			aspeed,scu = <&syscon1>;
 		};
 
 		mac1: ethernet@14060000 {
@@ -1319,6 +1321,8 @@
 			clocks = <&syscon1 SCU1_CLK_GATE_MAC1CLK>;
 			resets = <&syscon1 SCU1_RESET_MAC1>;
 			status = "disabled";
+
+			aspeed,scu = <&syscon1>;
 		};
 
 		mac2: ethernet@14070000 {
