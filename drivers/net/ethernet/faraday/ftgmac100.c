@@ -2114,10 +2114,14 @@ static int ftgmac100_set_ast2700_rgmii_delay(struct ftgmac100 *priv,
 		regmap_read(scu, AST2700_MAC1_DLY_UNIT, &reg_unit);
 		regmap_read(scu, AST2700_MAC1_DLY_VAL, &reg_val);
 		break;
+	case AST2700_MAC2_BASE_ADDR:
+		/* Only support SGMII */
+		return 0;
 	default:
 		dev_err(dev, "Invalid mac base address");
 		return -EINVAL;
 	}
+
 	rgmii_delay_tx_unit = AST2700_MAC_TX_DLY_UNIT(reg_unit);
 	rgmii_delay_rx_unit = AST2700_MAC_RX_DLY_UNIT(reg_unit);
 	rgmii_delay_tx_dis = AST2700_MAC_TX_DLY_DIS(reg_val);
