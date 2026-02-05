@@ -492,6 +492,8 @@ static int ast8250_probe(struct platform_device *pdev)
 	port->handle_irq = ast8250_handle_irq;
 	port->uartclk = clk_get_rate(data->clk);
 
+	uart.capabilities = UART_CAP_FIFO | UART_CAP_AFE;
+
 	data->line = serial8250_register_8250_port(&uart);
 	if (data->line < 0) {
 		dev_err(dev, "failed to register 8250 port\n");
