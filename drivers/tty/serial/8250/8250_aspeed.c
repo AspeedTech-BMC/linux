@@ -488,7 +488,7 @@ static int ast8250_probe(struct platform_device *pdev)
 	if (rc)
 		return rc;
 
-	port->type = PORT_16550A;
+	port->type = (data->is_vuart) ? PORT_ASPEED_VUART : PORT_16550A;
 	port->handle_irq = ast8250_handle_irq;
 	port->uartclk = clk_get_rate(data->clk);
 
@@ -499,11 +499,6 @@ static int ast8250_probe(struct platform_device *pdev)
 		dev_err(dev, "failed to register 8250 port\n");
 		return data->line;
 	}
-
-	dev_info(dev, "ttyS%d%s%s\n",
-		 data->line,
-		 data->is_vuart ? " (VUART)" : "",
-		 data->use_dma ? " (DMA mode)" : "");
 
 	pm_runtime_set_active(&pdev->dev);
 	pm_runtime_enable(&pdev->dev);
