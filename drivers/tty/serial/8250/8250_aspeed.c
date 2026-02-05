@@ -485,7 +485,7 @@ static int ast8250_probe(struct platform_device *pdev)
 	if (rc)
 		return rc;
 
-	port->type = PORT_16550A;
+	port->type = (data->is_vuart) ? PORT_ASPEED_VUART : PORT_16550A;
 	port->handle_irq = ast8250_handle_irq;
 	port->uartclk = clk_get_rate(data->clk);
 
