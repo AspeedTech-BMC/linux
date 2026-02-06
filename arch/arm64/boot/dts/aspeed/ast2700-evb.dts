@@ -276,7 +276,7 @@
 &pinctrl0 {
 	pinctrl_emmcclk_driving: emmcclk-driving {
 		pins = "AC14";
-		drive-strength = <3>;
+		drive-strength = <2>;
 	};
 
 	pinctrl_emmccmd_driving: emmccmd-driving {
