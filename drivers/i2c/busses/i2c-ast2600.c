@@ -2307,7 +2307,11 @@ static int ast2600_i2c_probe(struct platform_device *pdev)
 #endif
 	i2c_bus->dev = dev;
 	i2c_bus->multi_master = device_property_read_bool(dev, "multi-master");
-	if (i2c_bus->version == AST2600) {
+	if (i2c_bus->version == AST2700) {
+		/* AST2700: DMA only */
+		i2c_bus->mode = DMA_MODE;
+	} else {
+		/* AST2600: default BUFF, allow override */
 		i2c_bus->mode = BUFF_MODE;
 
 		if (!device_property_read_string(dev, "aspeed,transfer-mode", &xfer_mode)) {
@@ -2326,8 +2330,6 @@ static int ast2600_i2c_probe(struct platform_device *pdev)
 			else
 				i2c_bus->buf_size = resource_size(res) / 2;
 		}
-	} else {
-		i2c_bus->mode = DMA_MODE;
 	}
 
 	switch (i2c_bus->mode) {
