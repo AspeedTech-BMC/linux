@@ -350,6 +350,9 @@ struct ast2600_i2c_bus {
 	void __iomem			*buf_base;
 	int (*setup_tx)(u32 cmd, struct ast2600_i2c_bus *i2c_bus);
 	int (*setup_rx)(u32 cmd, struct ast2600_i2c_bus *i2c_bus);
+	void (*ac_timing_config)(struct ast2600_i2c_bus *i2c_bus);
+	int (*irq_err_to_errno)(u32 irq_status);
+	void (*irq_clear)(struct ast2600_i2c_bus *i2c_bus, u32 sts);
 	/* smbus alert */
 	bool			alert_enable;
 	struct i2c_smbus_alert_setup	alert_data;
@@ -362,6 +365,8 @@ struct ast2600_i2c_bus {
 	u8 target_attached;
 	struct i2c_client		*multi_target[AST2600_I2C_TARGET_COUNT];
 	struct i2c_client		*target;
+	void (*target_packet_irq)(struct ast2600_i2c_bus *i2c_bus, u32 isr);
+	void (*target_byte_irq)(struct ast2600_i2c_bus *i2c_bus, u32 isr);
 #endif
 };
 
@@ -1469,18 +1474,10 @@ static int ast2600_i2c_target_irq(struct ast2600_i2c_bus *i2c_bus)
 
 	isr &= ~(AST2600_I2CS_ADDR_MASK);
 
-	if (AST2600_I2CS_PKT_DONE & isr) {
-		if (i2c_bus->mode == DMA_MODE) {
-			if (i2c_bus->version == AST2700)
-				ast2700_i2c_target_packet_dma_irq(i2c_bus, isr);
-			else
-				ast2600_i2c_target_packet_dma_irq(i2c_bus, isr);
-		} else {
-			ast2600_i2c_target_packet_buff_irq(i2c_bus, isr);
-		}
-	} else {
-		ast2600_i2c_target_byte_irq(i2c_bus, isr);
-	}
+	if (AST2600_I2CS_PKT_DONE & isr)
+		i2c_bus->target_packet_irq(i2c_bus, isr);
+	else
+		i2c_bus->target_byte_irq(i2c_bus, isr);
 
 	return 1;
 }
@@ -1705,6 +1702,11 @@ static int ast2700_i2c_irq_err_to_errno(u32 irq_status)
 	return 0;
 }
 
+static void ast2700_i2c_irq_clear(struct ast2600_i2c_bus *i2c_bus, u32 sts)
+{
+	writel(sts, i2c_bus->reg_base + AST2600_I2CM_ISR);
+}
+
 static int ast2600_i2c_irq_err_to_errno(u32 irq_status)
 {
 	if (irq_status & AST2600_I2CM_ARBIT_LOSS)
@@ -1717,16 +1719,18 @@ static int ast2600_i2c_irq_err_to_errno(u32 irq_status)
 	return 0;
 }
 
+static void ast2600_i2c_irq_clear(struct ast2600_i2c_bus *i2c_bus, u32 sts)
+{
+	writel(AST2600_I2CM_PKT_DONE, i2c_bus->reg_base + AST2600_I2CM_ISR);
+}
+
 static void ast2600_i2c_controller_packet_irq(struct ast2600_i2c_bus *i2c_bus, u32 sts)
 {
 	struct i2c_msg *msg = &i2c_bus->msgs[i2c_bus->msgs_index];
 	int xfer_len;
 	int i;
 
-	if (i2c_bus->version == AST2700)
-		writel(sts, i2c_bus->reg_base + AST2600_I2CM_ISR);
-	else
-		writel(AST2600_I2CM_PKT_DONE, i2c_bus->reg_base + AST2600_I2CM_ISR);
+	i2c_bus->irq_clear(i2c_bus, sts);
 
 	sts &= ~(AST2600_I2CM_PKT_DONE | AST2600_I2CM_SW_ISR_MASK);
 
@@ -1819,15 +1823,8 @@ static void ast2600_i2c_controller_packet_irq(struct ast2600_i2c_bus *i2c_bus, u
 		}
 
 		if (msg->flags & I2C_M_RECV_LEN) {
-			u8 recv_len = 0;
-
-			if (i2c_bus->version == AST2700) {
-				recv_len = AST2700_I2CC_GET_BUFF(readl(i2c_bus->reg_base
-							       + BYTE_DATA_LOG));
-			} else {
-				recv_len = AST2600_I2CC_GET_RX_BUFF(readl(i2c_bus->reg_base
-							       + AST2600_I2CC_STS_AND_BUFF));
-			}
+			u32 recv_len = AST2600_I2CC_GET_RX_BUFF(readl(i2c_bus->reg_base
+						       + AST2600_I2CC_STS_AND_BUFF));
 
 			msg->len = min_t(unsigned int, recv_len, I2C_SMBUS_BLOCK_MAX);
 			msg->len += ((msg->flags & I2C_CLIENT_PEC) ? 2 : 1);
@@ -1905,17 +1902,10 @@ static int ast2600_i2c_controller_irq(struct ast2600_i2c_bus *i2c_bus)
 	}
 
 	/* handle controller abnormal condition */
-	if (i2c_bus->version == AST2700) {
-		i2c_bus->cmd_err = ast2700_i2c_irq_err_to_errno(sts);
+	if (i2c_bus->irq_err_to_errno && i2c_bus->irq_clear) {
+		i2c_bus->cmd_err = i2c_bus->irq_err_to_errno(sts);
 		if (i2c_bus->cmd_err) {
-			writel(sts, i2c_bus->reg_base + AST2600_I2CM_ISR);
-			complete(&i2c_bus->cmd_complete);
-			return 1;
-		}
-	} else {
-		i2c_bus->cmd_err = ast2600_i2c_irq_err_to_errno(sts);
-		if (i2c_bus->cmd_err) {
-			writel(AST2600_I2CM_PKT_DONE, i2c_bus->reg_base + AST2600_I2CM_ISR);
+			i2c_bus->irq_clear(i2c_bus, sts);
 			complete(&i2c_bus->cmd_complete);
 			return 1;
 		}
@@ -2062,10 +2052,7 @@ static int ast2600_i2c_init(struct ast2600_i2c_bus *i2c_bus)
 	writel(0, i2c_bus->reg_base + AST2600_I2CS_ADDR_CTRL);
 
 	/* Set AC Timing */
-	if (i2c_bus->version == AST2700)
-		ast2700_i2c_ac_timing_config(i2c_bus);
-	else
-		ast2600_i2c_ac_timing_config(i2c_bus);
+	i2c_bus->ac_timing_config(i2c_bus);
 
 	if (i2c_bus->mode == DMA_MODE) {
 		i2c_bus->controller_dma_buf =
@@ -2191,8 +2178,6 @@ static int ast2600_i2c_reg_target(struct i2c_client *client)
 		       i2c_bus->reg_base + AST2600_I2CS_DMA_LEN);
 	} else if (i2c_bus->mode == BUFF_MODE) {
 		cmd = TARGET_TRIGGER_CMD;
-		if (i2c_bus->version == AST2700)
-			cmd |= AST2600_I2CS_RX_DMA_EN;
 	} else {
 		cmd &= ~AST2600_I2CS_PKT_MODE_EN;
 	}
@@ -2304,6 +2289,16 @@ static int ast2600_i2c_probe(struct platform_device *pdev)
 				     AST2600_I2CG_CLK_DIV_CTRL, AST2700_I2CCG_DIV_CTRL);
 	}
 
+	if (i2c_bus->version == AST2700) {
+		i2c_bus->ac_timing_config = ast2700_i2c_ac_timing_config;
+		i2c_bus->irq_err_to_errno = ast2700_i2c_irq_err_to_errno;
+		i2c_bus->irq_clear = ast2700_i2c_irq_clear;
+	} else {
+		i2c_bus->ac_timing_config = ast2600_i2c_ac_timing_config;
+		i2c_bus->irq_err_to_errno = ast2600_i2c_irq_err_to_errno;
+		i2c_bus->irq_clear = ast2600_i2c_irq_clear;
+	}
+
 #if IS_ENABLED(CONFIG_I2C_SLAVE)
 	i2c_bus->target_operate = 0;
 	i2c_bus->target_attached = 0;
@@ -2350,6 +2345,18 @@ static int ast2600_i2c_probe(struct platform_device *pdev)
 		i2c_bus->setup_rx = ast2600_i2c_setup_byte_rx;
 		break;
 	}
+
+#if IS_ENABLED(CONFIG_I2C_SLAVE)
+	i2c_bus->target_byte_irq = ast2600_i2c_target_byte_irq;
+	if (i2c_bus->mode == DMA_MODE) {
+		if (i2c_bus->version == AST2700)
+			i2c_bus->target_packet_irq = ast2700_i2c_target_packet_dma_irq;
+		else
+			i2c_bus->target_packet_irq = ast2600_i2c_target_packet_dma_irq;
+	} else {
+		i2c_bus->target_packet_irq = ast2600_i2c_target_packet_buff_irq;
+	}
+#endif
 
 	/*
 	 * i2c timeout counter: use base clk4 1Mhz,
