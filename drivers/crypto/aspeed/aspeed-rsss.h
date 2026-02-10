@@ -207,9 +207,9 @@ struct aspeed_rsa_ctx {
 
 	struct rsa_key			key;
 	int				enc;
-	u8				*n;
-	u8				*e;
-	u8				*d;
+	u8				n[ASPEED_RSA_MAX_KEY_LEN];
+	u8				e[ASPEED_RSA_MAX_KEY_LEN];
+	u8				d[ASPEED_RSA_MAX_KEY_LEN];
 	size_t				n_sz;
 	size_t				e_sz;
 	size_t				d_sz;
