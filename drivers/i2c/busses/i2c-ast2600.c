@@ -1416,6 +1416,7 @@ static void ast2600_i2c_target_byte_irq(struct ast2600_i2c_bus *i2c_bus, u32 sts
 		writel(sts, i2c_bus->reg_base + AST2600_I2CS_ISR);
 		readl(i2c_bus->reg_base + AST2600_I2CS_ISR);
 		i2c_slave_event(i2c_bus->target, I2C_SLAVE_STOP, &value);
+		i2c_bus->target_operate = 0;
 		return;
 	}
 
@@ -2364,10 +2365,7 @@ static int ast2600_i2c_probe(struct platform_device *pdev)
 	 */
 	ret = device_property_read_u32(dev, "i2c-scl-clk-low-timeout-us", &i2c_bus->timeout);
 	if (!ret) {
-		i2c_bus->timeout /= 1024;
-
-		if (!i2c_bus->timeout)
-			i2c_bus->timeout = 1;
+		i2c_bus->timeout = DIV_ROUND_UP(i2c_bus->timeout, 1024);
 	}
 
 	init_completion(&i2c_bus->cmd_complete);
