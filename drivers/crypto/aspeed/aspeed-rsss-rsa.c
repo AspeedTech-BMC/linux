@@ -249,7 +249,7 @@ static int aspeed_rsa_trigger(struct aspeed_rsss_dev *rsss_dev)
 	cipher = crypto_akcipher_reqtfm(req);
 	ctx = akcipher_tfm_ctx(cipher);
 
-	if (!ctx->n || !ctx->n_sz) {
+	if (!ctx->n_sz) {
 		dev_err(rsss_dev->dev, "%s: key n is not set\n", __func__);
 		return -EINVAL;
 	}
@@ -273,7 +273,7 @@ static int aspeed_rsa_trigger(struct aspeed_rsss_dev *rsss_dev)
 	req->dst_len = nm / 8;
 
 	if (ctx->enc) {
-		if (!ctx->e || !ctx->e_sz) {
+		if (!ctx->e_sz) {
 			dev_err(rsss_dev->dev, "%s: key e is not set\n",
 				__func__);
 			return -EINVAL;
@@ -283,7 +283,7 @@ static int aspeed_rsa_trigger(struct aspeed_rsss_dev *rsss_dev)
 					 ctx->e, ctx->e_sz,
 					 ASPEED_RSA_EXP_MODE);
 	} else {
-		if (!ctx->d || !ctx->d_sz) {
+		if (!ctx->d_sz) {
 			dev_err(rsss_dev->dev, "%s: key d is not set\n",
 				__func__);
 			return -EINVAL;
@@ -341,18 +341,11 @@ static int aspeed_rsa_dec(struct akcipher_request *req)
 	return aspeed_rsa_handle_queue(rsss_dev, req);
 }
 
-static u8 *aspeed_rsa_key_copy(u8 *src, size_t len)
-{
-	return kmemdup(src, len, GFP_KERNEL);
-}
-
 static int aspeed_rsa_set_n(struct aspeed_rsa_ctx *ctx, u8 *value,
 			    size_t len)
 {
 	ctx->n_sz = len;
-	ctx->n = aspeed_rsa_key_copy(value, len);
-	if (!ctx->n)
-		return -ENOMEM;
+	memcpy(ctx->n, value, len);
 
 	return 0;
 }
@@ -361,9 +354,7 @@ static int aspeed_rsa_set_e(struct aspeed_rsa_ctx *ctx, u8 *value,
 			    size_t len)
 {
 	ctx->e_sz = len;
-	ctx->e = aspeed_rsa_key_copy(value, len);
-	if (!ctx->e)
-		return -ENOMEM;
+	memcpy(ctx->e, value, len);
 
 	return 0;
 }
@@ -372,21 +363,9 @@ static int aspeed_rsa_set_d(struct aspeed_rsa_ctx *ctx, u8 *value,
 			    size_t len)
 {
 	ctx->d_sz = len;
-	ctx->d = aspeed_rsa_key_copy(value, len);
-	if (!ctx->d)
-		return -ENOMEM;
+	memcpy(ctx->d, value, len);
 
 	return 0;
-}
-
-static void aspeed_rsa_key_free(struct aspeed_rsa_ctx *ctx)
-{
-	kfree_sensitive(ctx->n);
-	kfree_sensitive(ctx->e);
-	kfree_sensitive(ctx->d);
-	ctx->n_sz = 0;
-	ctx->e_sz = 0;
-	ctx->d_sz = 0;
 }
 
 static int aspeed_rsa_setkey(struct crypto_akcipher *tfm, const void *key,
@@ -416,29 +395,17 @@ static int aspeed_rsa_setkey(struct crypto_akcipher *tfm, const void *key,
 		return 0;
 
 	hexdump("n", (u8 *)ctx->key.n, ctx->key.n_sz);
-	ret = aspeed_rsa_set_n(ctx, (u8 *)ctx->key.n, ctx->key.n_sz);
-	if (ret)
-		goto err;
+	aspeed_rsa_set_n(ctx, (u8 *)ctx->key.n, ctx->key.n_sz);
 
 	hexdump("e", (u8 *)ctx->key.e, ctx->key.e_sz);
-	ret = aspeed_rsa_set_e(ctx, (u8 *)ctx->key.e, ctx->key.e_sz);
-	if (ret)
-		goto err;
+	aspeed_rsa_set_e(ctx, (u8 *)ctx->key.e, ctx->key.e_sz);
 
 	if (priv) {
 		hexdump("d", (u8 *)ctx->key.d, ctx->key.d_sz);
-		ret = aspeed_rsa_set_d(ctx, (u8 *)ctx->key.d, ctx->key.d_sz);
-		if (ret)
-			goto err;
+		aspeed_rsa_set_d(ctx, (u8 *)ctx->key.d, ctx->key.d_sz);
 	}
 
 	return 0;
-
-err:
-	dev_err(rsss_dev->dev, "rsss set key failed\n");
-	aspeed_rsa_key_free(ctx);
-
-	return ret;
 }
 
 static int aspeed_rsa_set_pub_key(struct crypto_akcipher *tfm,
