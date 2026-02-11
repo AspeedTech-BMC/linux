@@ -545,17 +545,15 @@ static void ast2700_i2c_ac_timing_config(struct ast2600_i2c_bus *i2c_bus)
 static int ast2600_i2c_recover_bus(struct ast2600_i2c_bus *i2c_bus)
 {
 	u32 state = readl(i2c_bus->reg_base + AST2600_I2CC_STS_AND_BUFF);
-	u32 ctrl = readl(i2c_bus->reg_base + AST2600_I2CC_FUN_CTRL);
+	u32 ctrl;
 	int ret = 0;
 	int r;
 
 	dev_dbg(i2c_bus->dev, "%d-bus recovery bus [%x]\n", i2c_bus->adap.nr, state);
 
 	/* reset i2c controller to avoid the bus getting stuck */
-	ctrl &= ~(AST2600_I2CC_MASTER_EN);
-	writel(ctrl, i2c_bus->reg_base + AST2600_I2CC_FUN_CTRL);
-
-	ctrl |= (AST2600_I2CC_MASTER_EN);
+	ctrl = readl(i2c_bus->reg_base + AST2600_I2CC_FUN_CTRL);
+	writel(ctrl & ~AST2600_I2CC_MASTER_EN, i2c_bus->reg_base + AST2600_I2CC_FUN_CTRL);
 	writel(ctrl, i2c_bus->reg_base + AST2600_I2CC_FUN_CTRL);
 
 	reinit_completion(&i2c_bus->cmd_complete);
