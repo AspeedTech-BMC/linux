@@ -5,7 +5,7 @@
 #ifndef __ASPEED_MMBI_H__
 #define __ASPEED_MMBI_H__
 
-#include "asm-generic/int-ll64.h"
+#include "linux/wait.h"
 #include <linux/io.h>
 #include "linux/miscdevice.h"
 #include <linux/spinlock_types.h>
@@ -27,6 +27,12 @@
 #define MMBI_BUF_TYPE_MASK GENMASK(3, 0)
 #define MMBI_INT_VAL_MASK GENMASK(3, 0)
 #define MMBI_INT_TYPE_MASK GENMASK(2, 0)
+#define MMBI_PTR_ADDR_MASK GENMASK(31, 2)
+#define MMBI_PTR_ADDR_ALIGN(addr) (ALIGN_DOWN(addr, 4))
+#define MMBI_PKT_PADDING_MASK GENMASK(1, 0)
+#define MMBI_PKT_PROTOCOL_MASK GENMASK(3, 0)
+#define MMBI_PKT_MIN_SIZE 8
+#define MMBI_PKT_HDR_SIZE 4
 
 #define MMBI_STATE_RDY_MSK BIT(0)
 #define MMBI_STATE_RST_MSK BIT(0)
@@ -40,6 +46,11 @@
 #define MMBI_BMC_INT_VAL_OFFSET 55
 /* Host interrupt value location is fixed at offset 45, only used in v1.1 */
 #define MMBI_HOST_INT_VAL_OFFSET 45
+
+static __always_inline u8 mmbi_get_ready(u8 __iomem *devm_virt)
+{
+	return ioread8(devm_virt + sizeof(u32)) | MMBI_STATE_RDY_MSK;
+}
 
 static __always_inline void mmbi_set_ready(u8 __iomem *devm_virt)
 {
@@ -107,6 +118,10 @@ enum mmbi_buffer_type {
 	MMBI_BUFFER_TYPE_VPSCB = 0x01,
 };
 
+enum mmbi_multi_protocol {
+	MMBI_PROTOCOL_MCTP = 0x04,
+};
+
 struct mmbi_buf_vpscb {
 	u32 h_ros_p;		/* Host Read Pointer address offset */
 	u32 h_rws_p;		/* Host Read Write Pointer address offset */
@@ -125,6 +140,10 @@ struct mmbi_chan_desc {
 	enum mmbi_state state;			/* Current MMBI State of this channel */
 	struct mmbi_ins_desc *mmbi;		/* Back pointer to instance descriptor */
 	struct miscdevice miscdev;		/* MMBI char device for this channel */
+	wait_queue_head_t rx_wait;		/* Wait queue for receiving data */
+	bool rx_ready;				/* Flag indicating if has data to be read */
+	spinlock_t rx_lock;			/* IRQ lock to prevent rx_ready race */
+	bool peer_ready;			/* Flag indicating peer ready bit */
 };
 
 struct mmbi_ins_desc {
@@ -142,6 +161,7 @@ struct mmbi_ins_desc {
 	struct mmbi_chan_desc chan_desc[MMBI_MAX_CHANNELS];
 	struct device *dev;
 	struct work_struct work;
+	struct delayed_work irq_pending_work;
 	u8 pending_int;		/* Pending interrupt value, only for MMBI_VERSION_1_1 */
 	spinlock_t irq_lock;	/* IRQ lock to prevent int_value race */
 	enum mmbi_role role;
@@ -153,6 +173,10 @@ void mmbi_channel_state_update(struct mmbi_chan_desc *chan,
 void mmbi_set_int_value(struct mmbi_ins_desc *mmbi, u32 val_location,
 			u32 location, u8 val);
 void mmbi_clr_pending_int(struct mmbi_ins_desc *mmbi, u8 idx);
+int mmbi_channel_avail_length(u8 __iomem *read_structure,
+			      u8 __iomem *write_structure, u32 buf_size);
+int mmbi_channel_unhandled_length(u8 __iomem *read_structure,
+				  u8 __iomem *write_structure, u32 buf_size);
 int mmbi_instance_init(struct mmbi_ins_desc *mmbi);
 
 #endif

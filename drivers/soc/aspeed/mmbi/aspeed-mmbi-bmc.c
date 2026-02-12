@@ -27,9 +27,9 @@ static void mmbi_channel_state_handler(struct mmbi_chan_desc *chan, u8 __iomem *
 	struct mmbi_buf_vpscb *vpscb;
 	u8 __iomem *host_ros_virt, *host_rws_virt;
 	u32 bmc_int_location;
+	u32 unhandled_len;
+	unsigned long flags;
 
-	/* avoid pending interrupt triggered while doing state handling */
-	mmbi_clr_pending_int(chan->mmbi, chan->index);
 	prev_state = chan->state;
 
 	bmc_int_location = chan->mmbi->bmc_int_location;
@@ -37,6 +37,7 @@ static void mmbi_channel_state_handler(struct mmbi_chan_desc *chan, u8 __iomem *
 	host_ros_virt = desc_virt + vpscb->h_ros_p;
 	host_rws_virt = desc_virt + vpscb->h_rws_p;
 	mmbi_channel_state_update(chan, desc_virt);
+	chan->peer_ready = mmbi_get_ready(host_rws_virt);
 	cur_state = chan->state;
 
 	switch (cur_state) {
@@ -49,8 +50,19 @@ static void mmbi_channel_state_handler(struct mmbi_chan_desc *chan, u8 __iomem *
 		break;
 	case NORMAL_RUNTIME:
 		mmbi_set_ready(host_ros_virt);
+
+		spin_lock_irqsave(&chan->rx_lock, flags);
+		unhandled_len = mmbi_channel_unhandled_length(host_ros_virt, host_rws_virt, chan->h2b_l);
+		// dev_info(chan->mmbi->dev, "%s: chan %u unhandled_len %u\n", __func__, chan->index, unhandled_len);
+		if (unhandled_len >= MMBI_PKT_MIN_SIZE) {
+			chan->rx_ready = true;
+			wake_up_interruptible(&chan->rx_wait);
+		} else {
+			chan->rx_ready = false;
+		}
+		spin_unlock_irqrestore(&chan->rx_lock, flags);
+
 		/* if previous state was not NORMAL_RUNTIME, send int to notify host */
-		// TODO: check if has data to receive from host
 		if (prev_state != NORMAL_RUNTIME)
 			mmbi_set_int_value(chan->mmbi, MMBI_BMC_INT_VAL_OFFSET, bmc_int_location, BIT(chan->index));
 		break;
@@ -102,6 +114,9 @@ static int mmbi_channel_init_bmc(u8 __iomem *desc_virt, struct mmbi_chan_desc *c
 	struct mmbi_buf_vpscb *buffer_desc;
 
 	mmbi_clr_pending_int(chan_desc->mmbi, chan_desc->index);
+	init_waitqueue_head(&chan_desc->rx_wait);
+	chan_desc->rx_ready = false;
+	chan_desc->peer_ready = false;
 	MMBI_PUT_U32_MSB(desc_virt, offset, MMBI_BUF_ADDR_ALIGN(chan_desc->b2h_ba_offset));
 	MMBI_PUT_U32_MSB(desc_virt, offset, MMBI_BUF_ADDR_ALIGN(chan_desc->h2b_ba_offset));
 	MMBI_PUT_U32_MSB(desc_virt, offset, chan_desc->b2h_l);
@@ -131,8 +146,7 @@ void mmbi_instance_irq_bmc(struct mmbi_ins_desc *mmbi)
 		u8 host_int_val;
 
 		host_int_val = ioread8(mmbi->desc_virt + MMBI_HOST_INT_VAL_OFFSET);
-		pr_info("%s: MMBI instance %u received interrupt with host_int_val 0x%x\n",
-			__func__, mmbi->ins_id, host_int_val);
+		// pr_info("%s: received irq value 0x%x", __func__, host_int_val);
 		for (int i = 0; i < mmbi->num_of_channels; i++) {
 			if (host_int_val & (1 << i)) {
 				mmbi_channel_state_handler(&mmbi->chan_desc[i],

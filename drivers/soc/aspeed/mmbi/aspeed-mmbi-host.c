@@ -4,6 +4,7 @@
  */
 
 #include "linux/compiler_types.h"
+#include "linux/wait.h"
 #include <linux/bitfield.h>
 #include <linux/bits.h>
 #include <linux/device.h>
@@ -20,16 +21,18 @@ static void mmbi_channel_state_handler(struct mmbi_chan_desc *chan, u8 __iomem *
 	enum mmbi_state prev_state, cur_state;
 	struct mmbi_buf_vpscb *vpscb;
 	u8 __iomem *host_rws_virt;
+	u8 __iomem *host_ros_virt;
 	u32 host_int_location;
+	unsigned long flags;
 
-	/* avoid pending interrupt triggered while doing state handling */
-	mmbi_clr_pending_int(chan->mmbi, chan->index);
 	prev_state = chan->state;
 
 	host_int_location = chan->mmbi->host_int_location;
 	vpscb = &chan->buffer_desc;
 	host_rws_virt = desc_virt + vpscb->h_rws_p;
+	host_ros_virt = desc_virt + vpscb->h_ros_p;
 	mmbi_channel_state_update(chan, desc_virt);
+	chan->peer_ready = mmbi_get_ready(host_ros_virt);
 	cur_state = chan->state;
 
 	switch (cur_state) {
@@ -42,7 +45,18 @@ static void mmbi_channel_state_handler(struct mmbi_chan_desc *chan, u8 __iomem *
 		break;
 	case NORMAL_RUNTIME:
 		mmbi_set_ready(host_rws_virt);
-		// TODO: check if has data to receive from BMC
+
+		spin_lock_irqsave(&chan->rx_lock, flags);
+		if (mmbi_channel_unhandled_length(host_rws_virt, host_ros_virt,
+						  chan->b2h_l) >= MMBI_PKT_MIN_SIZE) {
+			if (!chan->rx_ready) {
+				chan->rx_ready = true;
+				wake_up_interruptible(&chan->rx_wait);
+			}
+		} else {
+			chan->rx_ready = false;
+		}
+		spin_unlock_irqrestore(&chan->rx_lock, flags);
 		break;
 	case RESET_REQ_BY_BMC:
 		// TODO: consume all data from B2H buffer
@@ -100,6 +114,9 @@ static int mmbi_channel_init_host(u8 __iomem *desc_virt, struct mmbi_chan_desc *
 	}
 
 	mmbi_clr_pending_int(chan_desc->mmbi, chan_desc->index);
+	init_waitqueue_head(&chan_desc->rx_wait);
+	chan_desc->rx_ready = false;
+	chan_desc->peer_ready = false;
 	memcpy_fromio(&chan_desc->b2h_ba_offset, desc_virt, sizeof(chan_desc->b2h_ba_offset));
 	memcpy_fromio(&chan_desc->h2b_ba_offset, desc_virt + 4, sizeof(chan_desc->h2b_ba_offset));
 	memcpy_fromio(&chan_desc->b2h_l, desc_virt + 8, sizeof(chan_desc->b2h_l));
@@ -136,8 +153,6 @@ void mmbi_instance_irq_host(struct mmbi_ins_desc *mmbi)
 		u8 bmc_int_val;
 
 		bmc_int_val = ioread8(mmbi->desc_virt + MMBI_BMC_INT_VAL_OFFSET);
-		pr_info("%s: MMBI instance %u received interrupt with bmc_int_val 0x%x\n",
-			__func__, mmbi->ins_id, bmc_int_val);
 
 		for (int i = 0; i < mmbi->num_of_channels; i++) {
 			if (bmc_int_val & (1 << i)) {
