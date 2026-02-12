@@ -257,6 +257,10 @@ void ast_vhub_init_hw(struct ast_vhub *vhub)
 	if (vhub->force_usb1)
 		ctrl |= VHUB_CTRL_FULL_SPEED_ONLY;
 
+	/* Enlarge FIFO for ast2700 soc0 vhub1 */
+	if (vhub->enlarge_fifo)
+		ctrl |= VHUB_CTRL_ENLARGE_FIFO;
+
 	ctrl |= VHUB_CTRL_AUTO_REMOTE_WAKEUP;
 	ctrl |= VHUB_CTRL_UPSTREAM_CONNECT;
 	writel(ctrl, vhub->regs + AST_VHUB_CTRL);
@@ -453,6 +457,8 @@ static int ast_vhub_probe(struct platform_device *pdev)
 				  sizeof(*vhub->epns), GFP_KERNEL);
 	if (!vhub->epns)
 		return -ENOMEM;
+
+	vhub->enlarge_fifo = of_property_read_bool(np, "aspeed,enlarge-fifo");
 
 	spin_lock_init(&vhub->lock);
 	vhub->pdev = pdev;

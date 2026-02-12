@@ -35,6 +35,7 @@
 #define VHUB_CTRL_PHY_LOOP_TEST			(1 << 25)
 #define VHUB_CTRL_DN_PWN			(1 << 24)
 #define VHUB_CTRL_DP_PWN			(1 << 23)
+#define VHUB_CTRL_ENLARGE_FIFO			(1 << 21)
 #define VHUB_CTRL_LONG_DESC			(1 << 18)
 #define VHUB_CTRL_ISO_RSP_CTRL			(1 << 17)
 #define VHUB_CTRL_SPLIT_IN			(1 << 16)
@@ -428,6 +429,9 @@ struct ast_vhub {
 
 	/* Force full speed only */
 	bool				force_usb1 : 1;
+
+	/* Enlarge FIFO for ast2700 soc0 vhub1 */
+	bool				enlarge_fifo : 1;
 
 	/* Upstream bus speed captured at bus reset */
 	unsigned int			speed;
