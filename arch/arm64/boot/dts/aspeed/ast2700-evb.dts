@@ -1162,7 +1162,6 @@
 
 &uhci0 {
 	status = "okay";
-	memory-region = <&uhci0_reserved>;
 };
 
 #endif
@@ -1223,7 +1222,6 @@
 
 &uhci1 {
 	status = "okay";
-	memory-region = <&uhci1_reserved>;
 };
 
 &wdt0 {
