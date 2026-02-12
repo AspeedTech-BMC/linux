@@ -206,6 +206,8 @@ static irqreturn_t aspeed_host_irq_handler(int irq, void *data)
 
 			/*Change the CRT back to host*/
 			regmap_update_bits(priv->scu, priv->dac_reg, priv->soc_crt_bit, 0);
+			if ((priv->flags & CLK_MASK) == CLK_G7)
+				regmap_update_bits(priv->scu1, 0xD0, BIT(10), 0);
 		} else if (reg & priv->pcie_int_h_to_l) {
 			dev_dbg(drm->dev, "pcie de-active.\n");
 			/*Change the DP into host*/
@@ -218,6 +220,8 @@ static irqreturn_t aspeed_host_irq_handler(int irq, void *data)
 
 			/*Change the CRT into soc*/
 			regmap_update_bits(priv->scu, priv->dac_reg, priv->soc_crt_bit, priv->soc_crt_bit);
+			if ((priv->flags & CLK_MASK) == CLK_G7)
+				regmap_update_bits(priv->scu1, 0xD0, BIT(10), BIT(10));
 		}
 		return IRQ_HANDLED;
 	}
@@ -276,7 +280,10 @@ static int aspeed_pcie_active_detect(struct drm_device *drm)
 
 static int aspeed_adaptor_detect(struct drm_device *drm)
 {
+	struct platform_device *pdev = to_platform_device(drm->dev);
 	struct aspeed_gfx *priv = to_aspeed_gfx(drm);
+	struct device_node *np = pdev->dev.of_node;
+
 	u32 dp_status_offset = 0, reg = 0;
 
 	switch (priv->flags & CLK_MASK) {
@@ -331,6 +338,16 @@ static int aspeed_adaptor_detect(struct drm_device *drm)
 
 			/* change the dp setting is coming from soc display */
 			regmap_update_bits(priv->dp, DP_SOURCE, DP_CONTROL_FROM_SOC, DP_CONTROL_FROM_SOC);
+		}
+
+		/* get the scu1 for DAC setting */
+		priv->scu1 = syscon_regmap_lookup_by_phandle(np, "syscon_io");
+		if (IS_ERR(priv->scu1)) {
+			priv->scu = syscon_regmap_lookup_by_compatible("aspeed,ast2700-scu1");
+			if (IS_ERR(priv->scu1)) {
+				dev_err(drm->dev, "failed to find SCU1 regmap\n");
+				return PTR_ERR(priv->scu1);
+			}
 		}
 
 		break;

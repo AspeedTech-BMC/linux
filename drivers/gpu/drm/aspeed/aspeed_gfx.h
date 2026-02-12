@@ -11,6 +11,7 @@ struct aspeed_gfx {
 	struct reset_control		*rst_crt;
 	struct reset_control		*rst_engine;
 	struct regmap			*scu;
+	struct regmap			*scu1;
 	struct regmap			*dp;
 	struct regmap			*dpmcu;
 	struct regmap			*pcie_ep;

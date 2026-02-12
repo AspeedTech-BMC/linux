@@ -55,6 +55,10 @@ static void aspeed_gfx_set_g7_clock(struct aspeed_gfx *priv)
 	/* apply 800 x 600 @ 60 on ast2700 */
 	regmap_update_bits(priv->scu, 0x288, BIT(14), BIT(14));
 	regmap_write(priv->scu, 0x340, 0x00190002);
+
+	/* apply 800 x 600 @ 60 on ast2700 DAC */
+	regmap_update_bits(priv->scu1, 0xd0, BIT(10), BIT(10));
+	regmap_write(priv->scu1, 0x320, 0x1048000F);
 }
 
 static int aspeed_gfx_set_pixel_fmt(struct aspeed_gfx *priv, u32 *bpp)
