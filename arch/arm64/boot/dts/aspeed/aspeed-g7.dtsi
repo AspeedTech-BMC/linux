@@ -787,6 +787,7 @@
 			clocks = <&syscon0 SCU0_CLK_GATE_CRT0CLK>;
 			resets = <&syscon0 SCU0_RESET_CRT0>;
 			syscon = <&syscon0>;
+			syscon_io = <&syscon1>;
 			status = "disabled";
 			interrupts-extended = <&gic GIC_SPI 14 IRQ_TYPE_LEVEL_HIGH>,
 			<&scu_ic0 ASPEED_AST2700_SCU_IC0_PCIE_PERST_LO_TO_HI>,
