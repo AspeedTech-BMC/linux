@@ -249,6 +249,7 @@
 			pinctrl-0 = <&pinctrl_usb2axhpd1_default>;
 			aspeed,device = <&pcie_cfg0>;
 			aspeed,scu = <&syscon0>;
+			aspeed,enlarge-fifo;
 			status = "disabled";
 		};
 
@@ -282,6 +283,7 @@
 			pinctrl-0 = <&pinctrl_usb2bxhpd1_default>;
 			aspeed,device = <&pcie_cfg1>;
 			aspeed,scu = <&syscon0>;
+			aspeed,enlarge-fifo;
 			status = "disabled";
 		};
 
