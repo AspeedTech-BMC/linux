@@ -958,7 +958,6 @@
 
 &uhci1 {
 	status = "okay";
-	memory-region = <&uhci1_reserved>;
 };
 
 &wdt0 {
