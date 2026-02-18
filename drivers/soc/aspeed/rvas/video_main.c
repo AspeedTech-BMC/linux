@@ -1150,10 +1150,16 @@ void enable_rvas_engines(struct AstRVAS *pAstRVAS)
 
 static void reset_rvas_engine(struct AstRVAS *pAstRVAS)
 {
-	disable_rvas_engines(pAstRVAS);
-	if (pAstRVAS->config->version == 7)
-		reset_control_deassert(pAstRVAS->rvas_reset);
-	enable_rvas_engines(pAstRVAS);
+	if (pAstRVAS->config->version == 7) {
+		regmap_write(pAstRVAS->scu, 0x200, 0x200);
+		mdelay(200);
+		regmap_write(pAstRVAS->scu, 0x244, 0x2000000);
+		mdelay(100);
+		regmap_write(pAstRVAS->scu, 0x204, 0x200);
+	} else {
+		disable_rvas_engines(pAstRVAS);
+		enable_rvas_engines(pAstRVAS);
+	}
 	rvas_init(pAstRVAS);
 }
 
