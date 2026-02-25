@@ -82,6 +82,12 @@
 #define ASPEED_H2X_CFGE_INT_STS		0x08
 #define  ASPEED_CFGE_TX_IDLE			BIT(0)
 #define  ASPEED_CFGE_RX_BUSY			BIT(1)
+#define ASPEED_H2X_CTRL2		0x1c
+#define  ASPEED_CPL_TIMEOUT_MASK		GENMASK(9, 8)
+#define  ASPEED_CPL_TIMEOUT_10US		0
+#define  ASPEED_CPL_TIMEOUT_20US		1
+#define  ASPEED_CPL_TIMEOUT_40US		2
+#define  ASPEED_CPL_TIMEOUT_160US		3
 #define ASPEED_H2X_CFGI_TLP		0x20
 #define  ASPEED_CFGI_BYTE_EN_MASK		GENMASK(19, 16)
 #define  ASPEED_CFGI_BYTE_EN(x) \
@@ -1006,6 +1012,9 @@ static int aspeed_ast2700_setup(struct platform_device *pdev)
 	writel(0, pcie->reg + ASPEED_H2X_CTRL);
 	writel(ASPEED_H2X_BRIDGE_EN | ASPEED_H2X_BRIDGE_DIRECT_EN,
 	       pcie->reg + ASPEED_H2X_CTRL);
+
+	writel(FIELD_PREP(ASPEED_CPL_TIMEOUT_MASK, ASPEED_CPL_TIMEOUT_160US),
+	       pcie->reg + ASPEED_H2X_CTRL2);
 
 	/* Prepare for 64-bit BAR pref */
 	writel(ASPEED_REMAP_PREF_ADDR_63_32(0x3),
