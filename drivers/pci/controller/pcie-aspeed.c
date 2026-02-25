@@ -91,6 +91,12 @@
 #define H2X_CFGE_INT_STS	0x08
 #define CFGE_TX_IDLE			BIT(0)
 #define CFGE_RX_BUSY			BIT(1)
+#define H2X_CTRL2		0x1c
+#define CPL_TIMEOUT_MASK		GENMASK(9, 8)
+#define CPL_TIMEOUT_10US		0
+#define CPL_TIMEOUT_20US		1
+#define CPL_TIMEOUT_40US		2
+#define CPL_TIMEOUT_160US		3
 #define H2X_CFGI_TLP		0x20
 #define H2X_CFGI_WR_DATA	0x24
 #define H2X_CFGI_CTRL		0x28
@@ -1033,6 +1039,9 @@ static int aspeed_ast2700_setup(struct platform_device *pdev)
 
 	writel(0, pcie->reg + H2X_CTRL);
 	writel(H2X_BRIDGE_EN | H2X_BRIDGE_DIRECT_EN, pcie->reg + H2X_CTRL);
+
+	writel(FIELD_PREP(CPL_TIMEOUT_MASK, CPL_TIMEOUT_160US),
+	       pcie->reg + H2X_CTRL2);
 
 	/* The BAR mapping:
 	 * CPU Node0(domain 0): 0x60000000
