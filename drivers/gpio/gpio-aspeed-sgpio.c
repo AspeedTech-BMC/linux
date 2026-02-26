@@ -46,6 +46,9 @@
 #define SELECT_FROM_PARALLEL_IN 1
 #define SELECT_FROM_SERIAL_IN 2
 
+#define BMC_CONTROL_START_INDEX 128
+#define BMC_CONTROL_END_INDEX 143
+
 #define ASPEED_SGPIO_G4_CFG_OFFSET 0x54
 #define ASPEED_SGPIO_G7_CFG_OFFSET 0x0
 
@@ -57,6 +60,7 @@ struct aspeed_sgpio_pdata {
 	const u32 pin_mask;
 	const struct aspeed_sgpio_llops *llops;
 	const u32 cfg_offset;
+	const bool slave;
 };
 
 struct aspeed_sgpio {
@@ -119,6 +123,8 @@ enum aspeed_sgpio_reg {
 	reg_irq_type2,
 	reg_irq_status,
 	reg_tolerance,
+	reg_serial_out_sel,
+	reg_parallel_out_sel,
 };
 
 struct aspeed_sgpio_llops {
@@ -126,6 +132,8 @@ struct aspeed_sgpio_llops {
 			    const enum aspeed_sgpio_reg reg, bool val);
 	bool (*reg_bit_get)(struct aspeed_sgpio *gpio, unsigned int offset,
 			    const enum aspeed_sgpio_reg reg);
+	void (*reg_bank_set)(struct aspeed_sgpio *gpio, unsigned int offset,
+			     const enum aspeed_sgpio_reg reg, u32 val);
 	int (*reg_bank_get)(struct aspeed_sgpio *gpio, unsigned int offset,
 			    const enum aspeed_sgpio_reg reg);
 };
@@ -182,6 +190,10 @@ static u32 aspeed_sgpio_g7_reg_mask(const enum aspeed_sgpio_reg reg)
 		return SGPIO_G7_IRQ_STS;
 	case reg_tolerance:
 		return SGPIO_G7_RST_TOLERANCE;
+	case reg_serial_out_sel:
+		return SGPIO_G7_SERIAL_OUT_SEL;
+	case reg_parallel_out_sel:
+		return SGPIO_G7_PARALLEL_OUT_SEL;
 	default:
 		WARN_ON_ONCE(1);
 		return 0;
@@ -224,6 +236,14 @@ static void aspeed_sgpio_irq_init_valid_mask(struct gpio_chip *gc,
 static bool aspeed_sgpio_is_input(unsigned int offset)
 {
 	return !(offset % 2);
+}
+
+static bool aspeed_sgpios_ctrl_by_csr(unsigned int offset)
+{
+	if (offset >= BMC_CONTROL_START_INDEX &&
+	    offset <= BMC_CONTROL_END_INDEX)
+		return true;
+	return false;
 }
 
 static int aspeed_sgpio_get(struct gpio_chip *gc, unsigned int offset)
@@ -285,7 +305,6 @@ static int aspeed_sgpio_get_direction(struct gpio_chip *gc, unsigned int offset)
 {
 	return !!aspeed_sgpio_is_input(offset);
 }
-
 
 static void aspeed_sgpio_irq_ack(struct irq_data *d)
 {
@@ -501,9 +520,16 @@ static int aspeed_sgpio_g4_reg_bank_get(struct aspeed_sgpio *gpio, unsigned int 
 		return -EOPNOTSUPP;
 }
 
+static void aspeed_sgpio_g4_reg_bank_set(struct aspeed_sgpio *gpio, unsigned int offset,
+					 const enum aspeed_sgpio_reg reg, u32 val)
+{
+	/* G4 doesn't support bank set for now */
+}
+
 static const struct aspeed_sgpio_llops aspeed_sgpio_g4_llops = {
 	.reg_bit_set = aspeed_sgpio_g4_reg_bit_set,
 	.reg_bit_get = aspeed_sgpio_g4_reg_bit_get,
+	.reg_bank_set = aspeed_sgpio_g4_reg_bank_set,
 	.reg_bank_get = aspeed_sgpio_g4_reg_bank_get,
 };
 
@@ -550,6 +576,20 @@ static void aspeed_sgpio_g7_reg_bit_set(struct aspeed_sgpio *gpio, unsigned int 
 	void __iomem *addr = gpio->base + SGPIO_G7_CTRL_REG_OFFSET(offset >> 1);
 	u32 write_val;
 
+	if (reg == reg_val || reg == reg_rdata) {
+		if (gpio->pdata->slave && !aspeed_sgpios_ctrl_by_csr(offset)) {
+			// Ensure the parallel out value control by the software.
+			gpio->pdata->llops->reg_bank_set(gpio, offset, reg_parallel_out_sel,
+							 SELECT_FROM_CSR);
+			mask = SGPIO_G7_PARALLEL_OUT_DATA;
+		} else {
+			// Ensure the serial out value control by the software.
+			gpio->pdata->llops->reg_bank_set(gpio, offset, reg_serial_out_sel,
+							 SELECT_FROM_CSR);
+			mask = SGPIO_G7_OUT_DATA;
+		}
+	}
+
 	if (mask) {
 		write_val = (ioread32(addr) & ~(mask)) | field_prep(mask, val);
 		iowrite32(write_val, addr);
@@ -563,8 +603,19 @@ static bool aspeed_sgpio_g7_reg_bit_get(struct aspeed_sgpio *gpio, unsigned int 
 	void __iomem *addr;
 
 	addr = gpio->base + SGPIO_G7_CTRL_REG_OFFSET(offset >> 1);
-	if (reg == reg_val)
-		mask = SGPIO_G7_IN_DATA;
+	if (reg == reg_val) {
+		if (gpio->pdata->slave && !aspeed_sgpios_ctrl_by_csr(offset))
+			mask = SGPIO_G7_PARALLEL_IN_DATA;
+		else
+			mask = SGPIO_G7_IN_DATA;
+	}
+
+	if (reg == reg_rdata) {
+		if (gpio->pdata->slave && !aspeed_sgpios_ctrl_by_csr(offset))
+			mask = SGPIO_G7_PARALLEL_OUT_DATA;
+		else
+			mask = SGPIO_G7_OUT_DATA;
+	}
 
 	if (mask)
 		return field_get(mask, ioread32(addr));
@@ -585,9 +636,23 @@ static int aspeed_sgpio_g7_reg_bank_get(struct aspeed_sgpio *gpio, unsigned int 
 	}
 }
 
+static void aspeed_sgpio_g7_reg_bank_set(struct aspeed_sgpio *gpio, unsigned int offset,
+					 const enum aspeed_sgpio_reg reg, u32 val)
+{
+	void __iomem *addr = gpio->base + SGPIO_G7_CTRL_REG_OFFSET(offset >> 1);
+	u32 mask, write_val;
+
+	if (reg == reg_serial_out_sel || reg == reg_parallel_out_sel) {
+		mask = aspeed_sgpio_g7_reg_mask(reg);
+		write_val = (ioread32(addr) & ~(mask)) | field_prep(mask, val);
+		iowrite32(write_val, addr);
+	}
+}
+
 static const struct aspeed_sgpio_llops aspeed_sgpio_g7_llops = {
 	.reg_bit_set = aspeed_sgpio_g7_reg_bit_set,
 	.reg_bit_get = aspeed_sgpio_g7_reg_bit_get,
+	.reg_bank_set = aspeed_sgpio_g7_reg_bank_set,
 	.reg_bank_get = aspeed_sgpio_g7_reg_bank_get,
 };
 
@@ -597,11 +662,19 @@ static const struct aspeed_sgpio_pdata ast2700_sgpiom_pdata = {
 	.cfg_offset = ASPEED_SGPIO_G7_CFG_OFFSET,
 };
 
+static const struct aspeed_sgpio_pdata ast2700_sgpios_pdata = {
+	.pin_mask = GENMASK(11, 6),
+	.llops = &aspeed_sgpio_g7_llops,
+	.cfg_offset = ASPEED_SGPIO_G7_CFG_OFFSET,
+	.slave = true,
+};
+
 static const struct of_device_id aspeed_sgpio_of_table[] = {
 	{ .compatible = "aspeed,ast2400-sgpio", .data = &ast2400_sgpio_pdata, },
 	{ .compatible = "aspeed,ast2500-sgpio", .data = &ast2400_sgpio_pdata, },
 	{ .compatible = "aspeed,ast2600-sgpiom", .data = &ast2600_sgpiom_pdata, },
 	{ .compatible = "aspeed,ast2700-sgpiom", .data = &ast2700_sgpiom_pdata, },
+	{ .compatible = "aspeed,ast2700-sgpios", .data = &ast2700_sgpios_pdata, },
 	{}
 };
 
@@ -639,40 +712,50 @@ static int aspeed_sgpio_probe(struct platform_device *pdev)
 		return -EINVAL;
 	}
 
-	rc = device_property_read_u32(&pdev->dev, "bus-frequency", &sgpio_freq);
-	if (rc < 0) {
-		dev_err(&pdev->dev, "Could not read bus-frequency property\n");
-		return -EINVAL;
+	if (!gpio->pdata->slave) {
+		int i;
+
+		for (i = 0; i < nr_gpios; i++)
+			gpio->pdata->llops->reg_bank_set(gpio, i << 1, reg_serial_out_sel,
+							 SELECT_FROM_CSR);
+
+		rc = device_property_read_u32(&pdev->dev, "bus-frequency", &sgpio_freq);
+		if (rc < 0) {
+			dev_err(&pdev->dev, "Could not read bus-frequency property\n");
+			return -EINVAL;
+		}
+
+		gpio->pclk = devm_clk_get(&pdev->dev, NULL);
+		if (IS_ERR(gpio->pclk)) {
+			dev_err(&pdev->dev, "devm_clk_get failed\n");
+			return PTR_ERR(gpio->pclk);
+		}
+
+		apb_freq = clk_get_rate(gpio->pclk);
+
+		/*
+		 * From the datasheet,
+		 *	SGPIO period = 1/PCLK * 2 * (GPIO254[31:16] + 1)
+		 *	period = 2 * (GPIO254[31:16] + 1) / PCLK
+		 *	frequency = 1 / (2 * (GPIO254[31:16] + 1) / PCLK)
+		 *	frequency = PCLK / (2 * (GPIO254[31:16] + 1))
+		 *	frequency * 2 * (GPIO254[31:16] + 1) = PCLK
+		 *	GPIO254[31:16] = PCLK / (frequency * 2) - 1
+		 */
+		if (sgpio_freq == 0)
+			return -EINVAL;
+
+		sgpio_clk_div = (apb_freq / (sgpio_freq * 2)) - 1;
+
+		if (sgpio_clk_div > (1 << 16) - 1)
+			return -EINVAL;
+
+		gpio_cnt_regval = ((nr_gpios / 8) << ASPEED_SGPIO_PINS_SHIFT) & pin_mask;
+		iowrite32(FIELD_PREP(ASPEED_SGPIO_CLK_DIV_MASK, sgpio_clk_div) | gpio_cnt_regval |
+			  ASPEED_SGPIO_ENABLE, gpio->base + gpio->pdata->cfg_offset);
+	} else {
+		iowrite32(ASPEED_SGPIO_ENABLE, gpio->base + gpio->pdata->cfg_offset);
 	}
-
-	gpio->pclk = devm_clk_get(&pdev->dev, NULL);
-	if (IS_ERR(gpio->pclk)) {
-		dev_err(&pdev->dev, "devm_clk_get failed\n");
-		return PTR_ERR(gpio->pclk);
-	}
-
-	apb_freq = clk_get_rate(gpio->pclk);
-
-	/*
-	 * From the datasheet,
-	 *	SGPIO period = 1/PCLK * 2 * (GPIO254[31:16] + 1)
-	 *	period = 2 * (GPIO254[31:16] + 1) / PCLK
-	 *	frequency = 1 / (2 * (GPIO254[31:16] + 1) / PCLK)
-	 *	frequency = PCLK / (2 * (GPIO254[31:16] + 1))
-	 *	frequency * 2 * (GPIO254[31:16] + 1) = PCLK
-	 *	GPIO254[31:16] = PCLK / (frequency * 2) - 1
-	 */
-	if (sgpio_freq == 0)
-		return -EINVAL;
-
-	sgpio_clk_div = (apb_freq / (sgpio_freq * 2)) - 1;
-
-	if (sgpio_clk_div > (1 << 16) - 1)
-		return -EINVAL;
-
-	gpio_cnt_regval = ((nr_gpios / 8) << ASPEED_SGPIO_PINS_SHIFT) & pin_mask;
-	iowrite32(FIELD_PREP(ASPEED_SGPIO_CLK_DIV_MASK, sgpio_clk_div) | gpio_cnt_regval |
-		  ASPEED_SGPIO_ENABLE, gpio->base + gpio->pdata->cfg_offset);
 
 	raw_spin_lock_init(&gpio->lock);
 
