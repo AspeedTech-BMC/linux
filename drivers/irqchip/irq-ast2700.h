@@ -29,8 +29,10 @@ int aspeed_intc_populate_ranges(struct device *dev,
 typedef u32 aspeed_intc_output_t;
 
 int aspeed_intc0_resolve_route(const struct irq_domain *c0domain,
-	size_t nc1outs, const aspeed_intc_output_t c1outs[static nc1outs],
-	size_t nc1ranges, const struct aspeed_intc_interrupt_range c1ranges[static nc1ranges],
-	struct aspeed_intc_interrupt_range *resolved);
+			       size_t nc1outs,
+			       const aspeed_intc_output_t c1outs[static nc1outs],
+			       size_t nc1ranges,
+			       const struct aspeed_intc_interrupt_range c1ranges[static nc1ranges],
+			       struct aspeed_intc_interrupt_range *resolved);
 
 #endif

@@ -11,7 +11,6 @@ static void aspeed_intc0_resolve_route_bad_args(struct kunit *test)
 	static const aspeed_intc_output_t c1outs[] = { 0 };
 	struct aspeed_intc_interrupt_range resolved;
 	const struct irq_domain c0domain = { 0 };
-
 	int rc;
 
 	rc = aspeed_intc0_resolve_route(NULL, 0, c1outs, 0, c1ranges, NULL);
@@ -27,10 +26,8 @@ static void aspeed_intc0_resolve_route_bad_args(struct kunit *test)
 	KUNIT_EXPECT_EQ(test, rc, -ENODEV);
 }
 
-static int
-arm_gicv3_fwnode_read_string_array(const struct fwnode_handle *fwnode_handle,
-				   const char *propname, const char **val,
-				   size_t nval)
+static int gicv3_fwnode_read_string_array(const struct fwnode_handle *fwnode,
+					  const char *propname, const char **val, size_t nval)
 {
 	if (!propname)
 		return -EINVAL;
@@ -46,7 +43,7 @@ arm_gicv3_fwnode_read_string_array(const struct fwnode_handle *fwnode_handle,
 }
 
 static const struct fwnode_operations arm_gicv3_fwnode_ops = {
-	.property_read_string_array = arm_gicv3_fwnode_read_string_array,
+	.property_read_string_array = gicv3_fwnode_read_string_array,
 };
 
 static void aspeed_intc_resolve_route_invalid_c0domain(struct kunit *test)
