@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- *  Aspeed Interrupt Controller.
+ *  Aspeed AST2700 Interrupt Controller.
  *
- *  Copyright (C) 2023 ASPEED Technology Inc.
+ *  Copyright (C) 2026 ASPEED Technology Inc.
  */
 
 #include <linux/bitops.h>
@@ -20,8 +20,6 @@
 #include <linux/property.h>
 #include <linux/spinlock.h>
 
-#include <dt-bindings/interrupt-controller/arm-gic.h>
-
 #include "irq-ast2700.h"
 
 #define INT_NUM		480
@@ -35,30 +33,26 @@
 #define INTC0_IN_NUM		480
 #define INTC0_ROUTE_NUM		5
 #define INTC0_INTM_NUM		50
+#define INTC0_ROUTE_BITS	3
 
 #define GIC_P2P_SPI_END		128
+#define INTC0_SWINT_OUT_BASE	144
 
 #define INTC0_SWINT_IER		0x10
 #define INTC0_SWINT_ISR		0x14
 #define INTC0_INTBANKX_IER	0x1000
+#define INTC0_INTBANK_SIZE	0x100
 #define INTC0_INTBANK_GROUPS	11
 #define INTC0_INTBANKS_PER_GRP	3
 #define INTC0_INTMX_IER		0x1b00
 #define INTC0_INTMX_ISR		0x1b04
+#define INTC0_INTMX_BANK_SIZE	0x10
 #define INTC0_INTM_BANK_NUM	3
+#define INTC0_IRQS_PER_BANK	32
 #define INTM_IRQS_PER_BANK	10
 #define INTC0_SEL_BASE			0x200
 #define INTC0_SEL_BANK_SIZE		0x4
 #define INTC0_SEL_ROUTE_SIZE	0x100
-
-struct aspeed_intc0 {
-	struct device				*dev;
-	void __iomem				*base;
-	raw_spinlock_t				intc_lock;
-	struct irq_domain			*local;
-	struct device_node			*parent;
-	struct aspeed_intc_interrupt_ranges	ranges;
-};
 
 static void aspeed_swint_irq_mask(struct irq_data *data)
 {
@@ -109,9 +103,9 @@ static void aspeed_intc0_irq_mask(struct irq_data *data)
 	int bit = (data->hwirq - INTM_BASE) % INTM_IRQS_PER_BANK;
 	u32 ier;
 
-	guard(raw_spinlock_irqsave)(&intc0->intc_lock);
-	ier = readl(intc0->base + INTC0_INTMX_IER + bank * 0x10) & ~BIT(bit);
-	writel(ier, intc0->base + INTC0_INTMX_IER + bank * 0x10);
+	guard(raw_spinlock)(&intc0->intc_lock);
+	ier = readl(intc0->base + INTC0_INTMX_IER + bank * INTC0_INTMX_BANK_SIZE) & ~BIT(bit);
+	writel(ier, intc0->base + INTC0_INTMX_IER + bank * INTC0_INTMX_BANK_SIZE);
 	irq_chip_mask_parent(data);
 }
 
@@ -122,9 +116,9 @@ static void aspeed_intc0_irq_unmask(struct irq_data *data)
 	int bit = (data->hwirq - INTM_BASE) % INTM_IRQS_PER_BANK;
 	u32 ier;
 
-	guard(raw_spinlock_irqsave)(&intc0->intc_lock);
-	ier = readl(intc0->base + INTC0_INTMX_IER + bank * 0x10) | BIT(bit);
-	writel(ier, intc0->base + INTC0_INTMX_IER + bank * 0x10);
+	guard(raw_spinlock)(&intc0->intc_lock);
+	ier = readl(intc0->base + INTC0_INTMX_IER + bank * INTC0_INTMX_BANK_SIZE) | BIT(bit);
+	writel(ier, intc0->base + INTC0_INTMX_IER + bank * INTC0_INTMX_BANK_SIZE);
 	irq_chip_unmask_parent(data);
 }
 
@@ -134,7 +128,7 @@ static void aspeed_intc0_irq_eoi(struct irq_data *data)
 	int bank = (data->hwirq - INTM_BASE) / INTM_IRQS_PER_BANK;
 	int bit = (data->hwirq - INTM_BASE) % INTM_IRQS_PER_BANK;
 
-	writel(BIT(bit), intc0->base + INTC0_INTMX_ISR + bank * 0x10);
+	writel(BIT(bit), intc0->base + INTC0_INTMX_ISR + bank * INTC0_INTMX_BANK_SIZE);
 	irq_chip_eoi_parent(data);
 }
 
@@ -156,30 +150,26 @@ static struct irq_chip linear_intr_irq_chip = {
 	.flags			= IRQCHIP_SET_TYPE_MASKED,
 };
 
-static const aspeed_intc_output_t aspeed_intc0_routes[INTC0_IN_NUM / 32][INTC0_ROUTE_NUM] = {
-	[0] = { 0, 256, 426, AST2700_INTC_INVALID_ROUTE, AST2700_INTC_INVALID_ROUTE },
-	[1] = { 32, 288, 458, AST2700_INTC_INVALID_ROUTE, AST2700_INTC_INVALID_ROUTE },
-	[2] = { 64, 320, 490, AST2700_INTC_INVALID_ROUTE, AST2700_INTC_INVALID_ROUTE },
-	[3] = { 96, 352, 522, AST2700_INTC_INVALID_ROUTE, AST2700_INTC_INVALID_ROUTE },
-	[4] = { 128, 384, 554, 160, 176 },
-	[5] = { 129, 385, 555, 161, 177 },
-	[6] = { 130, 386, 556, 162, 178 },
-	[7] = { 131, 387, 557, 163, 179 },
-	[8] = { 132, 388, 558, 164, 180 },
-	[9] = { 133, 544, 714, 165, 181 },
-	[10] = { 134, 545, 715, 166, 182 },
-	[11] = { 135, 546, 706, 167, 183 },
-	[12] = { 136, 547, 707, 168, 184 },
-	[13] = { 137, 548, 708, 169, 185 },
-	[14] = { 138, 549, 709, 170, 186 },
+static const u32 aspeed_intc0_routes[INTC0_IN_NUM / INTC0_IRQS_PER_BANK][INTC0_ROUTE_NUM] = {
+	{ 0, 256, 426, AST2700_INTC_INVALID_ROUTE, AST2700_INTC_INVALID_ROUTE },
+	{ 32, 288, 458, AST2700_INTC_INVALID_ROUTE, AST2700_INTC_INVALID_ROUTE },
+	{ 64, 320, 490, AST2700_INTC_INVALID_ROUTE, AST2700_INTC_INVALID_ROUTE },
+	{ 96, 352, 522, AST2700_INTC_INVALID_ROUTE, AST2700_INTC_INVALID_ROUTE },
+	{ 128, 384, 554, 160, 176 },
+	{ 129, 385, 555, 161, 177 },
+	{ 130, 386, 556, 162, 178 },
+	{ 131, 387, 557, 163, 179 },
+	{ 132, 388, 558, 164, 180 },
+	{ 133, 544, 714, 165, 181 },
+	{ 134, 545, 715, 166, 182 },
+	{ 135, 546, 706, 167, 183 },
+	{ 136, 547, 707, 168, 184 },
+	{ 137, 548, 708, 169, 185 },
+	{ 138, 549, 709, 170, 186 },
 };
 
-static const aspeed_intc_output_t aspeed_intc0_intm_routes[INTC0_INTM_NUM / 10] = {
-	[0] = 192, /* INTM00 ~ INTM09 */
-	[1] = 416, /* INTM10 ~ INTM19 */
-	[2] = 586, /* INTM20 ~ INTM29 */
-	[3] = 208, /* INTM30 ~ INTM39 */
-	[4] = 224, /* INTM40 ~ INTM49 */
+static const u32 aspeed_intc0_intm_routes[INTC0_INTM_NUM / INTM_IRQS_PER_BANK] = {
+	192, 416, 586, 208, 224
 };
 
 static int resolve_input_from_child_ranges(const struct aspeed_intc0 *intc0,
@@ -206,10 +196,10 @@ static int resolve_input_from_child_ranges(const struct aspeed_intc0 *intc0,
 	return 0;
 }
 
-static bool resolve_parent_range_for_output(const struct aspeed_intc0 *intc0,
-					    const struct fwnode_handle *parent,
-					    u32 output,
-					    struct aspeed_intc_interrupt_range *resolved)
+static int resolve_parent_range_for_output(const struct aspeed_intc0 *intc0,
+					   const struct fwnode_handle *parent,
+					   u32 output,
+					   struct aspeed_intc_interrupt_range *resolved)
 {
 	for (size_t i = 0; i < intc0->ranges.nranges; i++) {
 		struct aspeed_intc_interrupt_range range =
@@ -228,48 +218,41 @@ static bool resolve_parent_range_for_output(const struct aspeed_intc0 *intc0,
 			resolved->upstream.param[1] += output - range.start;
 		}
 
-		return true;
+		return 0;
 	}
 
-	return false;
+	return -ENOENT;
 }
 
 static int resolve_parent_route_for_input(const struct aspeed_intc0 *intc0,
 					  const struct fwnode_handle *parent, u32 input,
 					  struct aspeed_intc_interrupt_range *resolved)
 {
-	aspeed_intc_output_t c0o;
+	u32 c0o;
 	int rc = -ENOENT;
 
 	if (input < INT_NUM) {
-		bool found;
-
 		static_assert(INTC0_ROUTE_NUM < INT_MAX, "Broken cast");
 		for (size_t i = 0; rc == -ENOENT && i < INTC0_ROUTE_NUM; i++) {
-			c0o = aspeed_intc0_routes[input / 32][i];
+			c0o = aspeed_intc0_routes[input / INTC0_IRQS_PER_BANK][i];
 			if (c0o == AST2700_INTC_INVALID_ROUTE)
 				continue;
 
 			if (input < GIC_P2P_SPI_END)
-				c0o += input % 32;
+				c0o += input % INTC0_IRQS_PER_BANK;
 
-			found = resolve_parent_range_for_output(intc0, parent, c0o, resolved);
-			rc = found ? (int)i : -ENOENT;
+			rc = resolve_parent_range_for_output(intc0, parent, c0o, resolved);
+			if (!rc)
+				return (int)i;
 		}
 	} else if (input < (INT_NUM + INTM_NUM)) {
-		bool found;
-
 		c0o = aspeed_intc0_intm_routes[(input - INT_NUM) / INTM_IRQS_PER_BANK];
 		c0o += ((input - INT_NUM) % INTM_IRQS_PER_BANK);
 
-		found = resolve_parent_range_for_output(intc0, parent, c0o, resolved);
-		rc = found ? 0 : -ENOENT;
+		return resolve_parent_range_for_output(intc0, parent, c0o, resolved);
 	} else if (input < (INT_NUM + INTM_NUM + SWINT_NUM)) {
-		bool found;
-
-		c0o = input - SWINT_BASE + 144;
-		found = resolve_parent_range_for_output(intc0, parent, c0o, resolved);
-		rc = found ? 0 : -ENOENT;
+		c0o = input - SWINT_BASE + INTC0_SWINT_OUT_BASE;
+		return resolve_parent_range_for_output(intc0, parent, c0o, resolved);
 	} else {
 		return -ENOENT;
 	}
@@ -314,9 +297,9 @@ static int resolve_parent_route_for_input(const struct aspeed_intc0 *intc0,
  * for the PSP (Primary Service Processor) GIC.
  */
 int aspeed_intc0_resolve_route(const struct irq_domain *c0domain, size_t nc1outs,
-			       const aspeed_intc_output_t c1outs[static nc1outs],
+			       const u32 *c1outs,
 			       size_t nc1ranges,
-			       const struct aspeed_intc_interrupt_range c1ranges[static nc1ranges],
+			       const struct aspeed_intc_interrupt_range *c1ranges,
 			       struct aspeed_intc_interrupt_range *resolved)
 {
 	struct fwnode_handle *parent_fwnode;
@@ -333,7 +316,7 @@ int aspeed_intc0_resolve_route(const struct irq_domain *c0domain, size_t nc1outs
 		return -ENODEV;
 
 	if (!fwnode_device_is_compatible(c0domain->fwnode,
-					 "aspeed,ast2700-intc0-ic"))
+					 "aspeed,ast2700-intc0"))
 		return -ENODEV;
 
 	intc0 = c0domain->host_data;
@@ -343,7 +326,7 @@ int aspeed_intc0_resolve_route(const struct irq_domain *c0domain, size_t nc1outs
 	parent_fwnode = of_fwnode_handle(intc0->parent);
 
 	for (size_t i = 0; i < nc1outs; i++) {
-		aspeed_intc_output_t c1o = c1outs[i];
+		u32 c1o = c1outs[i];
 
 		if (c1o == AST2700_INTC_INVALID_ROUTE)
 			continue;
@@ -388,8 +371,7 @@ int aspeed_intc0_resolve_route(const struct irq_domain *c0domain, size_t nc1outs
 		}
 	}
 
-	ret = -EHOSTUNREACH;
-	return ret;
+	return -ENODEV;
 }
 
 static int aspeed_intc0_irq_domain_map(struct irq_domain *domain,
@@ -475,45 +457,46 @@ static int aspeed_intc0_irq_domain_activate(struct irq_domain *domain,
 					    struct irq_data *data, bool reserve)
 {
 	struct aspeed_intc0 *intc0 = irq_data_get_irq_chip_data(data);
+	unsigned long hwirq = data->hwirq;
+	int route, bank, bit;
+	u32 mask;
 
-	if (data->hwirq < INT_NUM) {
-		int bank = data->hwirq / 32;
-		int bit = data->hwirq % 32;
-		u32 mask = BIT(bit);
-		int route;
+	if (hwirq >= INT0_NUM)
+		return -EINVAL;
 
-		route = resolve_parent_route_for_input(intc0,
-						       intc0->local->parent->fwnode,
-						       data->hwirq, NULL);
-		if (route < 0)
-			return route;
-
-		guard(raw_spinlock_irqsave)(&intc0->intc_lock);
-		for (int i = 0; i < 3; i++) {
-			void __iomem *sel = intc0->base + INTC0_SEL_BASE +
-					    (bank * INTC0_SEL_BANK_SIZE) +
-					    (INTC0_SEL_ROUTE_SIZE * i);
-			u32 reg = readl(sel);
-
-			if (route & BIT(i))
-				reg |= mask;
-			else
-				reg &= ~mask;
-
-			writel(reg, sel);
-			if (readl(sel) != reg)
-				return -EACCES;
-		}
+	if (in_range32(hwirq, INTM_BASE, INTM_NUM + SWINT_NUM))
 		return 0;
+
+	bank = hwirq / INTC0_IRQS_PER_BANK;
+	bit = hwirq % INTC0_IRQS_PER_BANK;
+	mask = BIT(bit);
+
+	route = resolve_parent_route_for_input(intc0, intc0->local->parent->fwnode,
+					       hwirq, NULL);
+	if (route < 0)
+		return route;
+
+	guard(raw_spinlock)(&intc0->intc_lock);
+	for (int i = 0; i < INTC0_ROUTE_BITS; i++) {
+		void __iomem *sel = intc0->base + INTC0_SEL_BASE +
+				    (bank * INTC0_SEL_BANK_SIZE) +
+				    (INTC0_SEL_ROUTE_SIZE * i);
+		u32 reg = readl(sel);
+
+		if (route & BIT(i))
+			reg |= mask;
+		else
+			reg &= ~mask;
+
+		writel(reg, sel);
+		if (readl(sel) != reg)
+			return -EACCES;
 	}
 
-	if (in_range32(data->hwirq, INTM_BASE, INTM_NUM + SWINT_NUM))
-		return 0;
-
-	return -EINVAL;
+	return 0;
 }
 
-static const struct irq_domain_ops aspeed_intc0_ic_irq_domain_ops = {
+static const struct irq_domain_ops aspeed_intc0_irq_domain_ops = {
 	.translate	= aspeed_intc0_irq_domain_translate,
 	.activate	= aspeed_intc0_irq_domain_activate,
 	.alloc		= aspeed_intc0_irq_domain_alloc,
@@ -530,7 +513,9 @@ static void aspeed_intc0_disable_intbank(struct aspeed_intc0 *intc0)
 {
 	for (int i = 0; i < INTC0_INTBANK_GROUPS; i++) {
 		for (int j = 0; j < INTC0_INTBANKS_PER_GRP; j++) {
-			u32 base = INTC0_INTBANKX_IER + (0x100 * i) + (0x10 * j);
+			u32 base = INTC0_INTBANKX_IER +
+				   (INTC0_INTBANK_SIZE * i) +
+				   (INTC0_INTMX_BANK_SIZE * j);
 
 			writel(0, intc0->base + base);
 		}
@@ -539,14 +524,12 @@ static void aspeed_intc0_disable_intbank(struct aspeed_intc0 *intc0)
 
 static void aspeed_intc0_disable_intm(struct aspeed_intc0 *intc0)
 {
-	int i;
-
-	for (i = 0; i < INTC0_INTM_BANK_NUM; i++)
-		writel(0, intc0->base + INTC0_INTMX_IER + (0x10 * i));
+	for (int i = 0; i < INTC0_INTM_BANK_NUM; i++)
+		writel(0, intc0->base + INTC0_INTMX_IER + (INTC0_INTMX_BANK_SIZE * i));
 }
 
-static int aspeed_intc0_ic_probe(struct platform_device *pdev,
-				 struct device_node *parent)
+static int aspeed_intc0_probe(struct platform_device *pdev,
+			      struct device_node *parent)
 {
 	struct device_node *node = pdev->dev.of_node;
 	struct irq_domain *parent_domain;
@@ -585,7 +568,7 @@ static int aspeed_intc0_ic_probe(struct platform_device *pdev,
 
 	intc0->local = irq_domain_create_hierarchy(parent_domain, 0, INT0_NUM,
 						   of_fwnode_handle(node),
-						   &aspeed_intc0_ic_irq_domain_ops,
+						   &aspeed_intc0_irq_domain_ops,
 						   intc0);
 	if (!intc0->local)
 		return -ENOMEM;
@@ -600,9 +583,5 @@ static int aspeed_intc0_ic_probe(struct platform_device *pdev,
 }
 
 IRQCHIP_PLATFORM_DRIVER_BEGIN(ast2700_intc0)
-IRQCHIP_MATCH("aspeed,ast2700-intc0-ic", aspeed_intc0_ic_probe)
+IRQCHIP_MATCH("aspeed,ast2700-intc0", aspeed_intc0_probe)
 IRQCHIP_PLATFORM_DRIVER_END(ast2700_intc0)
-
-#ifdef CONFIG_ASPEED_AST2700_INTC_TEST
-#include "irq-ast2700-intc0-test.c"
-#endif

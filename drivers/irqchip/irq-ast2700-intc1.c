@@ -2,12 +2,9 @@
 /*
  *  Aspeed AST2700 Interrupt Controller.
  *
- *  Copyright (C) 2023 ASPEED Technology Inc.
+ *  Copyright (C) 2026 ASPEED Technology Inc.
  */
 
-#include "linux/dev_printk.h"
-#include "linux/device/devres.h"
-#include "linux/property.h"
 #include <linux/bitops.h>
 #include <linux/device.h>
 #include <linux/io.h>
@@ -32,6 +29,9 @@
 #define INTC1_ROUTE_NUM			7
 #define INTC1_IN_NUM			192
 #define INTC1_BOOTMCU_ROUTE		6
+#define INTC1_ROUTE_SELECTOR_BITS	3
+#define INTC1_ROUTE_IRQS_PER_GROUP	32
+#define INTC1_ROUTE_SHIFT		5
 
 struct aspeed_intc1 {
 	struct device				*dev;
@@ -48,7 +48,7 @@ static void aspeed_intc1_disable_int(struct aspeed_intc1 *intc1)
 		writel(0, intc1->base + INTC1_IER + (INTC1_BANK_SIZE * i));
 }
 
-static void aspeed_intc1_ic_irq_handler(struct irq_desc *desc)
+static void aspeed_intc1_irq_handler(struct irq_desc *desc)
 {
 	struct aspeed_intc1 *intc1 = irq_desc_get_handler_data(desc);
 	struct irq_chip *chip = irq_desc_get_chip(desc);
@@ -113,9 +113,9 @@ static int aspeed_intc1_irq_domain_translate(struct irq_domain *domain,
 	return 0;
 }
 
-static int aspeed_intc1_ic_map_irq_domain(struct irq_domain *domain,
-					  unsigned int irq,
-					  irq_hw_number_t hwirq)
+static int aspeed_intc1_map_irq_domain(struct irq_domain *domain,
+				       unsigned int irq,
+				       irq_hw_number_t hwirq)
 {
 	irq_domain_set_info(domain, irq, hwirq, &aspeed_intc_chip,
 			    domain->host_data, handle_level_irq, NULL, NULL);
@@ -127,34 +127,25 @@ static int aspeed_intc1_ic_map_irq_domain(struct irq_domain *domain,
  * groups of 32. Apply this fact to compress the route table in corresponding
  * groups of 32.
  */
-static const aspeed_intc_output_t aspeed_intc1_routes[INTC1_IN_NUM / 32][INTC1_ROUTE_NUM] = {
-	[0] = { 0, AST2700_INTC_INVALID_ROUTE, 10, 20, 30, 40, 50 },
-	[1] = { 1, AST2700_INTC_INVALID_ROUTE, 11, 21, 31, 41, 50 },
-	[2] = { 2, AST2700_INTC_INVALID_ROUTE, 12, 22, 32, 42, 50 },
-	[3] = { 3, AST2700_INTC_INVALID_ROUTE, 13, 23, 33, 43, 50 },
-	[4] = { 4, AST2700_INTC_INVALID_ROUTE, 14, 24, 34, 44, 50 },
-	[5] = { 5, AST2700_INTC_INVALID_ROUTE, 15, 25, 35, 45, 50 },
+static const u32
+aspeed_intc1_routes[INTC1_IN_NUM / INTC1_ROUTE_IRQS_PER_GROUP][INTC1_ROUTE_NUM] = {
+	{ 0, AST2700_INTC_INVALID_ROUTE, 10, 20, 30, 40, 50 },
+	{ 1, AST2700_INTC_INVALID_ROUTE, 11, 21, 31, 41, 50 },
+	{ 2, AST2700_INTC_INVALID_ROUTE, 12, 22, 32, 42, 50 },
+	{ 3, AST2700_INTC_INVALID_ROUTE, 13, 23, 33, 43, 50 },
+	{ 4, AST2700_INTC_INVALID_ROUTE, 14, 24, 34, 44, 50 },
+	{ 5, AST2700_INTC_INVALID_ROUTE, 15, 25, 35, 45, 50 },
 };
-
-static int aspeed_intc1_parent_is_bootmcu(const struct irq_domain *upstream)
-{
-	if (!upstream || !upstream->fwnode)
-		return 0;
-
-	return fwnode_device_is_compatible(upstream->fwnode, "riscv,aplic");
-}
 
 static int aspeed_intc1_irq_domain_activate(struct irq_domain *domain,
 					    struct irq_data *data, bool reserve)
 {
 	struct aspeed_intc1 *intc1 = irq_data_get_irq_chip_data(data);
 	struct aspeed_intc_interrupt_range resolved;
-	int bank = data->hwirq / INTC1_IRQS_PER_BANK;
-	int bit = data->hwirq % INTC1_IRQS_PER_BANK;
-	u32 mask = BIT(bit);
-	int rc;
+	int rc, bank, bit;
+	u32 mask;
 
-	if (WARN_ON_ONCE((data->hwirq >> 5) >= ARRAY_SIZE(aspeed_intc1_routes)))
+	if (WARN_ON_ONCE((data->hwirq >> INTC1_ROUTE_SHIFT) >= ARRAY_SIZE(aspeed_intc1_routes)))
 		return -EINVAL;
 
 	/*
@@ -162,11 +153,11 @@ static int aspeed_intc1_irq_domain_activate(struct irq_domain *domain,
 	 * anything except a valid intc0 driver instance
 	 */
 	rc = aspeed_intc0_resolve_route(intc1->upstream, INTC1_ROUTE_NUM,
-					aspeed_intc1_routes[data->hwirq >> 5],
+					aspeed_intc1_routes[data->hwirq >> INTC1_ROUTE_SHIFT],
 					intc1->ranges.nranges,
 					intc1->ranges.ranges, &resolved);
 	if (rc < 0) {
-		if (!aspeed_intc1_parent_is_bootmcu(intc1->upstream)) {
+		if (!fwnode_device_is_compatible(intc1->upstream->fwnode, "riscv,aplic")) {
 			dev_warn(intc1->dev,
 				 "Failed to resolve interrupt route for hwirq %lu in domain %s\n",
 				 data->hwirq, domain->name);
@@ -175,9 +166,12 @@ static int aspeed_intc1_irq_domain_activate(struct irq_domain *domain,
 		rc = INTC1_BOOTMCU_ROUTE;
 	}
 
+	bank = data->hwirq / INTC1_IRQS_PER_BANK;
+	bit = data->hwirq % INTC1_IRQS_PER_BANK;
+	mask = BIT(bit);
+
 	guard(raw_spinlock)(&intc1->intc_lock);
-	/* Route selector uses 3 bits across the selector registers. */
-	for (int i = 0; i < 3; i++) {
+	for (int i = 0; i < INTC1_ROUTE_SELECTOR_BITS; i++) {
 		void __iomem *sel = intc1->base + INTC1_SEL_BASE +
 				    (bank * INTC1_SEL_BANK_SIZE) +
 				    (INTC1_SEL_ROUTE_SIZE * i);
@@ -196,8 +190,8 @@ static int aspeed_intc1_irq_domain_activate(struct irq_domain *domain,
 	return 0;
 }
 
-static const struct irq_domain_ops aspeed_intc1_ic_irq_domain_ops = {
-	.map		= aspeed_intc1_ic_map_irq_domain,
+static const struct irq_domain_ops aspeed_intc1_irq_domain_ops = {
+	.map		= aspeed_intc1_map_irq_domain,
 	.translate	= aspeed_intc1_irq_domain_translate,
 	.activate	= aspeed_intc1_irq_domain_activate,
 };
@@ -227,13 +221,13 @@ static void aspeed_intc1_request_interrupts(struct aspeed_intc1 *intc1)
 				continue;
 
 			irq_set_chained_handler_and_data(irq,
-							 aspeed_intc1_ic_irq_handler, intc1);
+							 aspeed_intc1_irq_handler, intc1);
 		}
 	}
 }
 
-static int aspeed_intc1_ic_probe(struct platform_device *pdev,
-				 struct device_node *parent)
+static int aspeed_intc1_probe(struct platform_device *pdev,
+			      struct device_node *parent)
 {
 	struct device_node *node = pdev->dev.of_node;
 	struct aspeed_intc1 *intc1;
@@ -245,7 +239,7 @@ static int aspeed_intc1_ic_probe(struct platform_device *pdev,
 		return -ENODEV;
 	}
 
-	if (!of_device_is_compatible(parent, "aspeed,ast2700-intc0-ic"))
+	if (!of_device_is_compatible(parent, "aspeed,ast2700-intc0"))
 		return -ENODEV;
 
 	host = irq_find_host(parent);
@@ -268,7 +262,7 @@ static int aspeed_intc1_ic_probe(struct platform_device *pdev,
 
 	intc1->local = irq_domain_create_linear(of_fwnode_handle(node),
 						INTC1_BANK_NUM * INTC1_IRQS_PER_BANK,
-						&aspeed_intc1_ic_irq_domain_ops, intc1);
+						&aspeed_intc1_irq_domain_ops, intc1);
 	if (!intc1->local)
 		return -ENOMEM;
 
@@ -284,5 +278,5 @@ static int aspeed_intc1_ic_probe(struct platform_device *pdev,
 }
 
 IRQCHIP_PLATFORM_DRIVER_BEGIN(ast2700_intc1)
-IRQCHIP_MATCH("aspeed,ast2700-intc1-ic", aspeed_intc1_ic_probe)
+IRQCHIP_MATCH("aspeed,ast2700-intc1", aspeed_intc1_probe)
 IRQCHIP_PLATFORM_DRIVER_END(ast2700_intc1)

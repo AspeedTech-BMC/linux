@@ -3,12 +3,13 @@
  *  Copyright (C) 2026 Code Construct
  */
 #include <kunit/test.h>
+
 #include "irq-ast2700.h"
 
 static void aspeed_intc0_resolve_route_bad_args(struct kunit *test)
 {
 	static const struct aspeed_intc_interrupt_range c1ranges[] = { 0 };
-	static const aspeed_intc_output_t c1outs[] = { 0 };
+	static const u32 c1outs[] = { 0 };
 	struct aspeed_intc_interrupt_range resolved;
 	const struct irq_domain c0domain = { 0 };
 	int rc;
@@ -53,7 +54,7 @@ static void aspeed_intc_resolve_route_invalid_c0domain(struct kunit *test)
 	};
 	const struct irq_domain c0domain = { .fwnode = &intc0_node.fwnode };
 	static const struct aspeed_intc_interrupt_range c1ranges[] = { 0 };
-	static const aspeed_intc_output_t c1outs[] = { 0 };
+	static const u32 c1outs[] = { 0 };
 	struct aspeed_intc_interrupt_range resolved;
 	int rc;
 
@@ -77,7 +78,7 @@ aspeed_intc0_fwnode_read_string_array(const struct fwnode_handle *fwnode_handle,
 	if (WARN_ON(nval != 1))
 		return -EOVERFLOW;
 
-	*val = "aspeed,ast2700-intc0-ic";
+	*val = "aspeed,ast2700-intc0";
 	return nval;
 }
 
@@ -102,7 +103,7 @@ aspeed_intc0_resolve_route_c1i1o1c0i1o1_connected(struct kunit *test)
 			}
 		}
 	};
-	static const aspeed_intc_output_t c1outs[] = { 0 };
+	static const u32 c1outs[] = { 0 };
 	struct aspeed_intc_interrupt_range resolved;
 	struct aspeed_intc_interrupt_range intc0_ranges[] = {
 		{
@@ -150,7 +151,7 @@ aspeed_intc0_resolve_route_c1i1o1c0i1o1_disconnected(struct kunit *test)
 			}
 		}
 	};
-	static const aspeed_intc_output_t c1outs[] = { 0 };
+	static const u32 c1outs[] = { 0 };
 	struct aspeed_intc_interrupt_range resolved;
 	struct aspeed_intc_interrupt_range intc0_ranges[] = {
 		{
@@ -197,7 +198,7 @@ static void aspeed_intc0_resolve_route_c1i1o1mc0i1o1(struct kunit *test)
 			}
 		}
 	};
-	static const aspeed_intc_output_t c1outs[] = { 0 };
+	static const u32 c1outs[] = { 0 };
 	struct aspeed_intc_interrupt_range resolved;
 	struct aspeed_intc_interrupt_range intc0_ranges[] = {
 		{
@@ -256,7 +257,7 @@ static void aspeed_intc0_resolve_route_c1i2o2mc0i1o1(struct kunit *test)
 			}
 		}
 	};
-	static const aspeed_intc_output_t c1outs[] = { 1 };
+	static const u32 c1outs[] = { 1 };
 	struct aspeed_intc_interrupt_range resolved;
 	struct aspeed_intc_interrupt_range intc0_ranges[] = {
 		{
@@ -306,7 +307,7 @@ static void aspeed_intc0_resolve_route_c1i1o1mc0i2o1(struct kunit *test)
 			}
 		},
 	};
-	static const aspeed_intc_output_t c1outs[] = { 0 };
+	static const u32 c1outs[] = { 0 };
 	struct aspeed_intc_interrupt_range resolved;
 	struct aspeed_intc_interrupt_range intc0_ranges[] = {
 		{
@@ -365,7 +366,7 @@ static void aspeed_intc0_resolve_route_c1i1o2mc0i1o1_invalid(struct kunit *test)
 			}
 		}
 	};
-	static const aspeed_intc_output_t c1outs[] = {
+	static const u32 c1outs[] = {
 		AST2700_INTC_INVALID_ROUTE, 0
 	};
 	struct aspeed_intc_interrupt_range resolved;
@@ -418,7 +419,7 @@ aspeed_intc0_resolve_route_c1i1o1mc0i1o1_bad_range_upstream(struct kunit *test)
 			}
 		}
 	};
-	static const aspeed_intc_output_t c1outs[] = { 0 };
+	static const u32 c1outs[] = { 0 };
 	struct aspeed_intc_interrupt_range resolved;
 	struct aspeed_intc_interrupt_range intc0_ranges[] = {
 		{
