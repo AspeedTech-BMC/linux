@@ -607,6 +607,14 @@ static void aspeed_can_reg_dump(struct net_device *ndev)
 
 	for (i = 0; i < 0x50; i += 4)
 		netdev_info(ndev, "REG(%03x): 0x%08x\n", i, readl(priv->reg_base + i));
+
+	netdev_info(ndev, "TX_MIRROR\n");
+	for (i = 0; i < 0x30; i += 4)
+		netdev_info(ndev, "(0x%02x): 0x%08x\n", i, readl(priv->reg_base + CAN_TBUF_MIRROR + i));
+
+	netdev_info(ndev, "RX_BUF\n");
+	for (i = 0; i < 0x30; i += 4)
+		netdev_info(ndev, "(0x%02x): 0x%08x\n", i, readl(priv->reg_base + CAN_RBUF + i));
 }
 
 static int aspeed_can_set_bittiming(struct net_device *ndev)
