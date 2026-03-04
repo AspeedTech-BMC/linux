@@ -196,6 +196,26 @@ static int ltpi_get_link_partner(struct aspeed_ltpi_priv *ltpi)
 	return FIELD_GET(REG_LTPI_LINK_PARTNER_FLAG, reg);
 }
 
+static void ltpi_dump(struct aspeed_ltpi_priv *ltpi)
+{
+	int i;
+
+	dev_warn(ltpi->dev, "\nDumping LTPI registers:\n");
+	for (i = 0; i < 0x250; i += 0x10) {
+		dev_warn(ltpi->dev, "control[%08x]: %08x %08x %08x %08x\n", i,
+			 readl(ltpi->regs + i), readl(ltpi->regs + i + 4),
+			 readl(ltpi->regs + i + 8), readl(ltpi->regs + i + 12));
+	}
+
+	for (i = 0; i < 0x30; i += 0x10) {
+		dev_warn(ltpi->dev, "PHY[%08x]: %08x %08x %08x %08x\n", i,
+			 readl(ltpi->phy_regs + i),
+			 readl(ltpi->phy_regs + i + 4),
+			 readl(ltpi->phy_regs + i + 8),
+			 readl(ltpi->phy_regs + i + 12));
+	}
+}
+
 static irqreturn_t aspeed_ltpi_irq_handler(int irq, void *dev_id)
 {
 	struct aspeed_ltpi_priv *priv = dev_id;
@@ -687,6 +707,7 @@ static int ltpi_scm_init(struct aspeed_ltpi_priv *ltpi)
 
 		dev_warn(ltpi->dev,
 			 "Failed to enter operational state, restarting link training\n");
+		ltpi_dump(ltpi);
 	} while (1);
 
 	dev_info(ltpi->dev, "LTPI Link trained successfully\n");
@@ -694,6 +715,7 @@ static int ltpi_scm_init(struct aspeed_ltpi_priv *ltpi)
 
 ltpi_scm_exit:
 	dev_err(ltpi->dev, "Exiting initialization\n");
+	ltpi_dump(ltpi);
 	ltpi_reset(ltpi);
 	return ret;
 }
