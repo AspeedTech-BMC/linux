@@ -145,9 +145,6 @@ config ASPEED_DISP_INTF
 	help
 	  Say yes to support control the display interface of ASPEED BMC.
 
-config ASPEED_PCIE_MMBI
-	tristate "ASPEED PCIE MMBI"
-
 config ASPEED_MBOX
 	bool "Enable support for the ASPEED MBOX driver"
 	depends on ARCH_ASPEED
