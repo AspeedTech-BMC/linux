@@ -15,7 +15,6 @@ obj-$(CONFIG_ASPEED_XDMA)		+= $(patsubst $(src)/%.c,%.o,$(wildcard $(src)/aspeed
 obj-$(CONFIG_ASPEED_RVAS)		+= rvas/
 obj-$(CONFIG_ARCH_ASPEED)		+= $(patsubst $(src)/%.c,%.o,$(wildcard $(src)/aspeed-usb-phy.c))
 obj-$(CONFIG_ARCH_ASPEED)		+= $(patsubst $(src)/%.c,%.o,$(wildcard $(src)/aspeed-usb-hp.c))
-obj-$(CONFIG_ASPEED_PCIE_MMBI)		+= $(patsubst $(src)/%.c,%.o,$(wildcard $(src)/aspeed-pcie-mmbi.c))
 obj-$(CONFIG_ASPEED_DISP_INTF)		+= $(patsubst $(src)/%.c,%.o,$(wildcard $(src)/aspeed-disp-intf.c))
 obj-$(CONFIG_ASPEED_MBOX)		+= $(patsubst $(src)/%.c,%.o,$(wildcard $(src)/aspeed-mbox.c))
 obj-$(CONFIG_ASPEED_MCTP)		+= $(patsubst $(src)/%.c,%.o,$(wildcard $(src)/aspeed-mctp.c))
