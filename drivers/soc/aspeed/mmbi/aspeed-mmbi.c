@@ -6,7 +6,6 @@
  */
 
 #include <linux/device.h>
-#include <linux/dev_printk.h>
 #include <linux/export.h>
 #include <linux/fs.h>
 #include <linux/io.h>
@@ -102,40 +101,10 @@ static void mmbi_parse_hdr(u8 __iomem *buf_virt, u32 *payload_len, u8 *padding,
 	*protocol = hdr[3] & MMBI_PKT_PROTOCOL_MASK;
 }
 
-static void mmbi_instance_irq(struct work_struct *work)
-{
-	struct mmbi_ins_desc *mmbi = container_of(work, struct mmbi_ins_desc, work);
-
-	/* Handle MMBI interrupt here */
-	if (mmbi->role == MMBI_ROLE_BMC)
-		mmbi_instance_irq_bmc(mmbi);
-	else
-		mmbi_instance_irq_host(mmbi);
-}
-
-static void mmbi_instance_pending_irq(struct work_struct *work)
-{
-	u32 val_location, location;
-	struct mmbi_ins_desc *mmbi = container_of(to_delayed_work(work), struct mmbi_ins_desc, irq_pending_work);
-
-	if (mmbi->pending_int) {
-		if (mmbi->role == MMBI_ROLE_BMC) {
-			val_location = MMBI_BMC_INT_VAL_OFFSET;
-			location = mmbi->bmc_int_location;
-		} else {
-			val_location = MMBI_HOST_INT_VAL_OFFSET;
-			location = mmbi->host_int_location;
-		}
-		mmbi_set_int_value(mmbi, val_location, location, 0);
-	}
-}
-
 static int mmbi_read(struct mmbi_chan_desc *chan, u8 *data, size_t read_len)
 {
 	struct mmbi_ins_desc *mmbi = chan->mmbi;
-	struct device *dev = chan->mmbi->dev;
 	u32 read_ptr, write_ptr, read_offset, buf_size, unhandled_len, base_addr;
-	u32 location, val_location;
 	u32 data_len, pkt_len;
 	u8 protocol, padding;
 	size_t first_part;
@@ -149,25 +118,19 @@ static int mmbi_read(struct mmbi_chan_desc *chan, u8 *data, size_t read_len)
 		write_ptr = chan->buffer_desc.h_rws_p;
 		buf_size = chan->h2b_l;
 		base_addr = chan->h2b_ba_offset;
-		location = mmbi->bmc_int_location;
-		val_location = MMBI_BMC_INT_VAL_OFFSET;
 	} else {
 		read_ptr = chan->buffer_desc.h_rws_p;
 		write_ptr = chan->buffer_desc.h_ros_p;
 		buf_size = chan->b2h_l;
 		base_addr = chan->b2h_ba_offset;
-		location = mmbi->host_int_location;
-		val_location = MMBI_HOST_INT_VAL_OFFSET;
 	}
 
 	unhandled_len = mmbi_channel_unhandled_length(mmbi->desc_virt + read_ptr,
 						      mmbi->desc_virt + write_ptr,
 								      buf_size);
 
-	if (unhandled_len == 0) {
-		// dev_info(dev, "%s: no data to read for chan %u\n", __func__, chan->index);
+	if (unhandled_len == 0)
 		return 0;
-	}
 
 	desc_virt = mmbi->desc_virt + base_addr;
 	data_len = 0;
@@ -176,12 +139,18 @@ static int mmbi_read(struct mmbi_chan_desc *chan, u8 *data, size_t read_len)
 	mmbi_parse_hdr(desc_virt + read_offset, &data_len, &padding, &protocol);
 
 	if (data_len > read_len) {
-		dev_warn(dev, "%s: not enough space(%ld) to read data(%u) for chan %u\n",
-			 __func__, read_len, data_len, chan->index);
-		dev_warn(dev, "%s: read_offset %d padding %d protocol %d buf_size %d", __func__, read_offset, padding, protocol, buf_size);
+		pr_warn("%s: not enough space(%ld) to read data(%u) for chan %u\n",
+			__func__, read_len, data_len, chan->index);
+		pr_warn("%s: read_offset %d padding %d protocol %d buf_size %d",
+			__func__, read_offset, padding, protocol, buf_size);
 		return -EINVAL;
 	}
 	pkt_len = MMBI_PKT_HDR_SIZE + data_len + padding;
+
+	if (unhandled_len > pkt_len) {
+		pr_warn("%s: more data unhandled than current packet length for chan %u, unhandled_len %u pkt_len %u\n",
+			__func__, chan->index, unhandled_len, pkt_len);
+	}
 
 	/* move offset to payload */
 	read_offset = (read_offset + MMBI_PKT_HDR_SIZE) % buf_size;
@@ -194,11 +163,10 @@ static int mmbi_read(struct mmbi_chan_desc *chan, u8 *data, size_t read_len)
 			memcpy_fromio(data + first_part, desc_virt, data_len - first_part);
 		}
 	} else {
-		dev_warn(dev, "%s: unsupported protocol %u on chan %u, discard packet\n",
-			 __func__, protocol, chan->index);
+		pr_warn("%s: unsupported protocol %u on chan %u, discard packet\n",
+			__func__, protocol, chan->index);
 	}
 	mmbi_update_rd_ptr(mmbi->desc_virt + read_ptr, pkt_len, buf_size);
-	mmbi_set_int_value(mmbi, val_location, location, BIT(chan->index));
 
 	return protocol == MMBI_PROTOCOL_MCTP ? data_len : 0;
 }
@@ -206,9 +174,7 @@ static int mmbi_read(struct mmbi_chan_desc *chan, u8 *data, size_t read_len)
 static int mmbi_write(struct mmbi_chan_desc *chan, const u8 *data, size_t data_len, u8 protocol)
 {
 	struct mmbi_ins_desc *mmbi = chan->mmbi;
-	struct device *dev = chan->mmbi->dev;
 	u32 read_ptr, write_ptr, write_offset, buf_size, avail_len, val, base_addr, total_len;
-	u32 location, val_location;
 	size_t first_part;
 	u8 padding;
 	u8 __iomem *desc_virt;
@@ -217,8 +183,9 @@ static int mmbi_write(struct mmbi_chan_desc *chan, const u8 *data, size_t data_l
 		return -EINVAL;
 
 	if (!chan->peer_ready) {
-		dev_info(dev, "%s: chan %d peer not ready to receive data", __func__, chan->index);
-		return -EBUSY;
+		pr_info("%s: chan %d peer not ready to receive data", __func__,
+			chan->index);
+		return -EAGAIN;
 	}
 
 	if (mmbi->role == MMBI_ROLE_BMC) {
@@ -226,15 +193,11 @@ static int mmbi_write(struct mmbi_chan_desc *chan, const u8 *data, size_t data_l
 		write_ptr = chan->buffer_desc.h_ros_p;
 		buf_size = chan->b2h_l;
 		base_addr = chan->b2h_ba_offset;
-		location = mmbi->bmc_int_location;
-		val_location = MMBI_BMC_INT_VAL_OFFSET;
 	} else {
 		read_ptr = chan->buffer_desc.h_ros_p;
 		write_ptr = chan->buffer_desc.h_rws_p;
 		buf_size = chan->h2b_l;
 		base_addr = chan->h2b_ba_offset;
-		location = mmbi->host_int_location;
-		val_location = MMBI_HOST_INT_VAL_OFFSET;
 	}
 
 	avail_len = mmbi_channel_avail_length(mmbi->desc_virt + read_ptr,
@@ -245,15 +208,13 @@ static int mmbi_write(struct mmbi_chan_desc *chan, const u8 *data, size_t data_l
 
 	/* at least 8bytes for 4byte header and 4byte data */
 	if (avail_len < MMBI_PKT_MIN_SIZE) {
-		dev_info(dev, "%s: no available buffer to write for chan %u\n",
+		pr_info("%s: no available buffer to write for chan %u\n",
 			 __func__, chan->index);
 		return -EAGAIN;
 	}
 
-	/* clear pending interrupt  */
-	mmbi_clr_pending_int(mmbi, chan->index);
 	if (total_len > avail_len) {
-		dev_info(dev, "%s: no available buffer to write for chan %u, requested %d, avail %d\n",
+		pr_info("%s: no available buffer to write for chan %u, requested %d, avail %d\n",
 			 __func__, chan->index, total_len, avail_len);
 		return -EAGAIN;
 	}
@@ -266,27 +227,25 @@ static int mmbi_write(struct mmbi_chan_desc *chan, const u8 *data, size_t data_l
 		total_len += padding;
 		val = (data_len + padding) >> 2;
 		val &= 0x3FFFFF; /* 22 bits for length */
-		iowrite8((val >> 14) & 0xff, desc_virt + (write_offset % buf_size));
+		iowrite8((val >> 14) & 0xff, desc_virt + write_offset);
 		write_offset++;
-		iowrite8((val >> 6) & 0xff, desc_virt + (write_offset % buf_size));
+		iowrite8((val >> 6) & 0xff, desc_virt + write_offset);
 		write_offset++;
-		iowrite8(((val << 2) & 0xff) | padding, desc_virt + (write_offset % buf_size));
+		iowrite8(((val << 2) & 0xff) | padding, desc_virt + write_offset);
 		write_offset++;
-		iowrite8(MMBI_PKT_PROTOCOL_MASK & protocol, desc_virt + (write_offset % buf_size));
+		iowrite8(MMBI_PKT_PROTOCOL_MASK & protocol, desc_virt + write_offset);
 		write_offset++;
 	}
 
 	write_offset %= buf_size;
-	if (write_offset + data_len <= buf_size) {
+	if (write_offset + data_len < buf_size) {
 		memcpy_toio(desc_virt + write_offset, data, data_len);
 	} else {
 		first_part = buf_size - write_offset;
 		memcpy_toio(desc_virt + write_offset, data, first_part);
 		memcpy_toio(desc_virt, data + first_part, data_len - first_part);
 	}
-
 	mmbi_update_wr_ptr(mmbi->desc_virt + write_ptr, total_len, buf_size);
-	mmbi_set_int_value(mmbi, val_location, location, BIT(chan->index));
 	return data_len;
 }
 
@@ -297,6 +256,12 @@ static int mmbi_misc_open(struct inode *inode, struct file *file)
 
 	file->private_data = chan_desc;
 	mmbi_channel_state_update(chan_desc, chan_desc->mmbi->desc_virt);
+
+	if (!chan_desc->running) {
+		schedule_delayed_work(&chan_desc->poll_work,
+				      msecs_to_jiffies(chan_desc->poll_interval_ms));
+		chan_desc->running = true;
+	}
 	return 0;
 }
 
@@ -304,8 +269,7 @@ static ssize_t mmbi_misc_read(struct file *file, char __user *buf, size_t count,
 			      loff_t *ppos)
 {
 	struct mmbi_chan_desc *chan_desc = file->private_data;
-	ssize_t ret, offset;
-	unsigned long flags;
+	ssize_t ret;
 	void *kbuf;
 
 	if (count == 0)
@@ -315,31 +279,21 @@ static ssize_t mmbi_misc_read(struct file *file, char __user *buf, size_t count,
 	if (!kbuf)
 		return -ENOMEM;
 
-	offset = 0;
-	spin_lock_irqsave(&chan_desc->rx_lock, flags);
-	while (offset < count) {
-		ret = mmbi_read(chan_desc, kbuf, count - offset);
-		if (ret == 0)
-			break;
-
-		if (ret < 0) {
-			offset = ret;
-			break;
-		}
-
-		if (copy_to_user(buf + offset, kbuf, ret)) {
-			dev_err(chan_desc->mmbi->dev, "copy to user failed\n");
-			offset = -EFAULT;
-			break;
-		}
-
-		offset += ret;
-	}
+	spin_lock(&chan_desc->rx_lock);
 	chan_desc->rx_ready = false;
-	spin_unlock_irqrestore(&chan_desc->rx_lock, flags);
-	// pr_info("%s: read %zd bytes for chan %u\n", __func__, offset, chan_desc->index);
+	ret = mmbi_read(chan_desc, kbuf, count);
+	spin_unlock(&chan_desc->rx_lock);
+	if (ret > 0) {
+		if (copy_to_user(buf, kbuf, ret)) {
+			pr_err("%s: chan %u copy %zd bytes to user failed\n",
+			       __func__, chan_desc->index, ret);
+			ret = -EFAULT;
+		}
+	} else {
+		pr_err("%s: read failed for chan %u ret %zd\n", __func__, chan_desc->index, ret);
+	}
 	kfree(kbuf);
-	return offset;
+	return ret;
 }
 
 static ssize_t mmbi_misc_write(struct file *file, const char __user *buf,
@@ -357,7 +311,9 @@ static ssize_t mmbi_misc_write(struct file *file, const char __user *buf,
 		return PTR_ERR(kbuf);
 
 	/* currently only MCTP defined in the spec */
+	spin_lock(&chan_desc->tx_lock);
 	ret = mmbi_write(chan_desc, kbuf, count, MMBI_PROTOCOL_MCTP);
+	spin_unlock(&chan_desc->tx_lock);
 	kfree(kbuf);
 	return ret;
 }
@@ -366,24 +322,27 @@ static __poll_t mmbi_misc_poll(struct file *file, struct poll_table_struct *pt)
 {
 	struct mmbi_chan_desc *chan_desc = file->private_data;
 	struct mmbi_ins_desc *mmbi = chan_desc->mmbi;
-	struct device *dev = mmbi->dev;
-	__poll_t ret = 0;
-	u8 __iomem *host_rws_virt, *host_ros_virt;
+	__poll_t ret, requested_events;
 
+	ret = 0;
+	requested_events = poll_requested_events(pt);
 	mmbi_channel_state_update(chan_desc, mmbi->desc_virt);
 
 	if (chan_desc->state != NORMAL_RUNTIME && chan_desc->state != RESET_REQ_BY_BMC) {
-		dev_info(dev, "%s: chan %u invalid state 0x%x, not ready for polling\n",
+		pr_info("%s: chan %u invalid state 0x%x, not ready for polling\n",
 			 __func__, chan_desc->index, chan_desc->state);
 		return ret;
 	}
 
-	host_rws_virt = mmbi->desc_virt + chan_desc->buffer_desc.h_rws_p;
-	host_ros_virt = mmbi->desc_virt + chan_desc->buffer_desc.h_ros_p;
+	if (requested_events & POLL_IN)
+		poll_wait(file, &chan_desc->rx_wait, pt);
+	if (requested_events & POLL_OUT)
+		poll_wait(file, &chan_desc->tx_wait, pt);
 
-	poll_wait(file, &chan_desc->rx_wait, pt);
 	if (chan_desc->rx_ready)
-		ret |= POLL_IN;
+		ret |= POLL_IN | POLLRDNORM;
+	if (chan_desc->tx_ready)
+		ret |= POLL_OUT | POLLWRNORM;
 
 	return ret;
 }
@@ -409,7 +368,7 @@ static int mmbi_instance_init_miscdev(struct mmbi_ins_desc *mmbi)
 				       chan_desc->mmbi->ins_id, chan_desc->index);
 
 		if (!chan_desc->miscdev.name) {
-			dev_err(mmbi->dev, "%s: failed to allocate misc device name for chan %u\n",
+			pr_err("%s: failed to allocate misc device name for chan %u\n",
 				__func__, chan_desc->index);
 			return -ENOMEM;
 		}
@@ -419,9 +378,66 @@ static int mmbi_instance_init_miscdev(struct mmbi_ins_desc *mmbi)
 
 		ret = misc_register(&chan_desc->miscdev);
 		if (ret) {
-			dev_err(mmbi->dev, "%s: failed to register misc device for chan %u\n",
+			pr_err("%s: failed to register misc device for chan %u\n",
 				__func__, chan_desc->index);
 		}
+	}
+	return 0;
+}
+
+static void mmbi_channel_poll_handler(struct work_struct *work)
+{
+	struct delayed_work *dwork = to_delayed_work(work);
+	struct mmbi_chan_desc *chan_desc = container_of(dwork, struct mmbi_chan_desc, poll_work);
+	struct mmbi_ins_desc *mmbi = chan_desc->mmbi;
+	u8 __iomem *desc_virt = mmbi->desc_virt;
+
+	u32 state_location, read_ptr, write_ptr;
+
+	state_location = (mmbi->role == MMBI_ROLE_BMC) ? chan_desc->buffer_desc.h_rws_p :
+					       chan_desc->buffer_desc.h_ros_p;
+
+	write_ptr = ioread32(desc_virt + state_location);
+	read_ptr = ioread32(desc_virt + state_location + sizeof(u32));
+
+	if (write_ptr != chan_desc->write_ptr || read_ptr != chan_desc->read_ptr) {
+		chan_desc->write_ptr = write_ptr;
+		chan_desc->read_ptr = read_ptr;
+
+		spin_lock(&chan_desc->rx_lock);
+		spin_lock(&chan_desc->tx_lock);
+		if (mmbi->role == MMBI_ROLE_BMC)
+			mmbi_channel_irq_bmc(chan_desc);
+		else
+			mmbi_channel_irq_host(chan_desc);
+
+		spin_unlock(&chan_desc->tx_lock);
+		spin_unlock(&chan_desc->rx_lock);
+	}
+
+	/* Reschedule the work */
+	schedule_delayed_work(&chan_desc->poll_work, msecs_to_jiffies(chan_desc->poll_interval_ms));
+}
+
+static int mmbi_instance_init_channel_poll(struct mmbi_ins_desc *mmbi)
+{
+	int i;
+	struct mmbi_chan_desc *chan_desc;
+
+	for (i = 0; i < mmbi->num_of_channels; i++) {
+		chan_desc = &mmbi->chan_desc[i];
+		INIT_DELAYED_WORK(&chan_desc->poll_work, mmbi_channel_poll_handler);
+		spin_lock_init(&chan_desc->rx_lock);
+		spin_lock_init(&chan_desc->tx_lock);
+		init_waitqueue_head(&chan_desc->rx_wait);
+		init_waitqueue_head(&chan_desc->tx_wait);
+		chan_desc->tx_ready = true;
+		chan_desc->rx_ready = false;
+		chan_desc->read_ptr = 0;
+		chan_desc->write_ptr = 0;
+		chan_desc->running = false;
+		if (chan_desc->poll_interval_ms == 0)
+			chan_desc->poll_interval_ms = MMBI_POLL_INTERVAL_MS;
 	}
 	return 0;
 }
@@ -475,59 +491,17 @@ void mmbi_channel_state_update(struct mmbi_chan_desc *chan, u8 __iomem *desc_vir
 			      (MMBI_STATE_GET_RST(host_ros_val) << 2) |
 			      MMBI_STATE_GET_IF_UP(host_rws_val) |
 			      MMBI_STATE_GET_RST(host_rws_val);
+
+		chan->peer_ready = (chan->mmbi->role == MMBI_ROLE_BMC) ?
+					   mmbi_get_ready(host_rws_vmem) :
+					   mmbi_get_ready(host_ros_vmem);
 	} else {
-		dev_err(chan->mmbi->dev, "\t%s: unsupported buffer type %d\n",
+		pr_err("\t%s: unsupported buffer type %d\n",
 			__func__, chan->buffer_type);
 		chan->state = POWER_UP_OR_ERROR;
 	}
 }
 EXPORT_SYMBOL_GPL(mmbi_channel_state_update);
-
-void mmbi_clr_pending_int(struct mmbi_ins_desc *mmbi, u8 idx)
-{
-	unsigned long flags;
-
-	if (mmbi->mmbi_version == MMBI_VERSION_1_1) {
-		spin_lock_irqsave(&mmbi->irq_lock, flags);
-		mmbi->pending_int &= ~BIT(idx);
-		spin_unlock_irqrestore(&mmbi->irq_lock, flags);
-	}
-}
-EXPORT_SYMBOL_GPL(mmbi_clr_pending_int);
-
-void mmbi_set_int_value(struct mmbi_ins_desc *mmbi, u32 val_location, u32 location, u8 val)
-{
-	unsigned long flags;
-	u8 int_val;
-
-	if (mmbi->mmbi_version == MMBI_VERSION_1_0) {
-		/* trigger interrupt directly */
-		if (mmbi->raise_interrupt)
-			mmbi->raise_interrupt(mmbi->dev, mmbi->desc_virt, val_location, val);
-	} else if (mmbi->mmbi_version == MMBI_VERSION_1_1) {
-		spin_lock_irqsave(&mmbi->irq_lock, flags);
-
-		/* previous channel interrupt has been completed */
-		if (ioread8(mmbi->desc_virt + val_location) == 0) {
-			/* update pending interrupts */
-			int_val = val | mmbi->pending_int;
-			if (int_val) {
-				iowrite8(int_val, mmbi->desc_virt + val_location);
-				mmbi->pending_int = 0;
-				/* trigger interrupt */
-				if (mmbi->raise_interrupt)
-					mmbi->raise_interrupt(mmbi->dev, mmbi->desc_virt, location, val);
-			}
-		} else {
-			/* accumulate pending interrupts until the previous one is handled */
-			mmbi->pending_int |= val;
-			schedule_delayed_work(&mmbi->irq_pending_work, msecs_to_jiffies(1));
-		}
-
-		spin_unlock_irqrestore(&mmbi->irq_lock, flags);
-	}
-}
-EXPORT_SYMBOL_GPL(mmbi_set_int_value);
 
 int mmbi_instance_init(struct mmbi_ins_desc *mmbi)
 {
@@ -546,17 +520,12 @@ int mmbi_instance_init(struct mmbi_ins_desc *mmbi)
 		}
 	}
 
-	spin_lock_init(&mmbi->irq_lock);
-	INIT_WORK(&mmbi->work, mmbi_instance_irq);
-	INIT_DELAYED_WORK(&mmbi->irq_pending_work, mmbi_instance_pending_irq);
-
 	mmbi->ins_id = ida_alloc(&mmbi_ida, GFP_KERNEL);
 	if (mmbi->ins_id < 0) {
 		rc = mmbi->ins_id;
 		goto out_fail;
 	}
 
-	mmbi->pending_int = 0;
 	if (mmbi->role == MMBI_ROLE_BMC)
 		rc = mmbi_instance_init_bmc(mmbi);
 	else
@@ -569,12 +538,16 @@ int mmbi_instance_init(struct mmbi_ins_desc *mmbi)
 	if (rc)
 		goto ida_free;
 
+	rc = mmbi_instance_init_channel_poll(mmbi);
+	if (rc)
+		goto ida_free;
+
 	return 0;
 
 ida_free:
 	ida_free(&mmbi_ida, mmbi->ins_id);
 out_fail:
-	dev_err(mmbi->dev, "%s: failed to init MMBI instance\n",
+	pr_err("%s: failed to init MMBI instance\n",
 		__func__);
 	return rc;
 }

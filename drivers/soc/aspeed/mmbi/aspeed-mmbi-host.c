@@ -2,9 +2,8 @@
 /* Implements MMBI protocol for Host side with VPSCB buffer type
  * Copyright 2026 Aspeed Technology Inc.
  */
-
-#include "linux/compiler_types.h"
-#include "linux/wait.h"
+#include <linux/compiler_types.h>
+#include <linux/wait.h>
 #include <linux/bitfield.h>
 #include <linux/bits.h>
 #include <linux/device.h>
@@ -14,8 +13,6 @@
 #include "aspeed-mmbi.h"
 #include "aspeed-mmbi-host.h"
 
-#define MMBI_HOST_INT_VAL_OFFSET 45
-
 static void mmbi_channel_state_handler(struct mmbi_chan_desc *chan, u8 __iomem *desc_virt)
 {
 	enum mmbi_state prev_state, cur_state;
@@ -23,7 +20,7 @@ static void mmbi_channel_state_handler(struct mmbi_chan_desc *chan, u8 __iomem *
 	u8 __iomem *host_rws_virt;
 	u8 __iomem *host_ros_virt;
 	u32 host_int_location;
-	unsigned long flags;
+	u32 unhandled_len, avail_len;
 
 	prev_state = chan->state;
 
@@ -32,7 +29,6 @@ static void mmbi_channel_state_handler(struct mmbi_chan_desc *chan, u8 __iomem *
 	host_rws_virt = desc_virt + vpscb->h_rws_p;
 	host_ros_virt = desc_virt + vpscb->h_ros_p;
 	mmbi_channel_state_update(chan, desc_virt);
-	chan->peer_ready = mmbi_get_ready(host_ros_virt);
 	cur_state = chan->state;
 
 	switch (cur_state) {
@@ -40,31 +36,27 @@ static void mmbi_channel_state_handler(struct mmbi_chan_desc *chan, u8 __iomem *
 		mmbi_set_ready(host_rws_virt);
 		mmbi_set_up(host_rws_virt);
 		chan->state = NORMAL_RUNTIME;
-		mmbi_set_int_value(chan->mmbi, MMBI_HOST_INT_VAL_OFFSET,
-				   host_int_location, BIT(chan->index));
 		break;
 	case NORMAL_RUNTIME:
 		mmbi_set_ready(host_rws_virt);
 
-		spin_lock_irqsave(&chan->rx_lock, flags);
-		if (mmbi_channel_unhandled_length(host_rws_virt, host_ros_virt,
-						  chan->b2h_l) >= MMBI_PKT_MIN_SIZE) {
-			if (!chan->rx_ready) {
-				chan->rx_ready = true;
-				wake_up_interruptible(&chan->rx_wait);
-			}
-		} else {
+		unhandled_len = mmbi_channel_unhandled_length(host_rws_virt,
+							      host_ros_virt, chan->b2h_l);
+		if (unhandled_len >= MMBI_PKT_MIN_SIZE)
+			chan->rx_ready = true;
+		else
 			chan->rx_ready = false;
-		}
-		spin_unlock_irqrestore(&chan->rx_lock, flags);
+		avail_len = mmbi_channel_avail_length(host_ros_virt, host_rws_virt, chan->h2b_l);
+		if (avail_len < MMBI_PKT_MIN_SIZE)
+			chan->tx_ready = false;
+		else
+			chan->tx_ready = true;
 		break;
 	case RESET_REQ_BY_BMC:
 		// TODO: consume all data from B2H buffer
 		mmbi_clr_ready(host_rws_virt);
 		mmbi_set_rst(host_rws_virt);
 		chan->state = RESET_ACKED;
-		mmbi_set_int_value(chan->mmbi, MMBI_HOST_INT_VAL_OFFSET,
-				   host_int_location, BIT(chan->index));
 		break;
 	default:
 		/* other states do not require action from host side */
@@ -107,15 +99,13 @@ static int mmbi_chan_init_vpscb_host(u8 __iomem *buf_virt, struct mmbi_buf_vpscb
 static int mmbi_channel_init_host(u8 __iomem *desc_virt, struct mmbi_chan_desc *chan_desc)
 {
 	struct mmbi_buf_vpscb *buffer_desc;
+	int rc;
 
 	if (!desc_virt || !IS_ALIGNED((unsigned long)desc_virt, sizeof(long))) {
 		pr_err("%s: invalid desc_virt address %p\n", __func__, desc_virt);
 		return -EINVAL;
 	}
 
-	mmbi_clr_pending_int(chan_desc->mmbi, chan_desc->index);
-	init_waitqueue_head(&chan_desc->rx_wait);
-	chan_desc->rx_ready = false;
 	chan_desc->peer_ready = false;
 	memcpy_fromio(&chan_desc->b2h_ba_offset, desc_virt, sizeof(chan_desc->b2h_ba_offset));
 	memcpy_fromio(&chan_desc->h2b_ba_offset, desc_virt + 4, sizeof(chan_desc->h2b_ba_offset));
@@ -137,38 +127,24 @@ static int mmbi_channel_init_host(u8 __iomem *desc_virt, struct mmbi_chan_desc *
 
 	if (chan_desc->buffer_type == MMBI_BUFFER_TYPE_VPSCB) {
 		buffer_desc = &chan_desc->buffer_desc;
-		return mmbi_chan_init_vpscb_host(desc_virt, buffer_desc);
+		rc = mmbi_chan_init_vpscb_host(desc_virt, buffer_desc);
 	}
 
-	pr_err("\t%s: unsupported buffer type %d\n", __func__,
-	       chan_desc->buffer_type);
-	return -EINVAL;
+	if (!rc)
+		mmbi_channel_state_handler(chan_desc, chan_desc->mmbi->desc_virt);
+
+	return rc;
 }
 
-void mmbi_instance_irq_host(struct mmbi_ins_desc *mmbi)
+void mmbi_channel_irq_host(struct mmbi_chan_desc *chan)
 {
-	if (mmbi->mmbi_version == MMBI_VERSION_1_0) {
-		mmbi_channel_state_handler(&mmbi->chan_desc[0], mmbi->desc_virt);
-	} else if (mmbi->mmbi_version == MMBI_VERSION_1_1) {
-		u8 bmc_int_val;
-
-		bmc_int_val = ioread8(mmbi->desc_virt + MMBI_BMC_INT_VAL_OFFSET);
-
-		for (int i = 0; i < mmbi->num_of_channels; i++) {
-			if (bmc_int_val & (1 << i)) {
-				mmbi_channel_state_handler(&mmbi->chan_desc[i],
-							   mmbi->desc_virt);
-			}
-		}
-		iowrite8(0, mmbi->desc_virt + MMBI_BMC_INT_VAL_OFFSET);
-	}
-
-	if (mmbi->pending_int) {
-		/* trigger pending interrupt if exists */
-		mmbi_set_int_value(mmbi, MMBI_HOST_INT_VAL_OFFSET, mmbi->host_int_location, 0);
-	}
+	mmbi_channel_state_handler(chan, chan->mmbi->desc_virt);
+	if (chan->rx_ready)
+		wake_up_interruptible(&chan->rx_wait);
+	if (chan->tx_ready)
+		wake_up_interruptible(&chan->tx_wait);
 }
-EXPORT_SYMBOL_GPL(mmbi_instance_irq_host);
+EXPORT_SYMBOL_GPL(mmbi_channel_irq_host);
 
 int mmbi_instance_init_host(struct mmbi_ins_desc *mmbi)
 {
@@ -252,13 +228,6 @@ int mmbi_instance_init_host(struct mmbi_ins_desc *mmbi)
 			desc_virt += MMBI_DESC_SIZE_CHANNEL;
 		}
 	}
-
-	val = 0;
-	for (chan_idx = 0; chan_idx < mmbi->num_of_channels; chan_idx++) {
-		chan = &mmbi->chan_desc[chan_idx];
-		mmbi_channel_state_handler(chan, mmbi->desc_virt);
-	}
-
 	return 0;
 }
 EXPORT_SYMBOL_GPL(mmbi_instance_init_host);
