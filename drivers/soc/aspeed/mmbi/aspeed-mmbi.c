@@ -265,6 +265,17 @@ static int mmbi_misc_open(struct inode *inode, struct file *file)
 	return 0;
 }
 
+static int mmbi_misc_release(struct inode *inode, struct file *file)
+{
+	struct mmbi_chan_desc *chan_desc = file->private_data;
+
+	if (chan_desc->running) {
+		cancel_delayed_work_sync(&chan_desc->poll_work);
+		chan_desc->running = false;
+	}
+	return 0;
+}
+
 static ssize_t mmbi_misc_read(struct file *file, char __user *buf, size_t count,
 			      loff_t *ppos)
 {
@@ -353,7 +364,7 @@ static const struct file_operations mmbi_fops = {
 	.read = mmbi_misc_read,
 	.write = mmbi_misc_write,
 	.poll = mmbi_misc_poll,
-	.release = NULL,
+	.release = mmbi_misc_release,
 };
 
 static int mmbi_instance_init_miscdev(struct mmbi_ins_desc *mmbi)
