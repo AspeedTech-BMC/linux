@@ -579,3 +579,26 @@ out_fail:
 	return rc;
 }
 EXPORT_SYMBOL_GPL(mmbi_instance_init);
+
+void mmbi_instance_remove(struct mmbi_ins_desc *mmbi)
+{
+	int i;
+	u8 __iomem *struct_desc;
+
+	if (!mmbi)
+		return;
+
+	for (i = 0; i < mmbi->num_of_channels; i++) {
+		misc_deregister(&mmbi->chan_desc[i].miscdev);
+		struct_desc =
+			mmbi->desc_virt +
+			(mmbi->role == MMBI_ROLE_BMC ?
+				 mmbi->chan_desc[i].buffer_desc.h_ros_p :
+				 mmbi->chan_desc[i].buffer_desc.h_rws_p);
+		mmbi_clr_ready(struct_desc);
+		mmbi_clr_up(struct_desc);
+	}
+
+	ida_free(&mmbi_ida, mmbi->ins_id);
+}
+EXPORT_SYMBOL_GPL(mmbi_instance_remove);
