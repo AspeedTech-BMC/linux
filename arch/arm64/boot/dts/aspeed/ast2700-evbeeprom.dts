@@ -869,8 +869,7 @@
 	status = "okay";
 	memory-region = <&pcie0_mmbi0_memory>;
 
-	mmbi-bmc-int-value = /bits/ 8 <0x00>;
-	mmbi-bmc-int-offset = <0x100000>;
+	noi = <7>;
 };
 #else
 &pcie0 {
@@ -938,8 +937,7 @@
 	status = "okay";
 	memory-region = <&pcie1_mmbi4_memory>;
 
-	mmbi-bmc-int-value = /bits/ 8 <0x44>;
-	mmbi-bmc-int-offset = <0x100400>;
+	noi = <7>;
 };
 #else
 &pcie1 {
