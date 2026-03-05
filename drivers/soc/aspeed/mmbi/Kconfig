@@ -7,4 +7,11 @@ config ASPEED_MMBI
 	  provides a communication channel between the Host and the BMC
 	  over PCIe using the MMBI (Mailbox Message Buffer Interface).
 
+config ASPEED_PCIE_MMBI
+	tristate "ASPEED PCIE MMBI"
+	depends on ASPEED_MMBI
+
+config ASPEED_HOST_PCIE_MMBI
+	tristate "ASPEED Host PCIE MMBI"
+
 endmenu
