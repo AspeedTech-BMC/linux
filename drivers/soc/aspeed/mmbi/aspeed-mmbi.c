@@ -25,8 +25,8 @@ static DEFINE_IDA(mmbi_ida);
 
 static void mmbi_update_rd_ptr(u8 __iomem *read_ptr, u32 read_size, u32 read_buf_size)
 {
-	u32 reg, low, addr;
-
+	u32 reg, low, addr, reg_rb;
+	u32 retry_cnt;
 	if (!read_size || (read_size & 3)) {
 		pr_err("%s: read_size must be non-zero and multiple of 4\n", __func__);
 		return;
@@ -40,13 +40,23 @@ static void mmbi_update_rd_ptr(u8 __iomem *read_ptr, u32 read_size, u32 read_buf
 
 	addr = (addr + read_size) % read_buf_size;
 	addr &= MMBI_PTR_ADDR_MASK;
+	retry_cnt = 0;
 	iowrite32(addr | low, read_ptr);
+	do {
+		reg_rb = ioread32(read_ptr);
+		retry_cnt++;
+		if (retry_cnt > 5) {
+			pr_info("%s: read pointer update not reflected after %u retries, reg 0x%x, expected 0x%x\n",
+				__func__, retry_cnt, reg_rb, addr | low);
+			break;
+		}
+	} while (reg_rb != (addr | low));
 }
 
 static void mmbi_update_wr_ptr(u8 __iomem *write_ptr, u32 write_size, u32 write_buf_size)
 {
-	u32 reg, low, addr;
-
+	u32 reg, low, addr, reg_rb;
+	u32 retry_cnt;
 	if (!write_size || (write_size & 3)) {
 		pr_err("%s: write_size must be non-zero and multiple of 4\n", __func__);
 		return;
@@ -59,7 +69,18 @@ static void mmbi_update_wr_ptr(u8 __iomem *write_ptr, u32 write_size, u32 write_
 
 	addr = (addr + write_size) % write_buf_size;
 	addr &= MMBI_PTR_ADDR_MASK;
+
+	retry_cnt = 0;
 	iowrite32(addr | low, write_ptr);
+	do {
+		reg_rb = ioread32(write_ptr);
+		retry_cnt++;
+		if (retry_cnt > 5) {
+			pr_info("%s: write pointer update not reflected after %u retries, reg 0x%x, expected 0x%x\n",
+				__func__, retry_cnt, reg_rb, addr | low);
+			break;
+		}
+	} while (reg_rb != (addr | low));
 }
 
 static void mmbi_parse_hdr(u8 __iomem *buf_virt, u32 *payload_len, u8 *padding,
