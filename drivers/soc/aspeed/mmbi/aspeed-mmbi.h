@@ -38,14 +38,10 @@
 #define MMBI_STATE_RST_MSK BIT(0)
 #define MMBI_STATE_IF_UP_MSK BIT(1)
 
-#define MMBI_STATE_GET_RDY(val) ((val) & MMBI_STATE_RDY_MSK)
 #define MMBI_STATE_GET_RST(val) ((val) & MMBI_STATE_RST_MSK)
 #define MMBI_STATE_GET_IF_UP(val) ((val) & MMBI_STATE_IF_UP_MSK)
 
-/* BMC interrupt value location is fixed at offset 55, only used in v1.1 */
-#define MMBI_BMC_INT_VAL_OFFSET 55
-/* Host interrupt value location is fixed at offset 45, only used in v1.1 */
-#define MMBI_HOST_INT_VAL_OFFSET 45
+#define MMBI_POLL_INTERVAL_MS 1
 
 static __always_inline u8 mmbi_get_ready(u8 __iomem *devm_virt)
 {
@@ -140,10 +136,18 @@ struct mmbi_chan_desc {
 	enum mmbi_state state;			/* Current MMBI State of this channel */
 	struct mmbi_ins_desc *mmbi;		/* Back pointer to instance descriptor */
 	struct miscdevice miscdev;		/* MMBI char device for this channel */
-	wait_queue_head_t rx_wait;		/* Wait queue for receiving data */
+	wait_queue_head_t rx_wait;		/* Wait queue for rx data available */
+	wait_queue_head_t tx_wait;		/* Wait queue for tx data available */
 	bool rx_ready;				/* Flag indicating if has data to be read */
-	spinlock_t rx_lock;			/* IRQ lock to prevent rx_ready race */
+	bool tx_ready;				/* Flag indicating if ready to transmit data */
+	spinlock_t rx_lock;			/* lock to prevent t/rx ready flag race */
+	spinlock_t tx_lock;			/* lock to prevent t/rx ready flag race */
+	u32 read_ptr;				/* Structure value for current read pointer */
+	u32 write_ptr;				/* Structure value for current write pointer */
 	bool peer_ready;			/* Flag indicating peer ready bit */
+	struct delayed_work poll_work;		/* work struct for polling check status */
+	u32 poll_interval_ms;			/* polling interval in ms, default 10ms */
+	bool running;
 };
 
 struct mmbi_ins_desc {
