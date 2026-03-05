@@ -682,8 +682,6 @@ static int  aspeed_bmc_device_remove(struct platform_device *pdev)
 	devm_free_irq(&pdev->dev, bmc_device->irq, bmc_device);
 	devm_free_irq(&pdev->dev, bmc_device->pcie_irq, bmc_device);
 
-	iounmap(bmc_device->reg_base);
-
 	devm_kfree(&pdev->dev, bmc_device);
 
 	return 0;
