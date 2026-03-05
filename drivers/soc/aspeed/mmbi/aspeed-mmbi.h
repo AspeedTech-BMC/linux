@@ -160,23 +160,16 @@ struct mmbi_ins_desc {
 	int ins_id;
 	struct mmbi_chan_desc chan_desc[MMBI_MAX_CHANNELS];
 	struct device *dev;
-	struct work_struct work;
-	struct delayed_work irq_pending_work;
-	u8 pending_int;		/* Pending interrupt value, only for MMBI_VERSION_1_1 */
-	spinlock_t irq_lock;	/* IRQ lock to prevent int_value race */
 	enum mmbi_role role;
-	void (*raise_interrupt)(struct device *dev, u8 __iomem *desc_virt, u32 location, u8 value);
 };
 
 void mmbi_channel_state_update(struct mmbi_chan_desc *chan,
 			       u8 __iomem *desc_virt);
-void mmbi_set_int_value(struct mmbi_ins_desc *mmbi, u32 val_location,
-			u32 location, u8 val);
-void mmbi_clr_pending_int(struct mmbi_ins_desc *mmbi, u8 idx);
 int mmbi_channel_avail_length(u8 __iomem *read_structure,
 			      u8 __iomem *write_structure, u32 buf_size);
 int mmbi_channel_unhandled_length(u8 __iomem *read_structure,
 				  u8 __iomem *write_structure, u32 buf_size);
 int mmbi_instance_init(struct mmbi_ins_desc *mmbi);
+void mmbi_instance_remove(struct mmbi_ins_desc *mmbi);
 
 #endif
