@@ -699,8 +699,7 @@
 	status = "okay";
 	memory-region = <&pcie0_mmbi0_memory>;
 
-	mmbi-bmc-int-value = /bits/ 8 <0x00>;
-	mmbi-bmc-int-offset = <0x100000>;
+	noi = <7>;
 };
 #endif
 
