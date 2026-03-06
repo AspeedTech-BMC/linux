@@ -29,7 +29,7 @@
 #include <linux/platform_device.h>
 
 #include <uapi/linux/aspeed-mctp.h>
-#ifdef CONFIG_MCTP_TRANSPORT_PCIE_VDM
+#if IS_ENABLED(CONFIG_MCTP_TRANSPORT_PCIE_VDM)
 #include <linux/mctp-pcie-vdm.h>
 #endif
 
@@ -332,7 +332,7 @@ struct aspeed_mctp {
 	/* Delayed work for periodic detection of Rx packets */
 	struct delayed_work rx_det_dwork;
 	u32 rx_det_period_us;
-#ifdef CONFIG_MCTP_TRANSPORT_PCIE_VDM
+#if IS_ENABLED(CONFIG_MCTP_TRANSPORT_PCIE_VDM)
 	struct net_device *ndev;
 	bool pcie_vdm_enabled;
 #endif
@@ -768,7 +768,7 @@ static void aspeed_mctp_dispatch_packet(struct aspeed_mctp *priv,
 		} else {
 			wake_up_all(&client->wait_queue);
 		}
-#ifdef CONFIG_MCTP_TRANSPORT_PCIE_VDM
+#if IS_ENABLED(CONFIG_MCTP_TRANSPORT_PCIE_VDM)
 		mctp_pcie_vdm_receive_packet(priv->ndev);
 #endif
 		aspeed_mctp_client_put(client);
@@ -1940,7 +1940,7 @@ static __poll_t aspeed_mctp_poll(struct file *file,
 	return ret;
 }
 
-#ifdef CONFIG_MCTP_TRANSPORT_PCIE_VDM
+#if IS_ENABLED(CONFIG_MCTP_TRANSPORT_PCIE_VDM)
 static int aspeed_mctp_pcie_vdm_op_send_pkt(struct device *dev,
 					    u8 *data, size_t size)
 {
@@ -2124,7 +2124,7 @@ static void aspeed_mctp_pcie_setup(struct aspeed_mctp *priv)
 				schedule_delayed_work(&priv->rx_det_dwork,
 						      usecs_to_jiffies(priv->rx_det_period_us));
 		}
-#ifdef CONFIG_MCTP_TRANSPORT_PCIE_VDM
+#if IS_ENABLED(CONFIG_MCTP_TRANSPORT_PCIE_VDM)
 		if (!priv->pcie_vdm_enabled) {
 			aspeed_mctp_pcie_vdm_register(priv);
 			priv->pcie_vdm_enabled = true;
@@ -2133,7 +2133,7 @@ static void aspeed_mctp_pcie_setup(struct aspeed_mctp *priv)
 		aspeed_mctp_rx_trigger(&priv->rx);
 		aspeed_mctp_send_pcie_uevent(kobj, true);
 	} else {
-#ifdef CONFIG_MCTP_TRANSPORT_PCIE_VDM
+#if IS_ENABLED(CONFIG_MCTP_TRANSPORT_PCIE_VDM)
 		if (priv->pcie_vdm_enabled) {
 			mctp_pcie_vdm_remove_dev(priv->ndev);
 			priv->pcie_vdm_enabled = false;
@@ -2575,7 +2575,7 @@ static void aspeed_mctp_remove(struct platform_device *pdev)
 {
 	struct aspeed_mctp *priv = platform_get_drvdata(pdev);
 
-#ifdef CONFIG_MCTP_TRANSPORT_PCIE_VDM
+#if IS_ENABLED(CONFIG_MCTP_TRANSPORT_PCIE_VDM)
 	if (priv->pcie_vdm_enabled) {
 		mctp_pcie_vdm_remove_dev(priv->ndev);
 		priv->pcie_vdm_enabled = false;
