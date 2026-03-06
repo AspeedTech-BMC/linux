@@ -537,6 +537,7 @@ static int aspeed_pwm_tach_probe(struct platform_device *pdev)
 	if (IS_ERR(chip))
 		return PTR_ERR(chip);
 
+	platform_set_drvdata(pdev, chip);
 	pwmchip_set_drvdata(chip, priv);
 	chip->ops = &aspeed_pwm_ops;
 
@@ -568,7 +569,8 @@ static int aspeed_pwm_tach_probe(struct platform_device *pdev)
 
 static void aspeed_pwm_tach_remove(struct platform_device *pdev)
 {
-	struct aspeed_pwm_tach_data *priv = platform_get_drvdata(pdev);
+	struct pwm_chip *chip = platform_get_drvdata(pdev);
+	struct aspeed_pwm_tach_data *priv = aspeed_pwm_chip_to_data(chip);
 
 	reset_control_assert(priv->reset);
 }
