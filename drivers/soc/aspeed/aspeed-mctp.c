@@ -334,6 +334,7 @@ struct aspeed_mctp {
 	u32 rx_det_period_us;
 #ifdef CONFIG_MCTP_TRANSPORT_PCIE_VDM
 	struct net_device *ndev;
+	bool pcie_vdm_enabled;
 #endif
 };
 
@@ -2013,6 +2014,21 @@ static const struct mctp_pcie_vdm_ops aspeed_mctp_pcie_vdm_ops = {
 	.uninit = aspeed_mctp_pcie_vdm_op_uninit,
 };
 
+static void aspeed_mctp_pcie_vdm_register(struct aspeed_mctp *priv)
+{
+	struct net_device *ndev;
+	struct mctp_client *client;
+
+	/** use priv's default client to send/receive mctp packets */
+	client = aspeed_mctp_create_client(priv);
+	aspeed_mctp_register_default_handler(client);
+
+	ndev = mctp_pcie_vdm_add_dev(priv->dev, &aspeed_mctp_pcie_vdm_ops);
+	if (IS_ERR(ndev))
+		dev_err(priv->dev, "Failed to add mctp pcie vdm device Err %ld\n", PTR_ERR(ndev));
+	priv->ndev = ndev;
+}
+
 #endif
 
 static const struct file_operations aspeed_mctp_fops = {
@@ -2108,9 +2124,21 @@ static void aspeed_mctp_pcie_setup(struct aspeed_mctp *priv)
 				schedule_delayed_work(&priv->rx_det_dwork,
 						      usecs_to_jiffies(priv->rx_det_period_us));
 		}
+#ifdef CONFIG_MCTP_TRANSPORT_PCIE_VDM
+		if (!priv->pcie_vdm_enabled) {
+			aspeed_mctp_pcie_vdm_register(priv);
+			priv->pcie_vdm_enabled = true;
+		}
+#endif
 		aspeed_mctp_rx_trigger(&priv->rx);
 		aspeed_mctp_send_pcie_uevent(kobj, true);
 	} else {
+#ifdef CONFIG_MCTP_TRANSPORT_PCIE_VDM
+		if (priv->pcie_vdm_enabled) {
+			mctp_pcie_vdm_remove_dev(priv->ndev);
+			priv->pcie_vdm_enabled = false;
+		}
+#endif
 		schedule_delayed_work(&priv->pcie.rst_dwork,
 				      msecs_to_jiffies(1000));
 	}
@@ -2507,22 +2535,6 @@ static int aspeed_mctp_probe(struct platform_device *pdev)
 		goto out_dma;
 	}
 
-#ifdef CONFIG_MCTP_TRANSPORT_PCIE_VDM
-	struct net_device *ndev;
-	struct mctp_client *client;
-
-	/** use priv's default client to send/receive mctp packets */
-	client = aspeed_mctp_create_client(priv);
-	aspeed_mctp_register_default_handler(client);
-
-	ndev = mctp_pcie_vdm_add_dev(priv->dev, &aspeed_mctp_pcie_vdm_ops);
-	if (IS_ERR(ndev)) {
-		dev_err(priv->dev, "Failed to add mctp pcie vdm device Err %ld\n", PTR_ERR(ndev));
-		goto out_dma;
-	}
-	priv->ndev = ndev;
-#endif
-
 	priv->mctp_miscdev.parent = priv->dev;
 	priv->mctp_miscdev.minor = MISC_DYNAMIC_MINOR;
 	priv->mctp_miscdev.name = devm_kasprintf(priv->dev, GFP_KERNEL, "aspeed-mctp%d", id);
@@ -2550,9 +2562,6 @@ static int aspeed_mctp_probe(struct platform_device *pdev)
 	return 0;
 out_irq:
 	misc_deregister(&priv->mctp_miscdev);
-#ifdef CONFIG_MCTP_TRANSPORT_PCIE_VDM
-	mctp_pcie_vdm_remove_dev(priv->ndev);
-#endif
 out_dma:
 	aspeed_mctp_dma_fini(priv);
 out_drv:
@@ -2567,7 +2576,10 @@ static void aspeed_mctp_remove(struct platform_device *pdev)
 	struct aspeed_mctp *priv = platform_get_drvdata(pdev);
 
 #ifdef CONFIG_MCTP_TRANSPORT_PCIE_VDM
-	mctp_pcie_vdm_remove_dev(priv->ndev);
+	if (priv->pcie_vdm_enabled) {
+		mctp_pcie_vdm_remove_dev(priv->ndev);
+		priv->pcie_vdm_enabled = false;
+	}
 #endif
 
 	platform_device_unregister(priv->peci_mctp);
