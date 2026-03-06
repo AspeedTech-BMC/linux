@@ -11,6 +11,8 @@
 #include <linux/irqdomain.h>
 
 #define AST2700_INTC_INVALID_ROUTE (~0U)
+#define ASPEED_INTC_RANGES_BASE		0U
+#define ASPEED_INTC_RANGES_COUNT	1U
 
 struct aspeed_intc_interrupt_range {
 	u32               start;

@@ -11,6 +11,13 @@
 #define ASPEED_INTC_RANGE_OFF_COUNT	1U
 #define ASPEED_INTC_RANGE_OFF_PHANDLE	2U
 
+/**
+ * aspeed_intc_populate_ranges
+ * @dev: Device owning the interrupt controller node.
+ * @ranges: Destination for parsed range descriptors.
+ *
+ * Return: 0 on success, negative errno on error.
+ */
 int aspeed_intc_populate_ranges(struct device *dev,
 				struct aspeed_intc_interrupt_ranges *ranges)
 {

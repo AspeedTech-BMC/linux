@@ -17,6 +17,7 @@
 #include <linux/kconfig.h>
 #include <linux/of.h>
 #include <linux/of_irq.h>
+#include <linux/overflow.h>
 #include <linux/property.h>
 #include <linux/spinlock.h>
 
@@ -184,15 +185,13 @@ static int resolve_input_from_child_ranges(const struct aspeed_intc0 *intc0,
 	if (range->upstream.param_count == 0)
 		return -EINVAL;
 
-	base = range->upstream.param[0];
+	base = range->upstream.param[ASPEED_INTC_RANGES_BASE];
 	offset = outpin - range->start;
-	if (offset && !in_range32(base, 0, U32_MAX - offset + 1)) {
+	if (check_add_overflow(base, offset, input)) {
 		dev_warn(intc0->dev, "%s: Arithmetic overflow for input derivation: %u + %u\n",
 			 __func__, base, offset);
 		return -EINVAL;
 	}
-
-	*input = base + offset;
 	return 0;
 }
 
@@ -215,7 +214,8 @@ static int resolve_parent_range_for_output(const struct aspeed_intc0 *intc0,
 			resolved->start = output;
 			resolved->count = 1;
 			resolved->upstream = range.upstream;
-			resolved->upstream.param[1] += output - range.start;
+			resolved->upstream.param[ASPEED_INTC_RANGES_COUNT] +=
+				output - range.start;
 		}
 
 		return 0;
@@ -228,8 +228,8 @@ static int resolve_parent_route_for_input(const struct aspeed_intc0 *intc0,
 					  const struct fwnode_handle *parent, u32 input,
 					  struct aspeed_intc_interrupt_range *resolved)
 {
-	u32 c0o;
 	int rc = -ENOENT;
+	u32 c0o;
 
 	if (input < INT_NUM) {
 		static_assert(INTC0_ROUTE_NUM < INT_MAX, "Broken cast");
@@ -248,7 +248,6 @@ static int resolve_parent_route_for_input(const struct aspeed_intc0 *intc0,
 	} else if (input < (INT_NUM + INTM_NUM)) {
 		c0o = aspeed_intc0_intm_routes[(input - INT_NUM) / INTM_IRQS_PER_BANK];
 		c0o += ((input - INT_NUM) % INTM_IRQS_PER_BANK);
-
 		return resolve_parent_range_for_output(intc0, parent, c0o, resolved);
 	} else if (input < (INT_NUM + INTM_NUM + SWINT_NUM)) {
 		c0o = input - SWINT_BASE + INTC0_SWINT_OUT_BASE;
@@ -297,8 +296,7 @@ static int resolve_parent_route_for_input(const struct aspeed_intc0 *intc0,
  * for the PSP (Primary Service Processor) GIC.
  */
 int aspeed_intc0_resolve_route(const struct irq_domain *c0domain, size_t nc1outs,
-			       const u32 *c1outs,
-			       size_t nc1ranges,
+			       const u32 *c1outs, size_t nc1ranges,
 			       const struct aspeed_intc_interrupt_range *c1ranges,
 			       struct aspeed_intc_interrupt_range *resolved)
 {
@@ -313,10 +311,9 @@ int aspeed_intc0_resolve_route(const struct irq_domain *c0domain, size_t nc1outs
 		return -EINVAL;
 
 	if (nc1outs == 0 || nc1ranges == 0)
-		return -ENODEV;
+		return -ENOENT;
 
-	if (!fwnode_device_is_compatible(c0domain->fwnode,
-					 "aspeed,ast2700-intc0"))
+	if (!fwnode_device_is_compatible(c0domain->fwnode, "aspeed,ast2700-intc0"))
 		return -ENODEV;
 
 	intc0 = c0domain->host_data;
@@ -365,13 +362,13 @@ int aspeed_intc0_resolve_route(const struct irq_domain *c0domain, size_t nc1outs
 			resolved->start = c1o;
 			resolved->count = 1;
 			resolved->upstream = c1r.upstream;
-			resolved->upstream.param[0] = input;
+			resolved->upstream.param[ASPEED_INTC_RANGES_BASE] = input;
 			/* Cast protected by prior test against nc1outs */
 			return (int)i;
 		}
 	}
 
-	return -ENODEV;
+	return -ENOENT;
 }
 
 static int aspeed_intc0_irq_domain_map(struct irq_domain *domain,

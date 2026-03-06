@@ -20,11 +20,11 @@ static void aspeed_intc0_resolve_route_bad_args(struct kunit *test)
 	rc = aspeed_intc0_resolve_route(&c0domain, 0, c1outs,
 					ARRAY_SIZE(c1ranges), c1ranges,
 					&resolved);
-	KUNIT_EXPECT_EQ(test, rc, -ENODEV);
+	KUNIT_EXPECT_EQ(test, rc, -ENOENT);
 
 	rc = aspeed_intc0_resolve_route(&c0domain, ARRAY_SIZE(c1outs), c1outs,
 					0, c1ranges, &resolved);
-	KUNIT_EXPECT_EQ(test, rc, -ENODEV);
+	KUNIT_EXPECT_EQ(test, rc, -ENOENT);
 }
 
 static int gicv3_fwnode_read_string_array(const struct fwnode_handle *fwnode,

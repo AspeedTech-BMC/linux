@@ -214,7 +214,7 @@ static void aspeed_intc1_request_interrupts(struct aspeed_intc1 *intc1)
 			parent_irq.np = to_of_node(r->upstream.fwnode);
 			parent_irq.args_count = 1;
 			parent_irq.args[0] =
-				intc1->ranges.ranges[i].upstream.param[0] + k;
+				intc1->ranges.ranges[i].upstream.param[ASPEED_INTC_RANGES_BASE] + k;
 
 			irq = irq_create_of_mapping(&parent_irq);
 			if (!irq)
