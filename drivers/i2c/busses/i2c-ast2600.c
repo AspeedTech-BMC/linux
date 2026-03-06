@@ -1208,7 +1208,7 @@ static void ast2600_i2c_target_packet_buff_irq(struct ast2600_i2c_bus *i2c_bus, 
 	i2c_bus->target = i2c_bus->multi_target[AST2600_I2CS_GET_TARGET(sts)];
 
 	/* Handle i2c target timeout condition */
-	if (AST2600_I2CS_INACTIVE_TO & sts) {
+	if (sts & AST2600_I2CS_INACTIVE_TO) {
 		/* Reset timeout counter */
 		u32 ac_timing = readl(i2c_bus->reg_base + AST2600_I2CC_AC_TIMING) &
 				AST2600_I2CC_AC_TIMING_MASK;
@@ -1329,19 +1329,6 @@ static void ast2600_i2c_target_packet_buff_irq(struct ast2600_i2c_bus *i2c_bus, 
 		       i2c_bus->reg_base + AST2600_I2CC_BUFF_CTRL);
 		cmd = TARGET_TRIGGER_CMD | AST2600_I2CS_TX_BUFF_EN;
 		break;
-	/* the pending slave needs to be cleared with TX_NAK and STOP here */
-	/* other flags will be handled in the next irq callback */
-	/* the slave index will be updated when the slave match occurs */
-	/* use the pervious idx to do the slave stop event */
-	case AST2600_I2CS_SLAVE_PENDING | AST2600_I2CS_TX_NAK | AST2600_I2CS_STOP |
-		AST2600_I2CS_SLAVE_MATCH | AST2600_I2CS_RX_DONE:
-	case AST2600_I2CS_SLAVE_PENDING | AST2600_I2CS_TX_NAK | AST2600_I2CS_STOP |
-		AST2600_I2CS_SLAVE_MATCH | AST2600_I2CS_RX_DONE | AST2600_I2CS_WAIT_RX_DMA:
-		i2c_bus->target = i2c_bus->multi_target[i2c_bus->previous_idx];
-		i2c_slave_event(i2c_bus->target, I2C_SLAVE_STOP, &value);
-		cmd = TARGET_TRIGGER_CMD;
-		i2c_bus->target_operate = 0;
-		break;
 	case AST2600_I2CS_SLAVE_MATCH | AST2600_I2CS_WAIT_TX_DMA | AST2600_I2CS_RX_DONE:
 	case AST2600_I2CS_WAIT_TX_DMA | AST2600_I2CS_RX_DONE:
 	case AST2600_I2CS_WAIT_TX_DMA:
@@ -1370,6 +1357,19 @@ static void ast2600_i2c_target_packet_buff_irq(struct ast2600_i2c_bus *i2c_bus, 
 		i2c_slave_event(i2c_bus->target, I2C_SLAVE_WRITE_REQUESTED, &value);
 		cmd = TARGET_TRIGGER_CMD | AST2600_I2CS_RX_BUFF_EN;
 		writel(cmd, i2c_bus->reg_base + AST2600_I2CS_CMD_STS);
+		break;
+	/* the pending slave needs to be cleared with TX_NAK and STOP here */
+	/* other flags will be handled in the next irq callback */
+	/* the slave index will be updated when the slave match occurs */
+	/* use the pervious idx to do the slave stop event */
+	case AST2600_I2CS_SLAVE_PENDING | AST2600_I2CS_TX_NAK | AST2600_I2CS_STOP |
+		AST2600_I2CS_SLAVE_MATCH | AST2600_I2CS_RX_DONE:
+	case AST2600_I2CS_SLAVE_PENDING | AST2600_I2CS_TX_NAK | AST2600_I2CS_STOP |
+		AST2600_I2CS_SLAVE_MATCH | AST2600_I2CS_RX_DONE | AST2600_I2CS_WAIT_RX_DMA:
+		cmd = TARGET_TRIGGER_CMD;
+		i2c_bus->target = i2c_bus->multi_target[i2c_bus->previous_idx];
+		i2c_slave_event(i2c_bus->target, I2C_SLAVE_STOP, &value);
+		i2c_bus->target_operate = 0;
 		break;
 	case AST2600_I2CS_TX_NAK | AST2600_I2CS_STOP:
 	case AST2600_I2CS_STOP:
@@ -1514,8 +1514,6 @@ static int ast2600_i2c_setup_buff_tx(u32 cmd, struct ast2600_i2c_bus *i2c_bus)
 {
 	struct i2c_msg *msg = &i2c_bus->msgs[i2c_bus->msgs_index];
 	int xfer_len = msg->len - i2c_bus->controller_xfer_cnt;
-	u32 wbuf_dword;
-	int i;
 
 	cmd |= AST2600_I2CM_PKT_EN;
 
@@ -1528,6 +1526,8 @@ static int ast2600_i2c_setup_buff_tx(u32 cmd, struct ast2600_i2c_bus *i2c_bus)
 		cmd |= AST2600_I2CM_PKT_ADDR(msg->addr);
 
 	if (xfer_len) {
+		u32 wbuf_dword;
+
 		cmd |= AST2600_I2CM_TX_BUFF_EN | AST2600_I2CM_TX_CMD;
 		/*
 		 * The controller's buffer register supports dword writes only.
@@ -1536,7 +1536,7 @@ static int ast2600_i2c_setup_buff_tx(u32 cmd, struct ast2600_i2c_bus *i2c_bus)
 		 */
 		if (readl(i2c_bus->reg_base + AST2600_I2CS_ISR))
 			return -EBUSY;
-		for (i = 0; i < xfer_len; i += 4) {
+		for (int i = 0; i < xfer_len; i += 4) {
 			int xfer_cnt = i2c_bus->controller_xfer_cnt + i;
 
 			switch (min(xfer_len - i, 4) % 4) {
@@ -1890,8 +1890,7 @@ static int ast2600_i2c_controller_irq(struct ast2600_i2c_bus *i2c_bus)
 	if (sts & AST2600_I2CM_SMBUS_ALERT) {
 		if (ier & AST2600_I2CM_SMBUS_ALERT) {
 			/* Disable ALT INT */
-			writel(ier & ~AST2600_I2CM_SMBUS_ALERT,
-			       i2c_bus->reg_base + AST2600_I2CM_IER);
+			writel(ier & ~AST2600_I2CM_SMBUS_ALERT, i2c_bus->reg_base + AST2600_I2CM_IER);
 			i2c_handle_smbus_alert(i2c_bus->ara);
 			writel(AST2600_I2CM_SMBUS_ALERT, i2c_bus->reg_base + AST2600_I2CM_ISR);
 			dev_err(i2c_bus->dev,
