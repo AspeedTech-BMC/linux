@@ -575,7 +575,7 @@ static int aspeed_pwm_tach_probe(struct platform_device *pdev)
 
 static int aspeed_pwm_tach_remove(struct platform_device *pdev)
 {
-	struct aspeed_pwm_tach_data *priv = platform_get_drvdata(pdev);
+	struct aspeed_pwm_tach_data *priv = dev_get_drvdata(&pdev->dev);
 
 	reset_control_assert(priv->reset);
 
