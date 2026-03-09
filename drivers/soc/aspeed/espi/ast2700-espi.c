@@ -2134,7 +2134,7 @@ void ast2700_espi_pre_init(struct aspeed_espi *espi)
 
 	dev = espi->dev;
 
-	scu1 = syscon_regmap_lookup_by_phandle(dev->of_node, "syscon");
+	scu1 = syscon_regmap_lookup_by_phandle(dev->of_node, "aspeed,syscon");
 	if (IS_ERR(scu1)) {
 		dev_err(dev, "failed to find SCU1 regmap, error %ld\n", PTR_ERR(scu1));
 		return;
