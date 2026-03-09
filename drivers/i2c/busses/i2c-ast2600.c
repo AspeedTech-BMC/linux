@@ -2435,7 +2435,7 @@ MODULE_DEVICE_TABLE(of, ast2600_i2c_bus_of_table);
 
 static struct platform_driver ast2600_i2c_bus_driver = {
 	.probe = ast2600_i2c_probe,
-	.remove_new = ast2600_i2c_remove,
+	.remove = ast2600_i2c_remove,
 	.driver = {
 		.name = KBUILD_MODNAME,
 		.of_match_table = ast2600_i2c_bus_of_table,
