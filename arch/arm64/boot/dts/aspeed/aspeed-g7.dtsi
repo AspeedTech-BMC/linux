@@ -1869,7 +1869,7 @@
 			compatible = "aspeed,ast2600-peci";
 			reg = <0x0 0x14c1f000 0x0 0x100>;
 			interrupts-extended = <&intc1_5 4>;
-			clocks = <&syscon1 SCU1_CLK_GATE_IPEREFCLK>;
+			clocks = <&syscon1 SCU1_CLK_PECI>;
 			resets = <&syscon1 SCU1_RESET_PECI>;
 			cmd-timeout-ms = <1000>;
 			clock-frequency = <1000000>;
