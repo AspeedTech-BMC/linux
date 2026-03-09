@@ -2907,10 +2907,26 @@ static int ast2600_i2c_probe(struct platform_device *pdev)
 		i2c_bus->ac_timing_config = ast2700_i2c_ac_timing_config;
 		i2c_bus->irq_err_to_errno = ast2700_i2c_irq_err_to_errno;
 		i2c_bus->irq_clear = ast2700_i2c_irq_clear;
+
+		/* AST2700: default DMA, allow override */
+		i2c_bus->mode = DMA_MODE;
 	} else {
 		i2c_bus->ac_timing_config = ast2600_i2c_ac_timing_config;
 		i2c_bus->irq_err_to_errno = ast2600_i2c_irq_err_to_errno;
 		i2c_bus->irq_clear = ast2600_i2c_irq_clear;
+
+		/* AST2600: default BUFF, allow override */
+		i2c_bus->mode = BUFF_MODE;
+	}
+
+	/* override the transfer mode */
+	if (!device_property_read_string(dev, "aspeed,transfer-mode", &xfer_mode)) {
+		if (!strcmp(xfer_mode, "dma"))
+			i2c_bus->mode = DMA_MODE;
+		else if (!strcmp(xfer_mode, "byte"))
+			i2c_bus->mode = BYTE_MODE;
+		else
+			i2c_bus->mode = BUFF_MODE;
 	}
 
 #if IS_ENABLED(CONFIG_I2C_SLAVE)
@@ -2923,42 +2939,23 @@ static int ast2600_i2c_probe(struct platform_device *pdev)
 	i2c_bus->multi_master = device_property_read_bool(dev, "multi-master");
 
 	if (i2c_bus->version == AST2700) {
-		/* AST2700: default DMA, allow override */
-		i2c_bus->mode = DMA_MODE;
-
-		if (!device_property_read_string(dev, "aspeed,transfer-mode", &xfer_mode)) {
-			if (!strcmp(xfer_mode, "dma"))
-				i2c_bus->mode = DMA_MODE;
-			else if (!strcmp(xfer_mode, "byte"))
-				i2c_bus->mode = DMA_MODE;
-			else
-				i2c_bus->mode = BUFF_MODE;
-		}
+		/* AST2700 would not allow byte mode */
+		if (i2c_bus->mode == BYTE_MODE)
+			i2c_bus->mode = DMA_MODE;
 
 		if (i2c_bus->mode == BUFF_MODE) {
 			i2c_bus->buf_base = devm_platform_get_and_ioremap_resource(pdev, 1, &res);
-			if (IS_ERR(i2c_bus->buf_base))
+			if (IS_ERR(i2c_bus->buf_base)) {
 				i2c_bus->mode = DMA_MODE;
-			else
+			} else {
 				i2c_bus->buf_size = resource_size(res) / 4;
 
-			/* ast2700 cfg disable dma */
-			writel(readl(i2c_bus->reg_base + I2CC_VERSION_CTRL) & ~FUNC_CFG_DMA_EN,
-				   i2c_bus->reg_base + I2CC_VERSION_CTRL);
+				/* ast2700 cfg disable dma */
+				writel(readl(i2c_bus->reg_base + I2CC_VERSION_CTRL) & ~FUNC_CFG_DMA_EN,
+					   i2c_bus->reg_base + I2CC_VERSION_CTRL);
+			}
 		}
 	} else {
-		/* AST2600: default BUFF, allow override */
-		i2c_bus->mode = BUFF_MODE;
-
-		if (!device_property_read_string(dev, "aspeed,transfer-mode", &xfer_mode)) {
-			if (!strcmp(xfer_mode, "dma"))
-				i2c_bus->mode = DMA_MODE;
-			else if (!strcmp(xfer_mode, "byte"))
-				i2c_bus->mode = BYTE_MODE;
-			else
-				i2c_bus->mode = BUFF_MODE;
-		}
-
 		if (i2c_bus->mode == BUFF_MODE) {
 			i2c_bus->buf_base = devm_platform_get_and_ioremap_resource(pdev, 1, &res);
 			if (IS_ERR(i2c_bus->buf_base))
