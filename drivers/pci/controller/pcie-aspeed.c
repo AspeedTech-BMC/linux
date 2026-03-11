@@ -802,6 +802,8 @@ static int aspeed_pcie_port_init(struct aspeed_pcie_port *port)
 				     port->slot);
 
 	reset_control_deassert(port->perst);
+	if (pcie->perst_rc_out)
+		gpiod_set_value(pcie->perst_rc_out, 1);
 	msleep(PCIE_RESET_CONFIG_WAIT_MS);
 
 	return 0;
@@ -1068,6 +1070,9 @@ static int aspeed_pcie_parse_port(struct aspeed_pcie *pcie,
 				       port->perst);
 	if (ret)
 		return ret;
+
+	if (pcie->perst_rc_out)
+		gpiod_set_value(pcie->perst_rc_out, 0);
 	reset_control_assert(port->perst);
 
 	port->slot = slot;
@@ -1159,6 +1164,9 @@ static int aspeed_pcie_probe(struct platform_device *pdev)
 	ret = devm_mutex_init(dev, &pcie->lock);
 	if (ret)
 		return dev_err_probe(dev, ret, "failed to init mutex\n");
+
+	pcie->perst_rc_out = devm_gpiod_get_optional(dev, "perst-rc-out",
+						     GPIOD_OUT_LOW | GPIOD_FLAGS_BIT_NONEXCLUSIVE);
 
 	ret = pcie->platform->setup(pdev);
 	if (ret)
