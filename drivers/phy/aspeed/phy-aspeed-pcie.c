@@ -43,6 +43,8 @@
 #define  COMPLETION_HEADER_CREDITS(x)	FIELD_PREP(GENMASK(27, 16), x)
 #define PEHR_MISC_1B8		0x1B8
 #define  SW_ATT_BTN			BIT(0)
+#define PEHR_MISC_278		0x278
+#define  SET_TO_DOWNSTREAM		BIT(22)
 
 /**
  * struct aspeed_pcie_phy - PCIe PHY information
@@ -148,6 +150,7 @@ static int ast2700_phy_set_mode(struct phy *phy, enum phy_mode mode,
 			cfg_val = readl(pcie_phy->reg + PEHR_MISC_38);
 			cfg_val |= DATALINK_REPORT_CAP;
 			writel(cfg_val, pcie_phy->reg + PEHR_MISC_38);
+			writel(SET_TO_DOWNSTREAM, pcie_phy->reg + PEHR_MISC_278);
 		}
 		break;
 	default:
