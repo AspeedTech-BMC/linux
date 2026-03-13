@@ -1125,7 +1125,7 @@ static int aspeed_ltpi_probe(struct platform_device *pdev)
 	priv->ad_timeout = ADVERTISE_TIMEOUT_US;
 	priv->io_driving = 0x2;
 	priv->clk_inverse = 0x0;
-	priv->link_speed_frm_rx_cnt = 4;
+	priv->link_speed_frm_rx_cnt = 0;
 	priv->disable_auto_downshift = 0;
 	priv->crc_format = 0;
 	priv->otp_ddr_dis = false;
