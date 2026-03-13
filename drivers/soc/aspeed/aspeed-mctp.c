@@ -317,6 +317,8 @@ struct aspeed_mctp {
 		int packet_counter;
 	} rx_runaway_wa;
 	bool rx_warmup;
+	/* Device ID for the device instance */
+	u8 dev_id;
 	u8 eid;
 	struct platform_device *peci_mctp;
 	/* Use the flag to identify RC or EP */
@@ -2018,12 +2020,14 @@ static void aspeed_mctp_pcie_vdm_register(struct aspeed_mctp *priv)
 {
 	struct net_device *ndev;
 	struct mctp_client *client;
+	char ifname[IFNAMSIZ];
 
 	/** use priv's default client to send/receive mctp packets */
 	client = aspeed_mctp_create_client(priv);
 	aspeed_mctp_register_default_handler(client);
 
-	ndev = mctp_pcie_vdm_add_dev(priv->dev, &aspeed_mctp_pcie_vdm_ops);
+	snprintf(ifname, IFNAMSIZ, "mctppci%d", priv->dev_id);
+	ndev = mctp_pcie_vdm_add_dev(priv->dev, &aspeed_mctp_pcie_vdm_ops, ifname);
 	if (IS_ERR(ndev))
 		dev_err(priv->dev, "Failed to add mctp pcie vdm device Err %ld\n", PTR_ERR(ndev));
 	priv->ndev = ndev;
@@ -2535,6 +2539,7 @@ static int aspeed_mctp_probe(struct platform_device *pdev)
 		goto out_dma;
 	}
 
+	priv->dev_id = id;
 	priv->mctp_miscdev.parent = priv->dev;
 	priv->mctp_miscdev.minor = MISC_DYNAMIC_MINOR;
 	priv->mctp_miscdev.name = devm_kasprintf(priv->dev, GFP_KERNEL, "aspeed-mctp%d", id);
