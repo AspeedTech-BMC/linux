@@ -11,7 +11,7 @@
 #include <linux/device.h>
 #include <linux/notifier.h>
 
-#ifdef CONFIG_MCTP_TRANSPORT_PCIE_VDM
+#if IS_ENABLED(CONFIG_MCTP_TRANSPORT_PCIE_VDM)
 
 /**
  * @send_packet: referenced to send packets with PCIe VDM header packed.
