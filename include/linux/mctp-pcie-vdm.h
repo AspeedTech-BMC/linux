@@ -9,6 +9,7 @@
 #define __LINUX_MCTP_PCIE_VDM_H
 
 #include <linux/device.h>
+#include <linux/if.h>
 #include <linux/notifier.h>
 
 #if IS_ENABLED(CONFIG_MCTP_TRANSPORT_PCIE_VDM)
@@ -28,7 +29,8 @@ struct mctp_pcie_vdm_ops {
 };
 
 struct net_device *mctp_pcie_vdm_add_dev(struct device *dev,
-					 const struct mctp_pcie_vdm_ops *ops);
+					 const struct mctp_pcie_vdm_ops *ops,
+					 const char *ifname);
 void mctp_pcie_vdm_receive_packet(struct net_device *ndev);
 void mctp_pcie_vdm_remove_dev(struct net_device *ndev);
 

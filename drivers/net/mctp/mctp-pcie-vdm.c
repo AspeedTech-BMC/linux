@@ -249,10 +249,11 @@ static void mctp_pcie_vdm_net_setup(struct net_device *ndev)
 	ndev->header_ops = &mctp_pcie_vdm_net_hdr_ops;
 }
 
-static int mctp_pcie_vdm_add_net_dev(struct net_device **dev)
+static int mctp_pcie_vdm_add_net_dev(struct net_device **dev, const char *ifname)
 {
 	struct net_device *ndev = alloc_netdev(sizeof(struct mctp_pcie_vdm_dev),
-					       "mctppci%d", NET_NAME_UNKNOWN,
+					       ifname ? ifname : "mctppci%d",
+					       NET_NAME_UNKNOWN,
 					       mctp_pcie_vdm_net_setup);
 
 	if (!ndev) {
@@ -329,13 +330,14 @@ void mctp_pcie_vdm_receive_packet(struct net_device *ndev)
 }
 
 struct net_device *mctp_pcie_vdm_add_dev(struct device *dev,
-					 const struct mctp_pcie_vdm_ops *ops)
+					 const struct mctp_pcie_vdm_ops *ops,
+					 const char *ifname)
 {
 	struct net_device *ndev;
 	struct mctp_pcie_vdm_dev *vdm_dev;
 	int rc;
 
-	rc = mctp_pcie_vdm_add_net_dev(&ndev);
+	rc = mctp_pcie_vdm_add_net_dev(&ndev, ifname);
 	if (rc) {
 		pr_err("%s: failed to add net device\n", __func__);
 		return ERR_PTR(rc);
