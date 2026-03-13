@@ -106,6 +106,7 @@
 #define H2X_CFGE_TLP_NEXT	0x34
 #define H2X_CFGE_CTRL		0x38
 #define CFGE_TLP_FIRE			BIT(0)
+#define CFGE_TLP_RET_BYPASS		BIT(1)
 #define H2X_CFGE_RET_DATA	0x3C
 #define H2X_REMAP_PREF_ADDR	0x70
 #define H2X_REMAP_DIRECT_ADDR	0x78
@@ -127,6 +128,8 @@
 #define PEHR_MISC_78		0x78
 #define PEHR_MISC_1B8		0x1B8
 #define SW_ATT_BTN			BIT(0)
+#define PEHR_MISC_278		0x278
+#define SET_TO_DOWNSTREAM		BIT(22)
 #define PEHR_MISC_344		0x344
 #define LINK_STATUS_GEN2		BIT(18)
 #define PEHR_MISC_358		0x358
@@ -568,6 +571,7 @@ static int aspeed_ast2700_rd_conf(struct pci_bus *bus, unsigned int devfn,
 				"[%X:%02X:%02X.%02X]CR rx timeoutsts: 0x%08x\n",
 				pcie->domain, bus->number, PCI_SLOT(devfn),
 				PCI_FUNC(devfn), status);
+			writel(CFGE_TLP_RET_BYPASS, pcie->reg + H2X_CFGE_CTRL);
 			goto out;
 		}
 		*val = readl(pcie->reg + H2X_CFGE_RET_DATA);
@@ -1068,6 +1072,7 @@ static int aspeed_ast2700_setup(struct platform_device *pdev)
 				     ATTENTION_BUTTON_ENABLE);
 		regmap_write_bits(pcie->pciephy, PEHR_MISC_38,
 				  DATALINK_REPORT_CAP, DATALINK_REPORT_CAP);
+		regmap_write(pcie->pciephy, PEHR_MISC_278, SET_TO_DOWNSTREAM);
 	}
 
 	if (!aspeed_ast2700_get_link(pcie))
