@@ -1010,10 +1010,6 @@ static void aspeed_xdma_kobject_release(struct kobject *kobj)
 
 	dma_free_coherent(ctx->dev, ctx->mem_size, ctx->mem_virt,
 			  ctx->mem_coherent);
-
-	if (ctx->reset_rc)
-		reset_control_put(ctx->reset_rc);
-	reset_control_put(ctx->reset);
 }
 
 static const struct kobj_type aspeed_xdma_kobject_type = {
