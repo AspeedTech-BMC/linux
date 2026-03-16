@@ -65,6 +65,11 @@ config MCTP_TRANSPORT_PCIE_VDM
 	  Provides a driver to access MCTP devices over PCIe VDM transport,
 	  from DMTF specification DSP0238.
 
+config MCTP_TRANSPORT_ASPEED_MBOX
+	tristate "MCTP Aspeed Mailbox transport"
+	help
+	  Provides a driver to access MCTP devices over Aspeed Mailbox transport.
+
 endmenu
 
 endif
