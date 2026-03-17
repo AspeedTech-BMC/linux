@@ -96,32 +96,44 @@
 	status = "okay";
 };
 
+&pcie2 {
+	status = "okay";
+};
+
 &mdio0 {
 	status = "disabled";
 };
 
-&mac0 {
+&mdio1 {
 	status = "disabled";
 };
 
-&mdio2 {
-	status = "okay";
-	#address-cells = <1>;
-	#size-cells = <0>;
-
-	ethphy2: ethernet-phy@0 {
-		compatible = "ethernet-phy-ieee802.3-c22";
-		reg = <0>;
-	};
+&sgpios {
+	status = "disabled";
 };
 
-&sgmii {
+&mac0 {
 	status = "okay";
+
+	phy-mode = "rmii";
+	use-ncsi;
+
+	pinctrl-names = "default";
+	/* If you want to use RMII0 RCLKO as internal clock for RMII,
+	 * add &pinctrl_rmii0_rclko_default in pinctrl-0.
+	 */
+	pinctrl-0 = <&pinctrl_rmii0_default>;
 };
 
-&mac2 {
+&mac1 {
 	status = "okay";
 
-	phy-mode = "sgmii";
-	phy-handle = <&ethphy2>;
+	phy-mode = "rmii";
+	use-ncsi;
+
+	pinctrl-names = "default";
+	/* If you want to use RMII1 RCLKO as internal clock for RMII,
+	 * add &pinctrl_rmii1_rclko_default in pinctrl-0.
+	 */
+	pinctrl-0 = <&pinctrl_rmii1_default>;
 };
