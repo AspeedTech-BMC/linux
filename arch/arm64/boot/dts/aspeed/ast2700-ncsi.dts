@@ -37,12 +37,3 @@
 	 */
 	pinctrl-0 = <&pinctrl_rmii1_default>;
 };
-
-&syscon1 {
-	mac0-clk-delay = <0 0
-			  0 0
-			  0 0>;
-	mac1-clk-delay = <0 0
-			  0 0
-			  0 0>;
-};
