@@ -243,6 +243,12 @@ static int mctp_i2c_slave_cb(struct i2c_client *client,
 
 	switch (event) {
 	case I2C_SLAVE_WRITE_RECEIVED:
+		if (!val) {
+			dev_err(&client->dev, "NULL val in WRITE_RECEIVED\n");
+			rc = -EINVAL;
+			break;
+		}
+
 		if (midev->rx_pos < MCTP_I2C_BUFSZ) {
 			midev->rx_buffer[midev->rx_pos] = *val;
 			midev->rx_pos++;
