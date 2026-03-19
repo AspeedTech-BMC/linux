@@ -227,8 +227,13 @@ static int ehci_pci_setup(struct usb_hcd *hcd)
 		break;
 	case PCI_VENDOR_ID_ASPEED:
 		if (pdev->device == PCI_DEVICE_ID_ASPEED_EHCI) {
+			u32 hcc_params = ehci_readl(ehci, &ehci->caps->hcs_params);
 			ehci_info(ehci, "applying Aspeed HC workaround\n");
 			ehci->is_aspeed = 1;
+			if (HCC_64BIT_ADDR(hcc_params)) {
+				if (dma_set_mask_and_coherent(&pdev->dev, DMA_BIT_MASK(64)))
+					ehci_warn(ehci, "Aspeed: cannot set 64-bit DMA mask\n");
+			}
 		}
 		break;
 	case PCI_VENDOR_ID_ZHAOXIN:
