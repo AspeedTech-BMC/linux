@@ -8,7 +8,7 @@
 #include "linux/spinlock.h"
 #include "linux/stddef.h"
 #include "linux/wait.h"
-#include "linux/wordpart.h"
+#include "linux/kernel.h"
 #include <linux/io.h>
 #include <linux/irq.h>
 #include <linux/clk.h>
