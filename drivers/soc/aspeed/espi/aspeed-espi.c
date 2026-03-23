@@ -219,7 +219,7 @@ err_remove_perif:
 	return rc;
 }
 
-static void aspeed_espi_remove(struct platform_device *pdev)
+static int aspeed_espi_remove(struct platform_device *pdev)
 {
 	struct aspeed_espi *espi;
 	struct device *dev;
@@ -238,6 +238,8 @@ static void aspeed_espi_remove(struct platform_device *pdev)
 		dev_warn(dev, "cannot remove oob channel\n");
 	if (espi->ops->espi_flash_remove(espi))
 		dev_warn(dev, "cannot remove flash channel\n");
+
+	return 0;
 }
 
 static struct platform_driver aspeed_espi_driver = {
