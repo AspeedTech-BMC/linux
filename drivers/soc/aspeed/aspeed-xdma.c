@@ -771,8 +771,12 @@ static __poll_t aspeed_xdma_poll(struct file *file,
 			mask |= EPOLLOUT | EPOLLWRNORM;
 	}
 
+#ifdef CONFIG_ARCH_DMA_ADDR_T_64BIT
+	// 2600 and older IC do reset here will trigger unexpected irq.
+	// Only do it for 2700.
 	if (mask)
 		aspeed_xdma_reset(ctx);
+#endif
 
 	return mask;
 }
