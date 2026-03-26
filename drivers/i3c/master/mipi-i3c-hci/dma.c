@@ -14,6 +14,7 @@
 #include <linux/errno.h>
 #include <linux/i3c/master.h>
 #include <linux/io.h>
+#include <linux/iopoll.h>
 #include <linux/pci.h>
 
 #include "hci.h"
@@ -930,6 +931,38 @@ done:
 	rh_reg_write(CHUNK_CONTROL, rh_reg_read(CHUNK_CONTROL) + ibi_chunks);
 }
 
+#ifdef CONFIG_ARCH_ASPEED
+/*
+ * The ASPEED I3C controller reuses the PIO FIFO in DMA mode. On transfer error or abort, poll the
+ * DMA debug busy bit to ensure all transfers are complete before resetting the FIFO, as the
+ * interrupt will be raised before the DMA engine completes the transfer.
+ */
+static void aspeed_pio_fifo_reset(struct i3c_hci *hci)
+{
+	u32 wdma_dbg, rdma_dbg;
+	int ret;
+
+	dev_dbg(&hci->master.dev, "WDMA_DBG_LO = 0x%x, RDMA_DBG_LO = 0x%x RING_STATUS = 0x%x\n",
+		readl(hci->base_regs + ASPEED_I3C_WDMA_DBG_LO),
+		readl(hci->base_regs + ASPEED_I3C_RDMA_DBG_LO),
+		readl(hci->base_regs + ASPEED_I3C_RING_STATUS));
+
+	/* Poll I3C_DMA_DBG_LO_BUSY until it becomes 0 */
+	ret = readl_poll_timeout_atomic(hci->base_regs + ASPEED_I3C_WDMA_DBG_LO, wdma_dbg,
+					!(wdma_dbg & I3C_DMA_DBG_LO_BUSY), 1, 100000);
+	if (ret)
+		dev_warn(&hci->master.dev, "WDMA still busy after timeout: 0x%x\n", wdma_dbg);
+
+	ret = readl_poll_timeout_atomic(hci->base_regs + ASPEED_I3C_RDMA_DBG_LO, rdma_dbg,
+					!(rdma_dbg & I3C_DMA_DBG_LO_BUSY), 1, 100000);
+	if (ret)
+		dev_warn(&hci->master.dev, "RDMA still busy after timeout: 0x%x\n", rdma_dbg);
+
+	mipi_i3c_hci_pio_ibi_reset(hci);
+	mipi_i3c_hci_pio_reset(hci);
+}
+
+#endif
 static bool hci_dma_irq_handler(struct i3c_hci *hci)
 {
 	struct hci_rings_data *rings = hci->io_data;
@@ -967,12 +1000,7 @@ static bool hci_dma_irq_handler(struct i3c_hci *hci)
 			dev_notice_ratelimited(&hci->master.dev,
 				"Ring %d: Transfer Aborted\n", i);
 #ifdef CONFIG_ARCH_ASPEED
-			/*
-			 * Aspeed i3c controller will reuse the PIO fifo in DMA mode,
-			 * so we need to reset the PIO fifo when the transfer is aborted.
-			 */
-			mipi_i3c_hci_pio_ibi_reset(hci);
-			mipi_i3c_hci_pio_reset(hci);
+			aspeed_pio_fifo_reset(hci);
 #endif
 			mipi_i3c_hci_resume(hci);
 			ring_status = rh_reg_read(RING_STATUS);
