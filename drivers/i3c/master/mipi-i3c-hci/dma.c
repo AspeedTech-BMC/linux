@@ -988,6 +988,9 @@ static bool hci_dma_irq_handler(struct i3c_hci *hci)
 			if (unlikely(status & INTR_TRANSFER_ERR)) {
 				dev_warn(&hci->master.dev,
 					 "ring %d: Transfer Error\n", i);
+#ifdef CONFIG_ARCH_ASPEED
+				aspeed_pio_fifo_reset(hci);
+#endif
 				mipi_i3c_hci_resume(hci);
 			}
 		}
