@@ -1062,7 +1062,8 @@ static void ast2700_espi_vw_isr(struct aspeed_espi *espi)
 	if (sts & ESPI_CH1_INT_STS_GPIO) {
 		vw->gpio.val0 = readl(espi->regs + ESPI_CH1_GPIO_VAL0);
 		vw->gpio.val1 = readl(espi->regs + ESPI_CH1_GPIO_VAL1);
-		writel(ESPI_CH1_INT_STS_GPIO, espi->regs + ESPI_CH1_INT_STS);
+		/* Workaround for AST2700 VW INT_STS */
+		writel(ESPI_CH1_INT_STS_GPIO_CLR, espi->regs + ESPI_CH1_INT_STS);
 	}
 
 	if (sts & ESPI_CH1_INT_STS_EVT0) {
