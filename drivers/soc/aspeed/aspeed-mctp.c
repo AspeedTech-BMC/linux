@@ -1987,7 +1987,7 @@ static u8 *aspeed_mctp_pcie_vdm_op_recv_pkt(struct device *dev)
 
 	if (IS_ERR(rx_packet)) {
 		if (PTR_ERR(rx_packet) == -ETIME) {
-			dev_dbg(priv->dev, "no packet received\n");
+			dev_dbg(priv->dev, "all packet received\n");
 		} else {
 			dev_err(priv->dev, "failed to receive packet: %ld\n",
 				PTR_ERR(rx_packet));
