@@ -113,7 +113,8 @@
 #define   ESPI_CH1_CTRL_SW_RDY		BIT(1)
 #define ESPI_CH1_STS			0x204
 #define ESPI_CH1_INT_STS		0x208
-#define   ESPI_CH1_INT_STS_GPIO		BIT(2)
+#define   ESPI_CH1_INT_STS_GPIO		BIT(1)
+#define   ESPI_CH1_INT_STS_GPIO_CLR	BIT(2)
 #define	  ESPI_CH1_INT_STS_EVT0		BIT(0)
 #define ESPI_CH1_INT_EN			0x20c
 #define   ESPI_CH1_INT_EN_GPIO		BIT(2)
