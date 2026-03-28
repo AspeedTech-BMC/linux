@@ -15,21 +15,24 @@
 //#define HARDWARE_ENGINE_DEBUG
 
 #ifdef RVAS_VIDEO_DEBUG
-#define VIDEO_DBG(fmt, args...) ({ dev_printk(KERNEL_INFO, pAstRVAS->pdev, "%s() " fmt, __func__, ## args); })
+#define VIDEO_DBG(fmt, args...) \
+dev_info(pAstRVAS->pdev, "%s() " fmt, __func__, ##args)
 #else
-#define VIDEO_DBG(fmt, args...) do; while (0)
+#define VIDEO_DBG(...)
 #endif // RVAS_VIDEO_DEBUG
 
 #ifdef VIDEO_ENGINE_DEBUG
-#define VIDEO_ENG_DBG(fmt, args...) ({ dev_printk(KERNEL_INFO, pAstRVAS->pdev, "%s() " fmt, __func__, ## args); })
+#define VIDEO_ENG_DBG(fmt, args...) \
+dev_info(pAstRVAS->pdev, "%s() " fmt, __func__, ##args)
 #else
-#define VIDEO_ENG_DBG(fmt, args...) do; while (0)
+#define VIDEO_ENG_DBG(...)
 #endif // RVAS_VIDEO_DEBUG
 
 #ifdef HARDWARE_ENGINE_DEBUG
-#define HW_ENG_DBG(fmt, args...) ({ dev_printk(KERNEL_INFO, pAstRVAS->pdev, "%s() " fmt, __func__, ## args); })
+#define HW_ENG_DBG(fmt, args...) \
+pr_info("%s() " fmt, __func__, ##args)
 #else
-#define HW_ENG_DBG(fmt, args...) do; while (0)
+#define HW_ENG_DBG(...)
 #endif // RVAS_VIDEO_DEBUG
 
 #endif // AST_VIDEO_DEBUG_H_

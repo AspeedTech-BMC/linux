@@ -2023,8 +2023,6 @@ void ioctl_fetch_mode_13_data(struct RvasIoctl *ri, struct AstRVAS *pAstRVAS)
 	}
 }
 
-
-
 // Enable Snoop Interrupts and TSE, Disable FIQ
 static void enable_tse_interrupt(struct AstRVAS *pAstRVAS)
 {

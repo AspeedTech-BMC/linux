@@ -612,7 +612,7 @@ static u32 get_vga_mem_base(struct AstRVAS *pAstRVAS)
 {
 	u32 vga_mem_size, mem_size;
 
-	mem_size = pAstRVAS->FBInfo.dwDRAMSize;
+	mem_size = pAstRVAS->FBInfo.qwDRAMSize;
 	vga_mem_size = pAstRVAS->FBInfo.dwVGASize;
 	VIDEO_ENG_DBG("VGA Info : MEM Size %dMB, VGA Mem Size %dMB\n", mem_size / 1024 / 1024, vga_mem_size / 1024 / 1024);
 	return (mem_size - vga_mem_size);
