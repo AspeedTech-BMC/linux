@@ -260,13 +260,13 @@ phys_addr_t get_phy_fb_start_address(struct AstRVAS *pAstRVAS)
 	pAstRVAS->FBInfo.qwFBPhysStart = (pAstRVAS->config->version == 7)
 				       ? DDR_BASE_27
 				       : DDR_BASE;
-	pAstRVAS->FBInfo.qwFBPhysStart += pAstRVAS->FBInfo.dwDRAMSize - pAstRVAS->FBInfo.dwVGASize + dw_offset;
+	pAstRVAS->FBInfo.qwFBPhysStart += pAstRVAS->FBInfo.qwDRAMSize - pAstRVAS->FBInfo.dwVGASize + dw_offset;
 	if (pAstRVAS->rvas_index == 1)
 		pAstRVAS->FBInfo.qwFBPhysStart -= pAstRVAS->FBInfo.dwVGASize;
 
-	HW_ENG_DBG("Frame buffer start address: %#x, dram size: %#x, vga size: %#x\n",
+	HW_ENG_DBG("Frame buffer start address: %#llx, dram size: %#x, vga size: %#x\n",
 		   pAstRVAS->FBInfo.qwFBPhysStart,
-		   pAstRVAS->FBInfo.dwDRAMSize,
+		   pAstRVAS->FBInfo.qwDRAMSize,
 		   pAstRVAS->FBInfo.dwVGASize);
 
 	return pAstRVAS->FBInfo.qwFBPhysStart;
@@ -1150,16 +1150,13 @@ void enable_rvas_engines(struct AstRVAS *pAstRVAS)
 
 static void reset_rvas_engine(struct AstRVAS *pAstRVAS)
 {
-	if (pAstRVAS->config->version == 7) {
-		regmap_write(pAstRVAS->scu, 0x200, 0x200);
-		mdelay(200);
-		regmap_write(pAstRVAS->scu, 0x244, 0x2000000);
-		mdelay(100);
-		regmap_write(pAstRVAS->scu, 0x204, 0x200);
-	} else {
-		disable_rvas_engines(pAstRVAS);
-		enable_rvas_engines(pAstRVAS);
-	}
+	disable_rvas_engines(pAstRVAS);
+	mdelay(200);
+	if (pAstRVAS->config->version == 7)
+		reset_control_deassert(pAstRVAS->rvas_reset);
+	mdelay(200);
+	enable_rvas_engines(pAstRVAS);
+
 	rvas_init(pAstRVAS);
 }
 
@@ -1651,22 +1648,22 @@ static int video_drv_probe(struct platform_device *pdev)
 		if (!pAstRVAS->dp_base)
 			dev_err(&pdev->dev, "failed to iomem of display port\n");
 	}
-	if (pAstRVAS->config->version == 7) {
-		pAstRVAS->FBInfo.dwDRAMSize = 0x40000000; // 1GB
-		// VGA size is fixed with 32MB
-		pAstRVAS->FBInfo.dwVGASize = 0x2000000;
-	} else {
-		edac_node = of_find_compatible_node(NULL, NULL, "aspeed,ast2600-sdram-edac");
-		if (!edac_node) {
-			dev_err(&pdev->dev, "cannot find edac node\n");
-		} else {
-			mcr_base = of_iomap(edac_node, 0);
-			if (!mcr_base)
-				dev_err(&pdev->dev, "failed to iomem of MCR\n");
-		}
 
-		set_FBInfo_size(pAstRVAS, mcr_base);
+	if (pAstRVAS->config->version == 7)
+		edac_node = of_find_compatible_node(NULL, NULL, "aspeed,ast2700-sdram-edac");
+	else
+		edac_node = of_find_compatible_node(NULL, NULL, "aspeed,ast2600-sdram-edac");
+
+	if (!edac_node) {
+		dev_err(&pdev->dev, "cannot find edac node\n");
+	} else {
+		mcr_base = of_iomap(edac_node, 0);
+		if (!mcr_base)
+			dev_err(&pdev->dev, "failed to iomem of MCR\n");
 	}
+
+	set_FBInfo_size(pAstRVAS, mcr_base);
+
 	//scu
 	if (pAstRVAS->config->version == 7) {
 		sdram_scu = syscon_regmap_lookup_by_compatible("aspeed,ast2700-scu0");
@@ -1762,7 +1759,7 @@ static void video_engine_init(struct AstRVAS *pAstRVAS)
 	enable_video_interrupt(pAstRVAS);
 }
 
-static int video_drv_remove(struct platform_device *pdev)
+static void video_drv_remove(struct platform_device *pdev)
 {
 	struct AstRVAS *pAstRVAS = NULL;
 
@@ -1783,31 +1780,39 @@ static int video_drv_remove(struct platform_device *pdev)
 
 	free_video_engine_memory(pAstRVAS);
 	pr_info("RVAS: driver successfully unloaded.\n");
-	return 0;
 }
 
-static const u32 ast2400_dram_table[] = {
+static const u64 ast2400_dram_table[] = {
 	0x04000000,     //64MB
 	0x08000000,     //128MB
 	0x10000000,     //256MB
 	0x20000000,     //512MB
 };
 
-static const u32 ast2500_dram_table[] = {
+static const u64 ast2500_dram_table[] = {
 	0x08000000,     //128MB
 	0x10000000,     //256MB
 	0x20000000,     //512MB
 	0x40000000,     //1024MB
 };
 
-static const u32 ast2600_dram_table[] = {
+static const u64 ast2600_dram_table[] = {
 	0x10000000,     //256MB
 	0x20000000,     //512MB
 	0x40000000,     //1024MB
 	0x80000000,     //2048MB
 };
 
-static const u32 aspeed_vga_table[] = {
+static const u64 ast2700_dram_table[] = {
+	0x10000000,     //256MB
+	0x20000000,     //512MB
+	0x40000000,     //1024MB
+	0x80000000,     //2048MB
+	0x100000000,	//4GB
+	0x200000000,	//8GB
+};
+
+static const u64 aspeed_vga_table[] = {
 	0x800000,       //8MB
 	0x1000000,      //16MB
 	0x2000000,      //32MB
@@ -1821,16 +1826,23 @@ static const struct aspeed_rvas_config ast2600_config = {
 
 static const struct aspeed_rvas_config ast2700_config = {
 	.version = 7,
-	.dram_table = ast2600_dram_table,
+	.dram_table = ast2700_dram_table,
 };
 
 static void set_FBInfo_size(struct AstRVAS *pAstRVAS, void __iomem *mcr_base)
 {
-	u32 reg_mcr004 = readl(mcr_base + MCR_CONF);
+	if (pAstRVAS->config->version == 7) {
+		u32 reg_mcr010 = readl(mcr_base + MCR_CONF_AST27XX);
+		u32 reg_mcr100 = readl(mcr_base + MCR_GRAPHIC_MEM_CONF_AST27XX);
 
-	pAstRVAS->FBInfo.dwDRAMSize = pAstRVAS->config->dram_table[reg_mcr004 & 0x3];
+		pAstRVAS->FBInfo.qwDRAMSize = pAstRVAS->config->dram_table[((reg_mcr010 & 0x1c) >> 2)];
+		pAstRVAS->FBInfo.dwVGASize = (reg_mcr100 & 0x1) ? 0x4000000 : 0x2000000;
+	} else {
+		u32 reg_mcr004 = readl(mcr_base + MCR_CONF);
 
-	pAstRVAS->FBInfo.dwVGASize = aspeed_vga_table[((reg_mcr004 & 0xC) >> 2)];
+		pAstRVAS->FBInfo.qwDRAMSize = pAstRVAS->config->dram_table[reg_mcr004 & 0x3];
+		pAstRVAS->FBInfo.dwVGASize = aspeed_vga_table[((reg_mcr004 & 0xC) >> 2)];
+	}
 }
 
 static const struct of_device_id ast_rvas_match[] = {

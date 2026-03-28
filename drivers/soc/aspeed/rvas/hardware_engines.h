@@ -89,7 +89,11 @@
 #define SCU_RVAS_STOP_CLOCK_BIT		BIT(25)
 //
 //MCR -edac
-#define MCR_CONF	0x04 /* configuration register */
+#define MCR_CONF			0x04 /* configuration register */
+
+#define MCR_CONF_AST27XX				0x10 /* configuration register */
+#define MCR_GRAPHIC_MEM_CONF_AST27XX	0x100 /* graphic memory configuration register */
+#define MCR_GRAPHIC_MEM_BASE_AST27XX	0x10C /* graphic memory base: [25:17]vga1 in 16MB; [9:1]vga0 in 16MB */
 
 //DP
 #define DPTX_Configuration_Register			(0x100)
@@ -341,7 +345,7 @@ enum StartBytePosition {
 
 struct VGAMemInfo {
 	u32 dwVGASize;
-	u32 dwDRAMSize;
+	u64 qwDRAMSize;
 	phys_addr_t qwFBPhysStart;
 };
 
@@ -411,7 +415,7 @@ struct VideoEngineMem {
 
 struct aspeed_rvas_config {
 	u8 version;
-	const u32 *dram_table;
+	const u64 *dram_table;
 };
 
 struct AstRVAS {

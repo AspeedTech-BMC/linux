@@ -520,9 +520,9 @@
 			status = "disabled";
 		};
 
-		rvas1: rvas@120bc000 {
+		rvas1: rvas@121b8000 {
 			compatible = "aspeed,ast2700-rvas";
-			reg = <0x0 0x120bc000 0x0 0x800>,
+			reg = <0x0 0x121b8000 0x0 0x800>,
 				  <0x0 0x12c14800 0x0 0x800>,
 				  <0x0 0x120a1000 0x0 0x1000>;
 			clocks = <&syscon0 SCU0_CLK_GATE_RVAS1CLK>,
