@@ -97,6 +97,10 @@ struct aspeed_espi_vw {
 	} gpio;
 
 	struct {
+		u8 pch_generic;
+	} platform;
+
+	struct {
 		bool enabled;
 		spinlock_t pltrst_lock; // protects pltrst_status
 		wait_queue_head_t pltrst_wq;
