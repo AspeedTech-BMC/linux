@@ -893,6 +893,8 @@ static long ast2700_espi_vw_ioctl(struct file *fp, unsigned int cmd, unsigned lo
 	struct aspeed_espi_vw *vw;
 	struct aspeed_espi *espi;
 	u32 gpio0, gpio1;
+	u8 pch_generic;
+	u32 reg;
 	u32 hw_mode;
 
 	vw = container_of(fp->private_data, struct aspeed_espi_vw, mdev);
@@ -900,6 +902,7 @@ static long ast2700_espi_vw_ioctl(struct file *fp, unsigned int cmd, unsigned lo
 	gpio0 = vw->gpio.val0;
 	gpio1 = vw->gpio.val1;
 	hw_mode = vw->gpio.hw_mode;
+	pch_generic = vw->platform.pch_generic;
 
 	if (hw_mode) {
 		dev_err(espi->dev, "HW mode: vGPIO reflect on physical GPIO. Get state from GPIO driver.\n");
@@ -945,6 +948,26 @@ static long ast2700_espi_vw_ioctl(struct file *fp, unsigned int cmd, unsigned lo
 		writel(gpio1, espi->regs + ESPI_CH1_GPIO_VAL1);
 		break;
 #endif
+	case ASPEED_ESPI_VW_GET_PCH_GENERIC:
+		if (put_user(pch_generic, (u8 __user *)arg)) {
+			dev_err(espi->dev, "failed to get PCH generic event status\n");
+			return -EFAULT;
+		}
+
+		dev_info(espi->dev, "Get PCH generic event status: 0x%x\n", pch_generic);
+		break;
+	case ASPEED_ESPI_VW_PUT_PCH_GENERIC:
+		if (get_user(pch_generic, (u8 __user *)arg)) {
+			dev_err(espi->dev, "failed to put PCH generic event status\n");
+			return -EFAULT;
+		}
+
+		dev_info(espi->dev, "Put PCH generic event status: 0x%x\n", pch_generic);
+		reg = readl(espi->regs + ESPI_CH1_EVT1);
+		reg &= ~ESPI_CH1_EVT1_BMC_GENE;
+		reg |= FIELD_PREP(ESPI_CH1_EVT1_BMC_GENE, pch_generic);
+		writel(reg, espi->regs + ESPI_CH1_EVT1);
+		break;
 	default:
 		return -EINVAL;
 	};
