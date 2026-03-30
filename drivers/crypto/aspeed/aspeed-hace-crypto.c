@@ -13,6 +13,7 @@
 #include <linux/io.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
+#include <linux/of.h>
 #include <linux/scatterlist.h>
 #include <linux/string.h>
 
@@ -24,10 +25,24 @@
 	dev_dbg((h)->dev, "%s() " fmt, __func__, ##__VA_ARGS__)
 #endif
 
-#define ASPEED_SEC_PROTECTION		0x0
-#define SEC_UNLOCK_PASSWORD		0x349fe38a
-#define ASPEED_VAULT_KEY_CTRL		0x80C
-#define SEC_VK_CTRL_VK_SELECTION	BIT(0)
+static int aspeed_hace_find_vault_key(struct aspeed_hace_dev *hace_dev,
+				      const u8 *key, unsigned int keylen)
+{
+	struct aspeed_engine_crypto *crypto_engine = &hace_dev->crypto_engine;
+	int i = 0;
+
+	CIPHER_DBG(hace_dev, "\n");
+
+	for (i = 0; i < crypto_engine->vault_key_num; i++) {
+		if (!crypto_engine->dummy_key[i])
+			continue;
+
+		if (memcmp(crypto_engine->dummy_key[i], key, keylen) == 0)
+			return i;
+	}
+
+	return ASPEED_VAULT_KEY_NOT_FOUND;
+}
 
 static int aspeed_crypto_do_fallback(struct skcipher_request *areq)
 {
@@ -243,12 +258,10 @@ static int aspeed_sk_start_sg(struct aspeed_hace_dev *hace_dev)
 	struct aspeed_cipher_ctx *ctx;
 	struct skcipher_request *req;
 	struct scatterlist *s;
-	int use_vault_key = 0;
 	int src_sg_len;
 	int dst_sg_len;
 	int total, i;
 	int rc;
-	u32 val;
 
 	CIPHER_DBG(hace_dev, "\n");
 
@@ -260,44 +273,6 @@ static int aspeed_sk_start_sg(struct aspeed_hace_dev *hace_dev)
 	rctx->enc_cmd |= HACE_CMD_DES_SG_CTRL | HACE_CMD_SRC_SG_CTRL |
 			 HACE_CMD_AES_KEY_HW_EXP | HACE_CMD_MBUS_REQ_SYNC_EN;
 
-	if (crypto_engine->load_vault_key) {
-		writel(SEC_UNLOCK_PASSWORD, hace_dev->sec_regs + ASPEED_SEC_PROTECTION);
-		CIPHER_DBG(hace_dev, "unlock SB, SEC000=0x%x\n", readl(hace_dev->sec_regs + ASPEED_SEC_PROTECTION));
-		val = readl(hace_dev->sec_regs + ASPEED_VAULT_KEY_CTRL);
-		if (val & BIT(2)) {
-			if (ctx->dummy_key == 1 && !(val & BIT(0))) {
-				use_vault_key = 1;
-				CIPHER_DBG(hace_dev, "Use Vault key 1\n");
-			} else if (ctx->dummy_key == 2 && (val & BIT(0))) {
-				use_vault_key = 1;
-				CIPHER_DBG(hace_dev, "Use Vault key 2\n");
-			} else {
-				use_vault_key = 0;
-			}
-		} else {
-			if (ctx->dummy_key == 1) {
-				use_vault_key = 1;
-				val &= ~SEC_VK_CTRL_VK_SELECTION;
-				writel(val, hace_dev->sec_regs + ASPEED_VAULT_KEY_CTRL);
-				CIPHER_DBG(hace_dev, "Set Vault key 1\n");
-			} else if (ctx->dummy_key == 2) {
-				use_vault_key = 1;
-				val |= SEC_VK_CTRL_VK_SELECTION;
-				writel(val, hace_dev->sec_regs + ASPEED_VAULT_KEY_CTRL);
-				CIPHER_DBG(hace_dev, "Set Vault key 2\n");
-			} else {
-				use_vault_key = 0;
-			}
-		}
-		writel(0x0, hace_dev->sec_regs + ASPEED_SEC_PROTECTION);
-		CIPHER_DBG(hace_dev, "lock SB, SEC000=0x%x\n", readl(hace_dev->sec_regs + ASPEED_SEC_PROTECTION));
-
-		if (use_vault_key)
-			rctx->enc_cmd |= HACE_CMD_AES_KEY_FROM_OTP;
-		else
-			rctx->enc_cmd &= ~HACE_CMD_AES_KEY_FROM_OTP;
-	}
-
 	/* BIDIRECTIONAL */
 	if (req->dst == req->src) {
 		src_sg_len = dma_map_sg(hace_dev->dev, req->src,
@@ -307,7 +282,6 @@ static int aspeed_sk_start_sg(struct aspeed_hace_dev *hace_dev)
 			dev_warn(hace_dev->dev, "dma_map_sg() src error\n");
 			return -EINVAL;
 		}
-
 	} else {
 		src_sg_len = dma_map_sg(hace_dev->dev, req->src,
 					rctx->src_nents, DMA_TO_DEVICE);
@@ -391,6 +365,10 @@ static int aspeed_sk_start_sg(struct aspeed_hace_dev *hace_dev)
 
 	/* Memory barrier to ensure all data setup before engine starts */
 	mb();
+
+	if (crypto_engine->vault_key_num &&
+	    ctx->key_idx < crypto_engine->vault_key_num)
+		ast_sbc_write(hace_dev, ctx->key_idx, ASPEED_VAULT_KEY_CTRL);
 
 	/* Trigger engines */
 	down(&hace_dev->lock);
@@ -505,6 +483,9 @@ static int aspeed_des_setkey(struct crypto_skcipher *cipher, const u8 *key,
 
 	CIPHER_DBG(hace_dev, "keylen: %d bits\n", keylen);
 
+	/* DES does not support vault key */
+	ctx->key_idx = ASPEED_VAULT_KEY_NOT_FOUND;
+
 	if (keylen != DES_KEY_SIZE && keylen != DES3_EDE_KEY_SIZE) {
 		dev_warn(hace_dev->dev, "invalid keylen: %d bits\n", keylen);
 		return -EINVAL;
@@ -609,6 +590,7 @@ static int aspeed_aes_crypt(struct skcipher_request *req, u32 cmd)
 	struct crypto_skcipher *cipher = crypto_skcipher_reqtfm(req);
 	struct aspeed_cipher_ctx *ctx = crypto_skcipher_ctx(cipher);
 	struct aspeed_hace_dev *hace_dev = ctx->hace_dev;
+	struct aspeed_engine_crypto *crypto_engine = &hace_dev->crypto_engine;
 	u32 crypto_alg = cmd & HACE_CMD_OP_MODE_MASK;
 
 	if (crypto_alg == HACE_CMD_CBC || crypto_alg == HACE_CMD_ECB) {
@@ -621,6 +603,9 @@ static int aspeed_aes_crypt(struct skcipher_request *req, u32 cmd)
 
 	cmd |= HACE_CMD_AES_SELECT | HACE_CMD_RI_WO_DATA_ENABLE |
 	       HACE_CMD_CONTEXT_LOAD_ENABLE | HACE_CMD_CONTEXT_SAVE_ENABLE;
+
+	if (ctx->key_idx < crypto_engine->vault_key_num)
+		cmd |= HACE_CMD_AES_KEY_FROM_OTP;
 
 	switch (ctx->key_len) {
 	case AES_KEYSIZE_128:
@@ -650,7 +635,7 @@ static int aspeed_aes_setkey(struct crypto_skcipher *cipher, const u8 *key,
 
 	CIPHER_DBG(hace_dev, "keylen: %d bits\n", (keylen * 8));
 
-	ctx->dummy_key = find_dummy_key(key, keylen);
+	ctx->key_idx = aspeed_hace_find_vault_key(hace_dev, key, keylen);
 
 	if (keylen != AES_KEYSIZE_128 && keylen != AES_KEYSIZE_192 &&
 	    keylen != AES_KEYSIZE_256)
@@ -707,9 +692,8 @@ static int aspeed_crypto_cra_init(struct crypto_skcipher *tfm)
 {
 	struct aspeed_cipher_ctx *ctx = crypto_skcipher_ctx(tfm);
 	struct skcipher_alg *alg = crypto_skcipher_alg(tfm);
-	const char *name = crypto_tfm_alg_name(&tfm->base);
 	struct aspeed_hace_alg *crypto_alg;
-
+	const char *name = crypto_tfm_alg_name(&tfm->base);
 
 	crypto_alg = container_of(alg, struct aspeed_hace_alg, alg.skcipher.base);
 	ctx->hace_dev = crypto_alg->hace_dev;
@@ -984,6 +968,48 @@ static struct aspeed_hace_alg aspeed_crypto_algs_g6[] = {
 
 };
 
+void aspeed_register_hace_vault_key(struct aspeed_hace_dev *hace_dev)
+{
+	struct device *dev = hace_dev->dev;
+	struct aspeed_engine_crypto *crypto_engine = &hace_dev->crypto_engine;
+	static const char * const key[] = { ASPEED_VAULT_KEY_DTS };
+	int i = 0;
+	int err = 0;
+	int key_num = hace_dev->version == AST2700_VERSION ?
+			      ASPEED_G7_VAULT_KEY_MAX_NUM :
+			      ASPEED_G6_VAULT_KEY_MAX_NUM;
+
+	crypto_engine->vault_key_num = 0;
+
+	if (hace_dev->version == AST2500_VERSION)
+		return;
+
+	/* Check all vault key from dts and store in dummy_key array */
+	for (i = 0; i < key_num; i++) {
+		if (!of_property_read_bool(dev->of_node, key[i]))
+			continue;
+
+		crypto_engine->dummy_key[i] =
+			devm_kzalloc(dev, DUMMY_KEY_SIZE, GFP_KERNEL);
+		if (!crypto_engine->dummy_key[i]) {
+			dev_err(dev, "Failed to allocate memory for %s\n", key[i]);
+			continue;
+		}
+
+		err = of_property_read_u32_array(dev->of_node, key[i],
+						 crypto_engine->dummy_key[i],
+						 DUMMY_KEY_SIZE / sizeof(u32));
+		if (err) {
+			dev_err(dev, "Failed to read key: %s (%d)\n", key[i], err);
+			devm_kfree(dev, crypto_engine->dummy_key[i]);
+			crypto_engine->dummy_key[i] = NULL;
+			continue;
+		}
+
+		crypto_engine->vault_key_num = key_num;
+	}
+}
+
 void aspeed_unregister_hace_crypto_algs(struct aspeed_hace_dev *hace_dev)
 {
 	int i;
@@ -998,41 +1024,11 @@ void aspeed_unregister_hace_crypto_algs(struct aspeed_hace_dev *hace_dev)
 		crypto_engine_unregister_skcipher(&aspeed_crypto_algs_g6[i].alg.skcipher);
 }
 
-#ifdef CONFIG_AST2600_OTP
-static void find_vault_key(struct aspeed_hace_dev *hace_dev)
-{
-	struct aspeed_engine_crypto *crypto_engine = &hace_dev->crypto_engine;
-	u32 otp_data[16];
-	int i;
-
-	crypto_engine->load_vault_key = 0;
-
-	otp_read_data_buf(0, otp_data, 16);
-	for (i = 0; i < 16; i++) {
-		CIPHER_DBG(hace_dev, "OTPDATA%d=%x\n", i, otp_data[i]);
-		if (((otp_data[i] >> 14) & 0xf) == 1) {
-			CIPHER_DBG(hace_dev, "Found vault key in OTP\n");
-			crypto_engine->load_vault_key = 1;
-			return;
-		}
-		if (otp_data[i] & BIT(13))
-			break;
-	}
-	CIPHER_DBG(hace_dev, "Not found vault key in OTP\n");
-}
-#endif
-
 void aspeed_register_hace_crypto_algs(struct aspeed_hace_dev *hace_dev)
 {
 	int rc, i;
 
 	CIPHER_DBG(hace_dev, "\n");
-
-#ifdef CONFIG_AST2600_OTP
-	find_vault_key(hace_dev);
-#else
-	hace_dev->crypto_engine.load_vault_key = 0;
-#endif
 
 	for (i = 0; i < ARRAY_SIZE(aspeed_crypto_algs); i++) {
 		aspeed_crypto_algs[i].hace_dev = hace_dev;

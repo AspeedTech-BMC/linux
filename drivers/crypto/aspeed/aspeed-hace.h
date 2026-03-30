@@ -47,6 +47,13 @@
 #define ASPEED_HACE_HASH_DIGEST_BUFF_H	0x94	/* Hash Digest Write Buffer Base High Address Register */
 #define ASPEED_HACE_HASH_KEY_BUFF_H	0x98	/* Hash HMAC Key Buffer Base High Address Register */
 
+/*****************************
+ *                           *
+ *  SBC register definitions *
+ *                           *
+ * ***************************/
+#define ASPEED_VAULT_KEY_CTRL		0x00C
+
 /* crypto cmd */
 #define  HACE_CMD_SINGLE_DES		0
 #define  HACE_CMD_TRIPLE_DES		BIT(17)
@@ -144,7 +151,12 @@
 #define HACE_CMD_IV_REQUIRE		(HACE_CMD_CBC | HACE_CMD_CFB | \
 					 HACE_CMD_OFB | HACE_CMD_CTR)
 
+#define ASPEED_VAULT_KEY_NOT_FOUND	(0xffffffff)
+#define ASPEED_G6_VAULT_KEY_MAX_NUM	2
+#define ASPEED_G7_VAULT_KEY_MAX_NUM	4
 #define DUMMY_KEY_SIZE			32
+#define ASPEED_VAULT_KEY_DTS \
+	"dummy-key0", "dummy-key1", "dummy-key2", "dummy-key3"
 
 struct aspeed_hace_dev;
 struct scatterlist;
@@ -241,16 +253,19 @@ struct aspeed_engine_crypto {
 	void				*dst_sg_addr;
 	dma_addr_t			dst_sg_dma_addr;
 
+	/* Vault key */
+	u32					*dummy_key[4];
+	int					vault_key_num;
+
 	/* callback func */
-	aspeed_hace_fn_t		resume;
-	int				load_vault_key;
+	aspeed_hace_fn_t resume;
 };
 
 struct aspeed_cipher_ctx {
 	struct aspeed_hace_dev		*hace_dev;
 	int				key_len;
 	u8				key[AES_MAX_KEYLENGTH];
-	int				dummy_key;
+	u32				key_idx;
 
 	/* callback func */
 	aspeed_hace_fn_t		start;
@@ -268,7 +283,7 @@ struct aspeed_cipher_reqctx {
 
 struct aspeed_hace_dev {
 	void __iomem			*regs;
-	void __iomem			*sec_regs;
+	void __iomem			*sbc;
 	struct device			*dev;
 	int				irq;
 	struct clk			*clk;
@@ -307,15 +322,20 @@ enum aspeed_version {
 #define ast_hace_read(hace, offset)		\
 	readl((hace)->regs + (offset))
 
+#define ast_sbc_write(hace, val, offset)	\
+	writel((val), (hace)->sbc + (offset))
+#define ast_sbc_read(hace, offset)		\
+	readl((hace)->sbc + (offset))
+
 void aspeed_register_hace_hash_algs(struct aspeed_hace_dev *hace_dev);
 void aspeed_unregister_hace_hash_algs(struct aspeed_hace_dev *hace_dev);
 void aspeed_register_hace_crypto_algs(struct aspeed_hace_dev *hace_dev);
+void aspeed_register_hace_vault_key(struct aspeed_hace_dev *hace_dev);
 void aspeed_unregister_hace_crypto_algs(struct aspeed_hace_dev *hace_dev);
 int aspeed_hace_hash_init(struct aspeed_hace_dev *hace_dev);
 void aspeed_hace_hash_remove(struct aspeed_hace_dev *hace_dev);
 int aspeed_hace_crypto_init(struct aspeed_hace_dev *hace_dev);
 void aspeed_hace_crypto_remove(struct aspeed_hace_dev *hace_dev);
-int find_dummy_key(const char *key, int keylen);
 int aspeed_hace_reset(struct aspeed_hace_dev *dev);
 
 #endif
