@@ -330,12 +330,13 @@ static int erofs_read_superblock(struct super_block *sb)
 	}
 	sbi->packed_nid = le64_to_cpu(dsb->packed_nid);
 	if (erofs_sb_has_metabox(sbi)) {
+		ret = -EFSCORRUPTED;
 		if (sbi->sb_size <= offsetof(struct erofs_super_block,
 					     metabox_nid))
-			return -EFSCORRUPTED;
+			goto out;
 		sbi->metabox_nid = le64_to_cpu(dsb->metabox_nid);
 		if (sbi->metabox_nid & BIT_ULL(EROFS_DIRENT_NID_METABOX_BIT))
-			return -EFSCORRUPTED;	/* self-loop detection */
+			goto out;		/* self-loop detection */
 	}
 	sbi->inos = le64_to_cpu(dsb->inos);
 
@@ -346,8 +347,10 @@ static int erofs_read_superblock(struct super_block *sb)
 	if (dsb->volume_name[0]) {
 		sbi->volume_name = kstrndup(dsb->volume_name,
 					    sizeof(dsb->volume_name), GFP_KERNEL);
-		if (!sbi->volume_name)
-			return -ENOMEM;
+		if (!sbi->volume_name) {
+			ret = -ENOMEM;
+			goto out;
+		}
 	}
 
 	/* parse on-disk compression configurations */
@@ -644,14 +647,21 @@ static int erofs_fc_fill_super(struct super_block *sb, struct fs_context *fc)
 		 * fs contexts (including its own) due to self-controlled RO
 		 * accesses/contexts and no side-effect changes that need to
 		 * context save & restore so it can reuse the current thread
-		 * context.  However, it still needs to bump `s_stack_depth` to
-		 * avoid kernel stack overflow from nested filesystems.
+		 * context.
+		 * However, we still need to prevent kernel stack overflow due
+		 * to filesystem nesting: just ensure that s_stack_depth is 0
+		 * to disallow mounting EROFS on stacked filesystems.
+		 * Note: s_stack_depth is not incremented here for now, since
+		 * EROFS is the only fs supporting file-backed mounts for now.
+		 * It MUST change if another fs plans to support them, which
+		 * may also require adjusting FILESYSTEM_MAX_STACK_DEPTH.
 		 */
 		if (erofs_is_fileio_mode(sbi)) {
-			sb->s_stack_depth =
-				file_inode(sbi->dif0.file)->i_sb->s_stack_depth + 1;
-			if (sb->s_stack_depth > FILESYSTEM_MAX_STACK_DEPTH) {
-				erofs_err(sb, "maximum fs stacking depth exceeded");
+			inode = file_inode(sbi->dif0.file);
+			if ((inode->i_sb->s_op == &erofs_sops &&
+			     !inode->i_sb->s_bdev) ||
+			    inode->i_sb->s_stack_depth) {
+				erofs_err(sb, "file-backed mounts cannot be applied to stacked fses");
 				return -ENOTBLK;
 			}
 		}

@@ -401,6 +401,15 @@ config SENSORS_MP2891
       This driver can also be built as a module. If so, the module will
       be called mp2891.
 
+config SENSORS_MP2925
+    tristate "MPS MP2925"
+    help
+      If you say yes here you get hardware monitoring support for MPS
+      MP2925 Dual Loop Digital Multi-Phase Controller.
+
+      This driver can also be built as a module. If so, the module will
+      be called mp2925.
+
 config SENSORS_MP29502
 	tristate "MPS MP29502"
 	help
@@ -453,6 +462,15 @@ config SENSORS_MP5920
 	  This driver can also be built as a module. If so, the module will
 	  be called mp5920.
 
+config SENSORS_MP5926
+	tristate "MPS MP5926"
+	help
+	  If you say yes here you get hardware monitoring support for Monolithic
+	  MP5926.
+
+	  This driver can also be built as a module. If so, the module will
+	  be called mp5926.
+
 config SENSORS_MP5990
 	tristate "MPS MP5990"
 	help
@@ -470,6 +488,15 @@ config SENSORS_MP9941
 
 	  This driver can also be built as a module. If so, the module will
 	  be called mp9941.
+
+config SENSORS_MP9945
+	tristate "MPS MP9945"
+	help
+	  If you say yes here you get hardware monitoring support for MPS
+	  MP9945.
+
+	  This driver can also be built as a module. If so, the module will
+	  be called mp9945.
 
 config SENSORS_MPQ7932_REGULATOR
 	bool "Regulator support for MPQ7932"

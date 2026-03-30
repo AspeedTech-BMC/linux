@@ -25,6 +25,7 @@ enum hci_cmd_attr {
 	CMD_0_ATTR_M	= 0x7,
 	CMD_0_ATTR_T	= 0x0,
 };
+#define CMD_0_TID			W0_MASK(6, 3)
 
 /*
  * Response Descriptor Structure

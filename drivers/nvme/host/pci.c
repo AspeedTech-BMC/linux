@@ -388,7 +388,7 @@ static void nvme_dbbuf_set(struct nvme_dev *dev)
 		/* Free memory and continue on */
 		nvme_dbbuf_dma_free(dev);
 
-		for (i = 1; i <= dev->online_queues; i++)
+		for (i = 1; i < dev->online_queues; i++)
 			nvme_dbbuf_free(&dev->queues[i]);
 	}
 }
@@ -771,6 +771,32 @@ static void nvme_unmap_data(struct request *req)
 		nvme_free_descriptors(req);
 }
 
+static bool nvme_pci_prp_save_mapping(struct request *req,
+				      struct device *dma_dev,
+				      struct blk_dma_iter *iter)
+{
+	struct nvme_iod *iod = blk_mq_rq_to_pdu(req);
+
+	if (dma_use_iova(&iod->dma_state) || !dma_need_unmap(dma_dev))
+		return true;
+
+	if (!iod->nr_dma_vecs) {
+		struct nvme_queue *nvmeq = req->mq_hctx->driver_data;
+
+		iod->dma_vecs = mempool_alloc(nvmeq->dev->dmavec_mempool,
+				GFP_ATOMIC);
+		if (!iod->dma_vecs) {
+			iter->status = BLK_STS_RESOURCE;
+			return false;
+		}
+	}
+
+	iod->dma_vecs[iod->nr_dma_vecs].addr = iter->addr;
+	iod->dma_vecs[iod->nr_dma_vecs].len = iter->len;
+	iod->nr_dma_vecs++;
+	return true;
+}
+
 static bool nvme_pci_prp_iter_next(struct request *req, struct device *dma_dev,
 		struct blk_dma_iter *iter)
 {
@@ -780,12 +806,7 @@ static bool nvme_pci_prp_iter_next(struct request *req, struct device *dma_dev,
 		return true;
 	if (!blk_rq_dma_map_iter_next(req, dma_dev, &iod->dma_state, iter))
 		return false;
-	if (!dma_use_iova(&iod->dma_state) && dma_need_unmap(dma_dev)) {
-		iod->dma_vecs[iod->nr_dma_vecs].addr = iter->addr;
-		iod->dma_vecs[iod->nr_dma_vecs].len = iter->len;
-		iod->nr_dma_vecs++;
-	}
-	return true;
+	return nvme_pci_prp_save_mapping(req, dma_dev, iter);
 }
 
 static blk_status_t nvme_pci_setup_data_prp(struct request *req,
@@ -798,15 +819,8 @@ static blk_status_t nvme_pci_setup_data_prp(struct request *req,
 	unsigned int prp_len, i;
 	__le64 *prp_list;
 
-	if (!dma_use_iova(&iod->dma_state) && dma_need_unmap(nvmeq->dev->dev)) {
-		iod->dma_vecs = mempool_alloc(nvmeq->dev->dmavec_mempool,
-				GFP_ATOMIC);
-		if (!iod->dma_vecs)
-			return BLK_STS_RESOURCE;
-		iod->dma_vecs[0].addr = iter->addr;
-		iod->dma_vecs[0].len = iter->len;
-		iod->nr_dma_vecs = 1;
-	}
+	if (!nvme_pci_prp_save_mapping(req, nvmeq->dev->dev, iter))
+		return iter->status;
 
 	/*
 	 * PRP1 always points to the start of the DMA transfers.
@@ -1148,6 +1162,7 @@ static blk_status_t nvme_prep_rq(struct request *req)
 	iod->nr_descriptors = 0;
 	iod->total_len = 0;
 	iod->meta_total_len = 0;
+	iod->nr_dma_vecs = 0;
 
 	ret = nvme_setup_cmd(req->q->queuedata, req);
 	if (ret)
@@ -1398,14 +1413,16 @@ static irqreturn_t nvme_irq_check(int irq, void *data)
 static void nvme_poll_irqdisable(struct nvme_queue *nvmeq)
 {
 	struct pci_dev *pdev = to_pci_dev(nvmeq->dev->dev);
+	int irq;
 
 	WARN_ON_ONCE(test_bit(NVMEQ_POLLED, &nvmeq->flags));
 
-	disable_irq(pci_irq_vector(pdev, nvmeq->cq_vector));
+	irq = pci_irq_vector(pdev, nvmeq->cq_vector);
+	disable_irq(irq);
 	spin_lock(&nvmeq->cq_poll_lock);
 	nvme_poll_cq(nvmeq, NULL);
 	spin_unlock(&nvmeq->cq_poll_lock);
-	enable_irq(pci_irq_vector(pdev, nvmeq->cq_vector));
+	enable_irq(irq);
 }
 
 static int nvme_poll(struct blk_mq_hw_ctx *hctx, struct io_comp_batch *iob)
@@ -1461,7 +1478,10 @@ static int nvme_pci_subsystem_reset(struct nvme_ctrl *ctrl)
 	}
 
 	writel(NVME_SUBSYS_RESET, dev->bar + NVME_REG_NSSR);
-	nvme_change_ctrl_state(ctrl, NVME_CTRL_LIVE);
+
+	if (!nvme_change_ctrl_state(ctrl, NVME_CTRL_CONNECTING) ||
+	    !nvme_change_ctrl_state(ctrl, NVME_CTRL_LIVE))
+		goto unlock;
 
 	/*
 	 * Read controller status to flush the previous write and trigger a
@@ -3917,6 +3937,8 @@ static const struct pci_device_id nvme_id_table[] = {
 		.driver_data = NVME_QUIRK_NO_DEEPEST_PS, },
 	{ PCI_DEVICE(0x1e49, 0x0041),   /* ZHITAI TiPro7000 NVMe SSD */
 		.driver_data = NVME_QUIRK_NO_DEEPEST_PS, },
+	{ PCI_DEVICE(0x1fa0, 0x2283),   /* Wodposit WPBSNM8-256GTP */
+		.driver_data = NVME_QUIRK_NO_SECONDARY_TEMP_THRESH, },
 	{ PCI_DEVICE(0x025e, 0xf1ac),   /* SOLIDIGM  P44 pro SSDPFKKW020X7  */
 		.driver_data = NVME_QUIRK_NO_DEEPEST_PS, },
 	{ PCI_DEVICE(0xc0a9, 0x540a),   /* Crucial P2 */

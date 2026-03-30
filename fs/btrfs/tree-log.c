@@ -29,6 +29,7 @@
 #include "orphan.h"
 #include "print-tree.h"
 #include "tree-checker.h"
+#include "delayed-inode.h"
 
 #define MAX_CONFLICT_INODES 10
 
@@ -189,7 +190,7 @@ static void do_abort_log_replay(struct walk_control *wc, const char *function,
 
 	btrfs_abort_transaction(wc->trans, error);
 
-	if (wc->subvol_path->nodes[0]) {
+	if (wc->subvol_path && wc->subvol_path->nodes[0]) {
 		btrfs_crit(fs_info,
 			   "subvolume (root %llu) leaf currently being processed:",
 			   btrfs_root_id(wc->root));
@@ -2800,7 +2801,7 @@ static int replay_one_buffer(struct extent_buffer *eb,
 
 	nritems = btrfs_header_nritems(eb);
 	for (wc->log_slot = 0; wc->log_slot < nritems; wc->log_slot++) {
-		struct btrfs_inode_item *inode_item;
+		struct btrfs_inode_item *inode_item = NULL;
 
 		btrfs_item_key_to_cpu(eb, &wc->log_key, wc->log_slot);
 
@@ -6202,6 +6203,7 @@ static int log_conflicting_inodes(struct btrfs_trans_handle *trans,
 				  struct btrfs_root *root,
 				  struct btrfs_log_ctx *ctx)
 {
+	const bool orig_log_new_dentries = ctx->log_new_dentries;
 	int ret = 0;
 
 	/*
@@ -6263,7 +6265,11 @@ static int log_conflicting_inodes(struct btrfs_trans_handle *trans,
 			 * dir index key range logged for the directory. So we
 			 * must make sure the deletion is recorded.
 			 */
+			ctx->log_new_dentries = false;
 			ret = btrfs_log_inode(trans, inode, LOG_INODE_ALL, ctx);
+			if (!ret && ctx->log_new_dentries)
+				ret = log_new_dir_dentries(trans, inode, ctx);
+
 			btrfs_add_delayed_iput(inode);
 			if (ret)
 				break;
@@ -6298,6 +6304,7 @@ static int log_conflicting_inodes(struct btrfs_trans_handle *trans,
 			break;
 	}
 
+	ctx->log_new_dentries = orig_log_new_dentries;
 	ctx->logging_conflict_inodes = false;
 	if (ret)
 		free_conflicting_inodes(ctx);
@@ -6348,10 +6355,8 @@ again:
 			 * and no keys greater than that, so bail out.
 			 */
 			break;
-		} else if ((min_key->type == BTRFS_INODE_REF_KEY ||
-			    min_key->type == BTRFS_INODE_EXTREF_KEY) &&
-			   (inode->generation == trans->transid ||
-			    ctx->logging_conflict_inodes)) {
+		} else if (min_key->type == BTRFS_INODE_REF_KEY ||
+			   min_key->type == BTRFS_INODE_EXTREF_KEY) {
 			u64 other_ino = 0;
 			u64 other_parent = 0;
 

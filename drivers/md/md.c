@@ -3874,7 +3874,6 @@ out_free_rdev:
 
 static int analyze_sbs(struct mddev *mddev)
 {
-	int i;
 	struct md_rdev *rdev, *freshest, *tmp;
 
 	freshest = NULL;
@@ -3901,11 +3900,9 @@ static int analyze_sbs(struct mddev *mddev)
 	super_types[mddev->major_version].
 		validate_super(mddev, NULL/*freshest*/, freshest);
 
-	i = 0;
 	rdev_for_each_safe(rdev, tmp, mddev) {
 		if (mddev->max_disks &&
-		    (rdev->desc_nr >= mddev->max_disks ||
-		     i > mddev->max_disks)) {
+		    rdev->desc_nr >= mddev->max_disks) {
 			pr_warn("md: %s: %pg: only %d devices permitted\n",
 				mdname(mddev), rdev->bdev,
 				mddev->max_disks);
@@ -4399,7 +4396,7 @@ raid_disks_store(struct mddev *mddev, const char *buf, size_t len)
 	if (err < 0)
 		return err;
 
-	err = mddev_lock(mddev);
+	err = mddev_suspend_and_lock(mddev);
 	if (err)
 		return err;
 	if (mddev->pers)
@@ -4424,7 +4421,7 @@ raid_disks_store(struct mddev *mddev, const char *buf, size_t len)
 	} else
 		mddev->raid_disks = n;
 out_unlock:
-	mddev_unlock(mddev);
+	mddev_unlock_and_resume(mddev);
 	return err ? err : len;
 }
 static struct md_sysfs_entry md_raid_disks =
@@ -6719,13 +6716,15 @@ static void __md_stop_writes(struct mddev *mddev)
 {
 	timer_delete_sync(&mddev->safemode_timer);
 
-	if (mddev->pers && mddev->pers->quiesce) {
-		mddev->pers->quiesce(mddev, 1);
-		mddev->pers->quiesce(mddev, 0);
-	}
+	if (md_is_rdwr(mddev) || !mddev_is_dm(mddev)) {
+		if (mddev->pers && mddev->pers->quiesce) {
+			mddev->pers->quiesce(mddev, 1);
+			mddev->pers->quiesce(mddev, 0);
+		}
 
-	if (md_bitmap_enabled(mddev, true))
-		mddev->bitmap_ops->flush(mddev);
+		if (md_bitmap_enabled(mddev, true))
+			mddev->bitmap_ops->flush(mddev);
+	}
 
 	if (md_is_rdwr(mddev) &&
 	    ((!mddev->in_sync && !mddev_is_clustered(mddev)) ||

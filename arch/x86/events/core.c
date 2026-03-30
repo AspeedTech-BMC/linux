@@ -1359,6 +1359,8 @@ static void x86_pmu_enable(struct pmu *pmu)
 			else if (i < n_running)
 				continue;
 
+			cpuc->events[hwc->idx] = event;
+
 			if (hwc->state & PERF_HES_ARCH)
 				continue;
 
@@ -1366,7 +1368,6 @@ static void x86_pmu_enable(struct pmu *pmu)
 			 * if cpuc->enabled = 0, then no wrmsr as
 			 * per x86_pmu_enable_event()
 			 */
-			cpuc->events[hwc->idx] = event;
 			x86_pmu_start(event, PERF_EF_RELOAD);
 		}
 		cpuc->n_added = 0;
@@ -2846,46 +2847,6 @@ static unsigned long get_segment_base(unsigned int segment)
 	return get_desc_base(desc);
 }
 
-#ifdef CONFIG_UPROBES
-/*
- * Heuristic-based check if uprobe is installed at the function entry.
- *
- * Under assumption of user code being compiled with frame pointers,
- * `push %rbp/%ebp` is a good indicator that we indeed are.
- *
- * Similarly, `endbr64` (assuming 64-bit mode) is also a common pattern.
- * If we get this wrong, captured stack trace might have one extra bogus
- * entry, but the rest of stack trace will still be meaningful.
- */
-static bool is_uprobe_at_func_entry(struct pt_regs *regs)
-{
-	struct arch_uprobe *auprobe;
-
-	if (!current->utask)
-		return false;
-
-	auprobe = current->utask->auprobe;
-	if (!auprobe)
-		return false;
-
-	/* push %rbp/%ebp */
-	if (auprobe->insn[0] == 0x55)
-		return true;
-
-	/* endbr64 (64-bit only) */
-	if (user_64bit_mode(regs) && is_endbr((u32 *)auprobe->insn))
-		return true;
-
-	return false;
-}
-
-#else
-static bool is_uprobe_at_func_entry(struct pt_regs *regs)
-{
-	return false;
-}
-#endif /* CONFIG_UPROBES */
-
 #ifdef CONFIG_IA32_EMULATION
 
 #include <linux/compat.h>
@@ -3101,8 +3062,8 @@ void perf_get_x86_pmu_capability(struct x86_pmu_capability *cap)
 	cap->version		= x86_pmu.version;
 	cap->num_counters_gp	= x86_pmu_num_counters(NULL);
 	cap->num_counters_fixed	= x86_pmu_num_counters_fixed(NULL);
-	cap->bit_width_gp	= x86_pmu.cntval_bits;
-	cap->bit_width_fixed	= x86_pmu.cntval_bits;
+	cap->bit_width_gp	= cap->num_counters_gp ? x86_pmu.cntval_bits : 0;
+	cap->bit_width_fixed	= cap->num_counters_fixed ? x86_pmu.cntval_bits : 0;
 	cap->events_mask	= (unsigned int)x86_pmu.events_maskl;
 	cap->events_mask_len	= x86_pmu.events_mask_len;
 	cap->pebs_ept		= x86_pmu.pebs_ept;

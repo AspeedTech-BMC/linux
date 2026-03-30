@@ -718,7 +718,8 @@ static int i3c_set_hotjoin(struct i3c_master_controller *master, bool enable)
 					I3C_CCC_EVENT_HJ);
 	}
 
-	master->hotjoin = enable;
+	if (!ret)
+		master->hotjoin = enable;
 
 	i3c_bus_normaluse_unlock(&master->bus);
 

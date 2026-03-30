@@ -763,13 +763,16 @@ err_out:
 		return ERR_PTR(ret);
 	}
 
-	ttm_bo_reserve(&bo->tbo, false, false, NULL);
-	ret = vmw_bo_dirty_add(bo);
-	if (!ret && surface && surface->res.func->dirty_alloc) {
-		surface->res.coherent = true;
-		ret = surface->res.func->dirty_alloc(&surface->res);
+	if (bo) {
+		ttm_bo_reserve(&bo->tbo, false, false, NULL);
+		ret = vmw_bo_dirty_add(bo);
+		if (!ret && surface && surface->res.func->dirty_alloc) {
+			surface->res.coherent = true;
+			if (surface->res.dirty == NULL)
+				ret = surface->res.func->dirty_alloc(&surface->res);
+		}
+		ttm_bo_unreserve(&bo->tbo);
 	}
-	ttm_bo_unreserve(&bo->tbo);
 
 	return &vfb->base;
 }
