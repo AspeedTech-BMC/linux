@@ -170,6 +170,10 @@ struct aspeed_espi_ioc {
  *      Read the input value1 of GPIO over the VW channel
  *  - ASPEED_ESPI_VW_PUT_GPIO_VAL1 (new feature in AST2700)
  *      Write the output value1 of GPIO over the VW channel
+ *  - ASPEED_ESPI_VW_GET_PCH_GENERIC
+ *      Read the input value of PCH Generic Indexes over the VW channel
+ *  - ASPEED_ESPI_VW_PUT_PCH_GENERIC
+ *      Write the output value of PCH Generic Indexes over the VW channel
  */
 #define ASPEED_ESPI_VW_GET_GPIO_VAL	_IOR(__ASPEED_ESPI_IOCTL_MAGIC, \
 					     0x10, u32)
@@ -181,6 +185,10 @@ struct aspeed_espi_ioc {
 #define ASPEED_ESPI_VW_PUT_GPIO_VAL1	_IOW(__ASPEED_ESPI_IOCTL_MAGIC, \
 					     0x13, u32)
 #endif
+#define ASPEED_ESPI_VW_GET_PCH_GENERIC	_IOR(__ASPEED_ESPI_IOCTL_MAGIC, \
+					     0x14, u32)
+#define ASPEED_ESPI_VW_PUT_PCH_GENERIC	_IOW(__ASPEED_ESPI_IOCTL_MAGIC, \
+					     0x15, u32)
 /*
  * Out-of-band Channel (CH2)
  *  - ASPEED_ESPI_OOB_GET_RX
