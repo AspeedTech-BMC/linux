@@ -439,7 +439,7 @@
 
 		hace: crypto@12070000 {
 			compatible = "aspeed,ast2700-hace";
-			reg = <0x0 0x12070000 0x0 0x200>;
+			reg = <0x0 0x12070000 0x0 0x200>, <0x0 0x12c1f000 0x0 0x10>;
 			interrupts = <GIC_SPI 4 IRQ_TYPE_LEVEL_HIGH>;
 			clocks = <&syscon0 SCU0_CLK_GATE_HACCLK>;
 			resets = <&syscon0 SCU0_RESET_HACE>;
