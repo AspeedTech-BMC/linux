@@ -1050,9 +1050,9 @@ static const struct file_operations ast2700_espi_vw_pltrst_fops = {
 static void ast2700_espi_vw_isr(struct aspeed_espi *espi)
 {
 	struct aspeed_espi_vw *vw;
+	u32 sts_evt;
 	u32 sts;
-	u32 sts_evt0;
-	u32 evt0;
+	u32 evt;
 	unsigned long flags;
 
 	vw = &espi->vw;
@@ -1066,12 +1066,25 @@ static void ast2700_espi_vw_isr(struct aspeed_espi *espi)
 		writel(ESPI_CH1_INT_STS_GPIO_CLR, espi->regs + ESPI_CH1_INT_STS);
 	}
 
+	if (sts & ESPI_CH1_INT_STS_EVT1) {
+		sts_evt = readl(espi->regs + ESPI_CH1_EVT1_INT_STS);
+		if (sts_evt & ESPI_CH1_EVT1_INT_STS_PCH_GENE) {
+			vw->platform.pch_generic = FIELD_GET(ESPI_CH1_EVT1_PCH_GENE,
+							     readl(espi->regs + ESPI_CH1_EVT1));
+
+			writel(ESPI_CH1_EVT1_INT_STS_PCH_GENE,
+			       espi->regs + ESPI_CH1_EVT1_INT_STS);
+		}
+
+		writel(ESPI_CH1_INT_STS_EVT1_CLR, espi->regs + ESPI_CH1_INT_STS);
+	}
+
 	if (sts & ESPI_CH1_INT_STS_EVT0) {
-		sts_evt0 = readl(espi->regs + ESPI_CH1_EVT0_INT_STS);
-		evt0 = readl(espi->regs + ESPI_CH1_EVT0);
-		if (sts_evt0 & ESPI_CH1_EVT0_INT_STS_PLTRSTN || vw->pltrst.pltrst_status == 'U') {
+		sts_evt = readl(espi->regs + ESPI_CH1_EVT0_INT_STS);
+		evt = readl(espi->regs + ESPI_CH1_EVT0);
+		if (sts_evt & ESPI_CH1_EVT0_INT_STS_PLTRSTN || vw->pltrst.pltrst_status == 'U') {
 			spin_lock_irqsave(&vw->pltrst.pltrst_lock, flags);
-			vw->pltrst.pltrst_status = (evt0 & ESPI_CH1_EVT0_PLTRSTN) ? '1' : '0';
+			vw->pltrst.pltrst_status = (evt & ESPI_CH1_EVT0_PLTRSTN) ? '1' : '0';
 			vw->pltrst.pltrst_avail = true;
 			spin_unlock_irqrestore(&vw->pltrst.pltrst_lock, flags);
 
@@ -1098,6 +1111,12 @@ static void ast2700_espi_vw_reset(struct aspeed_espi *espi)
 
 	vw->gpio.val0 = readl(espi->regs + ESPI_CH1_GPIO_VAL0);
 	vw->gpio.val1 = readl(espi->regs + ESPI_CH1_GPIO_VAL1);
+	vw->platform.pch_generic = FIELD_GET(ESPI_CH1_EVT1_PCH_GENE,
+					     readl(espi->regs + ESPI_CH1_EVT1));
+
+	writel(ESPI_CH1_EVT1_INT_T2_PCH_GENE,
+	       espi->regs + ESPI_CH1_EVT1_INT_T2);
+	writel(ESPI_CH1_EVT1_INT_EN_PCH_GENE, espi->regs + ESPI_CH1_EVT1_INT_EN);
 
 	if (vw->pltrst.enabled) {
 		spin_lock(&vw->pltrst.pltrst_lock);
@@ -1108,10 +1127,10 @@ static void ast2700_espi_vw_reset(struct aspeed_espi *espi)
 		writel(ESPI_CH1_EVT0_INT_T2_PLTRSTN,
 		       espi->regs + ESPI_CH1_EVT0_INT_T2);
 		writel(ESPI_CH1_EVT0_INT_EN_PLTRSTN, espi->regs + ESPI_CH1_EVT0_INT_EN);
-		writel(ESPI_CH1_INT_EN_GPIO | ESPI_CH1_INT_EN_SYS_EVT0,
+		writel(ESPI_CH1_INT_EN_GPIO | ESPI_CH1_INT_EN_SYS_EVT1 | ESPI_CH1_INT_EN_SYS_EVT0,
 		       espi->regs + ESPI_CH1_INT_EN);
 	} else {
-		writel(ESPI_CH1_INT_EN_GPIO, espi->regs + ESPI_CH1_INT_EN);
+		writel(ESPI_CH1_INT_EN_GPIO | ESPI_CH1_INT_EN_SYS_EVT1, espi->regs + ESPI_CH1_INT_EN);
 	}
 
 	reg = readl(espi->regs + ESPI_CH1_CTRL)
