@@ -248,6 +248,16 @@ void ast_vhub_init_hw(struct ast_vhub *vhub)
 	ctrl |= VHUB_CTRL_UPSTREAM_CONNECT;
 	writel(ctrl, vhub->regs + AST_VHUB_CTRL);
 
+	/* AST2700 SoC0 vhub0 only: force retry via CRC error injection
+	 * when DRAM access is delayed due to bus contention.
+	 */
+	if (vhub->txfifo_retry_quirk) {
+		u32 val = readl(vhub->regs + AST_VHUB_PHY_00);
+
+		val |= AST_VHUB0_FIFO_FORCE_RETRY;
+		writel(val, vhub->regs + AST_VHUB_PHY_00);
+	}
+
 	/* Enable some interrupts */
 	writel(VHUB_IRQ_HUB_EP0_IN_ACK_STALL |
 	       VHUB_IRQ_HUB_EP0_OUT_ACK_STALL |
@@ -388,6 +398,8 @@ static int ast_vhub_probe(struct platform_device *pdev)
 		return -ENOMEM;
 
 	vhub->enlarge_fifo = of_property_read_bool(np, "aspeed,enlarge-fifo");
+	vhub->txfifo_retry_quirk =
+		of_property_read_bool(np, "aspeed,txfifo-retry-quirk");
 
 	spin_lock_init(&vhub->lock);
 	vhub->pdev = pdev;
