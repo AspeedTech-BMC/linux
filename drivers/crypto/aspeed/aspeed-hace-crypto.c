@@ -986,9 +986,6 @@ void aspeed_register_hace_vault_key(struct aspeed_hace_dev *hace_dev)
 
 	/* Check all vault key from dts and store in dummy_key array */
 	for (i = 0; i < key_num; i++) {
-		if (!of_property_read_bool(dev->of_node, key[i]))
-			continue;
-
 		crypto_engine->dummy_key[i] =
 			devm_kzalloc(dev, DUMMY_KEY_SIZE, GFP_KERNEL);
 		if (!crypto_engine->dummy_key[i]) {
@@ -1000,7 +997,7 @@ void aspeed_register_hace_vault_key(struct aspeed_hace_dev *hace_dev)
 						 crypto_engine->dummy_key[i],
 						 DUMMY_KEY_SIZE / sizeof(u32));
 		if (err) {
-			dev_err(dev, "Failed to read key: %s (%d)\n", key[i], err);
+			dev_err(dev, "Cannot find %s, skip key register\n", key[i]);
 			devm_kfree(dev, crypto_engine->dummy_key[i]);
 			crypto_engine->dummy_key[i] = NULL;
 			continue;
