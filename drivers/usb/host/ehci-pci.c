@@ -227,7 +227,7 @@ static int ehci_pci_setup(struct usb_hcd *hcd)
 		break;
 	case PCI_VENDOR_ID_ASPEED:
 		if (pdev->device == PCI_DEVICE_ID_ASPEED_EHCI) {
-			u32 hcc_params = ehci_readl(ehci, &ehci->caps->hcs_params);
+			u32 hcc_params = ehci_readl(ehci, &ehci->caps->hcc_params);
 			ehci_info(ehci, "applying Aspeed HC workaround\n");
 			ehci->is_aspeed = 1;
 			if (HCC_64BIT_ADDR(hcc_params)) {
