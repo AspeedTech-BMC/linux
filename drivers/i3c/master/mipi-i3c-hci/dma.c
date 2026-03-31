@@ -285,7 +285,10 @@ static int hci_dma_init(struct i3c_hci *hci)
 		rh->ibi_status_sz = FIELD_GET(IBI_STATUS_STRUCT_SIZE, regval);
 		rh->ibi_status_entries = IBI_STATUS_RING_ENTRIES;
 		rh->ibi_chunks_total = IBI_CHUNK_POOL_SIZE;
-
+#ifdef CONFIG_ARCH_ASPEED
+		/* Asppeed only support 4-byte IBI chunks */
+		rh->ibi_chunk_sz = 4;
+#else
 		rh->ibi_chunk_sz = dma_get_cache_alignment();
 		rh->ibi_chunk_sz *= IBI_CHUNK_CACHELINES;
 		/*
@@ -295,6 +298,7 @@ static int hci_dma_init(struct i3c_hci *hci)
 		 */
 		rh->ibi_chunk_sz = umax(4, rh->ibi_chunk_sz);
 		rh->ibi_chunk_sz = roundup_pow_of_two(rh->ibi_chunk_sz);
+#endif
 		if (rh->ibi_chunk_sz > 256) {
 			ret = -EINVAL;
 			goto err_out;
