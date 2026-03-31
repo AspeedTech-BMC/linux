@@ -238,7 +238,7 @@
 		};
 
 		vhuba1: usb-vhub@12011000 {
-			compatible = "aspeed,ast2700-usb-vhuba1";
+			compatible = "aspeed,ast2700-usb-vhub";
 			reg = <0x0 0x12011000 0x0 0x820>;
 			interrupts = <GIC_SPI 32 IRQ_TYPE_LEVEL_HIGH>;
 			clocks = <&syscon0 SCU0_CLK_GATE_PORTAUSB2CLK>;
@@ -247,8 +247,6 @@
 			aspeed,vhub-generic-endpoints = <21>;
 			pinctrl-names = "default";
 			pinctrl-0 = <&pinctrl_usb2axhpd1_default>;
-			aspeed,device = <&pcie_cfg0>;
-			aspeed,scu = <&syscon0>;
 			aspeed,enlarge-fifo;
 			status = "disabled";
 		};
@@ -272,7 +270,7 @@
 		};
 
 		vhubb1: usb-vhub@12021000 {
-			compatible = "aspeed,ast2700-usb-vhubb1";
+			compatible = "aspeed,ast2700-usb-vhub";
 			reg = <0x0 0x12021000 0x0 0x820>;
 			interrupts = <GIC_SPI 36 IRQ_TYPE_LEVEL_HIGH>;
 			clocks = <&syscon0 SCU0_CLK_GATE_PORTBUSB2CLK>;
@@ -281,8 +279,6 @@
 			aspeed,vhub-generic-endpoints = <21>;
 			pinctrl-names = "default";
 			pinctrl-0 = <&pinctrl_usb2bxhpd1_default>;
-			aspeed,device = <&pcie_cfg1>;
-			aspeed,scu = <&syscon0>;
 			aspeed,enlarge-fifo;
 			status = "disabled";
 		};
@@ -364,7 +360,7 @@
 		};
 
 		vhuba0: usb-vhub@12060000 {
-			compatible = "aspeed,ast2700-usb-vhuba0";
+			compatible = "aspeed,ast2700-usb-vhub";
 			reg = <0x0 0x12060000 0x0 0x820>;
 			interrupts = <GIC_SPI 33 IRQ_TYPE_LEVEL_HIGH>;
 			clocks = <&syscon0 SCU0_CLK_GATE_PORTAUSB2CLK>;
@@ -373,8 +369,6 @@
 			aspeed,vhub-generic-endpoints = <21>;
 			pinctrl-names = "default";
 			pinctrl-0 = <&pinctrl_usb2ad0_default>;
-			aspeed,device = <&pcie_cfg0>;
-			aspeed,scu = <&syscon0>;
 			status = "disabled";
 		};
 
@@ -401,7 +395,7 @@
 		};
 
 		vhubb0: usb-vhub@12062000 {
-			compatible = "aspeed,ast2700-usb-vhubb0";
+			compatible = "aspeed,ast2700-usb-vhub";
 			reg = <0x0 0x12062000 0x0 0x820>;
 			interrupts = <GIC_SPI 37 IRQ_TYPE_LEVEL_HIGH>;
 			clocks = <&syscon0 SCU0_CLK_GATE_PORTBUSB2CLK>;
@@ -410,8 +404,6 @@
 			aspeed,vhub-generic-endpoints = <21>;
 			pinctrl-names = "default";
 			pinctrl-0 = <&pinctrl_usb2bd0_default>;
-			aspeed,device = <&pcie_cfg1>;
-			aspeed,scu = <&syscon0>;
 			status = "disabled";
 		};
 
@@ -1442,7 +1434,7 @@
 		};
 
 		vhubc: usb-vhub@14120000 {
-			compatible = "aspeed,ast2700-usb-vhubc";
+			compatible = "aspeed,ast2700-usb-vhub";
 			reg = <0x0 0x14120000 0x0 0x820>;
 			interrupts-extended = <&intc1_4 28>;
 			clocks = <&syscon1 SCU1_CLK_GATE_PORTCUSB2CLK>;
@@ -1466,7 +1458,7 @@
 		};
 
 		vhubd: usb-vhub@14122000 {
-			compatible = "aspeed,ast2700-usb-vhubd";
+			compatible = "aspeed,ast2700-usb-vhub";
 			reg = <0x0 0x14122000 0x0 0x820>;
 			interrupts-extended = <&intc1_4 29>;
 			clocks = <&syscon1 SCU1_CLK_GATE_PORTDUSB2CLK>;
