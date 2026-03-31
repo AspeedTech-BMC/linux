@@ -401,7 +401,6 @@ struct ast_vhub {
 	struct clk			*clk;
 	struct reset_control		*rst;
 
-
 	/* EP0 DMA buffers allocated in one chunk */
 	void				*ep0_bufs;
 	dma_addr_t			ep0_bufs_dma;
