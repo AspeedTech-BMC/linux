@@ -24,25 +24,8 @@
 #include <linux/regmap.h>
 #include <linux/dma-mapping.h>
 #include <linux/reset.h>
-#include <linux/mfd/syscon.h>
 
 #include "vhub.h"
-
-#define ASPEED_G7_SCU_VHUB_USB_FUNC_OFFSET	0x410
-
-enum ast_g7_pcie {
-	NOT_SUPPORTED,
-	PCIE_EHCI,
-	PCIE_XHCI,
-};
-
-struct ast_vhub_match_data {
-	enum ast_g7_pcie g7_pcie;
-	u32 usb_mode_mask;
-	u32 xhci_mode_mask;
-	u32 txfifo_fix_reg;
-	u32 txfifo_fix_val;
-};
 
 void ast_vhub_done(struct ast_vhub_ep *ep, struct ast_vhub_req *req,
 		   int status)
@@ -276,52 +259,6 @@ void ast_vhub_init_hw(struct ast_vhub *vhub)
 	       vhub->regs + AST_VHUB_IER);
 }
 
-int ast_vhub_init_pcie(struct ast_vhub *vhub, const struct ast_vhub_match_data *pdata)
-{
-	struct device *dev = &vhub->pdev->dev;
-	struct regmap *pcie_device;
-	struct regmap *scu;
-	u32 scu_usb;
-	int rc = 0;
-
-	scu = syscon_regmap_lookup_by_phandle(dev->of_node, "aspeed,scu");
-	if (IS_ERR(scu)) {
-		dev_err(dev, "failed to find SCU regmap\n");
-		return PTR_ERR(scu);
-	}
-
-	regmap_read(scu, ASPEED_G7_SCU_VHUB_USB_FUNC_OFFSET, &scu_usb);
-
-	/* Check EHCI or xHCI to virtual hub */
-	if ((scu_usb & pdata->usb_mode_mask) == 0) {
-		pcie_device = syscon_regmap_lookup_by_phandle(dev->of_node,
-							      "aspeed,device");
-		if (IS_ERR(pcie_device)) {
-			dev_err(dev, "failed to find PCIe device regmap\n");
-			return PTR_ERR(pcie_device);
-		}
-		if (pdata->g7_pcie == PCIE_XHCI) {
-			/* Check PCIe xHCI or BMC xHCI to virtual hub */
-			if ((scu_usb & pdata->xhci_mode_mask) == 0) {
-				dev_info(dev, "PCIe xHCI to vhub\n");
-				//EnPCIaMSI_EnPCIaIntA_EnPCIaMst_EnPCIaDev
-				/* Turn on PCIe xHCI without MSI */
-				regmap_update_bits(pcie_device, 0x70,
-						   BIT(19) | BIT(11) | BIT(3),
-						   BIT(19) | BIT(11) | BIT(3));
-			}
-		} else if (pdata->g7_pcie == PCIE_EHCI) {
-			dev_info(dev, "PCIe EHCI to vhub\n");
-			//EnPCIaMSI_EnPCIaIntA_EnPCIaMst_EnPCIaDev
-			/* Turn on PCIe EHCI without MSI */
-			regmap_update_bits(pcie_device, 0x70,
-					   BIT(18) | BIT(10) | BIT(2),
-					   BIT(18) | BIT(10) | BIT(2));
-		}
-	}
-	return rc;
-}
-
 static void ast_vhub_remove(struct platform_device *pdev)
 {
 	struct ast_vhub *vhub = platform_get_drvdata(pdev);
@@ -349,8 +286,7 @@ static void ast_vhub_remove(struct platform_device *pdev)
 	if (vhub->clk)
 		clk_disable_unprepare(vhub->clk);
 
-	if (vhub->rst)
-		reset_control_assert(vhub->rst);
+	reset_control_assert(vhub->rst);
 
 	spin_unlock_irqrestore(&vhub->lock, flags);
 
@@ -421,22 +357,15 @@ static int ast_vhub_init_uart(struct device *dev, struct ast_vhub *vhub)
 static int ast_vhub_probe(struct platform_device *pdev)
 {
 	enum usb_device_speed max_speed;
+	const u64 *dma_mask_ptr;
 	struct ast_vhub *vhub;
 	struct resource *res;
 	int i, rc = 0;
 	const struct device_node *np = pdev->dev.of_node;
-	const struct ast_vhub_match_data *pdata;
-	u32 val;
 
 	vhub = devm_kzalloc(&pdev->dev, sizeof(*vhub), GFP_KERNEL);
 	if (!vhub)
 		return -ENOMEM;
-
-	pdata = of_device_get_match_data(&pdev->dev);
-	if (IS_ERR(pdata)) {
-		dev_err(&pdev->dev, "Couldn't get match data\n");
-		return -ENODEV;
-	}
 
 	rc = of_property_read_u32(np, "aspeed,vhub-downstream-ports",
 				  &vhub->max_ports);
@@ -474,13 +403,6 @@ static int ast_vhub_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, vhub);
 
-	vhub->rst = devm_reset_control_get_optional_shared(&pdev->dev, NULL);
-
-	if (IS_ERR(vhub->rst)) {
-		rc = PTR_ERR(vhub->rst);
-		goto err;
-	}
-
 	vhub->clk = devm_clk_get(&pdev->dev, NULL);
 	if (IS_ERR(vhub->clk)) {
 		rc = PTR_ERR(vhub->clk);
@@ -492,25 +414,15 @@ static int ast_vhub_probe(struct platform_device *pdev)
 		goto err;
 	}
 
-	if (vhub->rst) {
-		mdelay(10);
-		rc = reset_control_deassert(vhub->rst);
-		if (rc)
-			goto err;
+	vhub->rst = devm_reset_control_get_optional_shared(&pdev->dev, NULL);
+	if (IS_ERR(vhub->rst)) {
+		rc = PTR_ERR(vhub->rst);
+		goto err;
 	}
 
-	if (pdata->g7_pcie != NOT_SUPPORTED) {
-		rc = ast_vhub_init_pcie(vhub, pdata);
-		if (rc)
-			goto err;
-
-		/* For G7 PortA/B, enable the option of TXFIFO fix.
-		 * It forces the CRC error for a re-try when vHub cannot fetch DRAM in time.
-		 */
-		val = readl(vhub->regs + pdata->txfifo_fix_reg);
-		writel(pdata->txfifo_fix_val | val,
-		       vhub->regs + pdata->txfifo_fix_reg);
-	}
+	rc = reset_control_deassert(vhub->rst);
+	if (rc)
+		goto err;
 
 	ast_vhub_init_uart(&pdev->dev, vhub);
 
@@ -536,10 +448,11 @@ static int ast_vhub_probe(struct platform_device *pdev)
 		goto err;
 	}
 
-	rc = dma_set_mask_and_coherent(&pdev->dev, DMA_BIT_MASK(64));
-	if (rc) {
-		dev_warn(&pdev->dev, "No suitable DMA available\n");
-		goto err;
+	dma_mask_ptr = (u64 *)of_device_get_match_data(&pdev->dev);
+	if (dma_mask_ptr) {
+		rc = dma_coerce_mask_and_coherent(&pdev->dev, *dma_mask_ptr);
+		if (rc)
+			goto err;
 	}
 
 	/*
@@ -584,86 +497,25 @@ static int ast_vhub_probe(struct platform_device *pdev)
 	return rc;
 }
 
-static const struct ast_vhub_match_data aspeed_vhub_match_data = {
-	.g7_pcie = NOT_SUPPORTED,
-};
-
-static const struct ast_vhub_match_data aspeed_g7_vhuba0_match_data = {
-	.g7_pcie = PCIE_EHCI,
-	.usb_mode_mask = GENMASK(25, 24),
-	.xhci_mode_mask = 0,
-	.txfifo_fix_reg = 0x800,
-	.txfifo_fix_val = BIT(13),
-};
-
-static const struct ast_vhub_match_data aspeed_g7_vhubb0_match_data = {
-	.g7_pcie = PCIE_EHCI,
-	.usb_mode_mask = GENMASK(29, 28),
-	.xhci_mode_mask = 0,
-	.txfifo_fix_reg = 0x800,
-	.txfifo_fix_val = BIT(13),
-};
-
-static const struct ast_vhub_match_data aspeed_g7_vhuba1_match_data = {
-	.g7_pcie = PCIE_XHCI,
-	.usb_mode_mask = GENMASK(3, 2),
-	.xhci_mode_mask = BIT_MASK(9),
-	.txfifo_fix_reg = 0x80C,
-	.txfifo_fix_val = BIT(31),
-};
-
-static const struct ast_vhub_match_data aspeed_g7_vhubb1_match_data = {
-	.g7_pcie = PCIE_XHCI,
-	.usb_mode_mask = GENMASK(7, 6),
-	.xhci_mode_mask = BIT_MASK(10),
-	.txfifo_fix_reg = 0x80C,
-	.txfifo_fix_val = BIT(31),
-};
-
-static const struct ast_vhub_match_data aspeed_g7_vhubc_match_data = {
-	.g7_pcie = NOT_SUPPORTED,
-};
-
-static const struct ast_vhub_match_data aspeed_g7_vhubd_match_data = {
-	.g7_pcie = NOT_SUPPORTED,
-};
+static const u64 dma_mask_32 =	DMA_BIT_MASK(32);
+static const u64 dma_mask_64 =	DMA_BIT_MASK(64);
 
 static const struct of_device_id ast_vhub_dt_ids[] = {
 	{
 		.compatible = "aspeed,ast2400-usb-vhub",
-		.data = &aspeed_vhub_match_data,
+		.data = &dma_mask_32,
 	},
 	{
 		.compatible = "aspeed,ast2500-usb-vhub",
-		.data = &aspeed_vhub_match_data,
+		.data = &dma_mask_32,
 	},
 	{
 		.compatible = "aspeed,ast2600-usb-vhub",
-		.data = &aspeed_vhub_match_data,
+		.data = &dma_mask_32,
 	},
 	{
-		.compatible = "aspeed,ast2700-usb-vhuba0",
-		.data = &aspeed_g7_vhuba0_match_data,
-	},
-	{
-		.compatible = "aspeed,ast2700-usb-vhubb0",
-		.data = &aspeed_g7_vhubb0_match_data,
-	},
-	{
-		.compatible = "aspeed,ast2700-usb-vhuba1",
-		.data = &aspeed_g7_vhuba1_match_data,
-	},
-	{
-		.compatible = "aspeed,ast2700-usb-vhubb1",
-		.data = &aspeed_g7_vhubb1_match_data,
-	},
-	{
-		.compatible = "aspeed,ast2700-usb-vhubc",
-		.data = &aspeed_g7_vhubc_match_data,
-	},
-	{
-		.compatible = "aspeed,ast2700-usb-vhubd",
-		.data = &aspeed_g7_vhubd_match_data,
+		.compatible = "aspeed,ast2700-usb-vhub",
+		.data = &dma_mask_64,
 	},
 	{ }
 };
