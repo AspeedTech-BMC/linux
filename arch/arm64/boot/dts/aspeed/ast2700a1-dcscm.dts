@@ -972,3 +972,25 @@
 &otp {
 	status = "okay";
 };
+
+#if 0
+&soc0 {
+	mbox-ssp-0 {
+		compatible = "aspeed,aspeed-mbox";
+		reg = <0x4 0x31480000 0x0 0x200000>, <0x0 0x10001000 0x0 0x1000>;
+		mboxes = <&mbox0 0>;
+		aspeed,tx-timeout = <100>;
+	};
+};
+#endif
+
+#if 1
+&soc0 {
+	mbox-bootmcu-1 {
+		compatible = "aspeed,aspeed-mbox";
+		reg = <0x4 0x31880000 0x0 0x100000>, <0x4 0x31980000 0x0 0x100000>;
+		mboxes = <&mbox2 1>;
+		aspeed,tx-timeout = <10000>;
+	};
+};
+#endif
