@@ -444,18 +444,6 @@
 	pinctrl-0 = <&pinctrl_usb2ad0_default>;
 };
 
-&uphy2a {
-	status = "okay";
-};
-
-&usb3ahp {
-	status = "disabled";
-};
-
-&usb3bhp {
-	status = "disabled";
-};
-
 &vhubb0 {
 	status = "okay";
 };
