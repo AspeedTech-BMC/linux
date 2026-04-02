@@ -45,6 +45,30 @@
 
 #define BCM_USB_FIFO_THRESHOLD	0x00800040
 
+/* ASPEED EHCI84: Controller Fine-tune Register */
+#define AST_EHCI_FINE_TUNE_REG		0x84
+#define AST_TXFIFO_THRESHOLD_MASK	GENMASK(7, 6)
+/* Set transmit FIFO threshold to 0x2 for 512 bytes */
+#define AST_TXFIFO_THRESHOLD		FIELD_PREP(AST_TXFIFO_THRESHOLD_MASK, 0x2)
+
+/* ASPEED EHCI88: Frame Timing Adjustment Register */
+#define AST_EHCI_FRAME_TIMING_REG	0x88
+#define AST_PRE_EOF1_MASK		GENMASK(21, 12)
+#define AST_PRE_EOF2_MASK		GENMASK(31, 22)
+
+#define AST_PRE_EOF1(x)			FIELD_PREP(AST_PRE_EOF1_MASK, (x))
+#define AST_PRE_EOF2(x)			FIELD_PREP(AST_PRE_EOF2_MASK, (x))
+
+/*
+ * Workaround: set preEOF1 to 0x100 and preEOF2 to preEOF1 + MPS.
+ * Use MPS 0x40 for the current configuration.
+ */
+#define AST_PRE_EOF1_VAL		0x100
+#define AST_WORKAROUND_MPS		0x40
+
+#define AST_EOF1_EOF2_TIMING \
+	(AST_PRE_EOF1(AST_PRE_EOF1_VAL) | \
+	 AST_PRE_EOF2(AST_PRE_EOF1_VAL + AST_WORKAROUND_MPS))
 struct ehci_platform_priv {
 	struct clk *clks[EHCI_MAX_CLKS];
 	struct reset_control *rsts;
@@ -383,10 +407,19 @@ static int ehci_platform_probe(struct platform_device *dev)
 	if (err)
 		goto err_power;
 
-	/* Set 512 bytes for transmit FIFO threshold */
-	if (ehci->is_aspeed)
-		writel(((readl(hcd->regs + 0x84) & ~0xC0) | 0x80), hcd->regs + 0x84);
+	/* Apply ASPEED EHCI TXFIFO threshold and EOF1/EOF2 timing workaround */
+	if (ehci->is_aspeed) {
+		void __iomem *regs = hcd->regs;
+		u32 val;
 
+		val = readl(regs + AST_EHCI_FINE_TUNE_REG);
+		val &= ~AST_TXFIFO_THRESHOLD_MASK;
+		val |= AST_TXFIFO_THRESHOLD;
+		writel(val, regs + AST_EHCI_FINE_TUNE_REG);
+
+		writel(AST_EOF1_EOF2_TIMING,
+		       regs + AST_EHCI_FRAME_TIMING_REG);
+	}
 	device_wakeup_enable(hcd->self.controller);
 	device_enable_async_suspend(hcd->self.controller);
 	platform_set_drvdata(dev, hcd);
