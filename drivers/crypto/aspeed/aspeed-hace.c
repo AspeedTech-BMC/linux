@@ -89,6 +89,7 @@ static void aspeed_hace_register(struct aspeed_hace_dev *hace_dev)
 #endif
 #ifdef CONFIG_CRYPTO_DEV_ASPEED_HACE_CRYPTO
 	aspeed_register_hace_crypto_algs(hace_dev);
+	aspeed_register_hace_aead_algs(hace_dev);
 	aspeed_register_hace_vault_key(hace_dev);
 #endif
 }

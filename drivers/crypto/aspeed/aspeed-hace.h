@@ -148,8 +148,12 @@
 #define ASPEED_HASH_SRC_DMA_BUF_LEN	0xa000
 #define ASPEED_HASH_QUEUE_LENGTH	50
 
-#define HACE_CMD_IV_REQUIRE		(HACE_CMD_CBC | HACE_CMD_CFB | \
-					 HACE_CMD_OFB | HACE_CMD_CTR)
+#define HACE_CMD_IV_REQUIRE \
+	(HACE_CMD_CBC | HACE_CMD_CFB | HACE_CMD_OFB | HACE_CMD_CTR)
+#define ASPEED_HACE_CTX_KEY_OFFSET (0x10)
+#define ASPEED_HACE_CTX_128_SUBKEY_OFFSET (0x20)
+#define ASPEED_HACE_CTX_256_SUBKEY_OFFSET (0x30)
+#define AES_GCM_TAG_SIZE (16)
 
 #define ASPEED_VAULT_KEY_NOT_FOUND	(0xffffffff)
 #define ASPEED_G6_VAULT_KEY_MAX_NUM	2
@@ -240,6 +244,7 @@ struct aspeed_engine_crypto {
 	struct tasklet_struct		done_task;
 	unsigned long			flags;
 	struct skcipher_request		*req;
+	struct aead_request *aead_req;
 
 	/* context buffer */
 	void				*cipher_ctx;
@@ -252,6 +257,10 @@ struct aspeed_engine_crypto {
 	/* output buffer, only used in scatter-gather lists */
 	void				*dst_sg_addr;
 	dma_addr_t			dst_sg_dma_addr;
+
+	/* tag buffer, only used in scatter-gather lists */
+	void *tag_addr;
+	dma_addr_t tag_dma_addr;
 
 	/* Vault key */
 	u32					*dummy_key[4];
@@ -270,15 +279,19 @@ struct aspeed_cipher_ctx {
 	/* callback func */
 	aspeed_hace_fn_t		start;
 
-	struct crypto_skcipher          *fallback_tfm;
+	struct crypto_aead *fallback_aead_tfm;
+	struct crypto_skcipher *fallback_tfm;
 };
 
 struct aspeed_cipher_reqctx {
 	int enc_cmd;
 	int src_nents;
+	int src_sg_len;
 	int dst_nents;
+	int dst_sg_len;
 
-	struct skcipher_request         fallback_req;   /* keep at the end */
+	struct aead_request fallback_aead_req;
+	struct skcipher_request fallback_req; /* keep at the end */
 };
 
 struct aspeed_hace_dev {
@@ -307,6 +320,7 @@ struct aspeed_hace_alg {
 
 	union {
 		struct skcipher_engine_alg skcipher;
+		struct aead_engine_alg aead;
 		struct ahash_engine_alg ahash;
 	} alg;
 };
@@ -330,6 +344,7 @@ enum aspeed_version {
 void aspeed_register_hace_hash_algs(struct aspeed_hace_dev *hace_dev);
 void aspeed_unregister_hace_hash_algs(struct aspeed_hace_dev *hace_dev);
 void aspeed_register_hace_crypto_algs(struct aspeed_hace_dev *hace_dev);
+void aspeed_register_hace_aead_algs(struct aspeed_hace_dev *hace_dev);
 void aspeed_register_hace_vault_key(struct aspeed_hace_dev *hace_dev);
 void aspeed_unregister_hace_crypto_algs(struct aspeed_hace_dev *hace_dev);
 int aspeed_hace_hash_init(struct aspeed_hace_dev *hace_dev);

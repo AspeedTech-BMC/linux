@@ -44,8 +44,7 @@ config CRYPTO_DEV_ASPEED_HACE_CRYPTO
 	select CRYPTO_DES
 	select CRYPTO_ECB
 	select CRYPTO_CBC
-	select CRYPTO_CFB
-	select CRYPTO_OFB
+	select CRYPTO_GCM
 	select CRYPTO_CTR
 	help
 	  Select here to enable Aspeed Hash & Crypto Engine (HACE)
