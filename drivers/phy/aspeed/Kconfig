@@ -17,7 +17,6 @@ config PHY_ASPEED_SGMII
 config PHY_ASPEED_USB3
 	tristate "ASPEED USB3 PHY driver"
 	select GENERIC_PHY
-	depends on ARCH_ASPEED
-	default n
+	depends on (ARCH_ASPEED || COMPILE_TEST)
 	help
-	  Enable driver support for Aspeed AST2700 PHY USB3.
+	  Enable driver support for Aspeed AST2700 USB3 PHY.
