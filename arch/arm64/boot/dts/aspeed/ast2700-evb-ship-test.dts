@@ -10,18 +10,18 @@
 	status = "okay";
 };
 
+&uphy3a {
+	status = "okay";
+};
+
+&uphy3b {
+	status = "okay";
+};
+
 &xhci0 {
 	status = "okay";
 };
 
 &xhci1 {
 	status = "okay";
-};
-
-&usb3ahp {
-	status = "disabled";
-};
-
-&usb3bhp {
-	status = "disabled";
 };
