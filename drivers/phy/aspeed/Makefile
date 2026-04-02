@@ -2,4 +2,4 @@
 
 obj-$(CONFIG_PHY_ASPEED_PCIE)		+= phy-aspeed-pcie.o
 obj-$(CONFIG_PHY_ASPEED_SGMII)		+= phy-aspeed-sgmii.o
-obj-$(CONFIG_PHY_ASPEED_USB3)		+= aspeed-usb-phy3.o
+obj-$(CONFIG_PHY_ASPEED_USB3)		+= phy-aspeed-usb3.o
