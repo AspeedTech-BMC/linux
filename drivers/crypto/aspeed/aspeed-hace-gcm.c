@@ -10,7 +10,6 @@
 #include <crypto/internal/cipher.h>
 #include <linux/dma-mapping.h>
 
-#define CONFIG_CRYPTO_DEV_ASPEED_HACE_CRYPTO_DEBUG
 #ifdef CONFIG_CRYPTO_DEV_ASPEED_HACE_CRYPTO_DEBUG
 #define CIPHER_DBG(h, fmt, ...) \
 	dev_info((h)->dev, "%s() " fmt, __func__, ##__VA_ARGS__)
