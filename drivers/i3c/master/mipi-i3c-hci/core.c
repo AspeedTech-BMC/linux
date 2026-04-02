@@ -879,12 +879,21 @@ static int i3c_hci_request_ibi(struct i3c_dev_desc *dev,
 	struct i3c_master_controller *m = i3c_dev_get_master(dev);
 	struct i3c_hci *hci = to_i3c_hci(m);
 	struct i3c_hci_dev_data *dev_data = i3c_dev_get_master_data(dev);
-	unsigned int dat_idx = dev_data->dat_idx;
+	unsigned int dat_idx = dev_data->dat_idx, ibi_max_len = req->max_payload_len;
 
-	if (req->max_payload_len != 0)
+	if (req->max_payload_len != 0) {
 		mipi_i3c_hci_dat_v1.set_flags(hci, dat_idx, DAT_0_IBI_PAYLOAD, 0);
-	else
+#ifdef CONFIG_ARCH_ASPEED
+		ibi_max_len = max(ibi_max_len, FIELD_GET(ASPEED_I3C_IBI_TERMINATE_LEN,
+							 ast_inhouse_read(ASPEED_I3C_MST_MRL)));
+		ast_inhouse_write(ASPEED_I3C_MST_MRL,
+				  ASPEED_I3C_IBI_TERMINATE_EN |
+					  FIELD_PREP(ASPEED_I3C_IBI_TERMINATE_LEN,
+						     ibi_max_len));
+#endif
+	} else {
 		mipi_i3c_hci_dat_v1.clear_flags(hci, dat_idx, DAT_0_IBI_PAYLOAD, 0);
+	}
 	return hci->io->request_ibi(hci, dev, req);
 }
 
