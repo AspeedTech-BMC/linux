@@ -309,7 +309,7 @@
 		};
 
 		usb3ahp: usb3ahp {
-			compatible = "aspeed,ast2700-usb3ahp";
+			compatible = "aspeed,ast2700-usb3hp";
 			clocks = <&syscon0 SCU0_CLK_GATE_PORTAUSB2CLK>;
 			resets = <&syscon0 SCU0_RESET_PORTA_XHCI>;
 			pinctrl-names = "default";
@@ -348,7 +348,7 @@
 		};
 
 		usb3bhp: usb3bhp {
-			compatible = "aspeed,ast2700-usb3bhp";
+			compatible = "aspeed,ast2700-usb3hp";
 			clocks = <&syscon0 SCU0_CLK_GATE_PORTBUSB2CLK>;
 			resets = <&syscon0 SCU0_RESET_PORTB_XHCI>;
 			pinctrl-names = "default";
@@ -385,12 +385,10 @@
 		};
 
 		usb2ahp: usb2ahp {
-			compatible = "aspeed,ast2700-usb2ahp";
+			compatible = "aspeed,ast2700-usb2hp";
 			reg = <0x0 0x12061800 0x0 0x90>;
 			clocks = <&syscon0 SCU0_CLK_GATE_PORTAUSB2CLK>;
 			resets = <&syscon0 SCU0_RESET_PORTA_VHUB_EHCI>;
-			pinctrl-names = "default";
-			pinctrl-0 = <&pinctrl_usb2ahp_default>;
 			aspeed,device = <&pcie_cfg0>;
 			status = "disabled";
 		};
@@ -421,12 +419,10 @@
 		};
 
 		usb2bhp: usb2bhp {
-			compatible = "aspeed,ast2700-usb2bhp";
+			compatible = "aspeed,ast2700-usb2hp";
 			reg = <0x0 0x12063800 0x0 0x90>;
 			clocks = <&syscon0 SCU0_CLK_GATE_PORTBUSB2CLK>;
 			resets = <&syscon0 SCU0_RESET_PORTB_VHUB_EHCI>;
-			pinctrl-names = "default";
-			pinctrl-0 = <&pinctrl_usb2bhp_default>;
 			aspeed,device = <&pcie_cfg1>;
 			status = "disabled";
 		};
