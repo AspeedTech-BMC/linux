@@ -1345,6 +1345,12 @@ int aspeed_hace_crypto_init(struct aspeed_hace_dev *hace_dev)
 		}
 	}
 
+	/* Re-use destination buffer for aes-gcm tag output */
+	crypto_engine->tag_addr = crypto_engine->dst_sg_addr +
+				  ASPEED_CRYPTO_DST_DMA_BUF_LEN - AES_BLOCK_SIZE;
+	crypto_engine->tag_dma_addr = crypto_engine->dst_sg_dma_addr +
+				      ASPEED_CRYPTO_DST_DMA_BUF_LEN - AES_BLOCK_SIZE;
+
 	return 0;
 
 err_engine_crypto_start:
