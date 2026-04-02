@@ -15,23 +15,28 @@
 #include <linux/mfd/syscon.h>
 #include <linux/phy/phy.h>
 
-#define	USB_HP_BEHCI84	0x84	/* Controller Fine-tune Register */
+#define	USB_HP_BEHCI84		0x84	/* Controller Fine-tune Register */
+#define	USB_HP_BEHCI88		0x88	/* Frame Timing Adjustment */
+
+#define	BEHCI_64BIT		BIT(11)		/* Enable support 64 bit address mode */
+#define BEHCI_PRE_EOF1(x)	((x) << 12)
+#define BEHCI_PRE_EOF2(x)	((x) << 22)
+/*
+ * Set preEOF1 to 0x100 and preEOF2 to 0x140
+ * (i.e. preEOF1 + MPS 0x40) as the workaround.
+ */
+#define BEHCI_EOF1_EOF2_TIMING \
+	(BEHCI_PRE_EOF1(0x100) | BEHCI_PRE_EOF2(0x140))
 
 static const struct of_device_id aspeed_usb_hp_dt_ids[] = {
 	{
 		.compatible = "aspeed,ast2600-usb2ahp",
 	},
 	{
-		.compatible = "aspeed,ast2700-usb3ahp",
+		.compatible = "aspeed,ast2700-usb3hp",
 	},
 	{
-		.compatible = "aspeed,ast2700-usb3bhp",
-	},
-	{
-		.compatible = "aspeed,ast2700-usb2ahp",
-	},
-	{
-		.compatible = "aspeed,ast2700-usb2bhp",
+		.compatible = "aspeed,ast2700-usb2hp",
 	},
 	{}
 };
@@ -39,9 +44,7 @@ MODULE_DEVICE_TABLE(of, aspeed_usb_hp_dt_ids);
 
 static int aspeed_usb_hp_probe(struct platform_device *pdev)
 {
-	struct device_node	*node = pdev->dev.of_node;
 	void __iomem		*regs;
-	bool			ehci_32bits_quirk;
 	u32			val;
 	struct clk		*clk;
 	struct reset_control	*rst;
@@ -57,16 +60,12 @@ static int aspeed_usb_hp_probe(struct platform_device *pdev)
 	}
 
 	if (of_device_is_compatible(pdev->dev.of_node,
-				    "aspeed,ast2700-usb3ahp") ||
-	    of_device_is_compatible(pdev->dev.of_node,
-				    "aspeed,ast2700-usb3bhp")) {
+				    "aspeed,ast2700-usb3hp"))
 		is_pcie_xhci = true;
-	} else if (of_device_is_compatible(pdev->dev.of_node,
-					   "aspeed,ast2700-usb2ahp") ||
-		   of_device_is_compatible(pdev->dev.of_node,
-					   "aspeed,ast2700-usb2bhp")) {
+	else if (of_device_is_compatible(pdev->dev.of_node,
+					   "aspeed,ast2700-usb2hp"))
 		is_pcie_xhci = false;
-	}
+
 	clk = devm_clk_get(&pdev->dev, NULL);
 	if (IS_ERR(clk))
 		return PTR_ERR(clk);
@@ -110,14 +109,20 @@ static int aspeed_usb_hp_probe(struct platform_device *pdev)
 				   BIT(19) | BIT(11) | BIT(3),
 				   BIT(19) | BIT(11) | BIT(3));
 	} else {
-		ehci_32bits_quirk =
-			device_property_read_bool(&pdev->dev, "aspeed,ehci_32bits_quirk");
+		regs = devm_platform_ioremap_resource(pdev, 0);
+		if (IS_ERR(regs)) {
+			dev_err(&pdev->dev, "Failed to map resources\n");
+			rc = PTR_ERR(regs);
+			goto err;
+		}
 
-		if (ehci_32bits_quirk) {
-			regs = of_iomap(node, 0);
-			val = readl(regs + USB_HP_BEHCI84) & ~BIT(11);
+		if (device_property_read_bool(&pdev->dev, "aspeed,ehci_32bits_cap")) {
+			val = readl(regs + USB_HP_BEHCI84) & ~BEHCI_64BIT;
 			writel(val, regs + USB_HP_BEHCI84);
 		}
+
+		/* Adjust PCIe-EHCI EOF1/EOF2 timing to workaround the DMA termination bug. */
+		writel(BEHCI_EOF1_EOF2_TIMING, regs + USB_HP_BEHCI88);
 
 		//EnPCIaMSI_EnPCIaIntA_EnPCIaMst_EnPCIaDev
 		/* Turn on PCIe EHCI without MSI */
@@ -125,7 +130,7 @@ static int aspeed_usb_hp_probe(struct platform_device *pdev)
 				   BIT(18) | BIT(10) | BIT(2),
 				   BIT(18) | BIT(10) | BIT(2));
 	}
-	dev_info(&pdev->dev, "Initialized AST2700 USB Host PCIe\n");
+	dev_info(&pdev->dev, "Initialized AST2700 USB Host PCIe %s\n", is_pcie_xhci ? "xHCI" : "EHCI");
 	return 0;
 err:
 	if (clk)
