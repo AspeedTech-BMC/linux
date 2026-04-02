@@ -432,9 +432,12 @@ static int ast_vhub_probe(struct platform_device *pdev)
 		goto err;
 	}
 
-	rc = reset_control_deassert(vhub->rst);
-	if (rc)
-		goto err;
+	if (vhub->rst) {
+		mdelay(10);
+		rc = reset_control_deassert(vhub->rst);
+		if (rc)
+			goto err;
+	}
 
 	ast_vhub_init_uart(&pdev->dev, vhub);
 
