@@ -228,8 +228,8 @@
 		};
 
 		uphy3a: usb-phy3@12010000 {
-			compatible = "aspeed,ast2700-uphy3a";
-			reg = <0x0 0x12010000 0x0 0xBC>;
+			compatible = "aspeed,ast2700-usb3-phy";
+			reg = <0x0 0x12010000 0x0 0xC0>;
 			clocks = <&syscon0 SCU0_CLK_GATE_PORTAUSB2CLK>;
 			resets = <&syscon0 SCU0_RESET_PORTA_PHY3>;
 			aspeed,scu = <&syscon0>;
@@ -260,8 +260,8 @@
 		};
 
 		uphy3b: usb-phy3@12020000 {
-			compatible = "aspeed,ast2700-uphy3b";
-			reg = <0x0 0x12020000 0x0 0xBC>;
+			compatible = "aspeed,ast2700-usb3-phy";
+			reg = <0x0 0x12020000 0x0 0xC0>;
 			clocks = <&syscon0 SCU0_CLK_GATE_PORTBUSB2CLK>;
 			resets = <&syscon0 SCU0_RESET_PORTB_PHY3>;
 			aspeed,scu = <&syscon0>;
