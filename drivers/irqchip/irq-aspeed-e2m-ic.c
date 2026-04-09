@@ -6,20 +6,21 @@
  */
 
 #include <linux/bitops.h>
+#include <linux/io.h>
 #include <linux/irq.h>
 #include <linux/irqchip.h>
 #include <linux/irqchip/chained_irq.h>
 #include <linux/irqdomain.h>
-#include <linux/mfd/syscon.h>
+#include <linux/of_address.h>
 #include <linux/of_irq.h>
-#include <linux/regmap.h>
+#include <linux/spinlock.h>
 
 #define ASPEED_AST2700_E2M_IC_SHIFT	0
 #define ASPEED_AST2700_E2M_IC_ENABLE	\
 	GENMASK(7, ASPEED_AST2700_E2M_IC_SHIFT)
 #define ASPEED_AST2700_E2M_IC_NUM_IRQS	8
-#define ASPEED_AST2700_E2M_IC_EN_REG	0x14
-#define ASPEED_AST2700_E2M_IC_STS_REG	0x18
+#define ASPEED_AST2700_E2M_IC_EN_REG	0x00
+#define ASPEED_AST2700_E2M_IC_STS_REG	0x04
 
 struct aspeed_e2m_ic {
 	unsigned long irq_enable;
@@ -28,13 +29,13 @@ struct aspeed_e2m_ic {
 	unsigned int reg;
 	unsigned int en_reg;
 	unsigned int sts_reg;
-	struct regmap *e2m;
+	void __iomem *base;
+	raw_spinlock_t lock;
 	struct irq_domain *irq_domain;
 };
 
 static void aspeed_e2m_ic_irq_handler(struct irq_desc *desc)
 {
-	unsigned int val;
 	unsigned long bit;
 	unsigned long enabled;
 	unsigned long max;
@@ -46,18 +47,15 @@ static void aspeed_e2m_ic_irq_handler(struct irq_desc *desc)
 	chained_irq_enter(chip, desc);
 
 	mask = e2m_ic->irq_enable;
-	regmap_read(e2m_ic->e2m, e2m_ic->en_reg, &val);
-	enabled = val & e2m_ic->irq_enable;
-	regmap_read(e2m_ic->e2m, e2m_ic->sts_reg, &val);
-	status = val & enabled;
+	enabled = readl(e2m_ic->base + e2m_ic->en_reg) & e2m_ic->irq_enable;
+	status = readl(e2m_ic->base + e2m_ic->sts_reg) & enabled;
 
 	bit = e2m_ic->irq_shift;
 	max = e2m_ic->num_irqs + bit;
 
 	for_each_set_bit_from(bit, &status, max) {
 		generic_handle_domain_irq(e2m_ic->irq_domain, bit - e2m_ic->irq_shift);
-
-		regmap_write_bits(e2m_ic->e2m, e2m_ic->sts_reg, mask, BIT(bit));
+		writel(BIT(bit), e2m_ic->base + e2m_ic->sts_reg);
 	}
 
 	chained_irq_exit(chip, desc);
@@ -66,20 +64,27 @@ static void aspeed_e2m_ic_irq_handler(struct irq_desc *desc)
 static void aspeed_e2m_ic_irq_mask(struct irq_data *data)
 {
 	struct aspeed_e2m_ic *e2m_ic = irq_data_get_irq_chip_data(data);
-	unsigned int mask;
+	unsigned long flags;
+	u32 mask, val;
 
 	mask = BIT(data->hwirq + e2m_ic->irq_shift);
-	regmap_update_bits(e2m_ic->e2m, e2m_ic->en_reg, mask, 0);
+	raw_spin_lock_irqsave(&e2m_ic->lock, flags);
+	val = readl(e2m_ic->base + e2m_ic->en_reg);
+	writel(val & ~mask, e2m_ic->base + e2m_ic->en_reg);
+	raw_spin_unlock_irqrestore(&e2m_ic->lock, flags);
 }
 
 static void aspeed_e2m_ic_irq_unmask(struct irq_data *data)
 {
 	struct aspeed_e2m_ic *e2m_ic = irq_data_get_irq_chip_data(data);
-	unsigned int bit = BIT(data->hwirq + e2m_ic->irq_shift);
-	unsigned int mask;
+	unsigned long flags;
+	u32 bit, val;
 
-	mask = bit;
-	regmap_update_bits(e2m_ic->e2m, e2m_ic->en_reg, mask, bit);
+	bit = BIT(data->hwirq + e2m_ic->irq_shift);
+	raw_spin_lock_irqsave(&e2m_ic->lock, flags);
+	val = readl(e2m_ic->base + e2m_ic->en_reg);
+	writel(val | bit, e2m_ic->base + e2m_ic->en_reg);
+	raw_spin_unlock_irqrestore(&e2m_ic->lock, flags);
 }
 
 static int aspeed_e2m_ic_irq_set_affinity(struct irq_data *data,
@@ -115,27 +120,21 @@ static int aspeed_e2m_ic_of_init_common(struct aspeed_e2m_ic *e2m_ic,
 	int irq;
 	int rc = 0;
 
-	if (!node->parent) {
-		rc = -ENODEV;
+	e2m_ic->base = of_iomap(node, 0);
+	if (!e2m_ic->base) {
+		rc = -ENOMEM;
 		goto err;
 	}
+	raw_spin_lock_init(&e2m_ic->lock);
 
-	e2m_ic->e2m = syscon_node_to_regmap(node->parent);
-	if (IS_ERR(e2m_ic->e2m)) {
-		rc = PTR_ERR(e2m_ic->e2m);
-		goto err;
-	}
-
-	/* Clear status and disable all interrupt */
-	regmap_write_bits(e2m_ic->e2m, e2m_ic->sts_reg,
-			  e2m_ic->irq_enable, e2m_ic->irq_enable);
-	regmap_write_bits(e2m_ic->e2m, e2m_ic->en_reg,
-			  e2m_ic->irq_enable, 0);
+	/* Clear status and disable all interrupts */
+	writel(e2m_ic->irq_enable, e2m_ic->base + e2m_ic->sts_reg);
+	writel(0, e2m_ic->base + e2m_ic->en_reg);
 
 	irq = irq_of_parse_and_map(node, 0);
 	if (!irq) {
 		rc = -EINVAL;
-		goto err;
+		goto err_unmap;
 	}
 
 	e2m_ic->irq_domain = irq_domain_add_linear(node, e2m_ic->num_irqs,
@@ -143,7 +142,7 @@ static int aspeed_e2m_ic_of_init_common(struct aspeed_e2m_ic *e2m_ic,
 						   e2m_ic);
 	if (!e2m_ic->irq_domain) {
 		rc = -ENOMEM;
-		goto err;
+		goto err_unmap;
 	}
 
 	irq_set_chained_handler_and_data(irq, aspeed_e2m_ic_irq_handler,
@@ -151,6 +150,8 @@ static int aspeed_e2m_ic_of_init_common(struct aspeed_e2m_ic *e2m_ic,
 
 	return 0;
 
+err_unmap:
+	iounmap(e2m_ic->base);
 err:
 	kfree(e2m_ic);
 
@@ -174,7 +175,7 @@ static int aspeed_ast2700_e2m_ic_probe(struct platform_device *pdev, struct devi
 				   "Missing intc0 interrupt node\n");
 	}
 
-	e2m_ic = devm_kzalloc(&pdev->dev, sizeof(*e2m_ic), GFP_KERNEL);
+	e2m_ic = kzalloc(sizeof(*e2m_ic), GFP_KERNEL);
 	if (!e2m_ic)
 		return -ENOMEM;
 
