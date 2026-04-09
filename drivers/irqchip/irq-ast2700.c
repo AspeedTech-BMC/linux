@@ -91,6 +91,7 @@ int aspeed_intc_populate_ranges(struct device *dev,
 		}
 
 		of_node_put(target);
+		r->domain = irq_find_matching_fwspec(&r->upstream, DOMAIN_BUS_ANY);
 		pvs += ASPEED_INTC_RANGE_FIXED_CELLS + target_cells;
 		ranges->nranges++;
 	}

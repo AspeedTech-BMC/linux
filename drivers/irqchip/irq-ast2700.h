@@ -18,6 +18,7 @@ struct aspeed_intc_interrupt_range {
 	u32               start;
 	u32               count;
 	struct irq_fwspec upstream;
+	struct irq_domain *domain;
 };
 
 struct aspeed_intc_interrupt_ranges {

@@ -196,13 +196,11 @@ static int resolve_input_from_child_ranges(const struct aspeed_intc0 *intc0,
 }
 
 static int resolve_parent_range_for_output(const struct aspeed_intc0 *intc0,
-					   const struct fwnode_handle *parent,
-					   u32 output,
+					   const struct fwnode_handle *parent, u32 output,
 					   struct aspeed_intc_interrupt_range *resolved)
 {
 	for (size_t i = 0; i < intc0->ranges.nranges; i++) {
-		struct aspeed_intc_interrupt_range range =
-			intc0->ranges.ranges[i];
+		struct aspeed_intc_interrupt_range range = intc0->ranges.ranges[i];
 
 		if (!in_range32(output, range.start, range.count))
 			continue;
@@ -313,7 +311,8 @@ int aspeed_intc0_resolve_route(const struct irq_domain *c0domain, size_t nc1outs
 	if (nc1outs == 0 || nc1ranges == 0)
 		return -ENOENT;
 
-	if (!fwnode_device_is_compatible(c0domain->fwnode, "aspeed,ast2700-intc0"))
+	if (!IS_ENABLED(CONFIG_ASPEED_AST2700_INTC_TEST) &&
+	    !fwnode_device_is_compatible(c0domain->fwnode, "aspeed,ast2700-intc0"))
 		return -ENODEV;
 
 	intc0 = c0domain->host_data;
@@ -338,8 +337,7 @@ int aspeed_intc0_resolve_route(const struct irq_domain *c0domain, size_t nc1outs
 			 * Assume a failed match is still a match for the purpose of testing,
 			 * saves a bunch of mess in the test fixtures
 			 */
-			if (!(c0domain == irq_find_matching_fwspec(&c1r.upstream,
-								   c0domain->bus_token) ||
+			if (!(c0domain == c1r.domain ||
 			      IS_ENABLED(CONFIG_ASPEED_AST2700_INTC_TEST)))
 				continue;
 

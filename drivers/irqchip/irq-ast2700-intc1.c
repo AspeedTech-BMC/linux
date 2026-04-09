@@ -202,9 +202,7 @@ static void aspeed_intc1_request_interrupts(struct aspeed_intc1 *intc1)
 		struct aspeed_intc_interrupt_range *r =
 			&intc1->ranges.ranges[i];
 
-		if (intc1->upstream !=
-		    irq_find_matching_fwspec(&r->upstream,
-					     intc1->upstream->bus_token))
+		if (intc1->upstream != r->domain)
 			continue;
 
 		for (u32 k = 0; k < r->count; k++) {

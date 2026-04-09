@@ -259,7 +259,7 @@ static void aspeed_intc0_resolve_route_c1i2o2mc0i1o1(struct kunit *test)
 	};
 	static const u32 c1outs[] = { 1 };
 	struct aspeed_intc_interrupt_range resolved;
-	struct aspeed_intc_interrupt_range intc0_ranges[] = {
+	static struct aspeed_intc_interrupt_range intc0_ranges[] = {
 		{
 			.start = 208,
 			.count = 1,
@@ -309,7 +309,7 @@ static void aspeed_intc0_resolve_route_c1i1o1mc0i2o1(struct kunit *test)
 	};
 	static const u32 c1outs[] = { 0 };
 	struct aspeed_intc_interrupt_range resolved;
-	struct aspeed_intc_interrupt_range intc0_ranges[] = {
+	static struct aspeed_intc_interrupt_range intc0_ranges[] = {
 		{
 			.start = 192,
 			.count = 1,
