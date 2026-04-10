@@ -326,6 +326,24 @@ static int aspeed_sdhci_execute_tuning(struct sdhci_host *host, u32 opcode)
 
 static void aspeed_sdhci_voltage_switch(struct sdhci_host *host)
 {
+	struct sdhci_pltfm_host *pltfm_priv;
+	struct aspeed_sdhci *sdhci;
+	struct aspeed_sdc *sdc;
+	u32 out_phase, enable_mask, inverted = 1;
+
+	pltfm_priv = sdhci_priv(host);
+	sdhci = sdhci_pltfm_priv(pltfm_priv);
+	sdc = sdhci->parent;
+
+	enable_mask = ASPEED_SDC_S0_PHASE_OUT_EN | ASPEED_SDC_S0_PHASE_IN_EN;
+
+	inverted = ASPEED_SDHCI_TAP_PARAM_INVERT_CLK;
+	out_phase = readl(sdc->regs + ASPEED_SDC_PHASE) & ASPEED_SDC_S0_PHASE_OUT;
+	out_phase |= (inverted << ASPEED_SDC_S0_PHASE_OUT_SHIFT);
+
+	/* output inverse */
+	writel(out_phase | enable_mask, sdc->regs + ASPEED_SDC_PHASE);
+
 	mdelay(30);
 }
 
