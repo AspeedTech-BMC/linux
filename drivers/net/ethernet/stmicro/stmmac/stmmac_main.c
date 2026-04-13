@@ -852,6 +852,9 @@ static struct phylink_pcs *stmmac_mac_select_pcs(struct phylink_config *config,
 			return pcs;
 	}
 
+	if (priv->hw->xpcs)
+		return xpcs_to_phylink_pcs(priv->hw->xpcs);
+
 	return NULL;
 }
 
@@ -932,6 +935,8 @@ static void stmmac_mac_link_up(struct phylink_config *config,
 		default:
 			return;
 		}
+	} else if (interface == PHY_INTERFACE_MODE_10GBASER) {
+		ctrl |= priv->hw->link.xgmii.speed10000;
 	} else {
 		switch (speed) {
 		case SPEED_2500:
