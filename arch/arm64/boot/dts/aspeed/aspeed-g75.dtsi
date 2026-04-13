@@ -1,0 +1,100 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
+#include "aspeed-g7.dtsi"
+
+/ {
+	aliases {
+		ethernet2 = &xgmac;
+	};
+
+	soc1: soc@14000000 {
+		xgmac: ethernet@140a0000 {
+			compatible = "snps,dwxgmac-2.10", "snps,dwxgmac";
+			reg = <0x0 0x140a0000 0x0 0x8000>;
+			interrupts-extended = <&intc1_4 2>;
+			interrupt-names = "macirq";
+			phy-mode = "10gbase-r";
+			rx-fifo-depth = <4096>;
+			tx-fifo-depth = <4096>;
+			clocks = <&syscon1 SCU1_CLK_GATE_MAC2CLK>;
+			clock-names = "stmmaceth";
+			resets = <&syscon1 SCU1_RESET_MAC2>,
+				 <&syscon1 SCU1_RESET_XPCS>;
+			reset-names = "stmmaceth", "ahb";
+			snps,axi-config = <&stmmac_axi_setup>;
+			snps,mtl-rx-config = <&mtl_rx_setup>;
+			snps,mtl-tx-config = <&mtl_tx_setup>;
+			snps,tso;
+			snps,pbl = <8>;
+			pcs-handle = <&xpcs0>;
+			phy-handle = <&xpcs0>;
+
+			stmmac_axi_setup: stmmac-axi-config {
+				snps,wr_osr_lmt = <0xf>;
+				snps,rd_osr_lmt = <0xf>;
+				snps,kbbe;
+				snps,blen = <0 0 0 0 0 8 4>;
+			};
+
+			mtl_rx_setup: rx-queues-config {
+				snps,rx-queues-to-use = <1>;
+				snps,rx-sched-sp;
+				queue0 {
+					snps,dcb-algorithm;
+					snps,map-to-dma-channel = <0x0>;
+				};
+			};
+
+			mtl_tx_setup: tx-queues-config {
+				snps,tx-queues-to-use = <1>;
+				queue0 {
+					snps,dcb-algorithm;
+				};
+			};
+
+			mdio0 {
+				#address-cells = <1>;
+				#size-cells = <0>;
+				compatible = "snps,dwmac-mdio";
+				xpcs0: ethernet-phy@0 {
+					reg = <0>;
+				};
+			};
+		};
+
+		syscon1: syscon@14c02000 {
+			compatible = "aspeed,ast2705-scu1", "syscon", "simple-mfd";
+			reg = <0x0 0x14c02000 0x0 0x1000>;
+			ranges = <0x0 0x0 0x14c02000 0x1000>;
+			#address-cells = <1>;
+			#size-cells = <1>;
+			#clock-cells = <1>;
+			#reset-cells = <1>;
+
+			assigned-clocks = <&syscon1 SCU1_CLK_MACHCLK>,
+					  <&syscon1 SCU1_CLK_RGMII>,
+					  <&syscon1 SCU1_CLK_RMII>;
+			assigned-clock-rates = <200000000>, <125000000>, <50000000>;
+
+			scu_ic2: interrupt-controller@100 {
+				compatible = "aspeed,ast2700-scu-ic2";
+				reg = <0x100 0x8>;
+				interrupts-extended = <&intc1_5 0>;
+				#interrupt-cells = <1>;
+				interrupt-controller;
+			};
+
+			scu_ic3: interrupt-controller@108 {
+				compatible = "aspeed,ast2700-scu-ic3";
+				reg = <0x108 0x8>;
+				interrupts-extended = <&intc1_5 26>;
+				#interrupt-cells = <1>;
+				interrupt-controller;
+			};
+
+			pinctrl1: pinctrl@400 {
+				compatible = "aspeed,ast2700-soc1-pinctrl";
+				reg = <0x400 0x100>;
+			};
+		};
+	};
+};
