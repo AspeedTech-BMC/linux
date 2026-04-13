@@ -26,4 +26,6 @@ dtb-$(CONFIG_ARCH_ASPEED) += \
 	ast2700a1-evb-256-abr.dtb \
 	ast2700a1-evb-s0.dtb \
 	ast2700a1-evb-s1.dtb \
-	ast2700a1-ci-host.dtb
+	ast2700a1-ci-host.dtb \
+	ast2705-evb.dtb \
+	ast2705-fpga.dtb \
