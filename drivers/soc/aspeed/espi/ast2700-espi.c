@@ -37,7 +37,6 @@
 static DEFINE_IDA(ast2700_espi_ida);
 
 #define PERIF_MCYC_ALIGN	SZ_64K
-#define PERIF_MMBI_ALIGN	SZ_64M
 
 #define OOB_DMA_RPTR_KEY	0x4f4f4253
 #define OOB_DMA_DESC_NUM	8
@@ -46,81 +45,6 @@ static DEFINE_IDA(ast2700_espi_ida);
 #define FLASH_EDAF_ALIGN	SZ_16M
 
 /* peripheral channel (CH0) */
-static int ast2700_espi_mmbi_b2h_mmap(struct file *fp, struct vm_area_struct *vma)
-{
-	struct aspeed_espi_perif_mmbi *mmbi;
-	struct aspeed_espi_perif *perif;
-	struct aspeed_espi *espi;
-	unsigned long vm_size;
-	pgprot_t prot;
-
-	mmbi = container_of(fp->private_data, struct aspeed_espi_perif_mmbi, b2h_mdev);
-
-	perif = mmbi->perif;
-
-	espi = container_of(perif, struct aspeed_espi, perif);
-	vm_size = vma->vm_end - vma->vm_start;
-	prot = vma->vm_page_prot;
-
-	if (((vma->vm_pgoff << PAGE_SHIFT) + vm_size) > (perif->mmbi.inst_size >> 1))
-		return -EINVAL;
-
-	prot = pgprot_noncached(prot);
-
-	if (remap_pfn_range(vma, vma->vm_start,
-			    (mmbi->b2h_addr >> PAGE_SHIFT) + vma->vm_pgoff,
-			    vm_size, prot))
-		return -EAGAIN;
-
-	return 0;
-}
-
-static int ast2700_espi_mmbi_h2b_mmap(struct file *fp, struct vm_area_struct *vma)
-{
-	struct aspeed_espi_perif_mmbi *mmbi;
-	struct aspeed_espi_perif *perif;
-	struct aspeed_espi *espi;
-	unsigned long vm_size;
-	pgprot_t prot;
-
-	mmbi = container_of(fp->private_data, struct aspeed_espi_perif_mmbi, h2b_mdev);
-
-	perif = mmbi->perif;
-
-	espi = container_of(perif, struct aspeed_espi, perif);
-
-	vm_size = vma->vm_end - vma->vm_start;
-	prot = vma->vm_page_prot;
-
-	if (((vma->vm_pgoff << PAGE_SHIFT) + vm_size) > (perif->mmbi.inst_size >> 1))
-		return -EINVAL;
-
-	prot = pgprot_noncached(prot);
-
-	if (remap_pfn_range(vma, vma->vm_start,
-			    (mmbi->h2b_addr >> PAGE_SHIFT) + vma->vm_pgoff,
-			    vm_size, prot))
-		return -EAGAIN;
-
-	return 0;
-}
-
-static __poll_t ast2700_espi_mmbi_h2b_poll(struct file *fp, struct poll_table_struct *pt)
-{
-	struct aspeed_espi_perif_mmbi *mmbi;
-
-	mmbi = container_of(fp->private_data, struct aspeed_espi_perif_mmbi, h2b_mdev);
-
-	poll_wait(fp, &mmbi->wq, pt);
-
-	if (!mmbi->host_rwp_update)
-		return 0;
-
-	mmbi->host_rwp_update = false;
-
-	return EPOLLIN;
-}
-
 static long ast2700_espi_perif_pc_get_rx(struct file *fp,
 					 struct aspeed_espi_perif *perif,
 					 struct aspeed_espi_ioc *ioc)
@@ -427,59 +351,11 @@ static int ast2700_espi_perif_mmap(struct file *fp, struct vm_area_struct *vma)
 	return 0;
 }
 
-static const struct file_operations ast2700_espi_mmbi_b2h_fops = {
-	.owner = THIS_MODULE,
-	.mmap = ast2700_espi_mmbi_b2h_mmap,
-};
-
-static const struct file_operations ast2700_espi_mmbi_h2b_fops = {
-	.owner = THIS_MODULE,
-	.mmap = ast2700_espi_mmbi_h2b_mmap,
-	.poll = ast2700_espi_mmbi_h2b_poll,
-};
-
 static const struct file_operations ast2700_espi_perif_fops = {
 	.owner = THIS_MODULE,
 	.mmap = ast2700_espi_perif_mmap,
 	.unlocked_ioctl = ast2700_espi_perif_ioctl,
 };
-
-static irqreturn_t ast2700_espi_perif_mmbi_isr(int irq, void *arg)
-{
-	struct aspeed_espi_perif_mmbi *mmbi;
-	struct aspeed_espi_perif *perif;
-	struct aspeed_espi *espi;
-	u32 sts, tmp;
-	u32 *p;
-	int i;
-
-	espi = (struct aspeed_espi *)arg;
-
-	perif = &espi->perif;
-
-	sts = readl(espi->regs + ESPI_MMBI_INT_STS);
-	if (!sts)
-		return IRQ_NONE;
-
-	for (i = 0, tmp = sts; i < perif->mmbi.inst_num; ++i, tmp >>= 2) {
-		if (!(tmp & 0x3))
-			continue;
-
-		mmbi = &perif->mmbi.inst[i];
-
-		p = (u32 *)mmbi->h2b_virt;
-		p[0] = readl(espi->regs + ESPI_MMBI_HOST_RWP(i));
-		p[1] = readl(espi->regs + ESPI_MMBI_HOST_RWP(i) + 4);
-
-		mmbi->host_rwp_update = true;
-
-		wake_up_interruptible(&mmbi->wq);
-	}
-
-	writel(sts, espi->regs + ESPI_MMBI_INT_STS);
-
-	return IRQ_HANDLED;
-}
 
 static void ast2700_espi_perif_isr(struct aspeed_espi *espi)
 {
@@ -543,16 +419,9 @@ static void ast2700_espi_perif_reset(struct aspeed_espi *espi)
 	writel(0x0, espi->regs + ESPI_CH0_INT_EN);
 	writel(0xffffffff, espi->regs + ESPI_CH0_INT_STS);
 
-	writel(0x0, espi->regs + ESPI_MMBI_INT_EN);
-	writel(0xffffffff, espi->regs + ESPI_MMBI_INT_STS);
-
 	reg = readl(espi->regs + ESPI_CH0_CTRL);
 	reg &= ~(ESPI_CH0_CTRL_MCYC_RD_DIS_WDT | ESPI_CH0_CTRL_MCYC_WR_DIS_WDT);
 	writel(reg, espi->regs + ESPI_CH0_CTRL);
-
-	reg = readl(espi->regs + ESPI_CH0_MCYC0_MASKL);
-	reg &= ~ESPI_CH0_MCYC0_MASKL_EN;
-	writel(reg, espi->regs + ESPI_CH0_MCYC0_MASKL);
 
 	reg = readl(espi->regs + ESPI_CH0_MCYC1_MASKL);
 	reg &= ~ESPI_CH0_MCYC1_MASKL_EN;
@@ -565,33 +434,6 @@ static void ast2700_espi_perif_reset(struct aspeed_espi *espi)
 		 | ESPI_CH0_CTRL_PC_RX_DMA_EN
 		 | ESPI_CH0_CTRL_SW_RDY);
 	writel(reg, espi->regs + ESPI_CH0_CTRL);
-
-	if (perif->mmbi.enable) {
-		reg = readl(espi->regs + ESPI_MMBI_CTRL);
-		reg &= ~ESPI_MMBI_CTRL_EN;
-		writel(reg, espi->regs + ESPI_MMBI_CTRL);
-
-		mask = ~(perif->mmbi.size - 1);
-		writel(upper_32_bits(mask), espi->regs + ESPI_CH0_MCYC0_MASKH);
-		writel(mask & 0xffffffff, espi->regs + ESPI_CH0_MCYC0_MASKL);
-		writel(upper_32_bits(perif->mmbi.saddr), espi->regs + ESPI_CH0_MCYC0_SADDRH);
-		writel((perif->mmbi.saddr & 0xffffffff), espi->regs + ESPI_CH0_MCYC0_SADDRL);
-		writel(upper_32_bits(perif->mmbi.taddr), espi->regs + ESPI_CH0_MCYC0_TADDRH);
-		writel((perif->mmbi.taddr & 0xffffffff), espi->regs + ESPI_CH0_MCYC0_TADDRL);
-
-		writel((0x1 << (perif->mmbi.inst_num * 2)) - 1, espi->regs + ESPI_MMBI_INT_EN);
-
-		reg = FIELD_PREP(ESPI_MMBI_CTRL_INST_NUM, count_trailing_zeros(perif->mmbi.inst_num))
-		    | ESPI_MMBI_CTRL_EN;
-		writel(reg, espi->regs + ESPI_MMBI_CTRL);
-
-		reg = readl(espi->regs + ESPI_CH0_MCYC0_MASKL) | ESPI_CH0_MCYC0_MASKL_EN;
-		writel(reg, espi->regs + ESPI_CH0_MCYC0_MASKL);
-
-		reg = readl(espi->regs + ESPI_CH0_CTRL);
-		reg &= ~(ESPI_CH0_CTRL_MCYC_RD_DIS | ESPI_CH0_CTRL_MCYC_WR_DIS);
-		writel(reg, espi->regs + ESPI_CH0_CTRL);
-	}
 
 	if (perif->mcyc.enable) {
 		mask = ~(perif->mcyc.size - 1);
@@ -638,14 +480,11 @@ static void ast2700_espi_perif_reset(struct aspeed_espi *espi)
 
 int ast2700_espi_perif_probe(struct aspeed_espi *espi)
 {
-	struct aspeed_espi_perif_mmbi *mmbi;
 	struct aspeed_espi_perif *perif;
-	struct platform_device *pdev;
 	struct device_node *np;
-	struct resource res;
 	struct device *dev;
-	int i, rc;
 	u64 temp;
+	int rc;
 
 	dev = espi->dev;
 
@@ -658,93 +497,6 @@ int ast2700_espi_perif_probe(struct aspeed_espi *espi)
 	mutex_init(&perif->np_tx_mtx);
 	mutex_init(&perif->pc_tx_mtx);
 	mutex_init(&perif->pc_rx_mtx);
-
-	perif->mmbi.enable = of_property_read_bool(dev->of_node, "perif-mmbi-enable");
-	if (perif->mmbi.enable) {
-		pdev = container_of(dev, struct platform_device, dev);
-
-		perif->mmbi.irq = platform_get_irq(pdev, 1);
-		if (perif->mmbi.irq < 0) {
-			dev_err(dev, "cannot get MMBI IRQ number\n");
-			return -ENODEV;
-		}
-
-		rc = of_property_read_u64(dev->of_node, "perif-mmbi-src-addr", &temp);
-		if (rc || !IS_ALIGNED(temp, PERIF_MMBI_ALIGN)) {
-			dev_err(dev, "cannot get 64MB-aligned MMBI host address\n");
-			return -ENODEV;
-		}
-		perif->mmbi.saddr = temp;
-		rc = of_property_read_u32(dev->of_node, "perif-mmbi-instance-num", &perif->mmbi.inst_num);
-		if (rc ||
-		    perif->mmbi.inst_num == 0 ||
-		    perif->mmbi.inst_num > PERIF_MMBI_INST_NUM ||
-		    (perif->mmbi.inst_num & (perif->mmbi.inst_num - 1))) {
-			dev_err(dev, "cannot get valid MMBI instance number, expect 1/2/4/8\n");
-			return -EINVAL;
-		}
-
-		np = of_parse_phandle(dev->of_node, "perif-mmbi-tgt-memory", 0);
-		if (!np || of_address_to_resource(np, 0, &res)) {
-			dev_err(dev, "cannot get MMBI memory region\n");
-			return -ENODEV;
-		}
-
-		of_node_put(np);
-
-		perif->mmbi.taddr = res.start;
-		perif->mmbi.size = resource_size(&res);
-		perif->mmbi.inst_size = perif->mmbi.size / perif->mmbi.inst_num;
-		if (!IS_ALIGNED(perif->mmbi.taddr, PERIF_MMBI_ALIGN) ||
-		    !IS_ALIGNED(perif->mmbi.size, PERIF_MMBI_ALIGN)) {
-			dev_err(dev, "cannot get 64MB-aligned MMBI address/size\n");
-			return -EINVAL;
-		}
-
-		perif->mmbi.virt = devm_ioremap_resource(dev, &res);
-		if (!perif->mmbi.virt) {
-			dev_err(dev, "cannot map MMBI memory region\n");
-			return -ENOMEM;
-		}
-
-		memset_io(perif->mmbi.virt, 0, perif->mmbi.size);
-		perif->mmbi.mmbi_isr = ast2700_espi_perif_mmbi_isr;
-
-		for (i = 0; i < perif->mmbi.inst_num; ++i) {
-			mmbi = &perif->mmbi.inst[i];
-
-			init_waitqueue_head(&mmbi->wq);
-
-			mmbi->perif = perif;
-			mmbi->host_rwp_update = false;
-
-			mmbi->b2h_virt = perif->mmbi.virt + ((perif->mmbi.inst_size >> 1) * i);
-			mmbi->b2h_addr = perif->mmbi.taddr + ((perif->mmbi.inst_size >> 1) * i);
-			mmbi->b2h_mdev.parent = dev;
-			mmbi->b2h_mdev.minor = MISC_DYNAMIC_MINOR;
-			mmbi->b2h_mdev.name = devm_kasprintf(dev, GFP_KERNEL, "%s-mmbi%d-b2h%d",
-							     DEVICE_NAME, espi->dev_id, i);
-			mmbi->b2h_mdev.fops = &ast2700_espi_mmbi_b2h_fops;
-			rc = misc_register(&mmbi->b2h_mdev);
-			if (rc) {
-				dev_err(dev, "cannot register device %s\n", mmbi->b2h_mdev.name);
-				return rc;
-			}
-
-			mmbi->h2b_virt = perif->mmbi.virt + ((perif->mmbi.inst_size >> 1) * (i + perif->mmbi.inst_num));
-			mmbi->h2b_addr = perif->mmbi.taddr + ((perif->mmbi.inst_size >> 1) * (i + perif->mmbi.inst_num));
-			mmbi->h2b_mdev.parent = dev;
-			mmbi->h2b_mdev.minor = MISC_DYNAMIC_MINOR;
-			mmbi->h2b_mdev.name = devm_kasprintf(dev, GFP_KERNEL, "%s-mmbi%d-h2b%d",
-							     DEVICE_NAME, espi->dev_id, i);
-			mmbi->h2b_mdev.fops = &ast2700_espi_mmbi_h2b_fops;
-			rc = misc_register(&mmbi->h2b_mdev);
-			if (rc) {
-				dev_err(dev, "cannot register device %s\n", mmbi->h2b_mdev.name);
-				return rc;
-			}
-		}
-	}
 
 	perif->mcyc.enable = of_property_read_bool(dev->of_node, "perif-mcyc-enable");
 	if (perif->mcyc.enable) {
@@ -822,18 +574,15 @@ int ast2700_espi_perif_probe(struct aspeed_espi *espi)
 
 int ast2700_espi_perif_remove(struct aspeed_espi *espi)
 {
-	struct aspeed_espi_perif_mmbi *mmbi;
 	struct aspeed_espi_perif *perif;
 	struct device *dev;
 	u32 reg;
-	int i;
 
 	dev = espi->dev;
 
 	perif = &espi->perif;
 
 	writel(0x0, espi->regs + ESPI_CH0_INT_EN);
-	writel(0x0, espi->regs + ESPI_MMBI_INT_EN);
 
 	reg = readl(espi->regs + ESPI_CH0_MCYC0_MASKL);
 	reg &= ~ESPI_CH0_MCYC0_MASKL_EN;
@@ -850,20 +599,6 @@ int ast2700_espi_perif_remove(struct aspeed_espi *espi)
 		 | ESPI_CH0_CTRL_PC_RX_DMA_EN
 		 | ESPI_CH0_CTRL_SW_RDY);
 	writel(reg, espi->regs + ESPI_CH0_CTRL);
-
-	if (perif->mmbi.enable) {
-		reg = readl(espi->regs + ESPI_MMBI_CTRL);
-		reg &= ~ESPI_MMBI_CTRL_EN;
-		writel(reg, espi->regs + ESPI_MMBI_CTRL);
-
-		for (i = 0; i < perif->mmbi.inst_num; ++i) {
-			mmbi = &perif->mmbi.inst[i];
-			misc_deregister(&mmbi->b2h_mdev);
-			misc_deregister(&mmbi->h2b_mdev);
-		}
-
-		devm_iounmap(dev, perif->mmbi.virt);
-	}
 
 	if (perif->mcyc.enable)
 		dmam_free_coherent(dev, perif->mcyc.size, perif->mcyc.virt,
