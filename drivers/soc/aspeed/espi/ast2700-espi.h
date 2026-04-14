@@ -124,6 +124,7 @@
 #define   ESPI_CH1_INT_EN_SYS_EVT0	BIT(0)
 #define ESPI_CH1_EVT0			0x210
 #define	  ESPI_CH1_EVT0_PLTRSTN		BIT(5)
+#define	  ESPI_CH1_EVT0_SCI_EVT		BIT(24)
 #define ESPI_CH1_EVT0_INT_EN		0x214
 #define	  ESPI_CH1_EVT0_INT_EN_PLTRSTN	BIT(5)
 #define ESPI_CH1_EVT0_INT_T0		0x218
@@ -282,14 +283,6 @@
 #define ESPI_EDAF_FLTR_EADDR15		0x58c
 #define ESPI_EDAF_WPROT0		0x5f8
 #define ESPI_EDAF_WPROT1		0x5fc
-
-/* MMBI registers */
-#define ESPI_MMBI_CTRL			0x800
-#define   ESPI_MMBI_CTRL_INST_NUM	GENMASK(6, 4)
-#define   ESPI_MMBI_CTRL_EN		BIT(0)
-#define ESPI_MMBI_INT_STS		0x808
-#define ESPI_MMBI_INT_EN		0x80c
-#define ESPI_MMBI_HOST_RWP(x)		(0x810 + ((x) << 3))
 
 void ast2700_espi_pre_init(struct aspeed_espi *espi);
 void ast2700_espi_post_init(struct aspeed_espi *espi);
