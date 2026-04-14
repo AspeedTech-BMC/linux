@@ -5,6 +5,7 @@
 #include <dt-bindings/gpio/aspeed-gpio.h>
 #include <dt-bindings/i2c/i2c.h>
 #include <dt-bindings/net/ti-dp83867.h>
+#include <dt-bindings/mmbi/protocols.h>
 
 #define DUAL_NODE 0	// 1: DUAL_NODE, 0: SINGLE_NODE
 #define PCIE0_EP 1	// 1: EP, 0: RC
@@ -760,6 +761,19 @@
 #endif
 };
 
+&espi0_mmbi {
+	status = "okay";
+
+	host-map-addr = <0x0 0xa8000000>;
+	memory-region = <&espi0_mmbi_memory>;
+	instances = <1>;
+
+	instance@0 {
+		channel = <0>; // channel should start from 0
+		protocols = /bits/ 8 <MMBI_PROTOCOL_MCTP>;
+	};
+};
+
 &rtc_over_espi0 {
 	status = "okay";
 };
@@ -792,6 +806,19 @@
 	flash-edaf-mode = <0x0>;
 	flash-edaf-tgt-addr = <&edaf1>;
 #endif
+};
+
+&espi1_mmbi {
+	status = "okay";
+
+	host-map-addr = <0x0 0xa8000000>;
+	memory-region = <&espi1_mmbi_memory>;
+	instances = <1>;
+
+	instance@0 {
+		channel = <0>; // channel should start from 0
+		protocols = /bits/ 8 <MMBI_PROTOCOL_MCTP>;
+	};
 };
 
 &rtc_over_espi1 {

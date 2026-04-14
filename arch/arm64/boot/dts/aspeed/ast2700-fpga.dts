@@ -5,6 +5,7 @@
 #include "aspeed-g7.dtsi"
 #include <dt-bindings/gpio/aspeed-gpio.h>
 #include <dt-bindings/net/ti-dp83867.h>
+#include <dt-bindings/mmbi/protocols.h>
 
 #define PCIE0_EP 1	// 1: EP, 0: RC
 #define PCIE1_EP 1	// 1: EP, 0: RC
@@ -686,6 +687,18 @@
 	perif-mcyc-size = <0x0 0x10000>;
 	oob-dma-mode;
 	flash-dma-mode;
+};
+
+&espi0_mmbi {
+	status = "okay";
+	host-map-addr = <0x0 0xa8000000>;
+	memory-region = <&espi0_mmbi_memory>;
+	instances = <1>;
+
+	instance@0 {
+		channel = <0>; // channel should start from 0
+		protocols = /bits/ 8 <MMBI_PROTOCOL_MCTP>;
+	};
 };
 
 &lpc0_kcs0 {
