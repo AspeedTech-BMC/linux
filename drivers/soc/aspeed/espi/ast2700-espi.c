@@ -17,6 +17,7 @@
 #include <linux/bitfield.h>
 #include <linux/count_zeros.h>
 #include <linux/of_device.h>
+#include <linux/of_platform.h>
 #include <linux/of_reserved_mem.h>
 #include <linux/of_address.h>
 #include <linux/interrupt.h>
@@ -569,6 +570,7 @@ int ast2700_espi_perif_probe(struct aspeed_espi *espi)
 
 	ast2700_espi_perif_reset(espi);
 
+	of_platform_populate(dev->of_node, NULL, NULL, dev);
 	return 0;
 }
 
