@@ -1620,8 +1620,8 @@
 
 		espi0: espi@14c05000 {
 			compatible = "aspeed,ast2700-espi";
-			reg = <0 0x14c05000 0 0x1000>;
-			interrupts-extended = <&intc1_0 10>, <&intc1_0 16>;
+			reg = <0 0x14c05000 0 0x800>;
+			interrupts-extended = <&intc1_0 10>;
 			clocks = <&syscon1 SCU1_CLK_GATE_ESPI0CLK>;
 			resets = <&syscon1 SCU1_RESET_ESPI0>;
 			aspeed,syscon = <&syscon1>;
@@ -1632,8 +1632,8 @@
 
 		espi1: espi@14c06000 {
 			compatible = "aspeed,ast2700-espi";
-			reg = <0 0x14c06000 0 0x1000>;
-			interrupts-extended = <&intc1_1 10>, <&intc1_1 16>;
+			reg = <0 0x14c06000 0 0x800>;
+			interrupts-extended = <&intc1_1 10>;
 			clocks = <&syscon1 SCU1_CLK_GATE_ESPI1CLK>;
 			resets = <&syscon1 SCU1_RESET_ESPI1>;
 			aspeed,syscon = <&syscon1>;
