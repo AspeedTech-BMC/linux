@@ -3,4 +3,5 @@ obj-$(CONFIG_ASPEED_ESPI) +=  \
 			ast2600-espi.o \
 			ast2500-espi.o \
 			aspeed-espi.o
-obj-$(CONFIG_AST2700_RTC_OVER_ESPI)     += ast2700-rtc-over-espi.o
+obj-$(CONFIG_AST2700_RTC_OVER_ESPI)	+= ast2700-rtc-over-espi.o
+obj-$(CONFIG_AST2700_INTEL_ESPI_MMBI)	+= ast2700-intel-espi-mmbi.o

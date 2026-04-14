@@ -15,4 +15,8 @@ config AST2700_RTC_OVER_ESPI
           Enable driver support for Aspeed AST2700 RTC over eSPI function.
           Periodically copies RAM content from a RTC tm to a memory-mapped eSPI region.
 
+config AST2700_INTEL_ESPI_MMBI
+	      bool "Enable support for AST2700 ESPI MMBI controller with Intel PCH host"
+	      depends on ASPEED_ESPI
+
 endmenu
