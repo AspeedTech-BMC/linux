@@ -1436,6 +1436,9 @@ static void ftgmac100_adjust_link(struct net_device *netdev)
 	bool tx_pause, rx_pause;
 	int new_speed;
 
+	if (!phydev)
+		return;
+
 	/* We store "no link" as speed 0 */
 	if (!phydev->link)
 		new_speed = 0;
@@ -1480,13 +1483,11 @@ static void ftgmac100_adjust_link(struct net_device *netdev)
 	/* Release phy lock to allow ftgmac100_reset to acquire it, keeping lock
 	 * order consistent to prevent dead lock.
 	 */
-	if (netdev->phydev)
-		mutex_unlock(&netdev->phydev->lock);
+	mutex_unlock(&netdev->phydev->lock);
 
 	ftgmac100_reset(priv);
 
-	if (netdev->phydev)
-		mutex_lock(&netdev->phydev->lock);
+	mutex_lock(&netdev->phydev->lock);
 
 }
 
