@@ -400,9 +400,6 @@
 
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_rgmii1_default>;
-
-	rx-internal-delay-ps = <0>;
-	tx-internal-delay-ps = <0>;
 };
 
 &mac1 {
@@ -413,9 +410,6 @@
 
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_rgmii2_default>;
-
-	rx-internal-delay-ps = <0>;
-	tx-internal-delay-ps = <0>;
 };
 
 &mac2 {
@@ -426,9 +420,6 @@
 
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_rgmii3_default>;
-
-	rx-internal-delay-ps = <0>;
-	tx-internal-delay-ps = <0>;
 };
 
 &mac3 {
@@ -439,9 +430,6 @@
 
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_rgmii4_default>;
-
-	rx-internal-delay-ps = <0>;
-	tx-internal-delay-ps = <0>;
 };
 
 &emmc_controller {
