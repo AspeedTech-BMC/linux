@@ -10,7 +10,6 @@
 #include <linux/kernel.h>
 #include <linux/list.h>
 #include <linux/list_sort.h>
-#include <linux/mctp-pcie-vdm.h>
 #include <linux/mfd/syscon.h>
 #include <linux/miscdevice.h>
 #include <linux/mm.h>
@@ -29,6 +28,9 @@
 #include <linux/of_reserved_mem.h>
 
 #include <uapi/linux/aspeed-mctp.h>
+#if IS_ENABLED(CONFIG_MCTP_TRANSPORT_PCIE_VDM)
+#include <linux/mctp-pcie-vdm.h>
+#endif
 
 /* AST2600 MCTP Controller registers */
 #define ASPEED_MCTP_CTRL	0x000
@@ -314,6 +316,8 @@ struct aspeed_mctp {
 		int packet_counter;
 	} rx_runaway_wa;
 	bool rx_warmup;
+	/* Device ID for the device instance */
+	u8 dev_id;
 	u8 eid;
 	struct platform_device *peci_mctp;
 	/* Use the flag to identify RC or EP */
@@ -329,9 +333,9 @@ struct aspeed_mctp {
 	/* Delayed work for periodic detection of Rx packets */
 	struct delayed_work rx_det_dwork;
 	u32 rx_det_period_us;
-#ifdef CONFIG_MCTP_TRANSPORT_PCIE_VDM
-	/* MCTP PCIe VDM device */
-	struct mctp_pcie_vdm_dev *vdm_dev;
+#if IS_ENABLED(CONFIG_MCTP_TRANSPORT_PCIE_VDM)
+	struct net_device *ndev;
+	bool pcie_vdm_enabled;
 #endif
 };
 
@@ -765,8 +769,8 @@ static void aspeed_mctp_dispatch_packet(struct aspeed_mctp *priv,
 		} else {
 			wake_up_all(&client->wait_queue);
 		}
-#ifdef CONFIG_MCTP_TRANSPORT_PCIE_VDM
-		mctp_pcie_vdm_notify_rx(priv->vdm_dev);
+#if IS_ENABLED(CONFIG_MCTP_TRANSPORT_PCIE_VDM)
+		mctp_pcie_vdm_receive_packet(priv->ndev);
 #endif
 		aspeed_mctp_client_put(client);
 	} else {
@@ -1938,7 +1942,7 @@ static __poll_t aspeed_mctp_poll(struct file *file,
 	return ret;
 }
 
-#ifdef CONFIG_MCTP_TRANSPORT_PCIE_VDM
+#if IS_ENABLED(CONFIG_MCTP_TRANSPORT_PCIE_VDM)
 static int aspeed_mctp_pcie_vdm_op_send_pkt(struct device *dev,
 					    u8 *data, size_t size)
 {
@@ -1982,7 +1986,7 @@ static u8 *aspeed_mctp_pcie_vdm_op_recv_pkt(struct device *dev)
 
 	if (IS_ERR(rx_packet)) {
 		if (PTR_ERR(rx_packet) == -ETIME) {
-			dev_dbg(priv->dev, "no packet received\n");
+			dev_dbg(priv->dev, "all packet received\n");
 		} else {
 			dev_err(priv->dev, "failed to receive packet: %ld\n",
 				PTR_ERR(rx_packet));
@@ -2011,6 +2015,23 @@ static const struct mctp_pcie_vdm_ops aspeed_mctp_pcie_vdm_ops = {
 	.free_packet = aspeed_mctp_packet_free,
 	.uninit = aspeed_mctp_pcie_vdm_op_uninit,
 };
+
+static void aspeed_mctp_pcie_vdm_register(struct aspeed_mctp *priv)
+{
+	struct net_device *ndev;
+	struct mctp_client *client;
+	char ifname[IFNAMSIZ];
+
+	/** use priv's default client to send/receive mctp packets */
+	client = aspeed_mctp_create_client(priv);
+	aspeed_mctp_register_default_handler(client);
+
+	snprintf(ifname, IFNAMSIZ, "mctppci%d", priv->dev_id);
+	ndev = mctp_pcie_vdm_add_dev(priv->dev, &aspeed_mctp_pcie_vdm_ops, ifname);
+	if (IS_ERR(ndev))
+		dev_err(priv->dev, "Failed to add mctp pcie vdm device Err %ld\n", PTR_ERR(ndev));
+	priv->ndev = ndev;
+}
 
 #endif
 
@@ -2104,9 +2125,21 @@ static void aspeed_mctp_pcie_setup(struct aspeed_mctp *priv)
 				schedule_delayed_work(&priv->rx_det_dwork,
 						      usecs_to_jiffies(priv->rx_det_period_us));
 		}
+#if IS_ENABLED(CONFIG_MCTP_TRANSPORT_PCIE_VDM)
+		if (!priv->pcie_vdm_enabled) {
+			aspeed_mctp_pcie_vdm_register(priv);
+			priv->pcie_vdm_enabled = true;
+		}
+#endif
 		aspeed_mctp_rx_trigger(&priv->rx);
 		aspeed_mctp_send_pcie_uevent(kobj, true);
 	} else {
+#if IS_ENABLED(CONFIG_MCTP_TRANSPORT_PCIE_VDM)
+		if (priv->pcie_vdm_enabled) {
+			mctp_pcie_vdm_remove_dev(priv->ndev);
+			priv->pcie_vdm_enabled = false;
+		}
+#endif
 		schedule_delayed_work(&priv->pcie.rst_dwork,
 				      msecs_to_jiffies(1000));
 	}
@@ -2485,22 +2518,6 @@ static int aspeed_mctp_probe(struct platform_device *pdev)
 		goto out_drv;
 	}
 
-#ifdef CONFIG_MCTP_TRANSPORT_PCIE_VDM
-	struct mctp_pcie_vdm_dev *vdm_dev;
-	struct mctp_client *client;
-
-	/** use priv's default client to send/receive mctp packets */
-	client = aspeed_mctp_create_client(priv);
-	aspeed_mctp_register_default_handler(client);
-
-	vdm_dev = mctp_pcie_vdm_add_dev(priv->dev, &aspeed_mctp_pcie_vdm_ops);
-	if (IS_ERR(vdm_dev)) {
-		dev_err(priv->dev, "Failed to add mctp pcie vdm device Err %ld\n", PTR_ERR(vdm_dev));
-		goto out_drv;
-	}
-	priv->vdm_dev = vdm_dev;
-#endif
-
 	ret = aspeed_mctp_dma_init(priv);
 	if (ret) {
 		dev_err(priv->dev, "Failed to init DMA\n");
@@ -2516,6 +2533,7 @@ static int aspeed_mctp_probe(struct platform_device *pdev)
 	id = of_alias_get_id(priv->dev->of_node, "mctp");
 	if (id < 0)
 		return id;
+	priv->dev_id = id;
 	priv->mctp_miscdev.parent = priv->dev;
 	priv->mctp_miscdev.minor = MISC_DYNAMIC_MINOR;
 	priv->mctp_miscdev.name = devm_kasprintf(priv->dev, GFP_KERNEL, "aspeed-mctp%d", id);
@@ -2555,8 +2573,11 @@ static int aspeed_mctp_remove(struct platform_device *pdev)
 {
 	struct aspeed_mctp *priv = platform_get_drvdata(pdev);
 
-#ifdef CONFIG_MCTP_TRANSPORT_PCIE_VDM
-	mctp_pcie_vdm_remove_dev(priv->vdm_dev);
+#if IS_ENABLED(CONFIG_MCTP_TRANSPORT_PCIE_VDM)
+	if (priv->pcie_vdm_enabled) {
+		mctp_pcie_vdm_remove_dev(priv->ndev);
+		priv->pcie_vdm_enabled = false;
+	}
 #endif
 
 	platform_device_unregister(priv->peci_mctp);
