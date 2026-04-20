@@ -77,14 +77,6 @@ enum mctp_pcie_vdm_route_type {
 	MCTP_PCIE_VDM_BROADCAST_FROM_RC = 3,
 };
 
-enum mctp_ctrl_command_code {
-	MCTP_CTRL_CMD_SET_ENDPOINT_ID = 0x01,
-	MCTP_CTRL_CMD_GET_ENDPOINT_ID = 0x02,
-	MCTP_CTRL_CMD_PREPARE_ENDPOINT_DISCOVERY = 0x0B,
-	MCTP_CTRL_CMD_ENDPOINT_DISCOVERY = 0x0C,
-	MCTP_CTRL_CMD_DISCOVERY_NOTIFY = 0x0D
-};
-
 struct mctp_pcie_vdm_hdr {
 	u32 length : 10, rsvd0 : 2, attr : 2, ep : 1, td : 1, rsvd1 : 4, tc : 3,
 		rsvd2 : 1, route_type : 5, fmt : 2, rsvd3 : 1;
