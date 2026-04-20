@@ -649,6 +649,12 @@
 			#size-cells = <1>;
 			ranges;
 
+			sbc: secure-boot-controller@1e6f2000 {
+				compatible = "aspeed,ast2600-sbc";
+				reg = <0x1e6f2000 0x800>;
+				aspeed,scu = <&syscon>;
+			};
+
 			mctp1: mctp@1e6f9000 {
 				compatible = "aspeed,ast2600-mctp";
 				reg = <0x1e6f9000 0x30>;
