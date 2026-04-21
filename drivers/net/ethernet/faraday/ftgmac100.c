@@ -1867,42 +1867,12 @@ static bool ftgmac100_has_child_node(struct device_node *np, const char *name)
 	return ret;
 }
 
-static struct phy_device *ftgmac100_ast2600_phy_get(struct net_device *dev,
-						    struct device_node *np,
-						    void (*hndlr)(struct net_device *),
-						    phy_interface_t phy_intf)
-{
-	struct device_node *phy_np;
-	struct phy_device *phy;
-	int ret;
-
-	if (of_phy_is_fixed_link(np)) {
-		ret = of_phy_register_fixed_link(np);
-		if (ret < 0) {
-			netdev_err(dev, "broken fixed-link specification\n");
-			return NULL;
-		}
-		phy_np = of_node_get(np);
-	} else {
-		phy_np = of_parse_phandle(np, "phy-handle", 0);
-		if (!phy_np)
-			return NULL;
-	}
-
-	phy = of_phy_connect(dev, phy_np, hndlr, 0, phy_intf);
-
-	of_node_put(phy_np);
-
-	return phy;
-}
-
 static int ftgmac100_probe(struct platform_device *pdev)
 {
 	struct resource *res;
 	int irq;
 	struct net_device *netdev;
 	struct phy_device *phydev;
-	phy_interface_t phy_intf;
 	struct ftgmac100 *priv;
 	struct device_node *np;
 	int err = 0;
@@ -2020,16 +1990,8 @@ static int ftgmac100_probe(struct platform_device *pdev)
 				goto err_setup_mdio;
 		}
 
-		/* Because AST2600 will use the RGMII delay to determine
-		 * which phy interface to use.
-		 */
-		if (of_device_is_compatible(np, "aspeed,ast2600-mac"))
-			phy = ftgmac100_ast2600_phy_get(priv->netdev, np,
-							&ftgmac100_adjust_link,
-							phy_intf);
-		else
-			phy = of_phy_get_and_connect(priv->netdev, np,
-						     &ftgmac100_adjust_link);
+		phy = of_phy_get_and_connect(priv->netdev, np,
+					     &ftgmac100_adjust_link);
 		if (!phy) {
 			dev_err(&pdev->dev, "Failed to connect to phy\n");
 			err = -EINVAL;
