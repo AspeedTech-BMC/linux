@@ -49,7 +49,7 @@ struct aspeed_sgmii {
 	u8 revision;
 };
 
-static int aspeed_sgmii_conf(struct phy *phy, bool nway, int speed)
+static int aspeed_sgmii_conf(struct phy *phy, int speed)
 {
 	struct aspeed_sgmii *sgmii = phy_get_drvdata(phy);
 	u32 cfg;
@@ -57,8 +57,8 @@ static int aspeed_sgmii_conf(struct phy *phy, bool nway, int speed)
 	writel(0, sgmii->regs + SGMII_MODE);
 
 	writel(0, sgmii->regs + SGMII_CFG);
-	writel(SGMII_CFG_SW_RESET | SGMII_CFG_PWR_DOWN, sgmii->regs + SGMII_CFG);
-	if (nway) {
+	if (speed == 0) {
+		/* Configure for auto-negotiation */
 		if (sgmii->revision == 1)
 			writel(SGMII_CFG_AN_ENABLE, sgmii->regs + SGMII_CFG);
 		else
@@ -100,7 +100,7 @@ static int aspeed_sgmii_conf(struct phy *phy, bool nway, int speed)
 	writel(0x1, sgmii->regs + SGMII_NWAY_ACK);
 
 	cfg = SGMII_MODE_ENABLE;
-	if (!nway)
+	if (speed)
 		cfg |= SGMII_MODE_USE_LOCAL_CONFIG;
 	writel(cfg, sgmii->regs + SGMII_MODE);
 
@@ -109,13 +109,38 @@ static int aspeed_sgmii_conf(struct phy *phy, bool nway, int speed)
 
 static int aspeed_sgmii_phy_init(struct phy *phy)
 {
-	/* Default to enable Nway, not need configure speed */
-	return aspeed_sgmii_conf(phy, true, 0);
+	struct aspeed_sgmii *sgmii = phy_get_drvdata(phy);
+	u32 reg;
+
+	/*
+	 * The PLDA frequency multiplication is X xor 0x19.
+	 * (X xor 0x19) * clock source = data rate.
+	 * SGMII data rate is 1.25G, so (0x2b xor 0x19) * 25MHz is equal 1.25G.
+	 */
+	reg = PCIEPHY_CLK_SEL_INTERNAL_25M | PCIEPHY_CLK_FREQ_MULTI(0x2b);
+	regmap_write(sgmii->pcie_phy_regmap, PCIEPHY_CLK, reg);
+	if (sgmii->revision > 1) {
+		regmap_read(sgmii->pcie_phy_regmap, PEHR280, &reg);
+		reg |= SGMII_INTERNAL_CLK_EN;
+		regmap_write(sgmii->pcie_phy_regmap, PEHR280, reg);
+	}
+
+	return 0;
+}
+
+static int aspeed_sgmii_phy_reset(struct phy *phy)
+{
+	struct aspeed_sgmii *sgmii = phy_get_drvdata(phy);
+
+	writel(SGMII_CFG_PWR_DOWN, sgmii->regs + SGMII_CFG);
+	writel(0, sgmii->regs + SGMII_CFG);
+
+	return 0;
 }
 
 static int aspeed_sgmii_phy_set_speed(struct phy *phy, int speed)
 {
-	return aspeed_sgmii_conf(phy, false, speed);
+	return aspeed_sgmii_conf(phy, speed);
 }
 
 static int aspeed_sgmii_phy_exit(struct phy *phy)
@@ -130,6 +155,7 @@ static int aspeed_sgmii_phy_exit(struct phy *phy)
 
 static const struct phy_ops aspeed_sgmii_phyops = {
 	.init		= aspeed_sgmii_phy_init,
+	.reset		= aspeed_sgmii_phy_reset,
 	.set_speed	= aspeed_sgmii_phy_set_speed,
 	.exit		= aspeed_sgmii_phy_exit,
 	.owner		= THIS_MODULE,
@@ -195,19 +221,6 @@ static int aspeed_sgmii_probe(struct platform_device *pdev)
 		return PTR_ERR(provider);
 
 	phy_set_drvdata(phy, sgmii);
-
-	/*
-	 * The PLDA frequency multiplication is X xor 0x19.
-	 * (X xor 0x19) * clock source = data rate.
-	 * SGMII data rate is 1.25G, so (0x2b xor 0x19) * 25MHz is equal 1.25G.
-	 */
-	reg = PCIEPHY_CLK_SEL_INTERNAL_25M | PCIEPHY_CLK_FREQ_MULTI(0x2b);
-	regmap_write(sgmii->pcie_phy_regmap, PCIEPHY_CLK, reg);
-	if (sgmii->revision > 1) {
-		regmap_read(sgmii->pcie_phy_regmap, PEHR280, &reg);
-		reg |= SGMII_INTERNAL_CLK_EN;
-		regmap_write(sgmii->pcie_phy_regmap, PEHR280, reg);
-	}
 
 	dev_info(dev, "module loaded\n");
 
