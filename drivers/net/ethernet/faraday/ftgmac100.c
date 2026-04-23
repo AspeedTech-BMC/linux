@@ -158,9 +158,15 @@ static int ftgmac100_reset_and_config_mac(struct ftgmac100 *priv)
 {
 	u32 maccr = 0;
 
-	/* Aspeed RMII needs SCU reset to clear status */
-	if (priv->is_aspeed && priv->netdev->phydev->interface == PHY_INTERFACE_MODE_RMII) {
+	/* Aspeed SoC needs SCU reset */
+	if (priv->is_aspeed) {
 		int err;
+
+		err = phy_reset(priv->sgmii);
+		if (err) {
+			dev_err(priv->dev, "Failed to reset sgmii\n");
+			return err;
+		}
 
 		err = reset_control_assert(priv->rst);
 		if (err) {
@@ -389,6 +395,8 @@ static void ftgmac100_start_hw(struct ftgmac100 *priv)
 
 static void ftgmac100_stop_hw(struct ftgmac100 *priv)
 {
+	phy_exit(priv->sgmii);
+
 	iowrite32(0, priv->base + FTGMAC100_OFFSET_MACCR);
 }
 
@@ -1347,6 +1355,44 @@ static int ftgmac100_poll(struct napi_struct *napi, int budget)
 	return work_done;
 }
 
+static int ftgmac100_init_sgmii(struct ftgmac100 *priv)
+{
+	struct device_node *fixed_link_node = NULL;
+	int err;
+
+	err = phy_init(priv->sgmii);
+	if (err) {
+		dev_err(priv->dev, "Failed to initialize sgmii\n");
+		return err;
+	}
+
+	/* If using fixed link in dts, sgmii need to be forced */
+	fixed_link_node = of_get_child_by_name(priv->dev->of_node, "fixed-link");
+	if (fixed_link_node) {
+		int speed;
+
+		if (of_property_read_u32(fixed_link_node, "speed", &speed)) {
+			dev_err(priv->dev, "Failed to read speed from fixed-link node\n");
+			err = -EINVAL;
+			goto err_out;
+		}
+
+		err = phy_set_speed(priv->sgmii, speed);
+		if (err)
+			dev_err(priv->dev, "Failed to force sgmii speed\n");
+	} else {
+		err = phy_set_speed(priv->sgmii, 0);
+		if (err)
+			dev_err(priv->dev, "Failed to enable sgmii Nway\n");
+	}
+
+err_out:
+	if (fixed_link_node)
+		of_node_put(fixed_link_node);
+
+	return err;
+}
+
 static int ftgmac100_init_all(struct ftgmac100 *priv, bool ignore_alloc_err)
 {
 	int err = 0;
@@ -1370,6 +1416,9 @@ static int ftgmac100_init_all(struct ftgmac100 *priv, bool ignore_alloc_err)
 
 	/* Enable all interrupts */
 	iowrite32(FTGMAC100_INT_ALL, priv->base + FTGMAC100_OFFSET_IER);
+
+	/* Configure SGMII controller */
+	ftgmac100_init_sgmii(priv);
 
 	return err;
 }
@@ -1782,10 +1831,7 @@ static void ftgmac100_phy_disconnect(struct net_device *netdev)
 	struct ftgmac100 *priv = netdev_priv(netdev);
 	struct phy_device *phydev = netdev->phydev;
 
-	if (priv->sgmii) {
-		phy_exit(priv->sgmii);
-		devm_phy_put(priv->dev, priv->sgmii);
-	}
+	devm_phy_put(priv->dev, priv->sgmii);
 
 	if (phydev) {
 		phy_disconnect(phydev);
@@ -2049,36 +2095,6 @@ static int ftgmac100_probe(struct platform_device *pdev)
 					err = PTR_ERR(priv->sgmii);
 					goto err_register_netdev;
 				}
-			}
-		}
-	}
-
-	err = reset_control_assert(priv->rst);
-	if (err) {
-		dev_err(priv->dev, "Failed to reset mac (%d)\n", err);
-		goto err_register_netdev;
-	}
-	usleep_range(10000, 20000);
-	err = reset_control_deassert(priv->rst);
-	if (err) {
-		dev_err(priv->dev, "Failed to deassert mac reset (%d)\n", err);
-		goto err_register_netdev;
-	}
-
-	if (priv->sgmii) {
-		/* If using fixed link in dts, sgmii need to be forced */
-		if (of_phy_is_fixed_link(np)) {
-			err = phy_set_speed(priv->sgmii, netdev->phydev->speed);
-			if (err) {
-				dev_err(priv->dev, "Failed to force sgmii speed\n");
-				goto err_register_netdev;
-			}
-		} else {
-			/* The phy_init is used to configure Nway */
-			err = phy_init(priv->sgmii);
-			if (err) {
-				dev_err(priv->dev, "Failed to configure sgmii Nway\n");
-				goto err_register_netdev;
 			}
 		}
 	}
