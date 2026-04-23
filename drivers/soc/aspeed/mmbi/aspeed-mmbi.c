@@ -17,6 +17,7 @@
 #include <linux/workqueue.h>
 
 #include "aspeed-mmbi.h"
+#include "aspeed-mmbi-internal.h"
 #include "aspeed-mmbi-bmc.h"
 #include "aspeed-mmbi-host.h"
 
@@ -182,7 +183,7 @@ static int mmbi_write(struct mmbi_chan_desc *chan, const u8 *data, size_t data_l
 	if (data_len == 0)
 		return -EINVAL;
 
-	if (!chan->peer_ready) {
+	if (!chan->priv->peer_ready) {
 		pr_info("%s: chan %d peer not ready to receive data", __func__,
 			chan->index);
 		return -EAGAIN;
@@ -252,15 +253,17 @@ static int mmbi_write(struct mmbi_chan_desc *chan, const u8 *data, size_t data_l
 static int mmbi_misc_open(struct inode *inode, struct file *file)
 {
 	struct miscdevice *miscdev = file->private_data;
-	struct mmbi_chan_desc *chan_desc = container_of(miscdev, struct mmbi_chan_desc, miscdev);
+	struct mmbi_chan_priv *priv = container_of(miscdev, struct mmbi_chan_priv,
+						      miscdev);
+	struct mmbi_chan_desc *chan_desc = priv->chan;
 
 	file->private_data = chan_desc;
 	mmbi_channel_state_update(chan_desc, chan_desc->mmbi->desc_virt);
 
-	if (!chan_desc->running) {
-		schedule_delayed_work(&chan_desc->poll_work,
+	if (!chan_desc->priv->running) {
+		schedule_delayed_work(&chan_desc->priv->poll_work,
 				      msecs_to_jiffies(chan_desc->poll_interval_ms));
-		chan_desc->running = true;
+		chan_desc->priv->running = true;
 	}
 	return 0;
 }
@@ -269,9 +272,9 @@ static int mmbi_misc_release(struct inode *inode, struct file *file)
 {
 	struct mmbi_chan_desc *chan_desc = file->private_data;
 
-	if (chan_desc->running) {
-		cancel_delayed_work_sync(&chan_desc->poll_work);
-		chan_desc->running = false;
+	if (chan_desc->priv->running) {
+		cancel_delayed_work_sync(&chan_desc->priv->poll_work);
+		chan_desc->priv->running = false;
 	}
 	return 0;
 }
@@ -290,10 +293,10 @@ static ssize_t mmbi_misc_read(struct file *file, char __user *buf, size_t count,
 	if (!kbuf)
 		return -ENOMEM;
 
-	spin_lock(&chan_desc->rx_lock);
-	chan_desc->rx_ready = false;
+	spin_lock(&chan_desc->priv->rx_lock);
+	chan_desc->priv->rx_ready = false;
 	ret = mmbi_read(chan_desc, kbuf, count);
-	spin_unlock(&chan_desc->rx_lock);
+	spin_unlock(&chan_desc->priv->rx_lock);
 	if (ret > 0) {
 		if (copy_to_user(buf, kbuf, ret)) {
 			pr_err("%s: chan %u copy %zd bytes to user failed\n",
@@ -322,9 +325,9 @@ static ssize_t mmbi_misc_write(struct file *file, const char __user *buf,
 		return PTR_ERR(kbuf);
 
 	/* currently only MCTP defined in the spec */
-	spin_lock(&chan_desc->tx_lock);
+	spin_lock(&chan_desc->priv->tx_lock);
 	ret = mmbi_write(chan_desc, kbuf, count, MMBI_PROTOCOL_MCTP);
-	spin_unlock(&chan_desc->tx_lock);
+	spin_unlock(&chan_desc->priv->tx_lock);
 	kfree(kbuf);
 	return ret;
 }
@@ -339,20 +342,20 @@ static __poll_t mmbi_misc_poll(struct file *file, struct poll_table_struct *pt)
 	requested_events = poll_requested_events(pt);
 	mmbi_channel_state_update(chan_desc, mmbi->desc_virt);
 
-	if (chan_desc->state != NORMAL_RUNTIME && chan_desc->state != RESET_REQ_BY_BMC) {
+	if (chan_desc->priv->state != NORMAL_RUNTIME && chan_desc->priv->state != RESET_REQ_BY_BMC) {
 		pr_info("%s: chan %u invalid state 0x%x, not ready for polling\n",
-			 __func__, chan_desc->index, chan_desc->state);
+			 __func__, chan_desc->index, chan_desc->priv->state);
 		return ret;
 	}
 
 	if (requested_events & POLL_IN)
-		poll_wait(file, &chan_desc->rx_wait, pt);
+		poll_wait(file, &chan_desc->priv->rx_wait, pt);
 	if (requested_events & POLL_OUT)
-		poll_wait(file, &chan_desc->tx_wait, pt);
+		poll_wait(file, &chan_desc->priv->tx_wait, pt);
 
-	if (chan_desc->rx_ready)
+	if (chan_desc->priv->rx_ready)
 		ret |= POLL_IN | POLLRDNORM;
-	if (chan_desc->tx_ready)
+	if (chan_desc->priv->tx_ready)
 		ret |= POLL_OUT | POLLWRNORM;
 
 	return ret;
@@ -374,20 +377,21 @@ static int mmbi_instance_init_miscdev(struct mmbi_ins_desc *mmbi)
 
 	for (i = 0; i < mmbi->num_of_channels; i++) {
 		chan_desc = &mmbi->chan_desc[i];
-		chan_desc->miscdev.name =
+
+		chan_desc->priv->miscdev.name =
 			devm_kasprintf(mmbi->dev, GFP_KERNEL, "mmbi%u-ch%u",
 				       chan_desc->mmbi->ins_id, chan_desc->index);
 
-		if (!chan_desc->miscdev.name) {
+		if (!chan_desc->priv || !chan_desc->priv->miscdev.name) {
 			pr_err("%s: failed to allocate misc device name for chan %u\n",
 				__func__, chan_desc->index);
 			return -ENOMEM;
 		}
-		chan_desc->miscdev.minor = MISC_DYNAMIC_MINOR;
-		chan_desc->miscdev.fops = &mmbi_fops;
-		chan_desc->miscdev.parent = mmbi->dev;
+		chan_desc->priv->miscdev.minor = MISC_DYNAMIC_MINOR;
+		chan_desc->priv->miscdev.fops = &mmbi_fops;
+		chan_desc->priv->miscdev.parent = mmbi->dev;
 
-		ret = misc_register(&chan_desc->miscdev);
+		ret = misc_register(&chan_desc->priv->miscdev);
 		if (ret) {
 			pr_err("%s: failed to register misc device for chan %u\n",
 				__func__, chan_desc->index);
@@ -399,7 +403,8 @@ static int mmbi_instance_init_miscdev(struct mmbi_ins_desc *mmbi)
 static void mmbi_channel_poll_handler(struct work_struct *work)
 {
 	struct delayed_work *dwork = to_delayed_work(work);
-	struct mmbi_chan_desc *chan_desc = container_of(dwork, struct mmbi_chan_desc, poll_work);
+	struct mmbi_chan_priv *priv = container_of(dwork, struct mmbi_chan_priv, poll_work);
+	struct mmbi_chan_desc *chan_desc = priv->chan;
 	struct mmbi_ins_desc *mmbi = chan_desc->mmbi;
 	u8 __iomem *desc_virt = mmbi->desc_virt;
 
@@ -411,42 +416,42 @@ static void mmbi_channel_poll_handler(struct work_struct *work)
 	write_ptr = ioread32(desc_virt + state_location);
 	read_ptr = ioread32(desc_virt + state_location + sizeof(u32));
 
-	if (write_ptr != chan_desc->write_ptr || read_ptr != chan_desc->read_ptr) {
-		chan_desc->write_ptr = write_ptr;
-		chan_desc->read_ptr = read_ptr;
+	if (write_ptr != chan_desc->priv->write_ptr || read_ptr != chan_desc->priv->read_ptr) {
+		chan_desc->priv->write_ptr = write_ptr;
+		chan_desc->priv->read_ptr = read_ptr;
 
-		spin_lock(&chan_desc->rx_lock);
-		spin_lock(&chan_desc->tx_lock);
+		spin_lock(&chan_desc->priv->rx_lock);
+		spin_lock(&chan_desc->priv->tx_lock);
 		if (mmbi->role == MMBI_ROLE_BMC)
 			mmbi_channel_irq_bmc(chan_desc);
 		else
 			mmbi_channel_irq_host(chan_desc);
 
-		spin_unlock(&chan_desc->tx_lock);
-		spin_unlock(&chan_desc->rx_lock);
+		spin_unlock(&chan_desc->priv->tx_lock);
+		spin_unlock(&chan_desc->priv->rx_lock);
 	}
 
 	/* Reschedule the work */
-	schedule_delayed_work(&chan_desc->poll_work, msecs_to_jiffies(chan_desc->poll_interval_ms));
+	schedule_delayed_work(&chan_desc->priv->poll_work, msecs_to_jiffies(chan_desc->poll_interval_ms));
 }
 
-static int mmbi_instance_init_channel_poll(struct mmbi_ins_desc *mmbi)
+static int mmbi_instance_init_channel_priv(struct mmbi_ins_desc *mmbi)
 {
 	int i;
 	struct mmbi_chan_desc *chan_desc;
 
 	for (i = 0; i < mmbi->num_of_channels; i++) {
 		chan_desc = &mmbi->chan_desc[i];
-		INIT_DELAYED_WORK(&chan_desc->poll_work, mmbi_channel_poll_handler);
-		spin_lock_init(&chan_desc->rx_lock);
-		spin_lock_init(&chan_desc->tx_lock);
-		init_waitqueue_head(&chan_desc->rx_wait);
-		init_waitqueue_head(&chan_desc->tx_wait);
-		chan_desc->tx_ready = true;
-		chan_desc->rx_ready = false;
-		chan_desc->read_ptr = 0;
-		chan_desc->write_ptr = 0;
-		chan_desc->running = false;
+		INIT_DELAYED_WORK(&chan_desc->priv->poll_work, mmbi_channel_poll_handler);
+		spin_lock_init(&chan_desc->priv->rx_lock);
+		spin_lock_init(&chan_desc->priv->tx_lock);
+		init_waitqueue_head(&chan_desc->priv->rx_wait);
+		init_waitqueue_head(&chan_desc->priv->tx_wait);
+		chan_desc->priv->tx_ready = true;
+		chan_desc->priv->rx_ready = false;
+		chan_desc->priv->read_ptr = 0;
+		chan_desc->priv->write_ptr = 0;
+		chan_desc->priv->running = false;
 		if (chan_desc->poll_interval_ms == 0)
 			chan_desc->poll_interval_ms = MMBI_POLL_INTERVAL_MS;
 	}
@@ -492,31 +497,31 @@ void mmbi_channel_state_update(struct mmbi_chan_desc *chan, u8 __iomem *desc_vir
 	enum mmbi_state prev_state;
 
 	if (chan->buffer_type == MMBI_BUFFER_TYPE_VPSCB) {
-		prev_state = chan->state;
+		prev_state = chan->priv->state;
 		buf_desc = &chan->buffer_desc;
 		host_rws_vmem = desc_virt + buf_desc->h_rws_p;
 		host_ros_vmem = desc_virt + buf_desc->h_ros_p;
 		host_rws_val = ioread8(host_rws_vmem);
 		host_ros_val = ioread8(host_ros_vmem);
-		chan->state = (MMBI_STATE_GET_IF_UP(host_ros_val) << 2) |
-			      (MMBI_STATE_GET_RST(host_ros_val) << 2) |
-			      MMBI_STATE_GET_IF_UP(host_rws_val) |
-			      MMBI_STATE_GET_RST(host_rws_val);
+		chan->priv->state = (MMBI_STATE_GET_IF_UP(host_ros_val) << 2) |
+				   (MMBI_STATE_GET_RST(host_ros_val) << 2) |
+				   MMBI_STATE_GET_IF_UP(host_rws_val) |
+				   MMBI_STATE_GET_RST(host_rws_val);
 
-		chan->peer_ready = (chan->mmbi->role == MMBI_ROLE_BMC) ?
-					   mmbi_get_ready(host_rws_vmem) :
-					   mmbi_get_ready(host_ros_vmem);
+		chan->priv->peer_ready = (chan->mmbi->role == MMBI_ROLE_BMC) ?
+						mmbi_get_ready(host_rws_vmem) :
+						mmbi_get_ready(host_ros_vmem);
 	} else {
 		pr_err("\t%s: unsupported buffer type %d\n",
 			__func__, chan->buffer_type);
-		chan->state = POWER_UP_OR_ERROR;
+		chan->priv->state = POWER_UP_OR_ERROR;
 	}
 }
 EXPORT_SYMBOL_GPL(mmbi_channel_state_update);
 
 int mmbi_instance_init(struct mmbi_ins_desc *mmbi)
 {
-	int rc;
+	int rc, i;
 
 	if (!mmbi) {
 		rc = -EINVAL;
@@ -537,6 +542,15 @@ int mmbi_instance_init(struct mmbi_ins_desc *mmbi)
 		goto out_fail;
 	}
 
+	for (i = 0; i < MMBI_MAX_CHANNELS; i++) {
+		mmbi->chan_desc[i].priv = devm_kzalloc(mmbi->dev, sizeof(*mmbi->chan_desc[i].priv), GFP_KERNEL);
+		if (!mmbi->chan_desc[i].priv) {
+			rc = -ENOMEM;
+			goto out_fail;
+		}
+		mmbi->chan_desc[i].priv->chan = &mmbi->chan_desc[i];
+	}
+
 	if (mmbi->role == MMBI_ROLE_BMC)
 		rc = mmbi_instance_init_bmc(mmbi);
 	else
@@ -549,7 +563,7 @@ int mmbi_instance_init(struct mmbi_ins_desc *mmbi)
 	if (rc)
 		goto ida_free;
 
-	rc = mmbi_instance_init_channel_poll(mmbi);
+	rc = mmbi_instance_init_channel_priv(mmbi);
 	if (rc)
 		goto ida_free;
 
@@ -573,7 +587,7 @@ void mmbi_instance_remove(struct mmbi_ins_desc *mmbi)
 		return;
 
 	for (i = 0; i < mmbi->num_of_channels; i++) {
-		misc_deregister(&mmbi->chan_desc[i].miscdev);
+		misc_deregister(&mmbi->chan_desc[i].priv->miscdev);
 		struct_desc =
 			mmbi->desc_virt +
 			(mmbi->role == MMBI_ROLE_BMC ?

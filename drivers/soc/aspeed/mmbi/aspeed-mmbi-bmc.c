@@ -10,6 +10,7 @@
 #include <linux/io.h>
 #include <linux/printk.h>
 #include "aspeed-mmbi.h"
+#include "aspeed-mmbi-internal.h"
 #include "aspeed-mmbi-bmc.h"
 
 #define MMBI_PUT_U32_MSB(base, off, val)                          \
@@ -27,49 +28,49 @@ static void mmbi_channel_state_handler(struct mmbi_chan_desc *chan, u8 __iomem *
 	u8 __iomem *host_ros_virt, *host_rws_virt;
 	u32 unhandled_len, avail_len;
 
-	prev_state = chan->state;
+	prev_state = chan->priv->state;
 
 	vpscb = &chan->buffer_desc;
 	host_ros_virt = desc_virt + vpscb->h_ros_p;
 	host_rws_virt = desc_virt + vpscb->h_rws_p;
 	mmbi_channel_state_update(chan, desc_virt);
-	cur_state = chan->state;
+	cur_state = chan->priv->state;
 
 	switch (cur_state) {
 	case INIT_MISMATCH:
 		memset_io(host_ros_virt, 0, 8);
 		memset_io(host_rws_virt, 0, 8);
 		mmbi_set_up(host_ros_virt);
-		chan->state = INIT_COMPLETED;
+		chan->priv->state = INIT_COMPLETED;
 		break;
 	case NORMAL_RUNTIME:
 		mmbi_set_ready(host_ros_virt);
 
 		unhandled_len = mmbi_channel_unhandled_length(host_ros_virt, host_rws_virt, chan->h2b_l);
 		if (unhandled_len >= MMBI_PKT_MIN_SIZE)
-			chan->rx_ready = true;
+			chan->priv->rx_ready = true;
 		else
-			chan->rx_ready = false;
+			chan->priv->rx_ready = false;
 		avail_len = mmbi_channel_avail_length(host_rws_virt, host_ros_virt, chan->b2h_l);
 		if (avail_len < MMBI_PKT_MIN_SIZE)
-			chan->tx_ready = false;
+			chan->priv->tx_ready = false;
 		else
-			chan->tx_ready = true;
+			chan->priv->tx_ready = true;
 
 		break;
 	case RESET_REQ_BY_HOST:
 		mmbi_clr_ready(host_ros_virt);
 		mmbi_set_rst(host_ros_virt);
-		chan->state = RESET_ACKED;
+		chan->priv->state = RESET_ACKED;
 		// TODO: consume all pending data from host and then trigger initialization
 		break;
 	case RESET_ACKED:
 		mmbi_clr_up(host_ros_virt);
-		chan->state = TRANS_TO_INIT;
+		chan->priv->state = TRANS_TO_INIT;
 		memset_io(host_ros_virt, 0, 8);
 		memset_io(host_rws_virt, 0, 8);
 		mmbi_set_up(host_ros_virt);
-		chan->state = INIT_COMPLETED;
+		chan->priv->state = INIT_COMPLETED;
 	default:
 		/* other states do not require action from BMC side */
 		break;
@@ -104,7 +105,7 @@ static int mmbi_channel_init_bmc(u8 __iomem *desc_virt, struct mmbi_chan_desc *c
 	u32 offset = 0;
 	struct mmbi_buf_vpscb *buffer_desc;
 
-	chan_desc->peer_ready = false;
+	chan_desc->priv->peer_ready = false;
 	MMBI_PUT_U32_MSB(desc_virt, offset, MMBI_BUF_ADDR_ALIGN(chan_desc->b2h_ba_offset));
 	MMBI_PUT_U32_MSB(desc_virt, offset, MMBI_BUF_ADDR_ALIGN(chan_desc->h2b_ba_offset));
 	MMBI_PUT_U32_MSB(desc_virt, offset, chan_desc->b2h_l);
@@ -129,10 +130,10 @@ static int mmbi_channel_init_bmc(u8 __iomem *desc_virt, struct mmbi_chan_desc *c
 void mmbi_channel_irq_bmc(struct mmbi_chan_desc *chan)
 {
 	mmbi_channel_state_handler(chan, chan->mmbi->desc_virt);
-	if (chan->rx_ready)
-		wake_up_interruptible(&chan->rx_wait);
-	if (chan->tx_ready)
-		wake_up_interruptible(&chan->tx_wait);
+	if (chan->priv->rx_ready)
+		wake_up_interruptible(&chan->priv->rx_wait);
+	if (chan->priv->tx_ready)
+		wake_up_interruptible(&chan->priv->tx_wait);
 
 }
 EXPORT_SYMBOL_GPL(mmbi_channel_irq_bmc);
@@ -162,7 +163,7 @@ int mmbi_instance_init_bmc(struct mmbi_ins_desc *mmbi)
 	iowrite8(mmbi->mmbi_version & MMBI_VERSION_MASK, desc_virt++);
 	iowrite8(i, desc_virt++);
 
-	mmbi->chan_desc[0].state = INIT_IN_PROGRESS;
+	mmbi->chan_desc[0].priv->state = INIT_IN_PROGRESS;
 	mmbi->chan_desc[0].index = 0;
 	mmbi->chan_desc[0].mmbi = mmbi;
 	rc = mmbi_channel_init_bmc(desc_virt, &mmbi->chan_desc[0]);
@@ -193,7 +194,7 @@ int mmbi_instance_init_bmc(struct mmbi_ins_desc *mmbi)
 
 	if (mmbi->num_of_channels > 1) {
 		for (i = 1; i < mmbi->num_of_channels; i++) {
-			mmbi->chan_desc[i].state = INIT_IN_PROGRESS;
+			mmbi->chan_desc[i].priv->state = INIT_IN_PROGRESS;
 			mmbi->chan_desc[i].index = i;
 			mmbi->chan_desc[i].mmbi = mmbi;
 			rc = mmbi_channel_init_bmc(desc_virt, &mmbi->chan_desc[i]);
@@ -212,7 +213,7 @@ int mmbi_instance_init_bmc(struct mmbi_ins_desc *mmbi)
 
 		mmbi_set_up(mmbi->desc_virt + vpscb->h_ros_p);
 		mmbi_set_ready(mmbi->desc_virt + vpscb->h_ros_p);
-		mmbi->chan_desc[i].state = INIT_COMPLETED;
+		mmbi->chan_desc[i].priv->state = INIT_COMPLETED;
 	}
 
 	return rc;
