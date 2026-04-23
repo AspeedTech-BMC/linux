@@ -5,7 +5,6 @@
 #ifndef __ASPEED_MMBI_H__
 #define __ASPEED_MMBI_H__
 
-#include "linux/wait.h"
 #include <linux/io.h>
 #include "linux/miscdevice.h"
 #include <linux/spinlock_types.h>
@@ -118,6 +117,8 @@ enum mmbi_multi_protocol {
 	MMBI_PROTOCOL_MCTP = 0x04,
 };
 
+struct mmbi_chan_priv;
+
 struct mmbi_buf_vpscb {
 	u32 h_ros_p;		/* Host Read Pointer address offset */
 	u32 h_rws_p;		/* Host Read Write Pointer address offset */
@@ -133,21 +134,9 @@ struct mmbi_chan_desc {
 	u8 buffer_type;				/* Buffer Type defined by enum mmbi_buffer_type */
 	u8 index;				/* Channel Index filled by mmbi_instance_init */
 	struct mmbi_buf_vpscb buffer_desc;	/* buffer descriptor information */
-	enum mmbi_state state;			/* Current MMBI State of this channel */
 	struct mmbi_ins_desc *mmbi;		/* Back pointer to instance descriptor */
-	struct miscdevice miscdev;		/* MMBI char device for this channel */
-	wait_queue_head_t rx_wait;		/* Wait queue for rx data available */
-	wait_queue_head_t tx_wait;		/* Wait queue for tx data available */
-	bool rx_ready;				/* Flag indicating if has data to be read */
-	bool tx_ready;				/* Flag indicating if ready to transmit data */
-	spinlock_t rx_lock;			/* lock to prevent t/rx ready flag race */
-	spinlock_t tx_lock;			/* lock to prevent t/rx ready flag race */
-	u32 read_ptr;				/* Structure value for current read pointer */
-	u32 write_ptr;				/* Structure value for current write pointer */
-	bool peer_ready;			/* Flag indicating peer ready bit */
-	struct delayed_work poll_work;		/* work struct for polling check status */
+	struct mmbi_chan_priv *priv;		/* Internal runtime state */
 	u32 poll_interval_ms;			/* polling interval in ms, default 10ms */
-	bool running;
 };
 
 struct mmbi_ins_desc {
