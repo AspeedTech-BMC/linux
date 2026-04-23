@@ -450,12 +450,13 @@ static ssize_t f_hidg_read(struct file *file, char __user *buffer,
 static void f_hidg_req_complete(struct usb_ep *ep, struct usb_request *req)
 {
 	struct f_hidg *hidg = (struct f_hidg *)ep->driver_data;
+	struct usb_composite_dev *cdev = hidg->func.config->cdev;
 	unsigned long flags;
 
-	if (req->status != 0) {
-		ERROR(hidg->func.config->cdev,
-			"End Point Request ERROR: %d\n", req->status);
-	}
+	if (req->status == -ESHUTDOWN)
+		VDBG(cdev, "hid request cancelled during shutdown\n");
+	else if (req->status != 0)
+		ERROR(cdev, "End Point Request ERROR: %d\n", req->status);
 
 	spin_lock_irqsave(&hidg->write_spinlock, flags);
 	hidg->write_pending = 0;
