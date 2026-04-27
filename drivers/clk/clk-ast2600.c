@@ -62,21 +62,9 @@
 #define ASPEED_UARTCLK_FROM_UXCLK	0x338
 
 #define ASPEED_MAC12_CLK_DLY		0x340
-#define ASPEED_MAC12_CLK_DLY_100M	0x348
-#define ASPEED_MAC12_CLK_DLY_10M	0x34C
-
 #define ASPEED_MAC34_CLK_DLY		0x350
-#define ASPEED_MAC34_CLK_DLY_100M	0x358
-#define ASPEED_MAC34_CLK_DLY_10M	0x35C
 
 #define ASPEED_G6_MAC34_DRIVING_CTRL	0x458
-
-#define ASPEED_G6_DEF_MAC12_DELAY_1G	0x0028a410
-#define ASPEED_G6_DEF_MAC12_DELAY_100M	0x00410410
-#define ASPEED_G6_DEF_MAC12_DELAY_10M	0x00410410
-#define ASPEED_G6_DEF_MAC34_DELAY_1G	0x00104208
-#define ASPEED_G6_DEF_MAC34_DELAY_100M	0x00104208
-#define ASPEED_G6_DEF_MAC34_DELAY_10M	0x00104208
 
 /* Globally visible clocks */
 static DEFINE_SPINLOCK(aspeed_g6_clk_lock);
@@ -948,9 +936,6 @@ static void __init aspeed_g6_cc(struct regmap *map)
 static void __init aspeed_g6_cc_init(struct device_node *np)
 {
 	struct regmap *map;
-	struct mac_delay_config mac_cfg;
-	union mac_delay_1g reg_1g;
-	union mac_delay_100_10 reg_100, reg_10;
 	u32 uart_clk_source = 0;
 	int ret;
 	int i;
@@ -1005,76 +990,8 @@ static void __init aspeed_g6_cc_init(struct device_node *np)
 	regmap_update_bits(map, ASPEED_G6_CLK_SELECTION4, GENMASK(18, 16),
 			   (0x3 << 16));
 
-	/* BIT[31]: MAC1/2 RGMII 125M source = internal PLL
-	 * BIT[28]: RGMIICK pad direction = output
-	 */
-	regmap_write(map, ASPEED_MAC12_CLK_DLY,
-		     BIT(31) | BIT(28) | ASPEED_G6_DEF_MAC12_DELAY_1G);
-	regmap_write(map, ASPEED_MAC12_CLK_DLY_100M,
-		     ASPEED_G6_DEF_MAC12_DELAY_100M);
-	regmap_write(map, ASPEED_MAC12_CLK_DLY_10M,
-		     ASPEED_G6_DEF_MAC12_DELAY_10M);
-
-	/* MAC3/4 RGMII 125M source = RGMIICK pad */
-	regmap_write(map, ASPEED_MAC34_CLK_DLY,
-		     ASPEED_G6_DEF_MAC34_DELAY_1G);
-	regmap_write(map, ASPEED_MAC34_CLK_DLY_100M,
-		     ASPEED_G6_DEF_MAC34_DELAY_100M);
-	regmap_write(map, ASPEED_MAC34_CLK_DLY_10M,
-		     ASPEED_G6_DEF_MAC34_DELAY_10M);
-
 	/* MAC3/4 default pad driving strength */
 	regmap_write(map, ASPEED_G6_MAC34_DRIVING_CTRL, 0x0000000f);
-
-	regmap_read(map, ASPEED_MAC12_CLK_DLY, &reg_1g.w);
-	regmap_read(map, ASPEED_MAC12_CLK_DLY_100M, &reg_100.w);
-	regmap_read(map, ASPEED_MAC12_CLK_DLY_10M, &reg_10.w);
-	ret = of_property_read_u32_array(np, "mac0-clk-delay", (u32 *)&mac_cfg, 6);
-	if (!ret) {
-		reg_1g.b.tx_delay_1 = mac_cfg.tx_delay_1000;
-		reg_1g.b.rx_delay_1 = mac_cfg.rx_delay_1000;
-		reg_100.b.tx_delay_1 = mac_cfg.tx_delay_100;
-		reg_100.b.rx_delay_1 = mac_cfg.rx_delay_100;
-		reg_10.b.tx_delay_1 = mac_cfg.tx_delay_10;
-		reg_10.b.rx_delay_1 = mac_cfg.rx_delay_10;
-	}
-	ret = of_property_read_u32_array(np, "mac1-clk-delay", (u32 *)&mac_cfg, 6);
-	if (!ret) {
-		reg_1g.b.tx_delay_2 = mac_cfg.tx_delay_1000;
-		reg_1g.b.rx_delay_2 = mac_cfg.rx_delay_1000;
-		reg_100.b.tx_delay_2 = mac_cfg.tx_delay_100;
-		reg_100.b.rx_delay_2 = mac_cfg.rx_delay_100;
-		reg_10.b.tx_delay_2 = mac_cfg.tx_delay_10;
-		reg_10.b.rx_delay_2 = mac_cfg.rx_delay_10;
-	}
-	regmap_write(map, ASPEED_MAC12_CLK_DLY, reg_1g.w);
-	regmap_write(map, ASPEED_MAC12_CLK_DLY_100M, reg_100.w);
-	regmap_write(map, ASPEED_MAC12_CLK_DLY_10M, reg_10.w);
-
-	regmap_read(map, ASPEED_MAC34_CLK_DLY, &reg_1g.w);
-	regmap_read(map, ASPEED_MAC34_CLK_DLY_100M, &reg_100.w);
-	regmap_read(map, ASPEED_MAC34_CLK_DLY_10M, &reg_10.w);
-	ret = of_property_read_u32_array(np, "mac2-clk-delay", (u32 *)&mac_cfg, 6);
-	if (!ret) {
-		reg_1g.b.tx_delay_1 = mac_cfg.tx_delay_1000;
-		reg_1g.b.rx_delay_1 = mac_cfg.rx_delay_1000;
-		reg_100.b.tx_delay_1 = mac_cfg.tx_delay_100;
-		reg_100.b.rx_delay_1 = mac_cfg.rx_delay_100;
-		reg_10.b.tx_delay_1 = mac_cfg.tx_delay_10;
-		reg_10.b.rx_delay_1 = mac_cfg.rx_delay_10;
-	}
-	ret = of_property_read_u32_array(np, "mac3-clk-delay", (u32 *)&mac_cfg, 6);
-	if (!ret) {
-		reg_1g.b.tx_delay_2 = mac_cfg.tx_delay_1000;
-		reg_1g.b.rx_delay_2 = mac_cfg.rx_delay_1000;
-		reg_100.b.tx_delay_2 = mac_cfg.tx_delay_100;
-		reg_100.b.rx_delay_2 = mac_cfg.rx_delay_100;
-		reg_10.b.tx_delay_2 = mac_cfg.tx_delay_10;
-		reg_10.b.rx_delay_2 = mac_cfg.rx_delay_10;
-	}
-	regmap_write(map, ASPEED_MAC34_CLK_DLY, reg_1g.w);
-	regmap_write(map, ASPEED_MAC34_CLK_DLY_100M, reg_100.w);
-	regmap_write(map, ASPEED_MAC34_CLK_DLY_10M, reg_10.w);
 
 	/* A0/A1 need change to RSA clock = HPLL/3, A2/A3 have been set at Rom Code */
 	regmap_update_bits(map, ASPEED_G6_CLK_SELECTION1, BIT(19), BIT(19));
