@@ -605,9 +605,9 @@
 				interrupt-controller;
 				interrupt-map-mask = <0 0 0 7>;
 				interrupt-map = <0 0 0 1 &pcie0 0 0 0 0>,
-						<0 0 0 2 &pcie0 1 0 0 0>,
-						<0 0 0 3 &pcie0 2 0 0 0>,
-						<0 0 0 4 &pcie0 3 0 0 0>;
+						<0 0 0 2 &pcie0 0 0 0 1>,
+						<0 0 0 3 &pcie0 0 0 0 2>,
+						<0 0 0 4 &pcie0 0 0 0 3>;
 
 				pcie@8,0 {
 					compatible = "pciclass,0604";
