@@ -1574,6 +1574,11 @@ static int ftgmac100_mii_probe(struct net_device *netdev)
 			    phy_modes(phy_intf));
 	}
 
+	if (!priv->mii_bus) {
+		netdev_info(netdev, "%s: no MDIO bus found\n", netdev->name);
+		return -ENODEV;
+	}
+
 	phydev = phy_find_first(priv->mii_bus);
 	if (!phydev) {
 		netdev_info(netdev, "%s: no PHY found\n", netdev->name);
