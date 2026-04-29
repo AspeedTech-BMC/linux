@@ -8,8 +8,8 @@
 #include <linux/bitops.h>
 #include <linux/irq.h>
 #include <linux/irqchip.h>
-#include <linux/irqchip/chained_irq.h>
 #include <linux/irqdomain.h>
+#include <linux/interrupt.h>
 #include <linux/of_address.h>
 #include <linux/of_irq.h>
 #include <linux/io.h>
@@ -28,60 +28,62 @@ struct aspeed_intc_ic {
 	unsigned int		parent_irq_count;
 };
 
-static void aspeed_intc0_ic_irq_handler(struct irq_desc *desc)
+/*
+ * INTC0 uses a 1:1 mapping between each parent GIC SPI line and one leaf
+ * interrupt bit.  The leaf hwirq is derived directly from the parent GIC
+ * hwirq number, so no status register scan is needed (contrast with intc1
+ * which aggregates multiple sources behind a single parent line).
+ */
+static irqreturn_t aspeed_intc0_ic_irq_handler(int irq, void *dev_id)
 {
-	struct aspeed_intc_ic *intc_ic = irq_desc_get_handler_data(desc);
-	struct irq_chip *chip = irq_desc_get_chip(desc);
-	struct irq_data *irq_data = irq_desc_get_irq_data(desc);
+	struct aspeed_intc_ic *intc_ic = dev_id;
+	struct irq_data *irq_data = irq_get_irq_data(irq);
 	unsigned long hwirq;
 
 	if (!irq_data || !intc_ic) {
 		pr_err("Invalid irq_data or intc_ic\n");
-		return;
+		return IRQ_NONE;
 	}
 
 	if (irq_data->hwirq < INTC_IRQ_BASE + 32) {
 		pr_err("Invalid hwirq: %lu\n", irq_data->hwirq);
-		return;
+		return IRQ_NONE;
 	}
 	hwirq = irq_data->hwirq - INTC_IRQ_BASE - 32; /* 32 is SPI offset */
-
-	chained_irq_enter(chip, desc);
 
 	generic_handle_domain_irq(intc_ic->irq_domain, hwirq);
 
 	/*
-	 * TODO: This a WA to prevnet potential race conditions when
-	 * multiple interrupts are processed in multi-core environment.
+	 * Serialize the status-clear to prevent potential race conditions
+	 * when multiple interrupts are processed in a multi-core environment.
 	 */
 	raw_spin_lock(&intc_ic->intc_lock);
 	writel(BIT(hwirq), intc_ic->base + INTC_INT_STATUS_REG);
 	raw_spin_unlock(&intc_ic->intc_lock);
 
-	chained_irq_exit(chip, desc);
+	return IRQ_HANDLED;
 }
 
-static void aspeed_intc1_ic_irq_handler(struct irq_desc *desc)
+static irqreturn_t aspeed_intc1_ic_irq_handler(int irq, void *dev_id)
 {
-	struct aspeed_intc_ic *intc_ic = irq_desc_get_handler_data(desc);
-	struct irq_chip *chip = irq_desc_get_chip(desc);
+	struct aspeed_intc_ic *intc_ic = dev_id;
 	unsigned long bit, status;
 
 	if (!intc_ic) {
 		pr_err("Invalid intc_ic\n");
-		return;
+		return IRQ_NONE;
 	}
 
-	chained_irq_enter(chip, desc);
-
 	status = readl(intc_ic->base + INTC_INT_STATUS_REG);
+	if (!status)
+		return IRQ_NONE;
 
 	for_each_set_bit(bit, &status, INTC_IRQS_PER_WORD) {
 		generic_handle_domain_irq(intc_ic->irq_domain, bit);
 		writel(BIT(bit), intc_ic->base + INTC_INT_STATUS_REG);
 	}
 
-	chained_irq_exit(chip, desc);
+	return IRQ_HANDLED;
 }
 
 static void aspeed_intc_irq_mask(struct irq_data *data)
@@ -127,7 +129,7 @@ static int __init aspeed_intc_ic_of_init(struct device_node *node,
 					 struct device_node *parent)
 {
 	struct aspeed_intc_ic *intc_ic;
-	irq_flow_handler_t handler;
+	irq_handler_t handler;
 	int ret = 0;
 	int irq, irq_count = 0, i;
 
@@ -181,9 +183,15 @@ static int __init aspeed_intc_ic_of_init(struct device_node *node,
 			ret = -EINVAL;
 			goto err_iounmap;
 		} else {
-			intc_ic->parent_irqs[i] = irq;
-			intc_ic->parent_irq_count++;
-			irq_set_chained_handler_and_data(irq, handler, intc_ic);
+			ret = request_irq(irq, handler, IRQF_NO_THREAD,
+					  "aspeed-intc", intc_ic);
+			if (ret) {
+				pr_err("Failed to request IRQ %d\n", irq);
+				irq_dispose_mapping(irq);
+				goto err_iounmap;
+			}
+
+			intc_ic->parent_irqs[intc_ic->parent_irq_count++] = irq;
 		}
 	}
 
@@ -191,7 +199,7 @@ static int __init aspeed_intc_ic_of_init(struct device_node *node,
 
 err_iounmap:
 	for (i = 0; i < intc_ic->parent_irq_count; i++) {
-		irq_set_chained_handler_and_data(intc_ic->parent_irqs[i], NULL, NULL);
+		free_irq(intc_ic->parent_irqs[i], intc_ic);
 		irq_dispose_mapping(intc_ic->parent_irqs[i]);
 	}
 	if (intc_ic->irq_domain)
