@@ -2,6 +2,8 @@
 
 dtb-$(CONFIG_ARCH_ASPEED) += \
 	ast2700-evb.dtb \
+	ast2700-evb_ast1700-evb.dtb \
+	ast2700-evb_ast1700-evb-dual.dtb \
 	ast2700-raw.dtb \
 	ast2700-evb-s0.dtb \
 	ast2700-evb-s1.dtb \
