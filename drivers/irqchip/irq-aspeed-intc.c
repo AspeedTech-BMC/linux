@@ -24,6 +24,8 @@ struct aspeed_intc_ic {
 	void __iomem		*base;
 	raw_spinlock_t		intc_lock;
 	struct irq_domain	*irq_domain;
+	unsigned int		parent_irqs[INTC_IRQS_PER_WORD];
+	unsigned int		parent_irq_count;
 };
 
 static void aspeed_intc0_ic_irq_handler(struct irq_desc *desc)
@@ -125,8 +127,9 @@ static int __init aspeed_intc_ic_of_init(struct device_node *node,
 					 struct device_node *parent)
 {
 	struct aspeed_intc_ic *intc_ic;
+	irq_flow_handler_t handler;
 	int ret = 0;
-	int irq, irq_count, i;
+	int irq, irq_count = 0, i;
 
 	intc_ic = kzalloc(sizeof(*intc_ic), GFP_KERNEL);
 	if (!intc_ic)
@@ -141,8 +144,24 @@ static int __init aspeed_intc_ic_of_init(struct device_node *node,
 	writel(0xffffffff, intc_ic->base + INTC_INT_STATUS_REG);
 	writel(0x0, intc_ic->base + INTC_INT_ENABLE_REG);
 
-	intc_ic->irq_domain = irq_domain_create_linear(of_fwnode_handle(node), INTC_IRQS_PER_WORD,
-						    &aspeed_intc_ic_irq_domain_ops, intc_ic);
+	irq_count = of_irq_count(node);
+	if (irq_count == 0) {
+		pr_err("Failed to get irq count\n");
+		ret = -EINVAL;
+		goto err_iounmap;
+	}
+
+	if (irq_count > INTC_IRQS_PER_WORD) {
+		pr_err("Too many parent IRQs: %d\n", irq_count);
+		ret = -EINVAL;
+		goto err_iounmap;
+	}
+
+	intc_ic->irq_domain =
+		irq_domain_create_linear(of_fwnode_handle(node),
+					 INTC_IRQS_PER_WORD,
+					 &aspeed_intc_ic_irq_domain_ops,
+					 intc_ic);
 	if (!intc_ic->irq_domain) {
 		ret = -ENOMEM;
 		goto err_iounmap;
@@ -150,12 +169,10 @@ static int __init aspeed_intc_ic_of_init(struct device_node *node,
 
 	raw_spin_lock_init(&intc_ic->intc_lock);
 
-	irq_count = of_irq_count(node);
-	if (irq_count == 0) {
-		pr_err("Failed to get irq count\n");
-		ret = -EINVAL;
-		goto err_iounmap;
-	}
+	if (irq_count > 1)
+		handler = aspeed_intc0_ic_irq_handler;
+	else
+		handler = aspeed_intc1_ic_irq_handler;
 
 	for (i = 0; i < irq_count; i++) {
 		irq = irq_of_parse_and_map(node, i);
@@ -164,21 +181,21 @@ static int __init aspeed_intc_ic_of_init(struct device_node *node,
 			ret = -EINVAL;
 			goto err_iounmap;
 		} else {
-			if (irq_count > 1)
-				irq_set_chained_handler_and_data(irq, aspeed_intc0_ic_irq_handler, intc_ic);
-			else
-				irq_set_chained_handler_and_data(irq, aspeed_intc1_ic_irq_handler, intc_ic);
+			intc_ic->parent_irqs[i] = irq;
+			intc_ic->parent_irq_count++;
+			irq_set_chained_handler_and_data(irq, handler, intc_ic);
 		}
 	}
 
 	return 0;
 
 err_iounmap:
-	for (i = 0; i < irq_count; i++) {
-		irq = irq_of_parse_and_map(node, i);
-		if (irq)
-			irq_dispose_mapping(irq);
+	for (i = 0; i < intc_ic->parent_irq_count; i++) {
+		irq_set_chained_handler_and_data(intc_ic->parent_irqs[i], NULL, NULL);
+		irq_dispose_mapping(intc_ic->parent_irqs[i]);
 	}
+	if (intc_ic->irq_domain)
+		irq_domain_remove(intc_ic->irq_domain);
 	iounmap(intc_ic->base);
 err_free_ic:
 	kfree(intc_ic);
