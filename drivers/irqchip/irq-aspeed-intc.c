@@ -13,6 +13,7 @@
 #include <linux/of_address.h>
 #include <linux/of_irq.h>
 #include <linux/io.h>
+#include <linux/seq_file.h>
 #include <linux/spinlock.h>
 
 #define INTC_INT_ENABLE_REG	0x00
@@ -24,6 +25,7 @@ struct aspeed_intc_ic {
 	void __iomem		*base;
 	raw_spinlock_t		intc_lock;
 	struct irq_domain	*irq_domain;
+	struct device_node	*node;
 	unsigned int		parent_irqs[INTC_IRQS_PER_WORD];
 	unsigned int		parent_irq_count;
 };
@@ -106,10 +108,21 @@ static void aspeed_intc_irq_unmask(struct irq_data *data)
 	writel(unmask, intc_ic->base + INTC_INT_ENABLE_REG);
 }
 
+static void aspeed_intc_irq_print_chip(struct irq_data *data, struct seq_file *p)
+{
+	struct aspeed_intc_ic *intc_ic = irq_data_get_irq_chip_data(data);
+
+	if (intc_ic && intc_ic->node)
+		seq_printf(p, " %pOF", intc_ic->node);
+	else
+		seq_puts(p, " ASPEED INTC");
+}
+
 static struct irq_chip aspeed_intc_chip = {
 	.name			= "ASPEED INTC",
 	.irq_mask		= aspeed_intc_irq_mask,
 	.irq_unmask		= aspeed_intc_irq_unmask,
+	.irq_print_chip		= aspeed_intc_irq_print_chip,
 };
 
 static int aspeed_intc_ic_map_irq_domain(struct irq_domain *domain, unsigned int irq,
@@ -143,6 +156,7 @@ static int __init aspeed_intc_ic_of_init(struct device_node *node,
 		ret = -ENOMEM;
 		goto err_free_ic;
 	}
+	intc_ic->node = node;
 	writel(0xffffffff, intc_ic->base + INTC_INT_STATUS_REG);
 	writel(0x0, intc_ic->base + INTC_INT_ENABLE_REG);
 
