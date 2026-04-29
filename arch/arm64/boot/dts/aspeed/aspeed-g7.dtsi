@@ -551,9 +551,9 @@
 
 			interrupt-map-mask = <0 0 0 7>;
 			interrupt-map = <0 0 0 1 &pcie0 0 0 0 0>,
-					<0 0 0 2 &pcie0 1 0 0 0>,
-					<0 0 0 3 &pcie0 2 0 0 0>,
-					<0 0 0 4 &pcie0 3 0 0 0>;
+					<0 0 0 2 &pcie0 0 0 0 1>,
+					<0 0 0 3 &pcie0 0 0 0 2>,
+					<0 0 0 4 &pcie0 0 0 0 3>;
 
 			pcie@0,0 {
 				compatible = "pciclass,0604";
@@ -595,9 +595,9 @@
 
 			interrupt-map-mask = <0 0 0 7>;
 			interrupt-map = <0 0 0 1 &pcie1 0 0 0 0>,
-					<0 0 0 2 &pcie1 1 0 0 0>,
-					<0 0 0 3 &pcie1 2 0 0 0>,
-					<0 0 0 4 &pcie1 3 0 0 0>;
+					<0 0 0 2 &pcie1 0 0 0 1>,
+					<0 0 0 3 &pcie1 0 0 0 2>,
+					<0 0 0 4 &pcie1 0 0 0 3>;
 
 			pcie@0,0 {
 				compatible = "pciclass,0604";
@@ -1399,9 +1399,9 @@
 
 			interrupt-map-mask = <0 0 0 7>;
 			interrupt-map = <0 0 0 1 &pcie2 0 0 0 0>,
-					<0 0 0 2 &pcie2 1 0 0 0>,
-					<0 0 0 3 &pcie2 2 0 0 0>,
-					<0 0 0 4 &pcie2 3 0 0 0>;
+					<0 0 0 2 &pcie2 0 0 0 1>,
+					<0 0 0 3 &pcie2 0 0 0 2>,
+					<0 0 0 4 &pcie2 0 0 0 3>;
 
 			pcie@0,0 {
 				compatible = "pciclass,0604";
