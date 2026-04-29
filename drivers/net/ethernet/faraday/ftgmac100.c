@@ -992,11 +992,11 @@ static void ftgmac100_free_rings(struct ftgmac100 *priv)
 static int ftgmac100_alloc_rings(struct ftgmac100 *priv)
 {
 	/* Allocate skb arrays */
-	priv->rx_skbs = kcalloc(MAX_RX_QUEUE_ENTRIES, sizeof(void *),
+	priv->rx_skbs = kcalloc(MAX_RX_QUEUE_ENTRIES, sizeof(*priv->rx_skbs),
 				GFP_KERNEL);
 	if (!priv->rx_skbs)
 		return -ENOMEM;
-	priv->tx_skbs = kcalloc(MAX_TX_QUEUE_ENTRIES, sizeof(void *),
+	priv->tx_skbs = kcalloc(MAX_TX_QUEUE_ENTRIES, sizeof(*priv->tx_skbs),
 				GFP_KERNEL);
 	if (!priv->tx_skbs)
 		return -ENOMEM;
