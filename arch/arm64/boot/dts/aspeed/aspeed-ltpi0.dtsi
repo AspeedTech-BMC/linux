@@ -98,6 +98,7 @@
 			reg= <0x0 0x30c09000 0x0 0x40>;
 			clocks = <&ltpi0_syscon AST1700_CLK_AHB>;
 			resets = <&ltpi0_syscon AST1700_RESET_JTAG1>;
+			interrupts-extended = <&ltpi0_intc1_0 23>;
 			status = "disabled";
 		};
 
