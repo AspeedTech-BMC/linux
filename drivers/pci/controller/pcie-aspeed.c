@@ -1168,15 +1168,15 @@ static int aspeed_pcie_probe(struct platform_device *pdev)
 	pcie->perst_rc_out = devm_gpiod_get_optional(dev, "perst-rc-out",
 						     GPIOD_OUT_LOW | GPIOD_FLAGS_BIT_NONEXCLUSIVE);
 
+	ret = aspeed_pcie_parse_dt(pcie);
+	if (ret)
+		return ret;
+
 	ret = pcie->platform->setup(pdev);
 	if (ret)
 		return dev_err_probe(dev, ret, "failed to setup PCIe RC\n");
 
 	aspeed_pcie_map_ranges(pcie);
-
-	ret = aspeed_pcie_parse_dt(pcie);
-	if (ret)
-		return ret;
 
 	host->sysdata = pcie;
 
