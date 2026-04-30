@@ -94,7 +94,7 @@ static int _akcipher_recvmsg(struct socket *sock, struct msghdr *msg,
 	 * SG entries from the global TX SGL.
 	 */
 	used = ctx->used;
-	areq->tsgl_entries = af_alg_count_tsgl(sk, used, 0);
+	areq->tsgl_entries = af_alg_count_tsgl(sk, used);
 	if (!areq->tsgl_entries)
 		areq->tsgl_entries = 1;
 	areq->tsgl = sock_kmalloc(sk, sizeof(*areq->tsgl) * areq->tsgl_entries,
@@ -104,7 +104,7 @@ static int _akcipher_recvmsg(struct socket *sock, struct msghdr *msg,
 		goto free;
 	}
 	sg_init_table(areq->tsgl, areq->tsgl_entries);
-	af_alg_pull_tsgl(sk, used, areq->tsgl, 0);
+	af_alg_pull_tsgl(sk, used, areq->tsgl);
 
 	/* Initialize the crypto operation */
 	akcipher_request_set_tfm(&areq->cra_u.akcipher_req, tfm);
@@ -393,7 +393,7 @@ static void akcipher_sock_destruct(struct sock *sk)
 	struct alg_sock *ask = alg_sk(sk);
 	struct af_alg_ctx *ctx = ask->private;
 
-	af_alg_pull_tsgl(sk, ctx->used, NULL, 0);
+	af_alg_pull_tsgl(sk, ctx->used, NULL);
 	sock_kfree_s(sk, ctx, ctx->len);
 	af_alg_release_parent(sk);
 }
