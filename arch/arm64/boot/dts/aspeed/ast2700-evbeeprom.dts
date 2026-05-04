@@ -870,6 +870,13 @@
 	memory-region = <&pcie0_mmbi0_memory>;
 
 	noi = <7>;
+	aspeed,mmbi-interface = "mctp-netdev", /* ch0 */
+				"ioctl",       /* ch1 */
+				"ioctl",       /* ch2 */
+				"ioctl",       /* ch3 */
+				"ioctl",       /* ch4 */
+				"ioctl",       /* ch5 */
+				"ioctl";       /* ch6 */
 };
 #else
 &pcie0 {
@@ -938,6 +945,13 @@
 	memory-region = <&pcie1_mmbi4_memory>;
 
 	noi = <7>;
+	aspeed,mmbi-interface = "mctp-netdev", /* ch0 */
+				"ioctl",       /* ch1 */
+				"ioctl",       /* ch2 */
+				"ioctl",       /* ch3 */
+				"ioctl",       /* ch4 */
+				"ioctl",       /* ch5 */
+				"ioctl";       /* ch6 */
 };
 #else
 &pcie1 {
