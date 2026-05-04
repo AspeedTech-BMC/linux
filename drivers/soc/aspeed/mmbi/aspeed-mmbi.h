@@ -5,8 +5,8 @@
 #ifndef __ASPEED_MMBI_H__
 #define __ASPEED_MMBI_H__
 
+#include <linux/bitops.h>
 #include <linux/io.h>
-#include "linux/miscdevice.h"
 #include <linux/spinlock_types.h>
 #include <linux/types.h>
 #include <linux/workqueue.h>
@@ -117,6 +117,11 @@ enum mmbi_multi_protocol {
 	MMBI_PROTOCOL_MCTP = 0x04,
 };
 
+enum mmbi_app_interface {
+	MMBI_APP_INTF_IOCTL = 0,
+	MMBI_APP_INTF_MCTP_NETDEV,
+};
+
 struct mmbi_chan_priv;
 
 struct mmbi_buf_vpscb {
@@ -133,6 +138,7 @@ struct mmbi_chan_desc {
 	u32 h2b_l;				/* H2B Buffer Length */
 	u8 buffer_type;				/* Buffer Type defined by enum mmbi_buffer_type */
 	u8 index;				/* Channel Index filled by mmbi_instance_init */
+	enum mmbi_app_interface app_interface;	/* User interface for this channel */
 	struct mmbi_buf_vpscb buffer_desc;	/* buffer descriptor information */
 	struct mmbi_ins_desc *mmbi;		/* Back pointer to instance descriptor */
 	struct mmbi_chan_priv *priv;		/* Internal runtime state */
