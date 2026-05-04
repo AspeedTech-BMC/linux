@@ -8,13 +8,22 @@
 #include <linux/device.h>
 #include <linux/export.h>
 #include <linux/fs.h>
+#include <linux/if_arp.h>
 #include <linux/io.h>
+#include <linux/kconfig.h>
+#include <linux/mctp.h>
 #include <linux/miscdevice.h>
+#include <linux/netdevice.h>
 #include <linux/poll.h>
 #include <linux/printk.h>
+#include <linux/skbuff.h>
 #include <linux/spinlock.h>
 #include <linux/types.h>
 #include <linux/workqueue.h>
+
+#include <net/mctp.h>
+#include <net/mctpdevice.h>
+#include <net/pkt_sched.h>
 
 #include "aspeed-mmbi.h"
 #include "aspeed-mmbi-internal.h"
@@ -22,6 +31,31 @@
 #include "aspeed-mmbi-host.h"
 
 static DEFINE_IDA(mmbi_ida);
+
+#define MMBI_MCTP_MIN_MTU (sizeof(struct mctp_hdr) + 64)
+
+struct mmbi_mctp_netdev {
+	struct mmbi_chan_desc *chan;
+};
+
+static void mmbi_channel_start_polling(struct mmbi_chan_desc *chan_desc)
+{
+	if (chan_desc->priv->running)
+		return;
+
+	schedule_delayed_work(&chan_desc->priv->poll_work,
+			      msecs_to_jiffies(chan_desc->poll_interval_ms));
+	chan_desc->priv->running = true;
+}
+
+static void mmbi_channel_stop_polling(struct mmbi_chan_desc *chan_desc)
+{
+	if (!chan_desc->priv->running)
+		return;
+
+	cancel_delayed_work_sync(&chan_desc->priv->poll_work);
+	chan_desc->priv->running = false;
+}
 
 static void mmbi_update_rd_ptr(u8 __iomem *read_ptr, u32 read_size, u32 read_buf_size)
 {
@@ -259,12 +293,7 @@ static int mmbi_misc_open(struct inode *inode, struct file *file)
 
 	file->private_data = chan_desc;
 	mmbi_channel_state_update(chan_desc, chan_desc->mmbi->desc_virt);
-
-	if (!chan_desc->priv->running) {
-		schedule_delayed_work(&chan_desc->priv->poll_work,
-				      msecs_to_jiffies(chan_desc->poll_interval_ms));
-		chan_desc->priv->running = true;
-	}
+	mmbi_channel_start_polling(chan_desc);
 	return 0;
 }
 
@@ -272,10 +301,7 @@ static int mmbi_misc_release(struct inode *inode, struct file *file)
 {
 	struct mmbi_chan_desc *chan_desc = file->private_data;
 
-	if (chan_desc->priv->running) {
-		cancel_delayed_work_sync(&chan_desc->priv->poll_work);
-		chan_desc->priv->running = false;
-	}
+	mmbi_channel_stop_polling(chan_desc);
 	return 0;
 }
 
@@ -370,34 +396,312 @@ static const struct file_operations mmbi_fops = {
 	.release = mmbi_misc_release,
 };
 
-static int mmbi_instance_init_miscdev(struct mmbi_ins_desc *mmbi)
+static void mmbi_channel_refresh_locked(struct mmbi_chan_desc *chan_desc)
 {
-	int ret, i;
-	struct mmbi_chan_desc *chan_desc;
+	if (chan_desc->mmbi->role == MMBI_ROLE_BMC)
+		mmbi_channel_irq_bmc(chan_desc);
+	else
+		mmbi_channel_irq_host(chan_desc);
+}
+
+#if IS_ENABLED(CONFIG_MCTP)
+static void mmbi_mctp_update_queue_state(struct mmbi_chan_desc *chan_desc)
+{
+	struct net_device *ndev = chan_desc->priv->ndev;
+
+	if (!ndev || !netif_running(ndev))
+		return;
+
+	if (chan_desc->priv->tx_ready)
+		netif_wake_queue(ndev);
+	else
+		netif_stop_queue(ndev);
+}
+
+static void mmbi_mctp_handle_rx(struct mmbi_chan_desc *chan_desc)
+{
+	struct net_device *ndev = chan_desc->priv->ndev;
+
+	while (ndev && netif_running(ndev)) {
+		struct sk_buff *skb;
+		struct mctp_skb_cb *cb;
+		int ret;
+
+		if (!READ_ONCE(chan_desc->priv->rx_ready))
+			break;
+
+		skb = netdev_alloc_skb(ndev, ndev->max_mtu);
+		if (!skb) {
+			ndev->stats.rx_dropped++;
+			break;
+		}
+
+		spin_lock(&chan_desc->priv->rx_lock);
+		spin_lock(&chan_desc->priv->tx_lock);
+		ret = mmbi_read(chan_desc, skb->data, ndev->max_mtu);
+		mmbi_channel_refresh_locked(chan_desc);
+		spin_unlock(&chan_desc->priv->tx_lock);
+		spin_unlock(&chan_desc->priv->rx_lock);
+
+		if (ret <= 0) {
+			if (ret < 0)
+				ndev->stats.rx_dropped++;
+			kfree_skb(skb);
+			break;
+		}
+
+		skb_put(skb, ret);
+		skb->protocol = htons(ETH_P_MCTP);
+		skb_reset_network_header(skb);
+
+		cb = __mctp_cb(skb);
+		cb->halen = 0;
+
+		netif_rx(skb);
+		ndev->stats.rx_packets++;
+		ndev->stats.rx_bytes += ret;
+	}
+
+	mmbi_mctp_update_queue_state(chan_desc);
+}
+
+static netdev_tx_t mmbi_mctp_ndo_start_xmit(struct sk_buff *skb,
+					    struct net_device *ndev)
+{
+	struct mmbi_mctp_netdev *mmbi_ndev = netdev_priv(ndev);
+	struct mmbi_chan_desc *chan_desc = mmbi_ndev->chan;
+	int ret;
+
+	spin_lock(&chan_desc->priv->rx_lock);
+	spin_lock(&chan_desc->priv->tx_lock);
+	ret = mmbi_write(chan_desc, skb->data, skb->len, MMBI_PROTOCOL_MCTP);
+	mmbi_channel_refresh_locked(chan_desc);
+	spin_unlock(&chan_desc->priv->tx_lock);
+	spin_unlock(&chan_desc->priv->rx_lock);
+
+	if (ret == -EAGAIN) {
+		netif_stop_queue(ndev);
+		return NETDEV_TX_BUSY;
+	}
+
+	if (ret < 0) {
+		ndev->stats.tx_dropped++;
+		dev_kfree_skb_any(skb);
+		return NETDEV_TX_OK;
+	}
+
+	ndev->stats.tx_packets++;
+	ndev->stats.tx_bytes += ret;
+	dev_kfree_skb_any(skb);
+	mmbi_mctp_update_queue_state(chan_desc);
+
+	return NETDEV_TX_OK;
+}
+
+static int mmbi_mctp_ndo_open(struct net_device *ndev)
+{
+	struct mmbi_mctp_netdev *mmbi_ndev = netdev_priv(ndev);
+	struct mmbi_chan_desc *chan_desc = mmbi_ndev->chan;
+
+	spin_lock(&chan_desc->priv->rx_lock);
+	spin_lock(&chan_desc->priv->tx_lock);
+	mmbi_channel_refresh_locked(chan_desc);
+	spin_unlock(&chan_desc->priv->tx_lock);
+	spin_unlock(&chan_desc->priv->rx_lock);
+
+	mmbi_channel_start_polling(chan_desc);
+	mmbi_mctp_handle_rx(chan_desc);
+	mmbi_mctp_update_queue_state(chan_desc);
+	return 0;
+}
+
+static int mmbi_mctp_ndo_stop(struct net_device *ndev)
+{
+	struct mmbi_mctp_netdev *mmbi_ndev = netdev_priv(ndev);
+
+	netif_stop_queue(ndev);
+	mmbi_channel_stop_polling(mmbi_ndev->chan);
+	return 0;
+}
+
+static const struct net_device_ops mmbi_mctp_netdev_ops = {
+	.ndo_open = mmbi_mctp_ndo_open,
+	.ndo_stop = mmbi_mctp_ndo_stop,
+	.ndo_start_xmit = mmbi_mctp_ndo_start_xmit,
+};
+
+static void mmbi_mctp_net_setup(struct net_device *ndev)
+{
+	ndev->type = ARPHRD_MCTP;
+	ndev->flags = IFF_NOARP;
+	ndev->tx_queue_len = DEFAULT_TX_QUEUE_LEN;
+	ndev->hard_header_len = 0;
+	ndev->addr_len = 0;
+	ndev->netdev_ops = &mmbi_mctp_netdev_ops;
+}
+
+static int mmbi_channel_init_mctp_netdev(struct mmbi_chan_desc *chan_desc)
+{
+	struct mmbi_ins_desc *mmbi = chan_desc->mmbi;
+	struct mmbi_mctp_netdev *mmbi_ndev;
+	struct net_device *ndev;
+	char ifname[IFNAMSIZ];
+	u32 max_mtu;
+	int ret;
+
+	max_mtu = min(chan_desc->b2h_l, chan_desc->h2b_l);
+	if (max_mtu <= MMBI_PKT_HDR_SIZE ||
+	    max_mtu - MMBI_PKT_HDR_SIZE < MMBI_MCTP_MIN_MTU) {
+		dev_err(mmbi->dev,
+			"channel %u MMBI buffers are too small for MCTP netdev\n",
+			chan_desc->index);
+		return -EINVAL;
+	}
+
+	snprintf(ifname, sizeof(ifname), "mctpmm%dch%d",
+		 mmbi->ins_id, chan_desc->index);
+	ndev = alloc_netdev(sizeof(*mmbi_ndev), ifname, NET_NAME_UNKNOWN,
+			    mmbi_mctp_net_setup);
+	if (!ndev)
+		return -ENOMEM;
+
+	SET_NETDEV_DEV(ndev, mmbi->dev);
+	ndev->dev.of_node = mmbi->dev->of_node;
+	ndev->min_mtu = MMBI_MCTP_MIN_MTU;
+	ndev->max_mtu = max_mtu - MMBI_PKT_HDR_SIZE;
+	ndev->mtu = ndev->max_mtu;
+
+	mmbi_ndev = netdev_priv(ndev);
+	mmbi_ndev->chan = chan_desc;
+	chan_desc->priv->ndev = ndev;
+
+	ret = mctp_register_netdev(ndev, NULL, MCTP_PHYS_BINDING_MMBI);
+	if (ret) {
+		dev_err(mmbi->dev,
+			"failed to register MCTP netdev for channel %u: %d\n",
+			chan_desc->index, ret);
+		chan_desc->priv->ndev = NULL;
+		free_netdev(ndev);
+		return ret;
+	}
+
+	dev_info(mmbi->dev, "registered MCTP netdev %s for channel %u\n",
+		 ndev->name, chan_desc->index);
+
+	return 0;
+}
+
+static void mmbi_channel_remove_mctp_netdev(struct mmbi_chan_desc *chan_desc)
+{
+	struct net_device *ndev = chan_desc->priv->ndev;
+
+	if (!ndev)
+		return;
+
+	mctp_unregister_netdev(ndev);
+	free_netdev(ndev);
+	chan_desc->priv->ndev = NULL;
+}
+#else
+static void mmbi_mctp_handle_rx(struct mmbi_chan_desc *chan_desc)
+{
+}
+
+static int mmbi_channel_init_mctp_netdev(struct mmbi_chan_desc *chan_desc)
+{
+	struct mmbi_ins_desc *mmbi = chan_desc->mmbi;
+
+	dev_err(mmbi->dev, "MCTP support is not reachable for MMBI netdev mode\n");
+	return -EOPNOTSUPP;
+}
+
+static void mmbi_channel_remove_mctp_netdev(struct mmbi_chan_desc *chan_desc)
+{
+}
+#endif
+
+static int mmbi_channel_init_miscdev(struct mmbi_chan_desc *chan_desc)
+{
+	struct mmbi_ins_desc *mmbi = chan_desc->mmbi;
+	int ret;
+
+	chan_desc->priv->miscdev.name =
+		devm_kasprintf(mmbi->dev, GFP_KERNEL, "mmbi%d-ch%d",
+			       mmbi->ins_id, chan_desc->index);
+
+	if (!chan_desc->priv->miscdev.name) {
+		pr_err("%s: failed to allocate misc device name for chan %u\n",
+		       __func__, chan_desc->index);
+		return -ENOMEM;
+	}
+	chan_desc->priv->miscdev.minor = MISC_DYNAMIC_MINOR;
+	chan_desc->priv->miscdev.fops = &mmbi_fops;
+	chan_desc->priv->miscdev.parent = mmbi->dev;
+
+	ret = misc_register(&chan_desc->priv->miscdev);
+	if (ret)
+		pr_err("%s: failed to register misc device for chan %u\n",
+		       __func__, chan_desc->index);
+
+	return ret;
+}
+
+static void mmbi_channel_remove_miscdev(struct mmbi_chan_desc *chan_desc)
+{
+	misc_deregister(&chan_desc->priv->miscdev);
+}
+
+static int mmbi_channel_init_user_interface(struct mmbi_chan_desc *chan_desc)
+{
+	switch (chan_desc->app_interface) {
+	case MMBI_APP_INTF_MCTP_NETDEV:
+		return mmbi_channel_init_mctp_netdev(chan_desc);
+	case MMBI_APP_INTF_IOCTL:
+	default:
+		return mmbi_channel_init_miscdev(chan_desc);
+	}
+}
+
+static void mmbi_channel_remove_user_interface(struct mmbi_chan_desc *chan_desc)
+{
+	switch (chan_desc->app_interface) {
+	case MMBI_APP_INTF_MCTP_NETDEV:
+		mmbi_channel_remove_mctp_netdev(chan_desc);
+		break;
+	case MMBI_APP_INTF_IOCTL:
+	default:
+		mmbi_channel_remove_miscdev(chan_desc);
+		break;
+	}
+}
+
+static int mmbi_instance_init_user_interface(struct mmbi_ins_desc *mmbi)
+{
+	int i, ret;
 
 	for (i = 0; i < mmbi->num_of_channels; i++) {
-		chan_desc = &mmbi->chan_desc[i];
-
-		chan_desc->priv->miscdev.name =
-			devm_kasprintf(mmbi->dev, GFP_KERNEL, "mmbi%u-ch%u",
-				       chan_desc->mmbi->ins_id, chan_desc->index);
-
-		if (!chan_desc->priv || !chan_desc->priv->miscdev.name) {
-			pr_err("%s: failed to allocate misc device name for chan %u\n",
-				__func__, chan_desc->index);
-			return -ENOMEM;
-		}
-		chan_desc->priv->miscdev.minor = MISC_DYNAMIC_MINOR;
-		chan_desc->priv->miscdev.fops = &mmbi_fops;
-		chan_desc->priv->miscdev.parent = mmbi->dev;
-
-		ret = misc_register(&chan_desc->priv->miscdev);
-		if (ret) {
-			pr_err("%s: failed to register misc device for chan %u\n",
-				__func__, chan_desc->index);
-		}
+		ret = mmbi_channel_init_user_interface(&mmbi->chan_desc[i]);
+		if (ret)
+			goto err_remove_interfaces;
 	}
+
 	return 0;
+
+err_remove_interfaces:
+	while (i > 0) {
+		i--;
+		mmbi_channel_remove_user_interface(&mmbi->chan_desc[i]);
+	}
+
+	return ret;
+}
+
+static void mmbi_instance_remove_user_interface(struct mmbi_ins_desc *mmbi)
+{
+	int i;
+
+	for (i = 0; i < mmbi->num_of_channels; i++)
+		mmbi_channel_remove_user_interface(&mmbi->chan_desc[i]);
 }
 
 static void mmbi_channel_poll_handler(struct work_struct *work)
@@ -422,14 +726,14 @@ static void mmbi_channel_poll_handler(struct work_struct *work)
 
 		spin_lock(&chan_desc->priv->rx_lock);
 		spin_lock(&chan_desc->priv->tx_lock);
-		if (mmbi->role == MMBI_ROLE_BMC)
-			mmbi_channel_irq_bmc(chan_desc);
-		else
-			mmbi_channel_irq_host(chan_desc);
-
+		mmbi_channel_refresh_locked(chan_desc);
 		spin_unlock(&chan_desc->priv->tx_lock);
 		spin_unlock(&chan_desc->priv->rx_lock);
+
 	}
+
+	if (chan_desc->app_interface == MMBI_APP_INTF_MCTP_NETDEV)
+		mmbi_mctp_handle_rx(chan_desc);
 
 	/* Reschedule the work */
 	schedule_delayed_work(&chan_desc->priv->poll_work, msecs_to_jiffies(chan_desc->poll_interval_ms));
@@ -454,6 +758,7 @@ static int mmbi_instance_init_channel_priv(struct mmbi_ins_desc *mmbi)
 		chan_desc->priv->running = false;
 		if (chan_desc->poll_interval_ms == 0)
 			chan_desc->poll_interval_ms = MMBI_POLL_INTERVAL_MS;
+		chan_desc->priv->ndev = NULL;
 	}
 	return 0;
 }
@@ -559,11 +864,11 @@ int mmbi_instance_init(struct mmbi_ins_desc *mmbi)
 	if (rc)
 		goto ida_free;
 
-	rc = mmbi_instance_init_miscdev(mmbi);
+	rc = mmbi_instance_init_channel_priv(mmbi);
 	if (rc)
 		goto ida_free;
 
-	rc = mmbi_instance_init_channel_priv(mmbi);
+	rc = mmbi_instance_init_user_interface(mmbi);
 	if (rc)
 		goto ida_free;
 
@@ -586,8 +891,12 @@ void mmbi_instance_remove(struct mmbi_ins_desc *mmbi)
 	if (!mmbi)
 		return;
 
+	for (i = 0; i < mmbi->num_of_channels; i++)
+		mmbi_channel_stop_polling(&mmbi->chan_desc[i]);
+
+	mmbi_instance_remove_user_interface(mmbi);
+
 	for (i = 0; i < mmbi->num_of_channels; i++) {
-		misc_deregister(&mmbi->chan_desc[i].priv->miscdev);
 		struct_desc =
 			mmbi->desc_virt +
 			(mmbi->role == MMBI_ROLE_BMC ?
