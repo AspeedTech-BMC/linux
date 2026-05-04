@@ -2921,17 +2921,14 @@ static int ast2600_i2c_probe(struct platform_device *pdev)
 		i2c_bus->ac_timing_config = ast2700_i2c_ac_timing_config;
 		i2c_bus->irq_err_to_errno = ast2700_i2c_irq_err_to_errno;
 		i2c_bus->irq_clear = ast2700_i2c_irq_clear;
-
-		/* AST2700: default DMA, allow override */
-		i2c_bus->mode = DMA_MODE;
 	} else {
 		i2c_bus->ac_timing_config = ast2600_i2c_ac_timing_config;
 		i2c_bus->irq_err_to_errno = ast2600_i2c_irq_err_to_errno;
 		i2c_bus->irq_clear = ast2600_i2c_irq_clear;
-
-		/* AST2600: default BUFF, allow override */
-		i2c_bus->mode = BUFF_MODE;
 	}
+
+	/* Default BUFF mode, allow override */
+	i2c_bus->mode = BUFF_MODE;
 
 	/* override the transfer mode */
 	if (!device_property_read_string(dev, "aspeed,transfer-mode", &xfer_mode)) {
