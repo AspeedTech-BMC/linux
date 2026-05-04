@@ -22,6 +22,7 @@
 #include <linux/dma-mapping.h>
 #include <linux/miscdevice.h>
 #include <linux/poll.h>
+#include <linux/string.h>
 
 #include <linux/if_arp.h>
 #include <linux/skbuff.h>
@@ -53,6 +54,8 @@ struct aspeed_platform {
 	int (*mmbi_init)(struct platform_device *pdev);
 };
 
+#define ASPEED_MMBI_APP_INTF_PROP "aspeed,mmbi-interface"
+
 struct aspeed_pcie_mmbi {
 	struct device *dev;
 	struct regmap *device;
@@ -76,6 +79,80 @@ struct aspeed_pcie_mmbi {
 
 	struct mmbi_ins_desc mmbi_desc;
 };
+
+static const char *
+aspeed_pcie_mmbi_app_interface_name(enum mmbi_app_interface app_interface)
+{
+	switch (app_interface) {
+	case MMBI_APP_INTF_MCTP_NETDEV:
+		return "mctp-netdev";
+	case MMBI_APP_INTF_IOCTL:
+	default:
+		return "ioctl";
+	}
+}
+
+static int aspeed_pcie_mmbi_parse_app_interface_string(struct device *dev,
+						       const char *interface,
+						       enum mmbi_app_interface *app_interface)
+{
+	if (!strcmp(interface, "ioctl")) {
+		*app_interface = MMBI_APP_INTF_IOCTL;
+		return 0;
+	}
+
+	if (!strcmp(interface, "mctp-netdev")) {
+		*app_interface = MMBI_APP_INTF_MCTP_NETDEV;
+		return 0;
+	}
+
+	dev_err(dev, "invalid %s value '%s'\n",
+		ASPEED_MMBI_APP_INTF_PROP, interface);
+	return -EINVAL;
+}
+
+static int aspeed_pcie_mmbi_parse_app_interface(struct device *dev,
+						struct mmbi_ins_desc *mmbi_desc)
+{
+	int count, i, ret;
+
+	for (i = 0; i < mmbi_desc->num_of_channels; i++)
+		mmbi_desc->chan_desc[i].app_interface = MMBI_APP_INTF_IOCTL;
+
+	if (!of_find_property(dev->of_node, ASPEED_MMBI_APP_INTF_PROP, NULL))
+		return 0;
+
+	count = of_property_count_strings(dev->of_node, ASPEED_MMBI_APP_INTF_PROP);
+	if (count < 0) {
+		dev_err(dev, "invalid %s property\n", ASPEED_MMBI_APP_INTF_PROP);
+		return count;
+	}
+
+	if (count != 1 && count != mmbi_desc->num_of_channels) {
+		dev_err(dev, "%s must contain either 1 or %u strings\n",
+			ASPEED_MMBI_APP_INTF_PROP,
+			(u32)mmbi_desc->num_of_channels);
+		return -EINVAL;
+	}
+
+	for (i = 0; i < mmbi_desc->num_of_channels; i++) {
+		const char *interface;
+		int index = count == 1 ? 0 : i;
+
+		ret = of_property_read_string_index(dev->of_node,
+						    ASPEED_MMBI_APP_INTF_PROP,
+						    index, &interface);
+		if (ret)
+			return ret;
+
+		ret = aspeed_pcie_mmbi_parse_app_interface_string(dev, interface,
+								  &mmbi_desc->chan_desc[i].app_interface);
+		if (ret)
+			return ret;
+	}
+
+	return 0;
+}
 
 static irqreturn_t aspeed_pcie_mmbi_isr(int irq, void *dev_id)
 {
@@ -186,9 +263,10 @@ static int aspeed_pcie_mmbi_init(struct aspeed_pcie_mmbi *mmbi)
 		mmbi_desc->chan_desc[i].buffer_type = MMBI_BUFFER_TYPE_VPSCB;
 	}
 	ret = mmbi_instance_init(mmbi_desc);
-	dev_info(dev, "MMBI instance init ret=%d\n", ret);
+	if (ret)
+		dev_err(dev, "MMBI instance init failed: %d\n", ret);
 
-	return 0;
+	return ret;
 }
 
 /*
@@ -321,7 +399,7 @@ static int aspeed_pcie_mmbi_probe(struct platform_device *pdev)
 	struct resource res;
 	struct device_node *np;
 	const void *md;
-	int ret = 0;
+	int i, ret = 0;
 
 	md = of_device_get_match_data(dev);
 	if (!md)
@@ -377,6 +455,11 @@ static int aspeed_pcie_mmbi_probe(struct platform_device *pdev)
 		dev_err(dev, "ret %d, MMBI NOI %d\n", ret, mmbi->num_of_channels);
 		goto out_irq;
 	}
+	mmbi_desc->num_of_channels = mmbi->num_of_channels;
+
+	ret = aspeed_pcie_mmbi_parse_app_interface(dev, mmbi_desc);
+	if (ret)
+		goto out_irq;
 
 	/* B2H Interrupt */
 	mmbi->host_int_en = true;
@@ -392,6 +475,9 @@ static int aspeed_pcie_mmbi_probe(struct platform_device *pdev)
 		goto out_irq;
 	}
 
+	for (i = 0; i < mmbi_desc->num_of_channels; i++)
+		dev_info(dev, "channel %d application interface: %s\n",
+			 i, aspeed_pcie_mmbi_app_interface_name(mmbi_desc->chan_desc[i].app_interface));
 	dev_info(dev, "ASPEED PCIe MMBI Dev %d: driver successfully loaded.\n", mmbi->id);
 
 	return 0;
@@ -409,6 +495,7 @@ static void aspeed_pcie_mmbi_remove(struct platform_device *pdev)
 {
 	struct aspeed_pcie_mmbi *mmbi = platform_get_drvdata(pdev);
 
+	mmbi_instance_remove(&mmbi->mmbi_desc);
 	devm_free_irq(&pdev->dev, mmbi->irq, mmbi);
 	iounmap(mmbi->mem_virt);
 	devm_kfree(&pdev->dev, mmbi);
