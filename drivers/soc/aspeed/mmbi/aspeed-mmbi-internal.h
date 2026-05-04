@@ -5,7 +5,11 @@
 #ifndef __ASPEED_MMBI_INTERNAL_H__
 #define __ASPEED_MMBI_INTERNAL_H__
 
+#include <linux/miscdevice.h>
+
 #include "aspeed-mmbi.h"
+
+struct net_device;
 
 struct mmbi_chan_priv {
 	enum mmbi_state state;			/* Current MMBI state of this channel */
@@ -22,6 +26,7 @@ struct mmbi_chan_priv {
 	struct delayed_work poll_work;		/* Work struct for polling check status */
 	bool running;
 	struct mmbi_chan_desc *chan;		/* Back pointer used by misc open */
+	struct net_device *ndev;		/* MCTP netdev when the channel selects it */
 };
 
 #endif /* __ASPEED_MMBI_INTERNAL_H__ */
