@@ -32,6 +32,7 @@
 				snps,wr_osr_lmt = <0xf>;
 				snps,rd_osr_lmt = <0xf>;
 				snps,kbbe;
+				snps,fb;
 				snps,blen = <0 0 0 0 0 8 4>;
 			};
 
