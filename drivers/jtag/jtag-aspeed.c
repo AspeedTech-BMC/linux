@@ -490,6 +490,46 @@ static char aspeed_jtag_tck_cycle(struct aspeed_jtag *aspeed_jtag, u8 tms,
 	return tdo;
 }
 
+static enum jtag_tapstate aspeed_jtag_next_tapstate(enum jtag_tapstate state, u8 tms)
+{
+	switch (state) {
+	case JTAG_STATE_TLRESET:
+		return tms ? JTAG_STATE_TLRESET : JTAG_STATE_IDLE;
+	case JTAG_STATE_IDLE:
+		return tms ? JTAG_STATE_SELECTDR : JTAG_STATE_IDLE;
+	case JTAG_STATE_SELECTDR:
+		return tms ? JTAG_STATE_SELECTIR : JTAG_STATE_CAPTUREDR;
+	case JTAG_STATE_CAPTUREDR:
+		return tms ? JTAG_STATE_EXIT1DR : JTAG_STATE_SHIFTDR;
+	case JTAG_STATE_SHIFTDR:
+		return tms ? JTAG_STATE_EXIT1DR : JTAG_STATE_SHIFTDR;
+	case JTAG_STATE_EXIT1DR:
+		return tms ? JTAG_STATE_UPDATEDR : JTAG_STATE_PAUSEDR;
+	case JTAG_STATE_PAUSEDR:
+		return tms ? JTAG_STATE_EXIT2DR : JTAG_STATE_PAUSEDR;
+	case JTAG_STATE_EXIT2DR:
+		return tms ? JTAG_STATE_UPDATEDR : JTAG_STATE_SHIFTDR;
+	case JTAG_STATE_UPDATEDR:
+		return tms ? JTAG_STATE_SELECTDR : JTAG_STATE_IDLE;
+	case JTAG_STATE_SELECTIR:
+		return tms ? JTAG_STATE_TLRESET : JTAG_STATE_CAPTUREIR;
+	case JTAG_STATE_CAPTUREIR:
+		return tms ? JTAG_STATE_EXIT1IR : JTAG_STATE_SHIFTIR;
+	case JTAG_STATE_SHIFTIR:
+		return tms ? JTAG_STATE_EXIT1IR : JTAG_STATE_SHIFTIR;
+	case JTAG_STATE_EXIT1IR:
+		return tms ? JTAG_STATE_UPDATEIR : JTAG_STATE_PAUSEIR;
+	case JTAG_STATE_PAUSEIR:
+		return tms ? JTAG_STATE_EXIT2IR : JTAG_STATE_PAUSEIR;
+	case JTAG_STATE_EXIT2IR:
+		return tms ? JTAG_STATE_UPDATEIR : JTAG_STATE_SHIFTIR;
+	case JTAG_STATE_UPDATEIR:
+		return tms ? JTAG_STATE_SELECTDR : JTAG_STATE_IDLE;
+	default:
+		return state;
+	}
+}
+
 static int aspeed_jtag_bitbang(struct jtag *jtag,
 			       struct bitbang_packet *bitbang,
 			       struct tck_bitbang *bitbang_data)
@@ -501,6 +541,9 @@ static int aspeed_jtag_bitbang(struct jtag *jtag,
 		bitbang_data[i].tdo =
 			aspeed_jtag_tck_cycle(aspeed_jtag, bitbang_data[i].tms,
 					      bitbang_data[i].tdi);
+		aspeed_jtag->current_state =
+			aspeed_jtag_next_tapstate(aspeed_jtag->current_state,
+						   bitbang_data[i].tms);
 	}
 	return 0;
 }
