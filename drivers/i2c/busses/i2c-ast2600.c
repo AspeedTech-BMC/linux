@@ -2947,11 +2947,17 @@ static int ast2600_i2c_probe(struct platform_device *pdev)
 	i2c_bus->multi_master = device_property_read_bool(dev, "multi-master");
 
 	if (i2c_bus->version == AST2700) {
+		/* select the transfer method*/
+		u32 xfer_type = readl(i2c_bus->reg_base + I2CC_VERSION_CTRL);
+
 		/* AST2700 would not allow byte mode */
 		if (i2c_bus->mode == BYTE_MODE)
 			i2c_bus->mode = DMA_MODE;
 
-		if (i2c_bus->mode == BUFF_MODE) {
+		if (i2c_bus->mode == DMA_MODE) {
+			/* ast2700 cfg enable dma */
+			xfer_type |= FUNC_CFG_DMA_EN;
+		} else if (i2c_bus->mode == BUFF_MODE) {
 			i2c_bus->buf_base = devm_platform_get_and_ioremap_resource(pdev, 1, &res);
 			if (IS_ERR(i2c_bus->buf_base)) {
 				i2c_bus->mode = DMA_MODE;
@@ -2959,10 +2965,10 @@ static int ast2600_i2c_probe(struct platform_device *pdev)
 				i2c_bus->buf_size = resource_size(res) / 4;
 
 				/* ast2700 cfg disable dma */
-				writel(readl(i2c_bus->reg_base + I2CC_VERSION_CTRL) & ~FUNC_CFG_DMA_EN,
-					   i2c_bus->reg_base + I2CC_VERSION_CTRL);
+				xfer_type &= ~FUNC_CFG_DMA_EN;
 			}
 		}
+		writel(xfer_type, i2c_bus->reg_base + I2CC_VERSION_CTRL);
 	} else {
 		if (i2c_bus->mode == BUFF_MODE) {
 			i2c_bus->buf_base = devm_platform_get_and_ioremap_resource(pdev, 1, &res);
