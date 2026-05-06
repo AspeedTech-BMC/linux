@@ -758,7 +758,7 @@
 
 &espi0_mmbi {
 	status = "okay";
-	host-map-addr = <0x0 0xa8000000>;
+	host-map-addr = <0x0 0xEC000000>;
 	memory-region = <&espi0_mmbi_memory>;
 	instances = <1>;
 
@@ -804,7 +804,7 @@
 
 &espi1_mmbi {
 	status = "okay";
-	host-map-addr = <0x0 0xa8000000>;
+	host-map-addr = <0x0 0xEC000000>;
 	memory-region = <&espi1_mmbi_memory>;
 	instances = <1>;
 
