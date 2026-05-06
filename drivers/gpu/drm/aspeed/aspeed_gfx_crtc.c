@@ -57,7 +57,7 @@ static void aspeed_gfx_set_g7_clock(struct aspeed_gfx *priv)
 	regmap_write(priv->scu, 0x340, 0x00190002);
 
 	/* apply 800 x 600 @ 60 on ast2700 DAC */
-	regmap_update_bits(priv->scu1, 0xd0, BIT(10), BIT(10));
+	/* Move the scu1.d0 to the aspeed_gfx_enable_controller first check */
 	regmap_write(priv->scu1, 0x320, 0x1048000F);
 }
 
@@ -102,6 +102,8 @@ static void aspeed_gfx_enable_controller(struct aspeed_gfx *priv)
 		regmap_update_bits(priv->scu, priv->dac_reg, priv->soc_crt_bit, priv->soc_crt_bit);
 		if (priv->dp_support)
 			regmap_update_bits(priv->scu, priv->dac_reg, priv->soc_dp_bit, priv->soc_dp_bit);
+		if ((priv->flags & CLK_MASK) == CLK_G7)
+			regmap_update_bits(priv->scu1, 0xd0, BIT(10), BIT(10));
 	}
 
     /* remove the cursor and osd usage */
