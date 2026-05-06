@@ -130,6 +130,11 @@ void dwc3_set_prtcap(struct dwc3 *dwc, u32 mode, bool ignore_susphy)
 	unsigned int hw_mode;
 	u32 reg;
 
+	/* Add delay for AST27X0 DRD controller peripheral mode */
+	if (mode == DWC3_GCTL_PRTCAP_DEVICE &&
+	    of_device_is_compatible(dwc->dev->of_node, "aspeed,ast2700-xhci"))
+		mdelay(1);
+
 	reg = dwc3_readl(dwc->regs, DWC3_GCTL);
 
 	 /*
