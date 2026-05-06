@@ -179,6 +179,12 @@ static int aspeed_hace_probe(struct platform_device *pdev)
 		return rc;
 	}
 
+	rc = aspeed_hace_reset(hace_dev);
+	if (rc) {
+		dev_err(&pdev->dev, "Hace reset failed\n");
+		return rc;
+	}
+
 	rc = dma_set_mask_and_coherent(&pdev->dev, DMA_BIT_MASK(64));
 	if (rc) {
 		dev_warn(&pdev->dev, "No suitable DMA available\n");
