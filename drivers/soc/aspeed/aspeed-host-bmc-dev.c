@@ -24,6 +24,9 @@
 #include <linux/mctp.h>
 #include <net/mctp.h>
 #include <net/pkt_sched.h>
+#if IS_ENABLED(CONFIG_ASPEED_MMBI)
+#include "mmbi/aspeed-mmbi.h"
+#endif
 
 #define PCI_BMC_HOST2BMC_Q1		0x30000
 #define PCI_BMC_HOST2BMC_Q2		0x30010
@@ -61,10 +64,6 @@ static DEFINE_IDA(bmc_device_ida);
 #define ASPEED_QUEUE_NUM	2
 #define MAX_MSI_NUM		8
 
-enum aspeed_platform_id {
-	ASPEED,
-};
-
 enum queue_index {
 	QUEUE1 = 0,
 	QUEUE2,
@@ -94,6 +93,29 @@ struct aspeed_queue_message {
 	struct aspeed_pci_bmc_dev *pci_bmc_device;
 };
 
+#if IS_ENABLED(CONFIG_ASPEED_MMBI)
+struct aspeed_host_pcie_mmbi_ins {
+	struct mmbi_ins_desc mmbi_desc;
+	int irq;
+	int msi_index;
+	int instance_index;
+	int bar_index;
+	const char *dev_name;
+	bool valid;
+};
+
+struct aspeed_host_pcie_mmbi {
+	struct device *dev;
+	struct aspeed_host_pcie_mmbi_ins instances[PCI_STD_NUM_BARS];
+	int msi_nums;
+};
+
+static const enum mmbi_app_interface
+aspeed_host_pcie_mmbi_app_interfaces[MMBI_MAX_CHANNELS] = {
+	[0] = MMBI_APP_INTF_MCTP_NETDEV,
+};
+#endif
+
 struct aspeed_pci_bmc_dev {
 	struct device *dev;
 	struct miscdevice miscdev;
@@ -121,6 +143,9 @@ struct aspeed_pci_bmc_dev {
 	 * The index of array is using to enum msi_index
 	 */
 	int *msi_idx_table;
+#if IS_ENABLED(CONFIG_ASPEED_MMBI)
+	struct aspeed_host_pcie_mmbi mmbi;
+#endif
 };
 
 #define PCIE_DEVICE_SIO_ADDR	(0x2E * 4)
@@ -516,6 +541,107 @@ static struct aspeed_platform aspeed_pcie_host[] = {
 	{ 0 }
 };
 
+#if IS_ENABLED(CONFIG_ASPEED_MMBI)
+static const char *
+aspeed_host_pcie_mmbi_app_interface_name(enum mmbi_app_interface app_interface)
+{
+	switch (app_interface) {
+	case MMBI_APP_INTF_MCTP_NETDEV:
+		return "mctp-netdev";
+	case MMBI_APP_INTF_IOCTL:
+	default:
+		return "ioctl";
+	}
+}
+
+static void
+aspeed_host_pcie_mmbi_init_app_interfaces(struct mmbi_ins_desc *mmbi_desc)
+{
+	int i;
+
+	for (i = 0; i < MMBI_MAX_CHANNELS; i++)
+		mmbi_desc->chan_desc[i].app_interface =
+			aspeed_host_pcie_mmbi_app_interfaces[i];
+}
+
+static void aspeed_host_pcie_mmbi_log_app_interfaces(struct device *dev,
+						     struct mmbi_ins_desc *mmbi_desc,
+						     int bar)
+{
+	struct mmbi_chan_desc *chan_desc;
+	const char *interface;
+	int i;
+
+	for (i = 0; i < mmbi_desc->num_of_channels; i++) {
+		chan_desc = &mmbi_desc->chan_desc[i];
+		interface = aspeed_host_pcie_mmbi_app_interface_name(chan_desc->app_interface);
+		dev_info(dev, "BAR %d channel %d application interface: %s\n",
+			 bar, i, interface);
+	}
+}
+
+static int aspeed_pci_host_mmbi_setup(struct pci_dev *pdev)
+{
+	struct aspeed_pci_bmc_dev *pci_bmc_dev = pci_get_drvdata(pdev);
+	struct aspeed_host_pcie_mmbi *mmbi = &pci_bmc_dev->mmbi;
+	struct aspeed_host_pcie_mmbi_ins *ins;
+	struct device *dev = &pdev->dev;
+	struct mmbi_ins_desc *mmbi_desc;
+	int i, ret, instance_id;
+	int last_ret = -ENODEV;
+	resource_size_t start, size;
+
+	instance_id = 0;
+	for (i = 2; i < PCI_STD_NUM_BARS; i++) {
+		ins = &mmbi->instances[i];
+		mmbi_desc = &ins->mmbi_desc;
+		start = pci_resource_start(pdev, i);
+		size = pci_resource_len(pdev, i);
+
+		if (!start || !size) {
+			dev_err(dev,
+				"Invalid BAR %d with start 0x%llx and size 0x%llx\n",
+				i, (unsigned long long)start,
+				(unsigned long long)size);
+			continue;
+		}
+
+		mmbi_desc->desc_virt = pci_ioremap_bar(pdev, i);
+		if (!mmbi_desc->desc_virt) {
+			dev_err(dev, "Failed to ioremap BAR %d\n", i);
+			continue;
+		}
+		mmbi_desc->dev = dev;
+		mmbi_desc->role = MMBI_ROLE_HOST;
+
+		aspeed_host_pcie_mmbi_init_app_interfaces(mmbi_desc);
+		ret = mmbi_instance_init(mmbi_desc);
+		if (ret) {
+			dev_info(dev,
+				 "Failed to initialize MMBI at bar %d, error %d\n",
+				 i, ret);
+			pci_iounmap(pdev, mmbi_desc->desc_virt);
+			last_ret = ret;
+		} else {
+			ins->instance_index = instance_id++;
+			ins->bar_index = i;
+			ins->valid = true;
+			ins->dev_name = devm_kasprintf(dev, GFP_KERNEL,
+						       "mmbi_host_ins%d",
+						       ins->instance_index);
+			aspeed_host_pcie_mmbi_log_app_interfaces(dev, mmbi_desc, i);
+
+			ins->msi_index = mmbi_desc->host_int_location;
+		}
+	}
+
+	if (!instance_id)
+		return last_ret;
+
+	return 0;
+}
+#endif
+
 static int aspeed_pci_host_bmc_device_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 {
 	struct aspeed_pci_bmc_dev *pci_bmc_dev;
@@ -556,23 +682,44 @@ static int aspeed_pci_host_bmc_device_probe(struct pci_dev *pdev, const struct p
 		return rc;
 	}
 
+#if IS_ENABLED(CONFIG_ASPEED_MMBI)
+	pci_bmc_dev->mmbi.dev = &pdev->dev;
+	rc = aspeed_pci_host_mmbi_setup(pdev);
+	if (rc) {
+		dev_err(&pdev->dev, "Failed to setup MMBI instances\n");
+		return rc;
+	}
+#endif
+
 	return 0;
 }
 
 static void aspeed_pci_host_bmc_device_remove(struct pci_dev *pdev)
 {
 	struct aspeed_pci_bmc_dev *pci_bmc_dev = pci_get_drvdata(pdev);
+#if IS_ENABLED(CONFIG_ASPEED_MMBI)
+	struct aspeed_host_pcie_mmbi *mmbi = &pci_bmc_dev->mmbi;
+	struct aspeed_host_pcie_mmbi_ins *ins;
+	int i;
 
-	if (pci_bmc_dev->driver_data == ASPEED) {
-		aspeed_pci_host_bmc_device_release_queue(pdev);
-		aspeed_pci_host_bmc_device_release_memory_mapping(pdev);
-		aspeed_pci_host_bmc_device_release_vuart(pdev);
-
-		devm_free_irq(&pdev->dev, pci_irq_vector(pdev, pci_bmc_dev->msi_idx_table[BMC_MSI]),
-			      pci_bmc_dev);
-		devm_free_irq(&pdev->dev, pci_irq_vector(pdev, pci_bmc_dev->msi_idx_table[MBX_MSI]),
-			      pci_bmc_dev);
+	for (i = 2; i < PCI_STD_NUM_BARS; i++) {
+		ins = &mmbi->instances[i];
+		if (ins->valid) {
+			mmbi_instance_remove(&ins->mmbi_desc);
+			pci_iounmap(pdev, ins->mmbi_desc.desc_virt);
+		}
 	}
+#endif
+	aspeed_pci_host_bmc_device_release_queue(pdev);
+	aspeed_pci_host_bmc_device_release_memory_mapping(pdev);
+	aspeed_pci_host_bmc_device_release_vuart(pdev);
+
+	devm_free_irq(&pdev->dev,
+		      pci_irq_vector(pdev, pci_bmc_dev->msi_idx_table[BMC_MSI]),
+		      pci_bmc_dev);
+	devm_free_irq(&pdev->dev,
+		      pci_irq_vector(pdev, pci_bmc_dev->msi_idx_table[MBX_MSI]),
+		      pci_bmc_dev);
 
 	ida_simple_remove(&bmc_device_ida, pci_bmc_dev->id);
 
@@ -589,9 +736,8 @@ static void aspeed_pci_host_bmc_device_remove(struct pci_dev *pdev)
  *
  */
 static struct pci_device_id aspeed_host_bmc_dev_pci_ids[] = {
-	/* ASPEED BMC Device */
-	{ PCI_DEVICE(0x1A03, 0x2402), .class = 0xFF0000, .class_mask = 0xFFFF00,
-	  .driver_data = ASPEED },
+	{ PCI_DEVICE(0x1A03, 0x2402), .class = 0xFF0000, .class_mask = 0xFFFF00 },
+	{ PCI_DEVICE(0x1A03, 0x2402), .class = 0x0C0C00, .class_mask = 0xFFFF00 },
 	{
 		0,
 	}
