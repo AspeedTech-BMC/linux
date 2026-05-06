@@ -1661,7 +1661,7 @@
 
 			espi1_mmbi: espi1-mmbi@14c06800 {
 				compatible = "aspeed,ast2700-intel-espi-mmbi";
-				interrupts-extended = <&intc1_0 16>;
+				interrupts-extended = <&intc1_1 16>;
 				reg = <0 0x14c06800 0 0x50>;
 				clocks = <&syscon1 SCU1_CLK_GATE_ESPI1CLK>;
 				aspeed,lpc = <&lpc1>;
