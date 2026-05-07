@@ -6,15 +6,19 @@
  */
 
 #include <linux/bitops.h>
+#include <linux/init.h>
 #include <linux/irq.h>
 #include <linux/irqchip.h>
 #include <linux/irqdomain.h>
 #include <linux/interrupt.h>
+#include <linux/kobject.h>
+#include <linux/list.h>
 #include <linux/of_address.h>
 #include <linux/of_irq.h>
 #include <linux/io.h>
 #include <linux/seq_file.h>
 #include <linux/spinlock.h>
+#include <linux/sysfs.h>
 
 #define INTC_INT_ENABLE_REG	0x00
 #define INTC_INT_STATUS_REG	0x04
@@ -28,7 +32,11 @@ struct aspeed_intc_ic {
 	struct device_node	*node;
 	unsigned int		parent_irqs[INTC_IRQS_PER_WORD];
 	unsigned int		parent_irq_count;
+	struct kobject		kobj;
+	struct list_head	list;
 };
+
+static LIST_HEAD(aspeed_intc_instances);
 
 /*
  * INTC0 uses a 1:1 mapping between each parent GIC SPI line and one leaf
@@ -138,6 +146,61 @@ static const struct irq_domain_ops aspeed_intc_ic_irq_domain_ops = {
 	.map = aspeed_intc_ic_map_irq_domain,
 };
 
+static ssize_t irq_groups_show(struct kobject *kobj,
+			       struct kobj_attribute *attr, char *buf)
+{
+	struct aspeed_intc_ic *intc =
+		container_of(kobj, struct aspeed_intc_ic, kobj);
+	ssize_t len = 0;
+
+	if (intc->parent_irq_count == 1) {
+		/* Aggregated: one parent line serves all children. */
+		len += sysfs_emit_at(buf, len, "group 0: parent_irq=%u members=",
+				     intc->parent_irqs[0]);
+		for (int hwirq = 0; hwirq < INTC_IRQS_PER_WORD; hwirq++) {
+			unsigned int virq = irq_find_mapping(intc->irq_domain, hwirq);
+
+			if (virq)
+				len += sysfs_emit_at(buf, len, "%u ", virq);
+		}
+		len += sysfs_emit_at(buf, len, "\n");
+	} else {
+		/* 1:1: each parent serves one child (derived from GIC hwirq). */
+		for (unsigned int i = 0; i < intc->parent_irq_count; i++) {
+			struct irq_data *pdata = irq_get_irq_data(intc->parent_irqs[i]);
+			unsigned int virq;
+			unsigned long phw;
+
+			if (!pdata)
+				continue;
+			phw = pdata->hwirq;
+			if (phw < INTC_IRQ_BASE + 32)
+				continue;
+			virq = irq_find_mapping(intc->irq_domain,
+						phw - INTC_IRQ_BASE - 32);
+			if (!virq)
+				continue;
+			len += sysfs_emit_at(buf, len,
+					     "group %u: parent_irq=%u members=%u\n",
+					     i, intc->parent_irqs[i], virq);
+		}
+	}
+	return len;
+}
+
+static struct kobj_attribute aspeed_intc_irq_groups_attr = __ATTR_RO(irq_groups);
+
+static struct attribute *aspeed_intc_attrs[] = {
+	&aspeed_intc_irq_groups_attr.attr,
+	NULL,
+};
+ATTRIBUTE_GROUPS(aspeed_intc);
+
+static const struct kobj_type aspeed_intc_kobj_type = {
+	.sysfs_ops	= &kobj_sysfs_ops,
+	.default_groups	= aspeed_intc_groups,
+};
+
 static int __init aspeed_intc_ic_of_init(struct device_node *node,
 					 struct device_node *parent)
 {
@@ -209,6 +272,8 @@ static int __init aspeed_intc_ic_of_init(struct device_node *node,
 		}
 	}
 
+	list_add_tail(&intc_ic->list, &aspeed_intc_instances);
+
 	return 0;
 
 err_iounmap:
@@ -223,5 +288,40 @@ err_free_ic:
 	kfree(intc_ic);
 	return ret;
 }
+
+/*
+ * IRQCHIP_DECLARE callbacks fire from init_IRQ(), which runs before
+ * kernel_kobj is created in core_initcall(ksysfs_init).  Defer the sysfs
+ * setup until kernel_kobj is available so /sys/kernel/aspeed-intc-* can be
+ * created.  The physical base address is appended to disambiguate multiple
+ * controllers that share a basename (e.g. nested LTPI controllers).
+ */
+static int __init aspeed_intc_sysfs_init(void)
+{
+	struct aspeed_intc_ic *intc;
+	struct resource res;
+	int ret;
+
+	list_for_each_entry(intc, &aspeed_intc_instances, list) {
+		ret = of_address_to_resource(intc->node, 0, &res);
+		if (ret) {
+			pr_warn("Failed to get resource for %pOF: %d\n",
+				intc->node, ret);
+			continue;
+		}
+
+		ret = kobject_init_and_add(&intc->kobj, &aspeed_intc_kobj_type,
+					   kernel_kobj, "aspeed-intc-%pOFn@%llx",
+					   intc->node,
+					   (unsigned long long)res.start);
+		if (ret) {
+			pr_warn("Failed to create sysfs entry for %pOF: %d\n",
+				intc->node, ret);
+			kobject_put(&intc->kobj);
+		}
+	}
+	return 0;
+}
+late_initcall(aspeed_intc_sysfs_init);
 
 IRQCHIP_DECLARE(ast2700_intc_ic, "aspeed,ast2700-intc-ic", aspeed_intc_ic_of_init);
