@@ -111,10 +111,28 @@ struct aspeed_host_pcie_mmbi {
 	int msi_nums;
 };
 
-static const enum mmbi_app_interface
-aspeed_host_pcie_mmbi_app_interfaces[MMBI_MAX_CHANNELS] = {
+/*
+ * app_interface: per-channel application interface selection.
+ *   0 = ioctl  (MMBI_APP_INTF_IOCTL)
+ *   1 = mctp-netdev  (MMBI_APP_INTF_MCTP_NETDEV)
+ *
+ * One value applies to every channel. Multiple values map by channel index,
+ * and omitted channels keep their defaults.
+ * Examples:
+ *   app_interface=1          -> all channels use mctp-netdev
+ *   app_interface=1,0,0,0,1  -> ch0/ch4 use mctp-netdev
+ * Invalid values fall back to the default map.
+ */
+static const uint app_interface_defaults[MMBI_MAX_CHANNELS] = {
 	[0] = MMBI_APP_INTF_MCTP_NETDEV,
 };
+
+static uint app_interface[MMBI_MAX_CHANNELS] = { [0] = MMBI_APP_INTF_MCTP_NETDEV };
+static int app_interface_count;
+module_param_array(app_interface, uint, &app_interface_count, 0444);
+MODULE_PARM_DESC(app_interface,
+		 "App interface per channel: 0=ioctl, 1=mctp-netdev; one value applies to all channels");
+
 #endif
 
 struct aspeed_pci_bmc_dev {
@@ -546,9 +564,9 @@ static struct aspeed_platform aspeed_pcie_host[] = {
 
 #if IS_ENABLED(CONFIG_ASPEED_MMBI)
 static const char *
-aspeed_host_pcie_mmbi_app_interface_name(enum mmbi_app_interface app_interface)
+aspeed_host_pcie_mmbi_app_interface_name(enum mmbi_app_interface intf)
 {
-	switch (app_interface) {
+	switch (intf) {
 	case MMBI_APP_INTF_MCTP_NETDEV:
 		return "mctp-netdev";
 	case MMBI_APP_INTF_IOCTL:
@@ -557,14 +575,47 @@ aspeed_host_pcie_mmbi_app_interface_name(enum mmbi_app_interface app_interface)
 	}
 }
 
+static int aspeed_host_pcie_mmbi_validate_app_interface(struct device *dev)
+{
+	int i;
+
+	for (i = 0; i < app_interface_count; i++) {
+		if (app_interface[i] > MMBI_APP_INTF_MCTP_NETDEV) {
+			dev_warn(dev,
+				 "invalid app_interface[%d]=%u, using defaults\n",
+				 i, app_interface[i]);
+			return -EINVAL;
+		}
+	}
+
+	return 0;
+}
+
+static enum mmbi_app_interface
+aspeed_host_pcie_mmbi_get_app_interface(int channel, bool use_defaults)
+{
+	if (use_defaults)
+		return app_interface_defaults[channel];
+
+	if (app_interface_count == 1)
+		return app_interface[0];
+
+	if (channel < app_interface_count)
+		return app_interface[channel];
+
+	return app_interface_defaults[channel];
+}
+
 static void
-aspeed_host_pcie_mmbi_init_app_interfaces(struct mmbi_ins_desc *mmbi_desc)
+aspeed_host_pcie_mmbi_init_app_interfaces(struct mmbi_ins_desc *mmbi_desc,
+					  bool use_defaults)
 {
 	int i;
 
 	for (i = 0; i < MMBI_MAX_CHANNELS; i++)
 		mmbi_desc->chan_desc[i].app_interface =
-			aspeed_host_pcie_mmbi_app_interfaces[i];
+			aspeed_host_pcie_mmbi_get_app_interface(i,
+								use_defaults);
 }
 
 static void aspeed_host_pcie_mmbi_log_app_interfaces(struct device *dev,
@@ -592,7 +643,11 @@ static int aspeed_pci_host_mmbi_setup(struct pci_dev *pdev)
 	struct mmbi_ins_desc *mmbi_desc;
 	int i, ret, instance_id;
 	int last_ret = -ENODEV;
+	bool use_default_app_interfaces;
 	resource_size_t start, size;
+
+	ret = aspeed_host_pcie_mmbi_validate_app_interface(dev);
+	use_default_app_interfaces = ret != 0;
 
 	instance_id = 0;
 	for (i = 2; i < PCI_STD_NUM_BARS; i++) {
@@ -617,7 +672,8 @@ static int aspeed_pci_host_mmbi_setup(struct pci_dev *pdev)
 		mmbi_desc->dev = dev;
 		mmbi_desc->role = MMBI_ROLE_HOST;
 
-		aspeed_host_pcie_mmbi_init_app_interfaces(mmbi_desc);
+		aspeed_host_pcie_mmbi_init_app_interfaces(mmbi_desc,
+							  use_default_app_interfaces);
 		ret = mmbi_instance_init(mmbi_desc);
 		if (ret) {
 			dev_info(dev,
