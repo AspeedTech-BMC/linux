@@ -50,8 +50,9 @@ struct aspeed_spi_host {
 	u32				 ahb_clk;
 	u32				 ctrl_val[5];
 	void __iomem			*chip_ahb_base[5];
-	u8				 cs_change;
+	struct spi_device		*cs_change_spi;
 	const struct aspeed_spi_info	*info;
+	u32				 saved_host_cmd_ctrl;
 };
 
 struct aspeed_spi_info {
@@ -338,6 +339,11 @@ static void aspeed_spi_stop_user(struct spi_device *spi)
 	writel(ctrl_val, ctrl_reg);
 }
 
+static void aspeed_spi_restore_host_cmd_ctrl(struct aspeed_spi_host *host)
+{
+	writel(host->saved_host_cmd_ctrl, host->ctrl_reg + SPI_MISC_CTRL);
+}
+
 static void aspeed_spi_transfer_tx(struct aspeed_spi_host *host, const u8 *tx_buf,
 				   u8 *rx_buf, void *dst, u32 len)
 {
@@ -351,6 +357,18 @@ static void aspeed_spi_transfer_tx(struct aspeed_spi_host *host, const u8 *tx_bu
 	}
 }
 
+/*
+ * aspeed_spi_transfer - transfer_one_message callback
+ *
+ * SPI_MISC_CTRL holds the host command configuration and must be cleared
+ * before entering user mode; it is saved here and restored only when CS
+ * is finally deasserted.
+ *
+ * cs_change on the last transfer keeps CS active across messages
+ * (cs_change_spi tracks the owning device).  cs_change on any earlier
+ * transfer toggles CS in place.  A stale CS held by another device is
+ * force-released before the new message begins.
+ */
 static int aspeed_spi_transfer(struct spi_controller *ctlr,
 			       struct spi_message *msg)
 {
@@ -363,22 +381,38 @@ static int aspeed_spi_transfer(struct spi_controller *ctlr,
 	u8 *rx_buf;
 	u32 cs;
 	u32 j = 0;
-	u32 ctrl_val, normal_mode;
+	u32 ctrl_val;
 	void __iomem *ctrl_reg;
+	bool is_last;
+	bool keep_cs = false;
 
-	if (host->cs_change == 0)
+	/* Drop a CS held by another device before starting this message. */
+	if (host->cs_change_spi && host->cs_change_spi != spi) {
+		dev_warn(dev, "CS was kept active for another SPI device, releasing it\n");
+
+		aspeed_spi_stop_user(host->cs_change_spi);
+		aspeed_spi_restore_host_cmd_ctrl(host);
+
+		host->cs_change_spi = NULL;
+	}
+
+	/* Backup host command mode information from MISC_CTRL register before activating CS */
+	if (!host->cs_change_spi) {
+		host->saved_host_cmd_ctrl = readl(host->ctrl_reg + SPI_MISC_CTRL);
+
+		writel(0x0, host->ctrl_reg + SPI_MISC_CTRL);
 		aspeed_spi_start_user(spi);
+	}
 
 	cs = spi_get_chipselect(spi, 0);
 	ctrl_reg = host->ctrl_reg + SPI_CE0_CTRL + cs * 4;
 	ctrl_val = readl(ctrl_reg);
 
-	normal_mode = readl(host->ctrl_reg + SPI_MISC_CTRL);
-	writel(0x0, host->ctrl_reg + SPI_MISC_CTRL);
-
 	dev_dbg(dev, "cs: %d\n", cs);
 
 	list_for_each_entry(xfer, &msg->transfers, transfer_list) {
+		is_last = list_is_last(&xfer->transfer_list, &msg->transfers);
+
 		dev_dbg(dev,
 			"xfer[%d]: width %d, len %u, tx %p, rx %p\n",
 			j,
@@ -423,16 +457,32 @@ static int aspeed_spi_transfer(struct spi_controller *ctlr,
 		}
 
 		msg->actual_length += xfer->len;
-		host->cs_change = xfer->cs_change;
+
+		/* Non-final cs_change toggles CS; final cs_change keeps it active. */
+		if (xfer->cs_change) {
+			if (is_last) {
+				keep_cs = true;
+			} else {
+				aspeed_spi_stop_user(spi);
+				/* CS deassert-to-reassert delay; uses xfer->cs_change_delay if set, else 10us */
+				spi_transfer_cs_change_delay_exec(msg, xfer);
+				aspeed_spi_start_user(spi);
+			}
+		}
+
 		j++;
 	}
 
-	if (host->cs_change == 0)
+	if (!keep_cs) {
 		aspeed_spi_stop_user(spi);
+		aspeed_spi_restore_host_cmd_ctrl(host);
+
+		host->cs_change_spi = NULL;
+	} else {
+		host->cs_change_spi = spi;
+	}
 
 	msg->status = 0;
-
-	writel(normal_mode, host->ctrl_reg + SPI_MISC_CTRL);
 
 	spi_finalize_current_message(ctlr);
 
@@ -619,4 +669,3 @@ MODULE_DESCRIPTION("ASPEED Pure SPI Driver");
 MODULE_AUTHOR("Ryan Chen");
 MODULE_AUTHOR("Chin-Ting Kuo");
 MODULE_LICENSE("GPL");
-
