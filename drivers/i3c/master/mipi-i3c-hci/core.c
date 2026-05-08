@@ -66,6 +66,17 @@
 #define HC_CAP_AUTO_COMMAND		BIT(3)
 #define HC_CAP_COMBO_COMMAND		BIT(2)
 
+/*
+ * ASPEED silicon adds a hardware safety feature on top of the standard
+ * MIPI HCI flow to prevent TX underrun: the controller refuses to start
+ * a transaction until the TX FIFO already holds the full payload.  This
+ * feature is enabled by default in the silicon and imposes a real
+ * hardware-enforced ceiling of 128 bytes per single transaction,
+ * regardless of the size advertised by HC_CAP_MAX_DATA_LENGTH (which
+ * theoretically supports up to 64 KB).
+ */
+#define ASPEED_HC_PAYLOAD_LIMIT		128U
+
 #define RESET_CONTROL			0x10
 #define BUS_RESET			BIT(31)
 #define BUS_RESET_TYPE			GENMASK(30, 29)
@@ -569,6 +580,9 @@ static int i3c_hci_priv_xfers(struct i3c_dev_desc *dev,
 		ret = -EFBIG;
 		if (xfer[i].data_len >= size_limit)
 			goto out;
+		if (IS_ENABLED(CONFIG_ARCH_ASPEED) &&
+		    xfer[i].data_len > ASPEED_HC_PAYLOAD_LIMIT)
+			goto out;
 		xfer[i].rnw = i3c_xfers[i].rnw;
 		if (i3c_xfers[i].rnw) {
 			xfer[i].data = i3c_xfers[i].data.in;
@@ -635,6 +649,12 @@ static int i3c_hci_send_hdr_cmds(struct i3c_dev_desc *dev,
 	for (i = 0; i < ncmds; i++) {
 		xfer[i].data_len = cmds[i].ndatawords << 1;
 
+		if (IS_ENABLED(CONFIG_ARCH_ASPEED) &&
+		    xfer[i].data_len > ASPEED_HC_PAYLOAD_LIMIT) {
+			ret = -EFBIG;
+			goto hdr_out;
+		}
+
 		xfer[i].rnw = cmds[i].code & 0x80 ? 1 : 0;
 		if (xfer[i].rnw)
 			xfer[i].data = cmds[i].data.in;
@@ -690,6 +710,11 @@ static int i3c_hci_i2c_xfers(struct i2c_dev_desc *dev,
 	for (i = 0; i < nxfers; i++) {
 		xfer[i].data = i2c_get_dma_safe_msg_buf(&i2c_xfers[i], 1);
 		xfer[i].data_len = i2c_xfers[i].len;
+		if (IS_ENABLED(CONFIG_ARCH_ASPEED) &&
+		    xfer[i].data_len > ASPEED_HC_PAYLOAD_LIMIT) {
+			ret = -EFBIG;
+			goto out;
+		}
 		xfer[i].rnw = i2c_xfers[i].flags & I2C_M_RD;
 		hci->cmd->prep_i2c_xfer(hci, dev, &xfer[i]);
 		xfer[i].cmd_desc[0] |= CMD_0_ROC;
@@ -1006,6 +1031,14 @@ ast2700_i3c_target_priv_xfers(struct i3c_dev_desc *dev,
 	for (i = 0; i < nxfers; i++) {
 		if (!i3c_xfers[i].rnw) {
 			xfer[i].data_len = i3c_xfers[i].len;
+			if (xfer[i].data_len > ASPEED_HC_PAYLOAD_LIMIT) {
+				dev_err(&hci->master.dev,
+					"data_len %u exceeds ASPEED hardware limit %u\n",
+					xfer[i].data_len,
+					ASPEED_HC_PAYLOAD_LIMIT);
+				hci_free_xfer(xfer, nxfers);
+				return NULL;
+			}
 			xfer[i].rnw = i3c_xfers[i].rnw;
 			xfer[i].data = (void *)i3c_xfers[i].data.out;
 			xfer[i].cmd_tid = tid;
