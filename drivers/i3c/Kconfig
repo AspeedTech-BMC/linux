@@ -44,6 +44,25 @@ config I3C_MUX_IMX3102
 
 source "drivers/i3c/master/Kconfig"
 
+config I3C_PERF
+	tristate "I3C performance measurement test driver"
+	depends on I3C && DEBUG_FS
+	help
+	  Test/diagnostic driver that binds to a generic I3C device
+	  (DCR = 0) and exposes a debugfs interface to fire configurable
+	  bursts of SDR private transfers.  Reports throughput and per-
+	  transfer min/max/avg latency.
+
+	  Files appear under /sys/kernel/debug/<i3c-dev-name>/:
+	    xfer_len    - bytes per transfer (1..4096)
+	    xfer_count  - number of transfers per run
+	    direction   - "write", "read", or "rw" (alternating)
+	    run         - write any value to start a measurement
+	    result      - last run's stats (key: value lines)
+
+	  Useful for benchmarking master and bus-level performance.
+	  Only enable for development/testing.
+
 config I3C_HUB
 	tristate "I3C HUB support"
 	depends on I3C
