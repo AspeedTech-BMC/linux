@@ -5,7 +5,7 @@ config ASPEED_MMBI
 	help
 	  Enable support for the ASPEED MMBI driver. This driver
 	  provides a communication channel between the Host and the BMC
-	  over PCIe using the MMBI (Mailbox Message Buffer Interface).
+	  over PCIe using the MMBI (Memory Mapped Buffer Interface).
 
 config ASPEED_PCIE_MMBI
 	tristate "ASPEED PCIE MMBI"
