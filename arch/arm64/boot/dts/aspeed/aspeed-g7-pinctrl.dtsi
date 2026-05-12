@@ -1059,6 +1059,11 @@
 		groups = "CANBUS";
 	};
 
+	pinctrl_canstby_default: canstby-default {
+		function = "CANBUS";
+		groups = "CANBUSSTBY";
+	};
+
 	pinctrl_di2c0_default: di2c0-default {
 		function = "I2C0";
 		groups = "DI2C0";
