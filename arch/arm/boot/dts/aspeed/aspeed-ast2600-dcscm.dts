@@ -350,6 +350,7 @@
 	pinctrl-0 = <&pinctrl_spi1_default &pinctrl_spi1cs1_default
 				&pinctrl_qspi1_default>;
 	status = "okay";
+	pinctrl-names = "default";
 
 	flash@0 {
 		status = "okay";
