@@ -15,6 +15,15 @@ config PHY_ASPEED_PCIE
 	  It is required for proper operation of PCIe devices on
 	  platforms using ASPEED chips.
 
+config PHY_ASPEED_COMBINE_PERST
+	bool "ASPEED PCIe RC combine PERST with internal reset"
+	depends on ARCH_ASPEED
+	help
+	  Configure PERST to connect with the internal PHY reset. When
+	  this option is disabled, the driver selects the separate internal
+	  PHY reset path by default. Enable it only on boards that require
+	  PERST and the internal PHY reset to toggle at the same time.
+
 config PHY_ASPEED_SGMII
 	tristate "ASPEED SGMII PHY driver"
 	select REGMAP

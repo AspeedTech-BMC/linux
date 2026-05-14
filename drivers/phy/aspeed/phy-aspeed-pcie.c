@@ -45,6 +45,9 @@
 #define  SW_ATT_BTN			BIT(0)
 #define PEHR_MISC_278		0x278
 #define  SET_TO_DOWNSTREAM		BIT(22)
+#define  ASSERT_INTERNAL_RESET		BIT(31)
+#define PEHR_MISC_280		0x280
+#define  SEL_INTERNAL_RESET		BIT(0)
 
 /**
  * struct aspeed_pcie_phy - PCIe PHY information
@@ -115,14 +118,6 @@ static const struct phy_ops ast2600_phy_ops = {
 
 static int ast2700_phy_init(struct phy *phy)
 {
-	struct aspeed_pcie_phy *pcie_phy = phy_get_drvdata(phy);
-
-	writel(POSTED_DATA_CREDITS(0xc0) | POSTED_HEADER_CREDITS(0xa),
-	       pcie_phy->reg + PEHR_MISC_70);
-	writel(COMPLETION_DATA_CREDITS(0x30) | COMPLETION_HEADER_CREDITS(0x8),
-	       pcie_phy->reg + PEHR_MISC_78);
-	writel(LOCAL_SCALE_SUP, pcie_phy->reg + PEHR_MISC_58);
-
 	return 0;
 }
 
@@ -134,6 +129,14 @@ static int ast2700_phy_set_mode(struct phy *phy, enum phy_mode mode,
 
 	switch (submode) {
 	case PHY_MODE_PCIE_RC:
+		writel(0, pcie_phy->reg + PEHR_MISC_278);
+		if (!IS_ENABLED(CONFIG_PHY_ASPEED_COMBINE_PERST))
+			writel(SEL_INTERNAL_RESET, pcie_phy->reg + PEHR_MISC_280);
+		writel(POSTED_DATA_CREDITS(0xc0) | POSTED_HEADER_CREDITS(0xa),
+		       pcie_phy->reg + PEHR_MISC_70);
+		writel(COMPLETION_DATA_CREDITS(0x30) | COMPLETION_HEADER_CREDITS(0x8),
+		       pcie_phy->reg + PEHR_MISC_78);
+		writel(LOCAL_SCALE_SUP, pcie_phy->reg + PEHR_MISC_58);
 		writel(CONFIG_RC_DEVICE, pcie_phy->reg + PEHR_MISC_5C);
 		cfg_val = readl(pcie_phy->reg + PEHR_MISC_60);
 		FIELD_MODIFY(AST2700_PORT_TYPE_MASK, &cfg_val,
@@ -150,8 +153,12 @@ static int ast2700_phy_set_mode(struct phy *phy, enum phy_mode mode,
 			cfg_val = readl(pcie_phy->reg + PEHR_MISC_38);
 			cfg_val |= DATALINK_REPORT_CAP;
 			writel(cfg_val, pcie_phy->reg + PEHR_MISC_38);
-			writel(SET_TO_DOWNSTREAM, pcie_phy->reg + PEHR_MISC_278);
 		}
+		if (IS_ENABLED(CONFIG_PHY_ASPEED_COMBINE_PERST))
+			writel(SET_TO_DOWNSTREAM, pcie_phy->reg + PEHR_MISC_278);
+		else
+			writel(ASSERT_INTERNAL_RESET | SET_TO_DOWNSTREAM,
+			       pcie_phy->reg + PEHR_MISC_278);
 		break;
 	default:
 		dev_err(&phy->dev, "Unsupported submode %d\n", submode);
