@@ -22,15 +22,8 @@ void __iomem *tx_mmio;
 void __iomem *rx_mmio;
 u32 tx_buf[8] = {0};
 
-enum {
-	MCTP_IPC_PACKET_TYPE,
-	MCTP_IPC_SHM_TYPE,
-};
-
 struct mctp_ipc_hdr {
-	u16 msg_len;
-	u8 reserved;
-	u8 type;
+	u32 msg_len;
 };
 
 static void mctp_mbox_rx_callback(struct mbox_client *cl, void *msg)
@@ -48,24 +41,17 @@ static void mctp_mbox_rx_callback(struct mbox_client *cl, void *msg)
 		return;
 
 	skb->protocol = htons(ETH_P_MCTP);
-	switch (hdr->type) {
-	case MCTP_IPC_SHM_TYPE:
-		pr_debug("%s: received MCTP IPC SHM packet %p\n", DRV_NAME, rx_mmio);
 
-		buf = kzalloc(hdr->msg_len, GFP_ATOMIC);
-		if (!buf)
-			return;
-		memcpy_fromio(buf, rx_mmio, hdr->msg_len);
+	pr_debug("%s: received MCTP IPC SHM packet %p\n", DRV_NAME, rx_mmio);
 
-		/* data in rx_mmio */
-		skb_put_data(skb, buf, hdr->msg_len);
-
-		kfree(buf);
-		break;
-	default:
-		pr_err("%s: unknown MCTP IPC type %d\n", DRV_NAME, hdr->type);
+	buf = kzalloc(hdr->msg_len, GFP_ATOMIC);
+	if (!buf)
 		return;
-	}
+	memcpy_fromio(buf, rx_mmio, hdr->msg_len);
+
+	skb_put_data(skb, buf, hdr->msg_len);
+
+	kfree(buf);
 
 	skb_reset_network_header(skb);
 
@@ -125,7 +111,6 @@ static netdev_tx_t mctp_mbox_net_start_xmit(struct sk_buff *skb, struct net_devi
 
 	hdr = skb_push(skb, 4);
 	hdr->msg_len = plen;
-	hdr->type = MCTP_IPC_SHM_TYPE;
 
 	memcpy_toio(tx_mmio, skb->data + 4, plen);
 	memcpy(tx_buf, hdr, sizeof(*hdr));
