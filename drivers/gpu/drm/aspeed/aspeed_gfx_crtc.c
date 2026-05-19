@@ -58,6 +58,7 @@ static void aspeed_gfx_set_g7_clock(struct aspeed_gfx *priv)
 
 	/* apply 800 x 600 @ 60 on ast2700 DAC */
 	/* Move the scu1.d0 to the aspeed_gfx_enable_controller first check */
+	regmap_write(priv->scu1, 0x324, 0x00000007);
 	regmap_write(priv->scu1, 0x320, 0x1048000F);
 }
 
