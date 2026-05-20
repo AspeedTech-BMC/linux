@@ -39,7 +39,6 @@ struct aspeed_ufscnr {
 
 static int aspeed_ufscnr_probe(struct platform_device *pdev)
 {
-	struct device_node *parent, *child;
 	struct aspeed_ufscnr *cnr;
 	u32 reg;
 	int ret;
@@ -95,16 +94,17 @@ static int aspeed_ufscnr_probe(struct platform_device *pdev)
 
 	dev_set_drvdata(&pdev->dev, cnr);
 
-	parent = pdev->dev.of_node;
-	for_each_available_child_of_node(parent, child) {
-		struct platform_device *cpdev;
-
-		cpdev = of_platform_device_create(child, NULL, &pdev->dev);
-		if (!cpdev) {
-			of_node_put(child);
-			ret = -ENODEV;
-			goto err_clk;
-		}
+	/*
+	 * devm_of_platform_populate() sets OF_POPULATED_BUS on this device's
+	 * OF node and registers of_platform_depopulate() as a devm release
+	 * action.  On unbind the child platform device (ufshc) is destroyed
+	 * and its OF_POPULATED flag cleared, allowing probe to re-create it
+	 * cleanly on the next bind.
+	 */
+	ret = devm_of_platform_populate(&pdev->dev);
+	if (ret) {
+		dev_err(&pdev->dev, "Failed to populate OF children: %d\n", ret);
+		goto err_clk;
 	}
 
 	return 0;
