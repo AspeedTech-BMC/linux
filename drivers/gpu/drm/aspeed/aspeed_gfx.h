@@ -153,8 +153,8 @@ int aspeed_gfx_create_output(struct drm_device *drm);
 /* PCIE interrupt */
 #define PCIE_PERST_L_T_H_G5		BIT(18)
 #define PCIE_PERST_H_T_L_G5		BIT(19)
-#define PCIE_PERST_L_T_H_G7		BIT(2)
-#define PCIE_PERST_H_T_L_G7		BIT(3)
+#define PCIE_PERST_L_T_H_G7		BIT(3)
+#define PCIE_PERST_H_T_L_G7		BIT(2)
 
 /* PCIE end pointer define */
 #define PCIE_LINK_REG_G5	0xC0
