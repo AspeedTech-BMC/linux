@@ -1307,7 +1307,7 @@ out:
 static int aspeed_espi_mmbi_remove(struct platform_device *pdev)
 {
 	struct ast2700_espi_mmbi *priv = dev_get_drvdata(&pdev->dev);
-	u32 i, j;
+	u32 i, j, reg;
 
 	if (!priv)
 		return 0;
