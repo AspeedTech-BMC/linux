@@ -143,7 +143,7 @@
 	status = "okay";
 	multi-master;
 	mctp-controller;
-	aspeed,transfer-mode = "dma";
+	aspeed,transfer-mode = "buff";
 	mctp@12 {
 		compatible = "mctp-i2c-controller";
 		reg = <(0x12 | I2C_OWN_SLAVE_ADDRESS)>;
@@ -169,7 +169,7 @@
 	status = "okay";
 	multi-master;
 	mctp-controller;
-	aspeed,transfer-mode = "dma";
+	aspeed,transfer-mode = "buff";
 	mctp@12 {
 		compatible = "mctp-i2c-controller";
 		reg = <(0x12 | I2C_OWN_SLAVE_ADDRESS)>;
@@ -195,7 +195,7 @@
 	status = "okay";
 	multi-master;
 	mctp-controller;
-	aspeed,transfer-mode = "dma";
+	aspeed,transfer-mode = "buff";
 	mctp@12 {
 		compatible = "mctp-i2c-controller";
 		reg = <(0x12 | I2C_OWN_SLAVE_ADDRESS)>;
@@ -221,7 +221,7 @@
 	status = "okay";
 	multi-master;
 	mctp-controller;
-	aspeed,transfer-mode = "dma";
+	aspeed,transfer-mode = "buff";
 	mctp@12 {
 		compatible = "mctp-i2c-controller";
 		reg = <(0x12 | I2C_OWN_SLAVE_ADDRESS)>;
@@ -247,7 +247,7 @@
 	status = "okay";
 	multi-master;
 	mctp-controller;
-	aspeed,transfer-mode = "dma";
+	aspeed,transfer-mode = "buff";
 	mctp@12 {
 		compatible = "mctp-i2c-controller";
 		reg = <(0x12 | I2C_OWN_SLAVE_ADDRESS)>;
@@ -273,7 +273,7 @@
 	status = "okay";
 	multi-master;
 	mctp-controller;
-	aspeed,transfer-mode = "dma";
+	aspeed,transfer-mode = "buff";
 	mctp@12 {
 		compatible = "mctp-i2c-controller";
 		reg = <(0x12 | I2C_OWN_SLAVE_ADDRESS)>;
@@ -299,7 +299,7 @@
 	status = "okay";
 	multi-master;
 	mctp-controller;
-	aspeed,transfer-mode = "dma";
+	aspeed,transfer-mode = "buff";
 	mctp@12 {
 		compatible = "mctp-i2c-controller";
 		reg = <(0x12 | I2C_OWN_SLAVE_ADDRESS)>;
@@ -325,7 +325,7 @@
 	status = "okay";
 	multi-master;
 	mctp-controller;
-	aspeed,transfer-mode = "dma";
+	aspeed,transfer-mode = "buff";
 	mctp@12 {
 		compatible = "mctp-i2c-controller";
 		reg = <(0x12 | I2C_OWN_SLAVE_ADDRESS)>;
