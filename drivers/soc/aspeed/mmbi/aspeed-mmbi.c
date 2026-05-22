@@ -16,6 +16,7 @@
 #include <linux/netdevice.h>
 #include <linux/poll.h>
 #include <linux/printk.h>
+#include <linux/sizes.h>
 #include <linux/skbuff.h>
 #include <linux/spinlock.h>
 #include <linux/types.h>
@@ -33,6 +34,7 @@
 static DEFINE_IDA(mmbi_ida);
 
 #define MMBI_MCTP_MIN_MTU (sizeof(struct mctp_hdr) + 64)
+#define MMBI_MCTP_RX_BUF_SIZE SZ_4K
 
 struct mmbi_mctp_netdev {
 	struct mmbi_chan_desc *chan;
@@ -210,9 +212,9 @@ static int mmbi_write(struct mmbi_chan_desc *chan, const u8 *data, size_t data_l
 {
 	struct mmbi_ins_desc *mmbi = chan->mmbi;
 	u32 read_ptr, write_ptr, write_offset, buf_size, avail_len, val, base_addr, total_len;
-	size_t first_part;
-	u8 padding;
 	u8 __iomem *desc_virt;
+	size_t first_part;
+	u8 padding = 0;
 
 	if (data_len == 0)
 		return -EINVAL;
@@ -412,17 +414,33 @@ static void mmbi_mctp_update_queue_state(struct mmbi_chan_desc *chan_desc)
 	if (!ndev || !netif_running(ndev))
 		return;
 
-	if (chan_desc->priv->tx_ready)
-		netif_wake_queue(ndev);
-	else
+	if (chan_desc->priv->state == NORMAL_RUNTIME) {
+		netif_carrier_on(ndev);
+		if (chan_desc->priv->tx_ready)
+			netif_wake_queue(ndev);
+		else
+			netif_stop_queue(ndev);
+	} else {
+		netif_carrier_off(ndev);
 		netif_stop_queue(ndev);
+	}
 }
 
 static void mmbi_mctp_handle_rx(struct mmbi_chan_desc *chan_desc)
 {
 	struct net_device *ndev = chan_desc->priv->ndev;
+	u8 *tmp_buf;
 
-	while (ndev && netif_running(ndev)) {
+	if (!ndev || !netif_running(ndev))
+		goto out;
+
+	tmp_buf = kmalloc(MMBI_MCTP_RX_BUF_SIZE, GFP_KERNEL);
+	if (!tmp_buf) {
+		ndev->stats.rx_dropped++;
+		goto out;
+	}
+
+	while (netif_running(ndev)) {
 		struct sk_buff *skb;
 		struct mctp_skb_cb *cb;
 		int ret;
@@ -430,15 +448,9 @@ static void mmbi_mctp_handle_rx(struct mmbi_chan_desc *chan_desc)
 		if (!READ_ONCE(chan_desc->priv->rx_ready))
 			break;
 
-		skb = netdev_alloc_skb(ndev, ndev->max_mtu);
-		if (!skb) {
-			ndev->stats.rx_dropped++;
-			break;
-		}
-
 		spin_lock(&chan_desc->priv->rx_lock);
 		spin_lock(&chan_desc->priv->tx_lock);
-		ret = mmbi_read(chan_desc, skb->data, ndev->max_mtu);
+		ret = mmbi_read(chan_desc, tmp_buf, MMBI_MCTP_RX_BUF_SIZE);
 		mmbi_channel_refresh_locked(chan_desc);
 		spin_unlock(&chan_desc->priv->tx_lock);
 		spin_unlock(&chan_desc->priv->rx_lock);
@@ -446,22 +458,32 @@ static void mmbi_mctp_handle_rx(struct mmbi_chan_desc *chan_desc)
 		if (ret <= 0) {
 			if (ret < 0)
 				ndev->stats.rx_dropped++;
-			kfree_skb(skb);
 			break;
 		}
 
-		skb_put(skb, ret);
+		skb = netdev_alloc_skb(ndev, ret);
+		if (!skb) {
+			ndev->stats.rx_dropped++;
+			break;
+		}
+
+		skb_put_data(skb, tmp_buf, ret);
 		skb->protocol = htons(ETH_P_MCTP);
+		skb_reset_mac_header(skb);
 		skb_reset_network_header(skb);
 
 		cb = __mctp_cb(skb);
 		cb->halen = 0;
 
-		netif_rx(skb);
+		netif_wake_queue(ndev);
 		ndev->stats.rx_packets++;
 		ndev->stats.rx_bytes += ret;
+		if (netif_rx(skb) == NET_RX_DROP)
+			ndev->stats.rx_dropped++;
 	}
 
+	kfree(tmp_buf);
+out:
 	mmbi_mctp_update_queue_state(chan_desc);
 }
 
@@ -732,8 +754,14 @@ static void mmbi_channel_poll_handler(struct work_struct *work)
 
 	}
 
-	if (chan_desc->app_interface == MMBI_APP_INTF_MCTP_NETDEV)
+	if (chan_desc->app_interface == MMBI_APP_INTF_MCTP_NETDEV) {
 		mmbi_mctp_handle_rx(chan_desc);
+	} else {
+		if (chan_desc->priv->rx_ready)
+			wake_up_interruptible(&chan_desc->priv->rx_wait);
+		if (chan_desc->priv->tx_ready)
+			wake_up_interruptible(&chan_desc->priv->tx_wait);
+	}
 
 	/* Reschedule the work */
 	schedule_delayed_work(&chan_desc->priv->poll_work, msecs_to_jiffies(chan_desc->poll_interval_ms));
@@ -774,7 +802,7 @@ int mmbi_channel_avail_length(u8 __iomem *read_structure,
 
 	return (__write_offset >= __read_offset) ?
 		       (buf_size - __write_offset + __read_offset) :
-		       (__read_offset + __write_offset);
+		       (__read_offset - __write_offset);
 }
 EXPORT_SYMBOL_GPL(mmbi_channel_avail_length);
 

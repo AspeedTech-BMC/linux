@@ -44,7 +44,7 @@
 
 static __always_inline u8 mmbi_get_ready(u8 __iomem *devm_virt)
 {
-	return ioread8(devm_virt + sizeof(u32)) | MMBI_STATE_RDY_MSK;
+	return ioread8(devm_virt + sizeof(u32)) & MMBI_STATE_RDY_MSK;
 }
 
 static __always_inline void mmbi_set_ready(u8 __iomem *devm_virt)

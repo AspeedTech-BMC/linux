@@ -48,7 +48,7 @@ static void mmbi_channel_state_handler(struct mmbi_chan_desc *chan, u8 __iomem *
 		else
 			chan->priv->rx_ready = false;
 		avail_len = mmbi_channel_avail_length(host_ros_virt, host_rws_virt, chan->h2b_l);
-		if (avail_len < MMBI_PKT_MIN_SIZE)
+		if (avail_len <= MMBI_PKT_MIN_SIZE)
 			chan->priv->tx_ready = false;
 		else
 			chan->priv->tx_ready = true;
@@ -140,10 +140,6 @@ static int mmbi_channel_init_host(u8 __iomem *desc_virt, struct mmbi_chan_desc *
 void mmbi_channel_irq_host(struct mmbi_chan_desc *chan)
 {
 	mmbi_channel_state_handler(chan, chan->mmbi->desc_virt);
-	if (chan->priv->rx_ready)
-		wake_up_interruptible(&chan->priv->rx_wait);
-	if (chan->priv->tx_ready)
-		wake_up_interruptible(&chan->priv->tx_wait);
 }
 EXPORT_SYMBOL_GPL(mmbi_channel_irq_host);
 
