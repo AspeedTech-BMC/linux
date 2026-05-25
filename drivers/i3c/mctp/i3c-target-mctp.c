@@ -392,17 +392,15 @@ static int i3c_target_mctp_probe(struct i3c_device *i3cdev)
 
 	ret = cdev_add(&priv->cdev,
 		       MKDEV(MAJOR(i3c_target_mctp_devt), priv->id), 1);
-	if (ret) {
-		ida_free(&i3c_target_mctp_ida, priv->id);
-		return ret;
-	}
+	if (ret)
+		goto err_ida;
 
 	dev = device_create(i3c_target_mctp_class, parent,
 			    MKDEV(MAJOR(i3c_target_mctp_devt), priv->id), i3cdev,
 			    "i3c-mctp-target-%d", priv->id);
 	if (IS_ERR(dev)) {
 		ret = PTR_ERR(dev);
-		goto err;
+		goto err_cdev;
 	}
 
 	/*
@@ -415,7 +413,7 @@ static int i3c_target_mctp_probe(struct i3c_device *i3cdev)
 	if (unlikely(ret)) {
 		dev_err(dev, "Failed creating device attrs\n");
 		ret = -EINVAL;
-		goto err;
+		goto err_device;
 	}
 
 	i3cdev_set_drvdata(i3cdev, priv);
@@ -425,8 +423,13 @@ static int i3c_target_mctp_probe(struct i3c_device *i3cdev)
 	crc8_populate_msb(i3c_crc8_table, I3C_CRC8_POLYNOMIAL);
 
 	return 0;
-err:
+
+err_device:
+	device_destroy(i3c_target_mctp_class,
+		       MKDEV(MAJOR(i3c_target_mctp_devt), priv->id));
+err_cdev:
 	cdev_del(&priv->cdev);
+err_ida:
 	ida_free(&i3c_target_mctp_ida, priv->id);
 
 	return ret;
@@ -436,7 +439,8 @@ static void i3c_target_mctp_remove(struct i3c_device *i3cdev)
 {
 	struct i3c_target_mctp *priv = dev_get_drvdata(i3cdev_to_dev(i3cdev));
 
-	device_destroy(i3c_target_mctp_class, i3c_target_mctp_devt);
+	device_destroy(i3c_target_mctp_class,
+		       MKDEV(MAJOR(i3c_target_mctp_devt), priv->id));
 	cdev_del(&priv->cdev);
 	ida_free(&i3c_target_mctp_ida, priv->id);
 }
