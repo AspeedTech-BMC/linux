@@ -604,10 +604,22 @@ static bool aspeed_sgpio_g7_reg_bit_get(struct aspeed_sgpio *gpio, unsigned int 
 
 	addr = gpio->base + SGPIO_G7_CTRL_REG_OFFSET(offset >> 1);
 	if (reg == reg_val) {
-		if (gpio->pdata->slave && !aspeed_sgpios_ctrl_by_csr(offset))
-			mask = SGPIO_G7_PARALLEL_IN_DATA;
-		else
+		if (gpio->pdata->slave && !aspeed_sgpios_ctrl_by_csr(offset)) {
+			unsigned int pin = offset >> 1;
+
+			/*
+			 * Slave pins 15:0 split their input source: data[3:0]
+			 * (pins 0..3) come from the parallel-in pads, while
+			 * data[15:4] (pins 4..15) are sampled from the serial
+			 * input stream driven by the master.
+			 */
+			if (pin >= 4 && pin <= 15)
+				mask = SGPIO_G7_IN_DATA;
+			else
+				mask = SGPIO_G7_PARALLEL_IN_DATA;
+		} else {
 			mask = SGPIO_G7_IN_DATA;
+		}
 	}
 
 	if (reg == reg_rdata) {
