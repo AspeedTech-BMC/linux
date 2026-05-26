@@ -13,6 +13,7 @@
 #include <linux/io.h>
 #include <linux/ioport.h>
 #include <linux/kernel.h>
+#include <linux/log2.h>
 #include <linux/mfd/syscon.h>
 #include <linux/miscdevice.h>
 #include <linux/module.h>
@@ -1005,7 +1006,7 @@ static int aspeed_espi_mmbi_hw_init(struct ast2700_espi_mmbi *priv)
 	regmap_write(priv->espi_map, ESPI_CH0_MCYC0_TADDRL, priv->mmbi_phys_addr & 0xffffffff);
 
 	/* enable espi-mmbi controller and configure instances */
-	reg = FIELD_PREP(ESPI_MMBI_CTRL_INST_NUM, (priv->mmbi_instances - 1)) | ESPI_MMBI_CTRL_EN;
+	reg = FIELD_PREP(ESPI_MMBI_CTRL_INST_NUM, ilog2(priv->mmbi_instances)) | ESPI_MMBI_CTRL_EN;
 	regmap_write(priv->mmbi_map, ESPI_MMBI_CTRL, reg);
 
 	/* enable eSPI memory cycle 0 */
@@ -1239,8 +1240,7 @@ static int aspeed_espi_mmbi_probe(struct platform_device *pdev)
 	}
 
 	/* check priv->mmbi_instances is less than 8 and is power of 2 */
-	if (priv->mmbi_instances > 8 ||
-		!(priv->mmbi_instances && !(priv->mmbi_instances & (priv->mmbi_instances - 1)))) {
+	if (priv->mmbi_instances > 8 || !is_power_of_2(priv->mmbi_instances)) {
 		dev_err(priv->dev, "Invalid number of MMBI instances: %d\n", priv->mmbi_instances);
 		rc = -EINVAL;
 		goto out_dma;
