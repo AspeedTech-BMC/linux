@@ -40,7 +40,7 @@
 #define MMBI_STATE_GET_RST(val) ((val) & MMBI_STATE_RST_MSK)
 #define MMBI_STATE_GET_IF_UP(val) ((val) & MMBI_STATE_IF_UP_MSK)
 
-#define MMBI_POLL_INTERVAL_MS 1
+#define MMBI_POLL_INTERVAL_MS 20
 
 static __always_inline u8 mmbi_get_ready(u8 __iomem *devm_virt)
 {
