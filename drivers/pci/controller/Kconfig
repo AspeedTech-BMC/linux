@@ -47,6 +47,15 @@ config PCIE_APPLE
 
 	  If unsure, say Y if you have an Apple Silicon system.
 
+config PHY_ASPEED_COMBINE_PERST
+	bool "ASPEED PCIe RC combine PERST with internal reset"
+	depends on ARCH_ASPEED
+	help
+	  Configure PERST to connect with the internal PHY reset. When
+	  this option is disabled, the driver selects the separate internal
+	  PHY reset path by default. Enable it only on boards that require
+	  PERST and the internal PHY reset to toggle at the same time.
+
 config PCIE_ASPEED
 	bool "ASPEED PCIe controller"
 	depends on ARCH_ASPEED || COMPILE_TEST

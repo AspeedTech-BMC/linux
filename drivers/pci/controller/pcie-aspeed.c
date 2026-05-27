@@ -130,6 +130,9 @@
 #define SW_ATT_BTN			BIT(0)
 #define PEHR_MISC_278		0x278
 #define SET_TO_DOWNSTREAM		BIT(22)
+#define ASSERT_INTERNAL_RESET		BIT(31)
+#define PEHR_MISC_280		0x280
+#define SEL_INTERNAL_RESET		BIT(0)
 #define PEHR_MISC_344		0x344
 #define LINK_STATUS_GEN2		BIT(18)
 #define PEHR_MISC_358		0x358
@@ -1000,6 +1003,9 @@ static int aspeed_ast2700_setup(struct platform_device *pdev)
 	mdelay(10);
 	reset_control_deassert(pcie->h2xrst);
 
+	regmap_write(pcie->pciephy, PEHR_MISC_278, 0);
+	if (!IS_ENABLED(CONFIG_PHY_ASPEED_COMBINE_PERST))
+		regmap_write(pcie->pciephy, PEHR_MISC_280, SEL_INTERNAL_RESET);
 	regmap_write(pcie->pciephy, PEHR_MISC_5C, 0x40000000);
 	regmap_read(pcie->pciephy, PEHR_MISC_60, &cfg_val);
 	regmap_write(pcie->pciephy, PEHR_MISC_60,
@@ -1020,6 +1026,12 @@ static int aspeed_ast2700_setup(struct platform_device *pdev)
 
 	/* Prepare for 64-bit BAR pref */
 	writel(0x3, pcie->reg + H2X_REMAP_PREF_ADDR);
+
+	if (IS_ENABLED(CONFIG_PHY_ASPEED_COMBINE_PERST))
+		regmap_write(pcie->pciephy, PEHR_MISC_278, SET_TO_DOWNSTREAM);
+	else
+		regmap_write(pcie->pciephy, PEHR_MISC_278,
+			     ASSERT_INTERNAL_RESET | SET_TO_DOWNSTREAM);
 
 	reset_control_deassert(pcie->perst);
 	if (pcie->perst_rc_out)
