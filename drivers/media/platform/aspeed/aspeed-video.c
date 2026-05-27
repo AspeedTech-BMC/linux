@@ -1828,6 +1828,8 @@ static void aspeed_video_init_regs(struct aspeed_video *video)
 
 static void aspeed_video_start(struct aspeed_video *video)
 {
+	aspeed_video_set_vga_on(video, true);
+
 	aspeed_video_on(video);
 
 	aspeed_video_init_regs(video);
@@ -1841,6 +1843,8 @@ static void aspeed_video_start(struct aspeed_video *video)
 
 static void aspeed_video_stop(struct aspeed_video *video)
 {
+	aspeed_video_set_vga_on(video, false);
+
 	set_bit(VIDEO_STOPPED, &video->flags);
 	cancel_delayed_work_sync(&video->res_work);
 
@@ -2506,8 +2510,6 @@ static int aspeed_video_start_streaming(struct vb2_queue *q,
 	int rc;
 	struct aspeed_video *video = vb2_get_drv_priv(q);
 
-	aspeed_video_set_vga_on(video, true);
-
 	video->sequence = 0;
 	video->perf.duration_max = 0;
 	video->perf.duration_min = 0xffffffff;
@@ -2532,8 +2534,6 @@ static void aspeed_video_stop_streaming(struct vb2_queue *q)
 {
 	int rc;
 	struct aspeed_video *video = vb2_get_drv_priv(q);
-
-	aspeed_video_set_vga_on(video, false);
 
 	clear_bit(VIDEO_STREAMING, &video->flags);
 
