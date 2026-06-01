@@ -177,6 +177,7 @@ struct aspeed_spi {
 	dma_addr_t		 dma_addr_phy;
 	void __iomem		*op_buf;
 	u32			 flag;
+	struct spi_controller	*ctlr;
 };
 
 static u32 aspeed_spi_get_io_mode(const struct spi_mem_op *op,
@@ -1739,7 +1740,8 @@ static int aspeed_spi_probe(struct platform_device *pdev)
 		goto end;
 	}
 
-	ret = devm_spi_register_controller(dev, ctlr);
+	aspi->ctlr = ctlr;
+	ret = spi_register_controller(ctlr);
 	if (ret) {
 		dev_err(&pdev->dev, "spi_register_controller failed\n");
 		goto end;
@@ -1752,6 +1754,8 @@ end:
 static void aspeed_spi_remove(struct platform_device *pdev)
 {
 	struct aspeed_spi *aspi = platform_get_drvdata(pdev);
+
+	spi_unregister_controller(aspi->ctlr);
 
 	if (aspi->op_buf) {
 		dma_free_coherent(aspi->dev,
