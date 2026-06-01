@@ -440,6 +440,9 @@ static int _get_bdf(struct aspeed_mctp *priv)
 		bdf = PCI_DEVID(GET_PCI_BUS_NUM(reg), devfn);
 	}
 
+	if (!priv->rc_f && bdf == 0)
+		return -ENODEV;
+
 	return bdf;
 }
 
@@ -2290,11 +2293,15 @@ static int aspeed_mctp_resources_init(struct aspeed_mctp *priv)
 		return PTR_ERR(priv->reset);
 	}
 
-	if (priv->rc_f) {
-		priv->reset_dma = devm_reset_control_get_shared_by_index(priv->dev, 1);
-		if (IS_ERR(priv->reset_dma)) {
-			dev_err(priv->dev, "Failed to get ep reset!\n");
-			return PTR_ERR(priv->reset_dma);
+	if (priv->match_data->dma_need_64bits_width) {
+		priv->reset_dma = NULL;
+	} else {
+		if (priv->rc_f) {
+			priv->reset_dma = devm_reset_control_get_shared_by_index(priv->dev, 1);
+			if (IS_ERR(priv->reset_dma)) {
+				dev_err(priv->dev, "Failed to get ep reset!\n");
+				return PTR_ERR(priv->reset_dma);
+			}
 		}
 	}
 	priv->pcie.map =
@@ -2455,7 +2462,7 @@ static int aspeed_mctp_hw_reset(struct aspeed_mctp *priv)
 		return ret;
 	}
 
-	if (priv->rc_f) {
+	if (priv->rc_f && priv->reset_dma) {
 		ret = reset_control_deassert(priv->reset_dma);
 		if (ret) {
 			dev_warn(priv->dev, "Failed to deassert ep reset\n");
