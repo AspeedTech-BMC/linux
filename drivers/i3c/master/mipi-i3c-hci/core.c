@@ -140,16 +140,12 @@ static u32 aspeed_i3c_get_sdr_phy_reg(struct i3c_hci *hci)
 		return PHY_I3C_SDR1_CTRL0;
 	if (bus->scl_rate.i3c > 4000000)
 		return PHY_I3C_SDR2_CTRL0;
-	if (bus->scl_rate.i3c > 2000000)
-		return PHY_I3C_SDR3_CTRL0;
 	/*
-	 * On JESD403 buses, SDR4 is reserved as the slow-CCC slot (~1MHz) used
-	 * by SETHID/DEVCTRL — clamp sub-2MHz buses to SDR3 so the reservation
-	 * holds. Pair with the matching clamp in get_i3c_mode().
+	 * SDR4 is permanently reserved as the slow-CCC slot (~1MHz) for JESD403
+	 * SETHID/DEVCTRL (see aspeed_i3c_phy_init()), so normal transfers never
+	 * use it — buses at or below 2MHz share SDR3. Pair with get_i3c_mode().
 	 */
-	if (bus->context == I3C_BUS_CONTEXT_JESD403)
-		return PHY_I3C_SDR3_CTRL0;
-	return PHY_I3C_SDR4_CTRL0;
+	return PHY_I3C_SDR3_CTRL0;
 }
 
 static void aspeed_i3c_phy_init(struct i3c_hci *hci)
@@ -194,23 +190,22 @@ static void aspeed_i3c_phy_init(struct i3c_hci *hci)
 						 FIELD_PREP(PHY_I2C_FMP_CTRL3_AHD_DAT, lcnt));
 
 	/*
-	 * On JESD403 buses, reserve the SDR4 PHY slot for slow CCCs
-	 * (SETHID/DEVCTRL). Program its SCL/T-bit timing to match I2C FMP
-	 * (~1MHz) so that hci_cmd_v1_prep_ccc() can downgrade those commands
-	 * by routing them through MODE=SDR4. aspeed_i3c_get_sdr_phy_reg() and
-	 * get_i3c_mode() are clamped at SDR3 in this context to keep the slot
-	 * dedicated.
+	 * Reserve the SDR4 PHY slot for slow CCCs (SETHID/DEVCTRL/SETAASA).
+	 * Program its SCL/T-bit timing to match I2C FMP (~1MHz) so that
+	 * hci_cmd_v1_prep_ccc() can downgrade those commands by routing them
+	 * through MODE=SDR4. aspeed_i3c_get_sdr_phy_reg() and get_i3c_mode()
+	 * never select SDR4 for normal transfers, keeping the slot dedicated.
+	 * This is unconditional: SETHID/DEVCTRL may be issued through a hub
+	 * proxy where the JESD403 bus context is not visible on this controller.
 	 */
-	if (hci->master.bus.context == I3C_BUS_CONTEXT_JESD403) {
-		hcnt = DIV_ROUND_CLOSEST(PHY_I2C_FMP_DEFAULT_SCL_H_NS, core_period) - 1;
-		lcnt = DIV_ROUND_CLOSEST(PHY_I2C_FMP_DEFAULT_SCL_L_NS, core_period) - 1;
-		ast_phy_write(PHY_I3C_SDR4_CTRL0,
-			      FIELD_PREP(PHY_I3C_SDR4_CTRL0_SCL_H, hcnt) |
-			      FIELD_PREP(PHY_I3C_SDR4_CTRL0_SCL_L, lcnt));
-		ast_phy_write(PHY_I3C_SDR4_CTRL1,
-			      FIELD_PREP(PHY_I3C_SDR4_CTRL1_TBIT_H, hcnt) |
-			      FIELD_PREP(PHY_I3C_SDR4_CTRL1_TBIT_L, lcnt));
-	}
+	hcnt = DIV_ROUND_CLOSEST(PHY_I2C_FMP_DEFAULT_SCL_H_NS, core_period) - 1;
+	lcnt = DIV_ROUND_CLOSEST(PHY_I2C_FMP_DEFAULT_SCL_L_NS, core_period) - 1;
+	ast_phy_write(PHY_I3C_SDR4_CTRL0,
+		      FIELD_PREP(PHY_I3C_SDR4_CTRL0_SCL_H, hcnt) |
+		      FIELD_PREP(PHY_I3C_SDR4_CTRL0_SCL_L, lcnt));
+	ast_phy_write(PHY_I3C_SDR4_CTRL1,
+		      FIELD_PREP(PHY_I3C_SDR4_CTRL1_TBIT_H, hcnt) |
+		      FIELD_PREP(PHY_I3C_SDR4_CTRL1_TBIT_L, lcnt));
 
 	ast_phy_write(PHY_PULLUP_EN, 0x0);
 }

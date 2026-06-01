@@ -166,12 +166,14 @@ static enum hci_cmd_mode get_i3c_mode(struct i3c_hci *hci)
 		return MODE_I3C_SDR3;
 #ifdef CONFIG_ARCH_ASPEED
 	/*
-	 * On JESD403 buses, SDR4 is reserved as the slow-CCC slot (~1MHz) used
-	 * by SETHID/DEVCTRL on Aspeed. Sub-2MHz buses share SDR3 to keep the
-	 * SDR4 PHY timing dedicated. See aspeed_i3c_phy_init() in core.c.
+	 * On Aspeed, SDR4 is permanently reserved as the slow-CCC slot (~1MHz)
+	 * for JESD403 SETHID/DEVCTRL (see aspeed_i3c_phy_init() in core.c), so
+	 * normal transfers must never select it; sub-2MHz buses share SDR3.
+	 * The reservation cannot depend on the bus context, which is stripped
+	 * when a hub proxies these CCCs through a controller running in MIPI
+	 * mode for DAA.
 	 */
-	if (bus->context == I3C_BUS_CONTEXT_JESD403)
-		return MODE_I3C_SDR3;
+	return MODE_I3C_SDR3;
 #endif
 	return MODE_I3C_SDR4;
 }
@@ -226,16 +228,26 @@ static int hci_cmd_v1_prep_ccc(struct i3c_hci *hci, struct hci_xfer *xfer,
 
 #ifdef CONFIG_ARCH_ASPEED
 	/*
-	 * JESD403 SETHID/SETAASA/DEVCTRL must be sent at I2C-FMP-like speed
-	 * (~1MHz) for downstream SPD compatibility. Aspeed HCI follows the
-	 * MIPI spec and does not expose an "I3C-at-I2C-Fm" mode, so route
-	 * these CCCs through SDR4 whose PHY timing is programmed to ~1MHz in
-	 * aspeed_i3c_phy_init() for JESD403 buses. Mirrors the
-	 * SPEED_I3C_I2C_FM override in drivers/i3c/master/dw-i3c-master.c.
+	 * SETHID/DEVCTRL/SETAASA must be sent at I2C-FMP-like speed (~1MHz) for
+	 * downstream SPD compatibility. Aspeed HCI follows the MIPI spec and
+	 * does not expose an "I3C-at-I2C-Fm" mode, so route these CCCs through
+	 * SDR4, whose PHY timing is programmed to ~1MHz in aspeed_i3c_phy_init().
+	 * Mirrors the SPEED_I3C_I2C_FM override in dw-i3c-master.c.
+	 *
+	 * SETHID and DEVCTRL are JEDEC-reserved opcodes that only ever appear in
+	 * the JESD403/SPD flow, so the opcode alone is an unambiguous signal and
+	 * they are downgraded unconditionally. This also survives a hub proxying
+	 * them through a controller running in MIPI context, where the JESD403
+	 * bus context is no longer visible.
+	 *
+	 * SETAASA is a generic CCC used outside JESD403 as well, so it is only
+	 * downgraded when the bus is explicitly in JESD403 context, to avoid
+	 * slowing it down on ordinary buses.
 	 */
-	if (i3c_master_get_bus(&hci->master)->context == I3C_BUS_CONTEXT_JESD403 &&
-	    (ccc_cmd == I3C_CCC_SETHID || ccc_cmd == I3C_CCC_SETAASA ||
-	     ccc_cmd == I3C_CCC_DEVCTRL))
+	if (ccc_cmd == I3C_CCC_SETHID || ccc_cmd == I3C_CCC_DEVCTRL)
+		mode = MODE_I3C_SDR4;
+	else if (ccc_cmd == I3C_CCC_SETAASA &&
+		 i3c_master_get_bus(&hci->master)->context == I3C_BUS_CONTEXT_JESD403)
 		mode = MODE_I3C_SDR4;
 #endif
 
