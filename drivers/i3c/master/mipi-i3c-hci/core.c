@@ -327,8 +327,14 @@ static int i3c_hci_bus_init(struct i3c_master_controller *m)
 	dev_info(&hci->master.dev, "Master Mode");
 
 #ifdef CONFIG_ARCH_ASPEED
+	/*
+	 * Enable master clock stall: when the controller cannot keep the
+	 * data pipeline fed it holds SCL low instead of underrunning, so a
+	 * transfer pauses and resumes cleanly rather than aborting.
+	 */
 	ast_inhouse_write(ASPEED_I3C_CTRL,
-			  ASPEED_I3C_CTRL_INIT |
+			  ASPEED_I3C_CTRL_CLOCK_STALL_EN |
+				  ASPEED_I3C_CTRL_INIT |
 				  FIELD_PREP(ASPEED_I3C_CTRL_INIT_MODE,
 					     INIT_MST_MODE));
 	aspeed_i3c_phy_init(hci);
