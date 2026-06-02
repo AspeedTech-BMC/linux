@@ -9,6 +9,7 @@
 
 #define ASPEED_I3C_CTRL			0x0
 #define ASPEED_I3C_CTRL_STOP_QUEUE_PT	BIT(31) //Stop the queue read pointer.
+#define ASPEED_I3C_CTRL_CLOCK_STALL_EN	BIT(14)
 #define ASPEED_I3C_CTRL_INIT		BIT(4)
 #define ASPEED_I3C_CTRL_INIT_MODE	GENMASK(1, 0)
 #define INIT_MST_MODE 0
