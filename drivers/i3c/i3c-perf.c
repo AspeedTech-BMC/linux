@@ -22,7 +22,14 @@
 #include <linux/string.h>
 #include <linux/uaccess.h>
 
-#define I3C_PERF_MAX_LEN	128
+/*
+ * ASPEED silicon starts a transaction either when the full payload is
+ * buffered or when the TX queue fills, so there is no per-transaction
+ * payload ceiling beyond what the descriptor can express.  Cap at the
+ * u16 i3c_priv_xfer.len maximum, which also matches the HC theoretical
+ * 64 KB data length.
+ */
+#define I3C_PERF_MAX_LEN	65535
 /*
  * The MIPI HCI DMA driver uses a single 255-entry transfer ring with the
  * standard enqueue==dequeue full-detection, so it can only hold 254
