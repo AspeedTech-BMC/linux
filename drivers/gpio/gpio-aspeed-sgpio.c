@@ -56,6 +56,8 @@
 #define ASPEED_SGPIO_ENABLE		BIT(0)
 #define ASPEED_SGPIO_PINS_SHIFT		6
 
+#define ASPEED_SGPIO_G7_SERIAL_OUT_LOCK BIT(12)
+
 struct aspeed_sgpio_pdata {
 	const u32 pin_mask;
 	const struct aspeed_sgpio_llops *llops;
@@ -569,11 +571,24 @@ static const struct aspeed_sgpio_pdata ast2600_sgpiom_pdata = {
 	.cfg_offset = ASPEED_SGPIO_G4_CFG_OFFSET,
 };
 
+static void aspeed_sgpio_g7_serial_out_lock(struct aspeed_sgpio *gpio, bool lock)
+{
+	void __iomem *cfg = gpio->base + gpio->pdata->cfg_offset;
+	u32 val = ioread32(cfg);
+
+	if (lock)
+		val |= ASPEED_SGPIO_G7_SERIAL_OUT_LOCK;
+	else
+		val &= ~ASPEED_SGPIO_G7_SERIAL_OUT_LOCK;
+	iowrite32(val, cfg);
+}
+
 static void aspeed_sgpio_g7_reg_bit_set(struct aspeed_sgpio *gpio, unsigned int offset,
 					const enum aspeed_sgpio_reg reg, bool val)
 {
 	u32 mask = aspeed_sgpio_g7_reg_mask(reg);
 	void __iomem *addr = gpio->base + SGPIO_G7_CTRL_REG_OFFSET(offset >> 1);
+	bool serial_out = false;
 	u32 write_val;
 
 	if (reg == reg_val || reg == reg_rdata) {
@@ -587,12 +602,22 @@ static void aspeed_sgpio_g7_reg_bit_set(struct aspeed_sgpio *gpio, unsigned int 
 			gpio->pdata->llops->reg_bank_set(gpio, offset, reg_serial_out_sel,
 							 SELECT_FROM_CSR);
 			mask = SGPIO_G7_OUT_DATA;
+			serial_out = (reg == reg_val);
 		}
 	}
 
 	if (mask) {
+		/*
+		 * Freeze the serial-out shifter across the value update so a
+		 * half-written level can never be clocked out mid-waveform,
+		 * then release it once the new value is in place.
+		 */
+		if (serial_out)
+			aspeed_sgpio_g7_serial_out_lock(gpio, true);
 		write_val = (ioread32(addr) & ~(mask)) | field_prep(mask, val);
 		iowrite32(write_val, addr);
+		if (serial_out)
+			aspeed_sgpio_g7_serial_out_lock(gpio, false);
 	}
 }
 
