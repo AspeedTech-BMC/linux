@@ -95,3 +95,11 @@
 &pcie1 {
 	status = "okay";
 };
+
+&mctp0 {
+	pcie_rc;
+};
+
+&mctp1 {
+	pcie_rc;
+};
