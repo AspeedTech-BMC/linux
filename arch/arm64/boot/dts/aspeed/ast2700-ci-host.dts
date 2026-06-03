@@ -125,3 +125,11 @@
 	phy-mode = "sgmii";
 	phy-handle = <&ethphy2>;
 };
+
+&mctp0 {
+	pcie_rc;
+};
+
+&mctp1 {
+	pcie_rc;
+};
