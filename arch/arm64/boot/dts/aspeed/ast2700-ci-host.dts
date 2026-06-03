@@ -137,3 +137,11 @@
 	 */
 	pinctrl-0 = <&pinctrl_rmii1_default>;
 };
+
+&mctp0 {
+	pcie_rc;
+};
+
+&mctp1 {
+	pcie_rc;
+};
