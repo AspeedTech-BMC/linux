@@ -152,6 +152,14 @@ config AST2700_OTP
 	help
 	  Enable driver support for Aspeed AST2700 OTP driver.
 
+config AST2700_OTP_SYSFS
+	bool "AST2700 OTP sysfs interface"
+	depends on AST2700_OTP
+	default y
+	help
+	  Expose OTP information (e.g. vendor key hash) via sysfs attributes
+	  under the platform device directory.
+
 source "drivers/soc/aspeed/espi/Kconfig"
 
 source "drivers/soc/aspeed/rvas/Kconfig"
