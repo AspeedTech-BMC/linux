@@ -2423,8 +2423,15 @@ static void ast2600_i2c_controller_packet_irq(struct ast2600_i2c_bus *i2c_bus, u
 		}
 
 		if (msg->flags & I2C_M_RECV_LEN) {
-			u8 recv_len = AST2600_I2CC_GET_RX_BUFF(readl(i2c_bus->reg_base
-							+ AST2600_I2CC_STS_AND_BUFF));
+			u8 recv_len = 0;
+
+			if (i2c_bus->version == AST2700) {
+				recv_len = AST2700_I2CC_GET_BUFF(readl(i2c_bus->reg_base
+											   + BYTE_DATA_LOG));
+			} else {
+				recv_len = AST2600_I2CC_GET_RX_BUFF(readl(i2c_bus->reg_base
+											   + AST2600_I2CC_STS_AND_BUFF));
+			}
 
 			msg->len = min_t(unsigned int, recv_len, I2C_SMBUS_BLOCK_MAX);
 			msg->len += ((msg->flags & I2C_CLIENT_PEC) ? 2 : 1);
