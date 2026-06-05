@@ -6,6 +6,7 @@
 #include <linux/clk.h>
 #include <linux/device.h>
 #include <linux/interrupt.h>
+#include <linux/iopoll.h>
 #include <linux/jtag.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
@@ -161,6 +162,9 @@
 
 /* Use this macro to set us delay for JTAG Master Controller to be programmed */
 #define AST26XX_JTAG_CTRL_UDELAY	2
+
+/* Timeout (us) for a GBLCTRL FIFO mode/reset state change to settle */
+#define ASPEED_JTAG_FIFO_POLL_TIMEOUT_US	1000
 
 #define DEBUG_JTAG
 
@@ -1136,6 +1140,7 @@ static int aspeed_jtag_xfer_hw2(struct aspeed_jtag *aspeed_jtag,
 	u32 shift_bits;
 	u32 data_reg;
 	u32 reg_val;
+	u32 poll_val;
 	enum jtag_tapstate shift;
 	enum jtag_tapstate exit;
 	enum jtag_tapstate exitx;
@@ -1220,14 +1225,44 @@ static int aspeed_jtag_xfer_hw2(struct aspeed_jtag *aspeed_jtag,
 		partial_xfer = partial_xfer_size;
 
 		reg_val = aspeed_jtag_read(aspeed_jtag, ASPEED_JTAG_GBLCTRL);
+
+		/*
+		 * The FIFO must only be reset while it is in CPU mode;
+		 * asserting RESET_FIFO in controller mode corrupts the data
+		 * of subsequent transfers. Whether the FIFO is in CPU or
+		 * controller mode is decided by the hardware itself and
+		 * FIFO_CTRL_MODE is read-only, so wait for the hardware to
+		 * report CPU mode (0) before asserting RESET_FIFO.
+		 */
+		ret = read_poll_timeout(aspeed_jtag_read, poll_val,
+					!(poll_val & ASPEED_JTAG_GBLCTRL_FIFO_CTRL_MODE),
+					0, ASPEED_JTAG_FIFO_POLL_TIMEOUT_US, false,
+					aspeed_jtag, ASPEED_JTAG_GBLCTRL);
+		if (ret) {
+			dev_err(aspeed_jtag->dev,
+				"timed out waiting for FIFO to return to CPU mode\n");
+			return ret;
+		}
+
+		/* CPU mode confirmed; it is now safe to reset the FIFO. */
 		aspeed_jtag_write(aspeed_jtag, reg_val |
 				  ASPEED_JTAG_GBLCTRL_RESET_FIFO,
 				  ASPEED_JTAG_GBLCTRL);
 
-		/* Switch internal FIFO into CPU mode */
-		reg_val = reg_val & ~BIT(24);
-		aspeed_jtag_write(aspeed_jtag, reg_val,
-				  ASPEED_JTAG_GBLCTRL);
+		/*
+		 * RESET_FIFO is self-clearing; wait for it to read back as 0
+		 * so the FIFO is guaranteed flushed before we start loading
+		 * data into it.
+		 */
+		ret = read_poll_timeout(aspeed_jtag_read, poll_val,
+					!(poll_val & ASPEED_JTAG_GBLCTRL_RESET_FIFO),
+					0, ASPEED_JTAG_FIFO_POLL_TIMEOUT_US, false,
+					aspeed_jtag, ASPEED_JTAG_GBLCTRL);
+		if (ret) {
+			dev_err(aspeed_jtag->dev,
+				"timed out waiting for FIFO reset to clear\n");
+			return ret;
+		}
 
 		while (partial_xfer) {
 			if (partial_xfer > ASPEED_JTAG_DATA_CHUNK_SIZE)
