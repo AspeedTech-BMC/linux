@@ -33,6 +33,7 @@ struct net_device *mctp_pcie_vdm_add_dev(struct device *dev,
 					 const char *ifname);
 void mctp_pcie_vdm_receive_packet(struct net_device *ndev);
 void mctp_pcie_vdm_remove_dev(struct net_device *ndev);
+void mctp_pcie_vdm_set_carrier(struct net_device *ndev, bool up);
 
 #endif	/* CONFIG_MCTP_TRANSPORT_PCIE_VDM */
 #endif	/* __LINUX_MCTP_PCIE_VDM_H */
