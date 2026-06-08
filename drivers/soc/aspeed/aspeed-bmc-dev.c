@@ -295,11 +295,17 @@ static irqreturn_t aspeed_bmc_dev_pcie_isr(int irq, void *dev_id)
 {
 	struct aspeed_bmc_device *bmc_device = dev_id;
 
+	dev_info(bmc_device->dev, "Start to clear queue\n");
+
 	while (!(readl(bmc_device->reg_base + ASPEED_BMC_HOST2BMC_STS) & HOST2BMC_Q1_EMPTY))
 		readl(bmc_device->reg_base + ASPEED_BMC_HOST2BMC_Q1);
 
+	dev_info(bmc_device->dev, "Queue 1 is empty\n");
+
 	while (!(readl(bmc_device->reg_base + ASPEED_BMC_HOST2BMC_STS) & HOST2BMC_Q2_EMPTY))
 		readl(bmc_device->reg_base + ASPEED_BMC_HOST2BMC_Q2);
+
+	dev_info(bmc_device->dev, "Queue 2 is empty\n");
 
 	return IRQ_HANDLED;
 }
