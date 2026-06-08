@@ -153,6 +153,8 @@ static int mctp_pcie_vdm_xmit(struct net_device *ndev, struct sk_buff *skb)
 	if (rc) {
 		pr_err("%s: failed to send packet, rc %d\n", __func__, rc);
 		stats->tx_errors++;
+		if (rc != -ENOSPC && rc != -EBUSY)
+			stats->tx_dropped++;
 	} else {
 		stats->tx_packets++;
 		stats->tx_bytes += (skb->len - sizeof(struct mctp_pcie_vdm_hdr));
@@ -172,11 +174,13 @@ static netdev_tx_t mctp_pcie_vdm_start_xmit(struct sk_buff *skb,
 		rc = mctp_pcie_vdm_xmit(ndev, skb);
 		if (rc) {
 			pr_err("%s: failed to send packet, rc %d\n", __func__, rc);
-			ret = NETDEV_TX_BUSY;
-		} else {
-			ret = NETDEV_TX_OK;
-			kfree_skb(skb);
+			if (rc == -ENOSPC || rc == -EBUSY) {
+				ret = NETDEV_TX_BUSY;
+				return ret;
+			}
 		}
+		ret = NETDEV_TX_OK;
+		kfree_skb(skb);
 	}
 	return ret;
 }
@@ -353,3 +357,17 @@ void mctp_pcie_vdm_remove_dev(struct net_device *vdm_dev)
 	}
 }
 EXPORT_SYMBOL_GPL(mctp_pcie_vdm_remove_dev);
+
+void mctp_pcie_vdm_set_carrier(struct net_device *ndev, bool up)
+{
+	if (!ndev) {
+		pr_err("%s: ndev is NULL\n", __func__);
+		return;
+	}
+
+	if (up)
+		netif_carrier_on(ndev);
+	else
+		netif_carrier_off(ndev);
+}
+EXPORT_SYMBOL_GPL(mctp_pcie_vdm_set_carrier);
