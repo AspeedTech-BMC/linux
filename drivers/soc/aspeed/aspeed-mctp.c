@@ -2133,9 +2133,15 @@ static void aspeed_mctp_pcie_setup(struct aspeed_mctp *priv)
 		}
 		aspeed_mctp_rx_trigger(&priv->rx);
 		aspeed_mctp_send_pcie_uevent(kobj, true);
+#if IS_ENABLED(CONFIG_MCTP_TRANSPORT_PCIE_VDM)
+		mctp_pcie_vdm_set_carrier(priv->ndev, true);
+#endif
 	} else {
 		schedule_delayed_work(&priv->pcie.rst_dwork,
 				      msecs_to_jiffies(1000));
+#if IS_ENABLED(CONFIG_MCTP_TRANSPORT_PCIE_VDM)
+		mctp_pcie_vdm_set_carrier(priv->ndev, false);
+#endif
 	}
 }
 
