@@ -426,9 +426,9 @@ static int aspeed_spi_transfer(struct spi_controller *ctlr,
 
 		if (tx_buf) {
 			ctrl_val &= ~SPI_IO_MASK;
-			if (spi->mode & SPI_TX_DUAL)
+			if (xfer->tx_nbits == SPI_NBITS_DUAL)
 				ctrl_val |= SPI_DUAL_IO_MODE;
-			else if (spi->mode & SPI_TX_QUAD)
+			else if (xfer->tx_nbits == SPI_NBITS_QUAD)
 				ctrl_val |= SPI_QUAD_IO_MODE;
 			writel(ctrl_val, ctrl_reg);
 
@@ -444,9 +444,9 @@ static int aspeed_spi_transfer(struct spi_controller *ctlr,
 
 		if (rx_buf && rx_buf != tx_buf) {
 			ctrl_val &= ~SPI_IO_MASK;
-			if (spi->mode & SPI_RX_DUAL)
+			if (xfer->rx_nbits == SPI_NBITS_DUAL)
 				ctrl_val |= SPI_DUAL_IO_MODE;
-			else if (spi->mode & SPI_RX_QUAD)
+			else if (xfer->rx_nbits == SPI_NBITS_QUAD)
 				ctrl_val |= SPI_QUAD_IO_MODE;
 			writel(ctrl_val, ctrl_reg);
 
