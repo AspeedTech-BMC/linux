@@ -36,6 +36,7 @@
 
 #define ASPEED_SDHCI_TAP_PARAM_INVERT_CLK	BIT(4)
 #define ASPEED_SDHCI_NR_TAPS		15
+#define ASPEED_SDHCI_MAX_SWEEPS		10
 
 /* SDIO{10,20} */
 #define ASPEED_SDC_CAP1_1_8V           (0 * 32 + 26)
@@ -269,7 +270,7 @@ static int aspeed_sdhci_execute_tuning(struct sdhci_host *host, u32 opcode)
 	const int total = ASPEED_SDHCI_NR_TAPS * 2;
 	bool pass[ASPEED_SDHCI_NR_TAPS * 2];
 	u32 enable_mask, base, val, phase_bits;
-	int pos;
+	int pos, pass_count, sweep;
 
 	dev = mmc_dev(host->mmc);
 	pltfm_priv = sdhci_priv(host);
@@ -279,21 +280,55 @@ static int aspeed_sdhci_execute_tuning(struct sdhci_host *host, u32 opcode)
 	enable_mask = ASPEED_SDC_S0_PHASE_OUT_EN | ASPEED_SDC_S0_PHASE_IN_EN;
 	base = readl(sdc->regs + ASPEED_SDC_PHASE) & ASPEED_SDC_S0_PHASE_OUT;
 
+	/*
+	 * For each phase direction (input then output), sweep all 30
+	 * positions.  If every position passes, the result is
+	 * untrustworthy — all phases are not really reliable but we
+	 * cannot detect where the unreliable ones are.  Re-run the
+	 * sweep up to ASPEED_SDHCI_MAX_SWEEPS times, skipping
+	 * already-failed taps, until some fail and reveal the true
+	 * window.
+	 */
+
 	/* -------- Step 1: scan all input-phase positions -------- */
-	for (pos = 0; pos < total; pos++) {
-		phase_bits = (pos < ASPEED_SDHCI_NR_TAPS)
-			? (u32)pos
-			: (u32)(pos - ASPEED_SDHCI_NR_TAPS) | ASPEED_SDHCI_TAP_PARAM_INVERT_CLK;
+	for (pos = 0; pos < total; pos++)
+		pass[pos] = true;
 
-		val = base | enable_mask | (phase_bits << ASPEED_SDC_S0_PHASE_IN_SHIFT);
-		writel(val, sdc->regs + ASPEED_SDC_PHASE);
-		pass[pos] = !mmc_send_tuning(host->mmc, opcode, NULL);
+	for (sweep = 0; sweep < ASPEED_SDHCI_MAX_SWEEPS; sweep++) {
+		for (pos = 0; pos < total; pos++) {
+			if (!pass[pos])
+				continue;
 
-		dev_dbg(dev, "in  pos=%2d (%s tap%2u) %s\n", pos,
-			pos < ASPEED_SDHCI_NR_TAPS ? "rise" : "fall",
-			pos % ASPEED_SDHCI_NR_TAPS,
-			pass[pos] ? "pass" : "fail");
+			phase_bits = (pos < ASPEED_SDHCI_NR_TAPS)
+				? (u32)pos
+				: (u32)(pos - ASPEED_SDHCI_NR_TAPS) |
+				  ASPEED_SDHCI_TAP_PARAM_INVERT_CLK;
+
+			val = base | enable_mask | (phase_bits << ASPEED_SDC_S0_PHASE_IN_SHIFT);
+			writel(val, sdc->regs + ASPEED_SDC_PHASE);
+
+			if (mmc_send_tuning(host->mmc, opcode, NULL))
+				pass[pos] = false;
+
+			dev_dbg(dev, "in  pos=%2d (%s tap%2u) %s\n", pos,
+				pos < ASPEED_SDHCI_NR_TAPS ? "rise" : "fall",
+				pos % ASPEED_SDHCI_NR_TAPS,
+				pass[pos] ? "pass" : "fail");
+		}
+
+		for (pos = 0, pass_count = 0; pos < total; pos++)
+			if (pass[pos])
+				pass_count++;
+
+		dev_dbg(dev, "input  phase: sweep %d, %d/%d passed\n",
+			sweep, pass_count, total);
+
+		if (pass_count < total || !pass_count)
+			break;
 	}
+
+	if (!pass_count)
+		dev_warn(dev, "input  phase: no positions passed tuning\n");
 
 	phase_bits = aspeed_sdhci_find_center_tap(pass, total);
 	val = base | enable_mask | (phase_bits << ASPEED_SDC_S0_PHASE_IN_SHIFT);
@@ -303,20 +338,44 @@ static int aspeed_sdhci_execute_tuning(struct sdhci_host *host, u32 opcode)
 	/* -------- Step 2: scan all output-phase positions -------- */
 	base = val & ~ASPEED_SDC_S0_PHASE_OUT;
 
-	for (pos = 0; pos < total; pos++) {
-		phase_bits = (pos < ASPEED_SDHCI_NR_TAPS)
-			? (u32)pos
-			: (u32)(pos - ASPEED_SDHCI_NR_TAPS) | ASPEED_SDHCI_TAP_PARAM_INVERT_CLK;
+	for (pos = 0; pos < total; pos++)
+		pass[pos] = true;
 
-		val = base | enable_mask | (phase_bits << ASPEED_SDC_S0_PHASE_OUT_SHIFT);
-		writel(val, sdc->regs + ASPEED_SDC_PHASE);
-		pass[pos] = !mmc_send_tuning(host->mmc, opcode, NULL);
+	for (sweep = 0; sweep < ASPEED_SDHCI_MAX_SWEEPS; sweep++) {
+		for (pos = 0; pos < total; pos++) {
+			if (!pass[pos])
+				continue;
 
-		dev_dbg(dev, "out pos=%2d (%s tap%2u) %s\n", pos,
-			pos < ASPEED_SDHCI_NR_TAPS ? "rise" : "fall",
-			pos % ASPEED_SDHCI_NR_TAPS,
-			pass[pos] ? "pass" : "fail");
+			phase_bits = (pos < ASPEED_SDHCI_NR_TAPS)
+				? (u32)pos
+				: (u32)(pos - ASPEED_SDHCI_NR_TAPS) |
+				  ASPEED_SDHCI_TAP_PARAM_INVERT_CLK;
+
+			val = base | enable_mask | (phase_bits << ASPEED_SDC_S0_PHASE_OUT_SHIFT);
+			writel(val, sdc->regs + ASPEED_SDC_PHASE);
+
+			if (mmc_send_tuning(host->mmc, opcode, NULL))
+				pass[pos] = false;
+
+			dev_dbg(dev, "out pos=%2d (%s tap%2u) %s\n", pos,
+				pos < ASPEED_SDHCI_NR_TAPS ? "rise" : "fall",
+				pos % ASPEED_SDHCI_NR_TAPS,
+				pass[pos] ? "pass" : "fail");
+		}
+
+		for (pos = 0, pass_count = 0; pos < total; pos++)
+			if (pass[pos])
+				pass_count++;
+
+		dev_dbg(dev, "output phase: sweep %d, %d/%d passed\n",
+			sweep, pass_count, total);
+
+		if (pass_count < total || !pass_count)
+			break;
 	}
+
+	if (!pass_count)
+		dev_warn(dev, "output phase: no positions passed tuning\n");
 
 	phase_bits = aspeed_sdhci_find_center_tap(pass, total);
 	val = base | enable_mask | (phase_bits << ASPEED_SDC_S0_PHASE_OUT_SHIFT);
