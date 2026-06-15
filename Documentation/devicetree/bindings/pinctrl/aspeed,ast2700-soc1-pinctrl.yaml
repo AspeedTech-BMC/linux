@@ -257,6 +257,7 @@ additionalProperties:
         - I3C10
         - I3C11
         - JTAGM1
+        - JTAGM1TRST
         - LPC0
         - LPC1
         - LTPI_PS_I2C0
