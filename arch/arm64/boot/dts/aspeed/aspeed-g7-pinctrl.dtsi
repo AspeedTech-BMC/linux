@@ -524,6 +524,11 @@
 		groups = "JTAGM1";
 	};
 
+	pinctrl_jtagm1trst_default: jtagm1trst-default {
+		function = "JTAGM1";
+		groups = "JTAGM1TRST";
+	};
+
 	pinctrl_mdio0_default: mdio0-default {
 		function = "MDIO0";
 		groups = "MDIO0";
