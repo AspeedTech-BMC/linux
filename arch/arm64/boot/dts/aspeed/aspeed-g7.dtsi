@@ -1686,7 +1686,7 @@
 			clocks = <&syscon1 SCU1_CLK_AHB>;
 			resets = <&syscon1 SCU1_RESET_JTAG1>;
 			pinctrl-names = "default";
-			pinctrl-0 = <&pinctrl_jtagm1_default>;
+			pinctrl-0 = <&pinctrl_jtagm1_default &pinctrl_jtagm1trst_default>;
 			status = "disabled";
 		};
 
