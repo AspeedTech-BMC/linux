@@ -69,30 +69,6 @@ properties:
   mdio:
     $ref: /schemas/net/mdio.yaml#
 
-  aspeed,scu:
-    $ref: /schemas/types.yaml#/definitions/phandle
-    description:
-      Phandle to the SCU (System Control Unit) syscon node for Aspeed platform.
-      This reference is used by the MAC controller to configure the RGMII delays.
-
-  rx-internal-delay-ps:
-    description:
-      RGMII Receive Clock Delay defined in pico seconds. There are 32
-      steps of RGMII delay for Aspeed platform. Each Aspeed platform has its
-      own delay step value, it is fixed by hardware design. Total delay is
-      calculated by delay-step * 32. A value of 0 ps will disable any
-      delay. The Default is no delay.
-    default: 0
-
-  tx-internal-delay-ps:
-    description:
-      RGMII Transmit Clock Delay defined in pico seconds. There are 32
-      steps of RGMII delay for Aspeed platform. Each Aspeed platform has its
-      own delay step value, it is fixed by hardware design. Total delay is
-      calculated by delay-step * 32. A value of 0 ps will disable any
-      delay. The Default is no delay.
-    default: 0
-
 required:
   - compatible
   - reg
@@ -109,9 +85,6 @@ allOf:
     then:
       properties:
         resets: true
-        aspeed,scu: true
-        rx-internal-delay-ps: true
-        tx-internal-delay-ps: true
     else:
       properties:
         resets: false
