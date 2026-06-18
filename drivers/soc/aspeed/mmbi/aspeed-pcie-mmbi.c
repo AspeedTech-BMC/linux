@@ -60,7 +60,6 @@ struct aspeed_pcie_mmbi {
 	struct device *dev;
 	struct regmap *device;
 	struct regmap *e2m;
-	int irq;
 	const struct aspeed_platform *platform;
 	/* E2M index */
 	int id;
@@ -152,11 +151,6 @@ static int aspeed_pcie_mmbi_parse_app_interface(struct device *dev,
 	}
 
 	return 0;
-}
-
-static irqreturn_t aspeed_pcie_mmbi_isr(int irq, void *dev_id)
-{
-	return IRQ_HANDLED;
 }
 
 /**
@@ -284,7 +278,7 @@ static int aspeed_ast2700_pcie_mmbi_init(struct platform_device *pdev)
 {
 	struct aspeed_pcie_mmbi *mmbi = platform_get_drvdata(pdev);
 	struct device *dev = &pdev->dev;
-	u32 value, e2m_index, pid;
+	u32 e2m_index, pid;
 	struct resource res;
 	int ret, i;
 
@@ -359,19 +353,6 @@ static int aspeed_ast2700_pcie_mmbi_init(struct platform_device *pdev)
 	regmap_write(mmbi->device, mmbi->scu_bar_offset, (mmbi->mem_phy >> 4) | i);
 	regmap_write(mmbi->e2m, ASPEED_E2M_ADRMAP00 + (4 * pid), (mmbi->mem_phy >> 4) | i);
 
-	/* BMC Interrupt: E2M */
-	value = MMBI_DESC_SIZE_PREFIX + MMBI_DESC_SIZE_INTERRUPT +
-		MMBI_DESC_SIZE_CHANNEL * mmbi->num_of_channels;
-	value += mmbi->mem_phy;
-	regmap_write(mmbi->e2m, ASPEED_E2M_WIRQA0 + (4 * e2m_index), value);
-	value = (BIT(16) << pid) | ASPEED_E2M_INT_VAL;
-	regmap_write(mmbi->e2m, ASPEED_E2M_WIRQV0 + (4 * e2m_index), value);
-
-	/* HOST Interrupt: MSI */
-	regmap_read(mmbi->e2m, ASPEED_E2M_EVENT_EN, &value);
-	value |= BIT(mmbi->e2m_h2b_int);
-	regmap_write(mmbi->e2m, ASPEED_E2M_EVENT_EN, value);
-
 	ret = aspeed_pcie_mmbi_init(mmbi);
 	if (ret < 0) {
 		dev_err(dev, "Initialize MMBI device failed.\n");
@@ -432,20 +413,6 @@ static int aspeed_pcie_mmbi_probe(struct platform_device *pdev)
 		goto out_region;
 	}
 
-	/* Get IRQ */
-	mmbi->irq = platform_get_irq(pdev, 0);
-	if (mmbi->irq < 0) {
-		dev_err(&pdev->dev, "platform get of irq[=%d] failed!\n", mmbi->irq);
-		ret = mmbi->irq;
-		goto out_unmap;
-	}
-	ret = devm_request_irq(&pdev->dev, mmbi->irq, aspeed_pcie_mmbi_isr, 0, dev_name(&pdev->dev),
-			       mmbi);
-	if (ret) {
-		dev_err(dev, "pcie mmbi unable to get IRQ");
-		goto out_unmap;
-	}
-
 	mmbi_desc = &mmbi->mmbi_desc;
 	memset(mmbi_desc, 0, sizeof(struct mmbi_ins_desc));
 
@@ -453,13 +420,13 @@ static int aspeed_pcie_mmbi_probe(struct platform_device *pdev)
 	if (ret || mmbi->num_of_channels == 0 ||
 	    mmbi->num_of_channels > MMBI_MAX_CHANNELS) {
 		dev_err(dev, "ret %d, MMBI NOI %d\n", ret, mmbi->num_of_channels);
-		goto out_irq;
+		goto out_unmap;
 	}
 	mmbi_desc->num_of_channels = mmbi->num_of_channels;
 
 	ret = aspeed_pcie_mmbi_parse_app_interface(dev, mmbi_desc);
 	if (ret)
-		goto out_irq;
+		goto out_unmap;
 
 	/* B2H Interrupt */
 	mmbi->host_int_en = true;
@@ -472,7 +439,7 @@ static int aspeed_pcie_mmbi_probe(struct platform_device *pdev)
 	ret = mmbi->platform->mmbi_init(pdev);
 	if (ret) {
 		dev_err(dev, "Initialize pcie mmbi failed\n");
-		goto out_irq;
+		goto out_unmap;
 	}
 
 	for (i = 0; i < mmbi_desc->num_of_channels; i++)
@@ -481,8 +448,6 @@ static int aspeed_pcie_mmbi_probe(struct platform_device *pdev)
 	dev_info(dev, "ASPEED PCIe MMBI Dev %d: driver successfully loaded.\n", mmbi->id);
 
 	return 0;
-out_irq:
-	devm_free_irq(dev, mmbi->irq, mmbi);
 out_unmap:
 	iounmap(mmbi->mem_virt);
 out_region:
@@ -496,7 +461,6 @@ static void aspeed_pcie_mmbi_remove(struct platform_device *pdev)
 	struct aspeed_pcie_mmbi *mmbi = platform_get_drvdata(pdev);
 
 	mmbi_instance_remove(&mmbi->mmbi_desc);
-	devm_free_irq(&pdev->dev, mmbi->irq, mmbi);
 	iounmap(mmbi->mem_virt);
 	devm_kfree(&pdev->dev, mmbi);
 }
