@@ -1058,18 +1058,9 @@
 			#address-cells = <2>;
 			#size-cells = <2>;
 			aspeed,device = <&pcie_cfg0>;
-			e2m_ic0: interrupt-controller@14 {
-				compatible = "aspeed,ast2700-e2m-ic";
-				reg = <0 0x14 0 0x8>;
-				interrupts-extended = <&gic GIC_SPI 116 IRQ_TYPE_LEVEL_HIGH>;
-				interrupt-names = "e2m";
-				interrupt-controller;
-				#interrupt-cells = <1>;
-			};
 
 			pcie0_mmbi0: pcie0-mmbi@0 {
 				compatible = "aspeed,ast2700-pcie-mmbi";
-				interrupts-extended = <&e2m_ic0 ASPEED_AST2700_E2M_MMBI_H2B_INT0>;
 				index = <0>;
 				pid = <3>;
 				bar = <0x3c>;
@@ -1079,7 +1070,6 @@
 
 			pcie0_mmbi1: pcie0-mmbi@1 {
 				compatible = "aspeed,ast2700-pcie-mmbi";
-				interrupts-extended = <&e2m_ic0 ASPEED_AST2700_E2M_MMBI_H2B_INT1>;
 				index = <1>;
 				pid = <4>;
 				bar = <0x4c>;
@@ -1089,7 +1079,6 @@
 
 			pcie0_mmbi2: pcie0-mmbi@2 {
 				compatible = "aspeed,ast2700-pcie-mmbi";
-				interrupts-extended = <&e2m_ic0 ASPEED_AST2700_E2M_MMBI_H2B_INT2>;
 				index = <2>;
 				pid = <5>;
 				bar = <0x5c>;
@@ -1099,7 +1088,6 @@
 
 			pcie0_mmbi3: pcie0-mmbi@3 {
 				compatible = "aspeed,ast2700-pcie-mmbi";
-				interrupts-extended = <&e2m_ic0 ASPEED_AST2700_E2M_MMBI_H2B_INT3>;
 				index = <3>;
 				pid = <6>;
 				bar = <0x6c>;
@@ -1115,17 +1103,9 @@
 			#address-cells = <2>;
 			#size-cells = <2>;
 			aspeed,device = <&pcie_cfg1>;
-			e2m_ic1: interrupt-controller@14 {
-				compatible = "aspeed,ast2700-e2m-ic";
-				reg = <0 0x14 0 0x8>;
-				interrupts-extended = <&gic GIC_SPI 117 IRQ_TYPE_LEVEL_HIGH>;
-				interrupt-controller;
-				#interrupt-cells = <1>;
-			};
 
 			pcie1_mmbi4: pcie1-mmbi@4 {
 				compatible = "aspeed,ast2700-pcie-mmbi";
-				interrupts-extended = <&e2m_ic1 ASPEED_AST2700_E2M_MMBI_H2B_INT4>;
 				index = <4>;
 				pid = <11>;
 				bar = <0x3c>;
@@ -1135,7 +1115,6 @@
 
 			pcie1_mmbi5: pcie1-mmbi@5 {
 				compatible = "aspeed,ast2700-pcie-mmbi";
-				interrupts-extended = <&e2m_ic1 ASPEED_AST2700_E2M_MMBI_H2B_INT5>;
 				index = <5>;
 				pid = <12>;
 				bar = <0x4c>;
@@ -1145,7 +1124,6 @@
 
 			pcie1_mmbi6: pcie1-mmbi@6 {
 				compatible = "aspeed,ast2700-pcie-mmbi";
-				interrupts-extended = <&e2m_ic1 ASPEED_AST2700_E2M_MMBI_H2B_INT6>;
 				index = <6>;
 				pid = <13>;
 				bar = <0x5c>;
@@ -1155,7 +1133,6 @@
 
 			pcie1_mmbi7: pcie1-mmbi@7 {
 				compatible = "aspeed,ast2700-pcie-mmbi";
-				interrupts-extended = <&e2m_ic1 ASPEED_AST2700_E2M_MMBI_H2B_INT7>;
 				index = <7>;
 				pid = <14>;
 				bar = <0x6c>;
