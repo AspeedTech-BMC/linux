@@ -284,8 +284,13 @@
 #define PHY_I3C_OD_CTRL3_HD_DAT		GENMASK(26, 16)
 #define PHY_I3C_OD_CTRL3_AHD_DAT	GENMASK(10, 0)
 
-#define PHY_I3C_OD_DEFAULT_CAS_NS	40
-#define PHY_I3C_OD_DEFAULT_CBP_NS	40
+/*
+ * MIPI I3C minimum timing for the Open-Drain start/stop, expressed in tenths
+ * of a nanosecond to keep the fractional spec values (tCAS >= 38.4ns,
+ * tCBP >= 19.2ns) in integer arithmetic.
+ */
+#define PHY_I3C_OD_MIN_CAS_NS_X10	384
+#define PHY_I3C_OD_MIN_CBP_NS_X10	192
 #define PHY_I3C_OD_DEFAULT_SCL_H_NS	380
 #define PHY_I3C_OD_DEFAULT_SCL_L_NS	620
 #define PHY_I3C_OD_DEFAULT_HD_DAT	10
