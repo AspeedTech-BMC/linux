@@ -1803,7 +1803,7 @@ static void aspeed_video_init_regs(struct aspeed_video *video)
 	if (video->version == 7) {
 		if (video->input == VIDEO_INPUT_DVI)
 			ctrl |= FIELD_PREP(VE_CTRL_CLK_DELAY, VIDEO_CLK_CRT2);
-		else if (video->id == 0)
+		else if (video->input == VIDEO_INPUT_VGA && video->id == 0)
 			ctrl |= FIELD_PREP(VE_CTRL_CLK_DELAY, VIDEO_CLK_D1);
 		else
 			ctrl |= FIELD_PREP(VE_CTRL_CLK_DELAY, VIDEO_CLK_48MHz);
