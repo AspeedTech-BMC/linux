@@ -1782,6 +1782,15 @@ static void aspeed_video_update_regs(struct aspeed_video *video)
 	if (video->input == VIDEO_INPUT_DVI)
 		ctrl |= VE_CTRL_SOURCE;
 
+	if (video->version == 7) {
+		if (video->input == VIDEO_INPUT_DVI)
+			ctrl |= FIELD_PREP(VE_CTRL_CLK_DELAY, VIDEO_CLK_CRT2);
+		else if (video->input == VIDEO_INPUT_VGA && video->id == 0)
+			ctrl |= FIELD_PREP(VE_CTRL_CLK_DELAY, VIDEO_CLK_D1);
+		else
+			ctrl |= FIELD_PREP(VE_CTRL_CLK_DELAY, VIDEO_CLK_48MHz);
+	}
+
 	if (video->frame_rate)
 		ctrl |= FIELD_PREP(VE_CTRL_FRC, video->frame_rate);
 
@@ -1808,7 +1817,7 @@ static void aspeed_video_update_regs(struct aspeed_video *video)
 			    seq_ctrl);
 	aspeed_video_update(video, VE_CTRL,
 			    VE_CTRL_FRC | VE_CTRL_AUTO_OR_CURSOR |
-			    VE_CTRL_SOURCE, ctrl);
+			    VE_CTRL_SOURCE | VE_CTRL_CLK_DELAY, ctrl);
 	aspeed_video_update(video, VE_COMP_CTRL,
 			    VE_COMP_CTRL_DCT_LUM | VE_COMP_CTRL_DCT_CHR |
 			    VE_COMP_CTRL_EN_HQ | VE_COMP_CTRL_HQ_DCT_LUM |
