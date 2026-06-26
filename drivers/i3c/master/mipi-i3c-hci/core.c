@@ -202,7 +202,7 @@ static void aspeed_i3c_of_populate_bus_timing(struct i3c_hci *hci, struct device
 	u16 hcnt, lcnt, total_cnt, min_tbit_cnt, cas_lcnt = 0, cas_cnt, cbp_cnt;
 	unsigned long core_rate, core_period;
 	u32 val, pp_high = 0, pp_low = 0, od_high = 0, od_low = 0, thd_dat = 0, internal_pu = 0;
-	u32 cas_period = 0, cbp_period = 0;
+	u32 cas_period = 0, cbp_period = 0, sr_p_low_period = 0;
 	u32 ctrl0, ctrl1, ctrl2, sr_p_prepare_ctrl;
 	u32 sdr_ctrl0_reg = aspeed_i3c_get_sdr_phy_reg(hci);
 
@@ -241,6 +241,9 @@ static void aspeed_i3c_of_populate_bus_timing(struct i3c_hci *hci, struct device
 
 	if (!of_property_read_u32(np, "i3c-cbp-period-ns", &val))
 		cbp_period = val;
+
+	if (!of_property_read_u32(np, "i3c-sr-p-scl-lo-period-ns", &val))
+		sr_p_low_period = val;
 
 	if (pp_high && pp_low) {
 		hcnt = DIV_ROUND_CLOSEST(pp_high, core_period) - 1;
@@ -310,9 +313,16 @@ static void aspeed_i3c_of_populate_bus_timing(struct i3c_hci *hci, struct device
 	ast_phy_write(PHY_I3C_OD_CTRL0, FIELD_PREP(PHY_I3C_OD_CTRL0_CAS, cas_cnt) |
 						FIELD_PREP(PHY_I3C_OD_CTRL0_CBP, cbp_cnt));
 	/*
-	 * The SR_P hold time uses the default value, and the SR_P low count is
-	 * the same as the push-pull low count.
+	 * The SR_P hold time uses the default value. The SR_P low count is kept
+	 * separate from the per-SDR-slot SCL low count so it can satisfy the
+	 * MIPI I3C Controller Clock Stalling requirement (Figure 19: Clock
+	 * Stalling in T-Bit Before STOP, and Figure 20: Clock Stalling in Low
+	 * T-Bit Before Repeated START). It can be set with the
+	 * "i3c-sr-p-scl-lo-period-ns" device tree property; when absent it
+	 * defaults to the push-pull low count.
 	 */
+	if (sr_p_low_period)
+		lcnt = DIV_ROUND_CLOSEST(sr_p_low_period, core_period) - 1;
 	hcnt = DIV_ROUND_CLOSEST(PHY_I3C_SR_P_DEFAULT_HD_NS, core_period);
 	sr_p_prepare_ctrl = FIELD_PREP(PHY_I3C_SR_P_PREPARE_CTRL_HD, hcnt) |
 			    FIELD_PREP(PHY_I3C_SR_P_PREPARE_CTRL_SCL_L, lcnt);
