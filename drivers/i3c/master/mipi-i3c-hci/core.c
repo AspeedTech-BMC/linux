@@ -201,9 +201,10 @@ static void aspeed_i3c_phy_init(struct i3c_hci *hci)
 
 static void aspeed_i3c_of_populate_bus_timing(struct i3c_hci *hci, struct device_node *np)
 {
-	u16 hcnt, lcnt, total_cnt, min_tbit_cnt, cas_lcnt, cas_cnt, cbp_cnt;
+	u16 hcnt, lcnt, total_cnt, min_tbit_cnt, cas_lcnt = 0, cas_cnt, cbp_cnt;
 	unsigned long core_rate, core_period;
 	u32 val, pp_high = 0, pp_low = 0, od_high = 0, od_low = 0, thd_dat = 0, internal_pu = 0;
+	u32 cas_period = 0, cbp_period = 0;
 	u32 ctrl0, ctrl1, ctrl2, sr_p_prepare_ctrl;
 	u32 sdr_ctrl0_reg = aspeed_i3c_get_sdr_phy_reg(hci);
 
@@ -237,6 +238,12 @@ static void aspeed_i3c_of_populate_bus_timing(struct i3c_hci *hci, struct device
 	if (!of_property_read_u32(np, "internal-pullup", &val))
 		internal_pu = val;
 
+	if (!of_property_read_u32(np, "i3c-cas-period-ns", &val))
+		cas_period = val;
+
+	if (!of_property_read_u32(np, "i3c-cbp-period-ns", &val))
+		cbp_period = val;
+
 	if (pp_high && pp_low) {
 		hcnt = DIV_ROUND_CLOSEST(pp_high, core_period) - 1;
 		lcnt = DIV_ROUND_CLOSEST(pp_low, core_period) - 1;
@@ -262,34 +269,46 @@ static void aspeed_i3c_of_populate_bus_timing(struct i3c_hci *hci, struct device
 	ast_phy_write(PHY_I3C_DDR_CTRL1, ctrl1);
 
 	/*
-	 * tCAS and tCBP are derived from the SCL low count, mirroring the
+	 * tCAS and tCBP can be set independently through the "i3c-cas-period-ns"
+	 * and "i3c-cbp-period-ns" device tree properties. When a property is
+	 * absent, the value is derived from the SCL low count, mirroring the
 	 * dw-i3c-master driver (dw_i3c_bus_clk_cfg()). The applicable SCL low
 	 * period depends on the bus context:
 	 *   JESD403            : I3C OD SCL low period
 	 *   MIPI I3C, pure bus : I3C PP SCL low period
 	 *   MIPI I3C, mixed bus: I2C FM SCL low period
 	 */
-	if (hci->master.bus.context == I3C_BUS_CONTEXT_JESD403) {
-		if (od_high && od_low)
-			cas_lcnt = DIV_ROUND_CLOSEST(od_low, core_period) - 1;
-		else
-			cas_lcnt = DIV_ROUND_CLOSEST(PHY_I2C_FMP_DEFAULT_SCL_L_NS,
+	if (!cas_period || !cbp_period) {
+		if (hci->master.bus.context == I3C_BUS_CONTEXT_JESD403) {
+			if (od_high && od_low)
+				cas_lcnt = DIV_ROUND_CLOSEST(od_low, core_period) - 1;
+			else
+				cas_lcnt = DIV_ROUND_CLOSEST(PHY_I2C_FMP_DEFAULT_SCL_L_NS,
+							     core_period) - 1;
+		} else if (hci->master.bus.mode == I3C_BUS_MODE_PURE) {
+			cas_lcnt = lcnt;
+		} else {
+			cas_lcnt = DIV_ROUND_CLOSEST(PHY_I2C_FM_DEFAULT_SCL_L_NS,
 						     core_period) - 1;
-	} else if (hci->master.bus.mode == I3C_BUS_MODE_PURE) {
-		cas_lcnt = lcnt;
-	} else {
-		cas_lcnt = DIV_ROUND_CLOSEST(PHY_I2C_FM_DEFAULT_SCL_L_NS,
-					     core_period) - 1;
+		}
 	}
 
 	/*
-	 * The MIPI I3C spec mandates tCAS >= 38.4ns and tCBP >= 19.2ns, so
-	 * clamp each field to its minimum count.
+	 * Use the explicit period when provided; otherwise derive from the SCL
+	 * low count and clamp to the MIPI I3C minimums (tCAS >= 38.4ns,
+	 * tCBP >= 19.2ns), which the derived value never enforced.
 	 */
-	cas_cnt = max_t(u16, cas_lcnt,
-			DIV_ROUND_UP(PHY_I3C_OD_MIN_CAS_NS_X10, core_period * 10) - 1);
-	cbp_cnt = max_t(u16, cas_lcnt,
-			DIV_ROUND_UP(PHY_I3C_OD_MIN_CBP_NS_X10, core_period * 10) - 1);
+	if (cas_period)
+		cas_cnt = DIV_ROUND_CLOSEST(cas_period, core_period) - 1;
+	else
+		cas_cnt = max_t(u16, cas_lcnt,
+				DIV_ROUND_UP(PHY_I3C_OD_MIN_CAS_NS_X10, core_period * 10) - 1);
+
+	if (cbp_period)
+		cbp_cnt = DIV_ROUND_CLOSEST(cbp_period, core_period) - 1;
+	else
+		cbp_cnt = max_t(u16, cas_lcnt,
+				DIV_ROUND_UP(PHY_I3C_OD_MIN_CBP_NS_X10, core_period * 10) - 1);
 	ast_phy_write(PHY_I3C_OD_CTRL0, FIELD_PREP(PHY_I3C_OD_CTRL0_CAS, cas_cnt) |
 						FIELD_PREP(PHY_I3C_OD_CTRL0_CBP, cbp_cnt));
 	/*
