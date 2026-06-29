@@ -347,7 +347,6 @@ static int ee1004_probe(struct i2c_client *client)
 static struct i2c_driver ee1004_driver = {
 	.driver = {
 		.name = "ee1004",
-		.dev_groups = ee1004_groups,
 		.of_match_table = ee1004_of_match,
 	},
 	.probe = ee1004_probe,
