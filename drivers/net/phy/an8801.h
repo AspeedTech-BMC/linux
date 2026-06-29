@@ -10,9 +10,13 @@
 #ifndef __AN8801_H
 #define __AN8801_H
 
-/* NAMING DECLARATIONS
- */
-#define AN8801R_DRIVER_VERSION  "1.0.15"
+/* NAMING DECLARATIONS */
+#define AN8801R_DRIVER_VERSION  "1.0.21"
+
+#define DEBUGFS_COUNTER         "counter"
+#define DEBUGFS_INFO            "driver_info"
+#define DEBUGFS_PBUS_OP         "pbus_op"
+#define DEBUGFS_MDIO            "mdio"
 
 #define AN8801R_MDIO_PHY_ID     0x1
 #define AN8801R_PHY_ID1         0xc0ff
@@ -28,11 +32,10 @@
 
 #define MAX_RETRY               5
 
-#define AN8801R_EPHY_ADDR           0x11000000
-#define AN8801R_CL22                0x00800000
-
 #define LED_ENABLE                  1
 #define LED_DISABLE                 0
+
+#define AN8801R_DEBUGFS
 
 #ifndef BIT
 #define BIT(nr)                     (1 << (nr))
@@ -77,12 +80,13 @@
 #define LED_BLK_EVT_1000M_RX        BIT(1)
 #define LED_BLK_EVT_1000M_TX        BIT(0)
 
-#define UNIT_LED_BLINK_DURATION     1024
+#define UNIT_LED_BLINK_DURATION     780
 
 #define RGMII_DELAY_STEP_MASK       0x7
 #define RGMII_RXDELAY_ALIGN         BIT(4)
 #define RGMII_RXDELAY_FORCE_MODE    BIT(24)
 #define RGMII_TXDELAY_FORCE_MODE    BIT(24)
+#define AIR_CKO_OUT_DRV				0xF /* Available: 0x0~0xF (about 1.8V~2.5V) */
 
 /* For reference only */
 /* User-defined.B */
@@ -156,6 +160,17 @@ enum AIR_RGMII_DELAY_STEP_T {
 	AIR_RGMII_DELAY_STEP_7 = 7,
 };
 
+enum AIR_CKO_OUTPUT_RATE_T {
+	AIR_CKO_OUTPUT_RATE_25M = 0,
+	AIR_CKO_OUTPUT_RATE_125M = 1,
+};
+
+enum air_surge {
+	AIR_SURGE_0R,
+	AIR_SURGE_5R,
+	AIR_SURGE_LAST = 0xff
+};
+
 struct AIR_LED_CFG_T {
 	u16 en;
 	u16 gpio;
@@ -172,6 +187,12 @@ struct an8801r_priv {
 	u16                   rxdelay_step;
 	u8                    rxdelay_align;
 	u16                   txdelay_step;
+	u8                    cko_output_en;
+	u8                    cko_output_rate;
+	u8                    surge;
+#ifdef AN8801R_DEBUGFS
+	struct dentry        *debugfs_root;
+#endif
 };
 
 #endif /* End of __AN8801_H */
