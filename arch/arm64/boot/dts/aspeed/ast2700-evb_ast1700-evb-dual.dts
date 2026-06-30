@@ -211,8 +211,13 @@
 	status = "okay";
 };
 
+/* UART8 and UART14 will be tunnelded to LTPI UART channels. */
 &uart8 {
 	/delete-property/ pinctrl-names;
 	/delete-property/ pinctrl-0;
+	status = "okay";
+};
+
+&uart14 {
 	status = "okay";
 };
