@@ -228,10 +228,12 @@
 };
 
 &sgpios {
+	status = "okay";
 	/delete-property/ gpio-line-names;
 };
 
 &ltpi0_gpio {
+	status = "okay";
 	/delete-property/ gpio-line-names;
 	/delete-node/ gpio_17;
 	/delete-node/ gpio_19;
@@ -449,8 +451,13 @@
 	status = "okay";
 };
 
+/* UART3 and UART13 will be tunnelded to LTPI UART channels. */
 &uart3 {
 	/delete-property/ pinctrl-names;
 	/delete-property/ pinctrl-0;
+	status = "okay";
+};
+
+&uart13 {
 	status = "okay";
 };
