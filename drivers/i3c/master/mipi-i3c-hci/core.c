@@ -338,7 +338,7 @@ static void aspeed_i3c_of_populate_bus_timing(struct i3c_hci *hci, struct device
 	ast_phy_write(PHY_I3C_OD_CTRL1, FIELD_PREP(PHY_I3C_OD_CTRL1_SCL_H, hcnt) |
 						FIELD_PREP(PHY_I3C_OD_CTRL1_SCL_L, lcnt));
 	ast_phy_write(PHY_I3C_OD_CTRL2, FIELD_PREP(PHY_I3C_OD_CTRL2_ACK_H, hcnt) |
-						FIELD_PREP(PHY_I3C_OD_CTRL2_ACK_L, hcnt));
+						FIELD_PREP(PHY_I3C_OD_CTRL2_ACK_L, lcnt));
 
 	if (thd_dat) {
 		hcnt = DIV_ROUND_CLOSEST(thd_dat, core_period);
