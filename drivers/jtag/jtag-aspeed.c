@@ -1520,11 +1520,12 @@ static int aspeed_jtag_trst_set_hw2(struct aspeed_jtag *aspeed_jtag, u32 active)
 {
 	u32 reg_val;
 
+	/* TRST is low active: drive the pin low when asserted */
 	reg_val = aspeed_jtag_read(aspeed_jtag, ASPEED_JTAG_GBLCTRL);
 	if (active)
-		reg_val |= ASPEED_JTAG_GBLCTRL_TRST;
-	else
 		reg_val &= ~ASPEED_JTAG_GBLCTRL_TRST;
+	else
+		reg_val |= ASPEED_JTAG_GBLCTRL_TRST;
 	aspeed_jtag_write(aspeed_jtag, reg_val, ASPEED_JTAG_GBLCTRL);
 	return 0;
 }
