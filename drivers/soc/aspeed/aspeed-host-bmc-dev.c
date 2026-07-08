@@ -526,7 +526,7 @@ static int aspeed_pci_host_setup(struct pci_dev *pdev)
 	rc = aspeed_pci_bmc_device_setup_vuart(pdev);
 	if (rc) {
 		pr_err("Cannot setup Virtual UART");
-		goto out_free_mbox;
+		goto out_free_uart;
 	}
 
 	rc = devm_request_irq(&pdev->dev, pci_irq_vector(pdev, pci_bmc_dev->msi_idx_table[BMC_MSI]),
@@ -541,7 +541,6 @@ static int aspeed_pci_host_setup(struct pci_dev *pdev)
 
 out_free_uart:
 	aspeed_pci_host_bmc_device_release_vuart(pdev);
-out_free_mbox:
 	devm_free_irq(&pdev->dev, pci_irq_vector(pdev, pci_bmc_dev->msi_idx_table[MBX_MSI]),
 		      pci_bmc_dev);
 out_free_mmapping:
@@ -657,7 +656,7 @@ static int aspeed_pci_host_mmbi_setup(struct pci_dev *pdev)
 		size = pci_resource_len(pdev, i);
 
 		if (!start || !size) {
-			dev_err(dev,
+			dev_dbg(dev,
 				"Invalid BAR %d with start 0x%llx and size 0x%llx\n",
 				i, (unsigned long long)start,
 				(unsigned long long)size);
@@ -723,7 +722,7 @@ static int aspeed_pci_host_bmc_device_probe(struct pci_dev *pdev, const struct p
 	rc = pci_enable_device(pdev);
 	if (rc) {
 		dev_err(&pdev->dev, "pci_enable_device() returned error %d\n", rc);
-		return rc;
+		goto out_free_ida;
 	}
 
 	pci_set_master(pdev);
@@ -736,21 +735,23 @@ static int aspeed_pci_host_bmc_device_probe(struct pci_dev *pdev, const struct p
 	rc = pci_bmc_dev->platform->setup(pdev);
 	if (rc) {
 		dev_err(&pdev->dev, "ASPEED PCIe Host device returned error %d\n", rc);
-		pci_free_irq_vectors(pdev);
-		pci_disable_device(pdev);
-		return rc;
+		goto out_free_irq_vectors;
 	}
 
 #if IS_ENABLED(CONFIG_ASPEED_MMBI)
 	pci_bmc_dev->mmbi.dev = &pdev->dev;
-	rc = aspeed_pci_host_mmbi_setup(pdev);
-	if (rc) {
-		dev_err(&pdev->dev, "Failed to setup MMBI instances\n");
-		return rc;
-	}
+	if (aspeed_pci_host_mmbi_setup(pdev))
+		dev_warn(&pdev->dev, "MMBI not available, continuing without it\n");
 #endif
 
 	return 0;
+
+out_free_irq_vectors:
+	pci_free_irq_vectors(pdev);
+	pci_disable_device(pdev);
+out_free_ida:
+	ida_free(&bmc_device_ida, pci_bmc_dev->id);
+	return rc;
 }
 
 static void aspeed_pci_host_bmc_device_remove(struct pci_dev *pdev)
