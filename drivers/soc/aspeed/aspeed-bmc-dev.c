@@ -10,8 +10,10 @@
 #include <linux/of_irq.h>
 #include <linux/of.h>
 #include <linux/of_platform.h>
-#include <linux/of_reserved_mem.h>
 #include <linux/platform_device.h>
+
+#include <linux/io.h>
+#include <linux/mm.h>
 
 #include <linux/wait.h>
 #include <linux/workqueue.h>
@@ -19,7 +21,6 @@
 #include <linux/regmap.h>
 #include <linux/interrupt.h>
 #include <linux/mfd/syscon.h>
-#include <linux/dma-mapping.h>
 #include <linux/miscdevice.h>
 
 #define SCU_TRIGGER_MSI
@@ -118,9 +119,9 @@ struct aspeed_bmc_device {
 	struct miscdevice miscdev;
 	int id;
 	void __iomem *reg_base;
-	dma_addr_t bmc_mem_phy;
+	phys_addr_t bmc_mem_phy;
 	phys_addr_t bmc_mem_size;
-	void *bmc_mem_cpu;
+	void __iomem *bmc_mem_cpu;
 
 	int pcie2lpc;
 	int irq;
@@ -147,15 +148,16 @@ static int aspeed_bmc_device_mmap(struct file *file, struct vm_area_struct *vma)
 {
 	struct aspeed_bmc_device *bmc_device = file_aspeed_bmc_device(file);
 	unsigned long vsize = vma->vm_end - vma->vm_start;
+	pgoff_t pages = bmc_device->bmc_mem_size >> PAGE_SHIFT;
 
-	if (vsize > bmc_device->bmc_mem_size)
+	if (vma->vm_pgoff >= pages || vma_pages(vma) > pages - vma->vm_pgoff)
 		return -EINVAL;
 
-	return dma_mmap_coherent(bmc_device->dev, vma,
-				 bmc_device->bmc_mem_cpu,
-				 bmc_device->bmc_mem_phy,
-				 bmc_device->bmc_mem_size);
+	vma->vm_page_prot = pgprot_writecombine(vma->vm_page_prot);
 
+	return remap_pfn_range(vma, vma->vm_start,
+			       PHYS_PFN(bmc_device->bmc_mem_phy) + vma->vm_pgoff,
+			       vsize, vma->vm_page_prot);
 }
 
 static const struct file_operations aspeed_bmc_device_fops = {
@@ -587,18 +589,6 @@ static int aspeed_bmc_device_probe(struct platform_device *pdev)
 	if (IS_ERR(bmc_device->reg_base))
 		return PTR_ERR(bmc_device->reg_base);
 
-	ret = of_reserved_mem_device_init(dev);
-	if (ret) {
-		dev_err(dev, "of_reserved_mem_device_init failed: %d\n", ret);
-		return ret;
-	}
-
-	ret = dma_set_mask_and_coherent(dev, DMA_BIT_MASK(64));
-	if (ret) {
-		dev_err(dev, "cannot set 64-bits DMA mask\n");
-		return ret;
-	}
-
 	np = of_parse_phandle(dev->of_node, "memory-region", 0);
 	if (!np || of_address_to_resource(np, 0, &res)) {
 		dev_err(dev, "Failed to find memory-region.\n");
@@ -607,11 +597,12 @@ static int aspeed_bmc_device_probe(struct platform_device *pdev)
 
 	of_node_put(np);
 
+	bmc_device->bmc_mem_phy = res.start;
 	bmc_device->bmc_mem_size = resource_size(&res);
-	bmc_device->bmc_mem_cpu = dmam_alloc_coherent(dev, bmc_device->bmc_mem_size,
-						      &bmc_device->bmc_mem_phy, GFP_KERNEL);
+	bmc_device->bmc_mem_cpu = devm_ioremap_wc(dev, res.start,
+						  bmc_device->bmc_mem_size);
 	if (!bmc_device->bmc_mem_cpu) {
-		dev_err(dev, "Failed to allocate BMC memory.\n");
+		dev_err(dev, "Failed to map BMC memory.\n");
 		return -ENOMEM;
 	}
 
