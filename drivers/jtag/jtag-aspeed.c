@@ -14,6 +14,7 @@
 #include <linux/platform_device.h>
 #include <linux/reset.h>
 #include <linux/slab.h>
+#include <linux/spinlock.h>
 #include <linux/types.h>
 #include <linux/delay.h>
 #include <uapi/linux/jtag.h>
@@ -198,6 +199,7 @@ struct aspeed_jtag {
 	int				irq;
 	struct reset_control		*rst;
 	u32				flag;
+	spinlock_t			flag_lock; /* protects flag vs ISR */
 	wait_queue_head_t		jtag_wq;
 	u32				mode;
 	enum jtag_tapstate		current_state;
@@ -508,6 +510,15 @@ static inline void aspeed_jtag_xfer_hw_fifo_delay_26xx(void)
 	udelay(AST26XX_FIFO_UDELAY);
 }
 
+static void aspeed_jtag_flag_clear(struct aspeed_jtag *aspeed_jtag, u32 bit)
+{
+	unsigned long flags;
+
+	spin_lock_irqsave(&aspeed_jtag->flag_lock, flags);
+	aspeed_jtag->flag &= ~bit;
+	spin_unlock_irqrestore(&aspeed_jtag->flag_lock, flags);
+}
+
 /*
  * The wait must not be interruptible: a waiter woken by a signal would
  * return to userspace while the controller is still shifting, and the
@@ -527,7 +538,7 @@ static int aspeed_jtag_wait_flag(struct aspeed_jtag *aspeed_jtag, u32 bit)
 			"timed out waiting for bit 0x%x\n", bit);
 		res = -EFAULT;
 	}
-	aspeed_jtag->flag &= ~bit;
+	aspeed_jtag_flag_clear(aspeed_jtag, bit);
 	return res;
 }
 
@@ -751,6 +762,8 @@ static void aspeed_jtag_set_tap_state_hw2(struct aspeed_jtag *aspeed_jtag,
 					  ASPEED_JTAG_GBLCTRL_UPDT_SHIFT(execute_tck),
 				  ASPEED_JTAG_GBLCTRL);
 
+		aspeed_jtag_flag_clear(aspeed_jtag,
+				       ASPEED_JTAG_INTCTRL_SHCPL_IRQ_STAT);
 		aspeed_jtag_write(aspeed_jtag,
 				  ASPEED_JTAG_SHCTRL_STSHIFT_EN |
 					  ASPEED_JTAG_SHCTRL_LWRDT_SHIFT(execute_tck),
@@ -856,6 +869,8 @@ static int aspeed_jtag_xfer_push_data_26xx(struct aspeed_jtag *aspeed_jtag,
 	aspeed_jtag_write(aspeed_jtag, ASPEED_JTAG_TRANS_LEN(bits_len),
 			  ASPEED_JTAG_CTRL);
 	if (type == JTAG_SIR_XFER) {
+		aspeed_jtag_flag_clear(aspeed_jtag,
+				       ASPEED_JTAG_ISR_INST_PAUSE);
 		aspeed_jtag_write(aspeed_jtag,
 				  ASPEED_JTAG_TRANS_LEN(bits_len) |
 					  ASPEED_JTAG_CTL_26XX_INST_EN,
@@ -863,6 +878,8 @@ static int aspeed_jtag_xfer_push_data_26xx(struct aspeed_jtag *aspeed_jtag,
 		res = aspeed_jtag_isr_wait(aspeed_jtag,
 					   ASPEED_JTAG_ISR_INST_PAUSE);
 	} else {
+		aspeed_jtag_flag_clear(aspeed_jtag,
+				       ASPEED_JTAG_ISR_DATA_PAUSE);
 		aspeed_jtag_write(aspeed_jtag,
 				  ASPEED_JTAG_TRANS_LEN(bits_len) |
 					  ASPEED_JTAG_CTL_DATA_EN,
@@ -879,6 +896,8 @@ static int aspeed_jtag_xfer_push_data(struct aspeed_jtag *aspeed_jtag,
 	int res = 0;
 
 	if (type == JTAG_SIR_XFER) {
+		aspeed_jtag_flag_clear(aspeed_jtag,
+				       ASPEED_JTAG_ISR_INST_PAUSE);
 		aspeed_jtag_write(aspeed_jtag, ASPEED_JTAG_IOUT_LEN(bits_len),
 				  ASPEED_JTAG_CTRL);
 		aspeed_jtag_write(aspeed_jtag,
@@ -888,6 +907,8 @@ static int aspeed_jtag_xfer_push_data(struct aspeed_jtag *aspeed_jtag,
 		res = aspeed_jtag_isr_wait(aspeed_jtag,
 					   ASPEED_JTAG_ISR_INST_PAUSE);
 	} else {
+		aspeed_jtag_flag_clear(aspeed_jtag,
+				       ASPEED_JTAG_ISR_DATA_PAUSE);
 		aspeed_jtag_write(aspeed_jtag, ASPEED_JTAG_DOUT_LEN(bits_len),
 				  ASPEED_JTAG_CTRL);
 		aspeed_jtag_write(aspeed_jtag,
@@ -911,6 +932,8 @@ static int aspeed_jtag_xfer_push_data_last_26xx(struct aspeed_jtag *aspeed_jtag,
 				  ASPEED_JTAG_CTL_26XX_LASPEED_TRANS,
 			  ASPEED_JTAG_CTRL);
 	if (type == JTAG_SIR_XFER) {
+		aspeed_jtag_flag_clear(aspeed_jtag,
+				       ASPEED_JTAG_ISR_INST_COMPLETE);
 		aspeed_jtag_write(aspeed_jtag,
 				  ASPEED_JTAG_TRANS_LEN(shift_bits) |
 					  ASPEED_JTAG_CTL_26XX_LASPEED_TRANS |
@@ -919,6 +942,8 @@ static int aspeed_jtag_xfer_push_data_last_26xx(struct aspeed_jtag *aspeed_jtag,
 		res = aspeed_jtag_isr_wait(aspeed_jtag,
 					   ASPEED_JTAG_ISR_INST_COMPLETE);
 	} else {
+		aspeed_jtag_flag_clear(aspeed_jtag,
+				       ASPEED_JTAG_ISR_DATA_COMPLETE);
 		aspeed_jtag_write(aspeed_jtag,
 				  ASPEED_JTAG_TRANS_LEN(shift_bits) |
 					  ASPEED_JTAG_CTL_26XX_LASPEED_TRANS |
@@ -937,6 +962,8 @@ static int aspeed_jtag_xfer_push_data_last(struct aspeed_jtag *aspeed_jtag,
 	int res = 0;
 
 	if (type == JTAG_SIR_XFER) {
+		aspeed_jtag_flag_clear(aspeed_jtag,
+				       ASPEED_JTAG_ISR_INST_COMPLETE);
 		aspeed_jtag_write(aspeed_jtag,
 				  ASPEED_JTAG_IOUT_LEN(shift_bits) |
 					  ASPEED_JTAG_CTL_LASPEED_INST,
@@ -949,6 +976,8 @@ static int aspeed_jtag_xfer_push_data_last(struct aspeed_jtag *aspeed_jtag,
 		res = aspeed_jtag_isr_wait(aspeed_jtag,
 					   ASPEED_JTAG_ISR_INST_COMPLETE);
 	} else {
+		aspeed_jtag_flag_clear(aspeed_jtag,
+				       ASPEED_JTAG_ISR_DATA_COMPLETE);
 		aspeed_jtag_write(aspeed_jtag,
 				  ASPEED_JTAG_DOUT_LEN(shift_bits) |
 					  ASPEED_JTAG_CTL_LASPEED_DATA,
@@ -1323,6 +1352,8 @@ static int aspeed_jtag_xfer_hw2(struct aspeed_jtag *aspeed_jtag,
 						shift_bits),
 					  ASPEED_JTAG_GBLCTRL);
 
+			aspeed_jtag_flag_clear(aspeed_jtag,
+					       ASPEED_JTAG_INTCTRL_SHCPL_IRQ_STAT);
 			aspeed_jtag_write(aspeed_jtag, tms_mask |
 				ASPEED_JTAG_SHCTRL_LWRDT_SHIFT(shift_bits),
 				ASPEED_JTAG_SHCTRL);
@@ -1347,6 +1378,8 @@ static int aspeed_jtag_xfer_hw2(struct aspeed_jtag *aspeed_jtag,
 						shift_bits),
 					  ASPEED_JTAG_GBLCTRL);
 
+			aspeed_jtag_flag_clear(aspeed_jtag,
+					       ASPEED_JTAG_INTCTRL_SHCPL_IRQ_STAT);
 			aspeed_jtag_write(aspeed_jtag, tms_mask |
 					  ASPEED_JTAG_SHCTRL_LWRDT_SHIFT(
 						  shift_bits),
@@ -1407,7 +1440,9 @@ static irqreturn_t aspeed_jtag_interrupt(s32 this_irq, void *dev_id)
 					  (status &
 					   ASPEED_JTAG_ISR_INT_EN_MASK),
 				  ASPEED_JTAG_ISR);
+		spin_lock(&aspeed_jtag->flag_lock);
 		aspeed_jtag->flag |= status & ASPEED_JTAG_ISR_INT_MASK;
+		spin_unlock(&aspeed_jtag->flag_lock);
 	}
 
 	if (aspeed_jtag->flag) {
@@ -1433,7 +1468,9 @@ static irqreturn_t aspeed_jtag_interrupt_hw2(s32 this_irq, void *dev_id)
 		aspeed_jtag_write(aspeed_jtag,
 				  status | ASPEED_JTAG_INTCTRL_SHCPL_IRQ_STAT,
 				  ASPEED_JTAG_INTCTRL);
+		spin_lock(&aspeed_jtag->flag_lock);
 		aspeed_jtag->flag |= status & ASPEED_JTAG_INTCTRL_SHCPL_IRQ_STAT;
+		spin_unlock(&aspeed_jtag->flag_lock);
 	}
 
 	if (aspeed_jtag->flag) {
@@ -1502,6 +1539,11 @@ static int aspeed_jtag_init(struct platform_device *pdev,
 	}
 	reset_control_deassert(aspeed_jtag->rst);
 
+	aspeed_jtag->flag = 0;
+	aspeed_jtag->mode = 0;
+	spin_lock_init(&aspeed_jtag->flag_lock);
+	init_waitqueue_head(&aspeed_jtag->jtag_wq);
+
 	if (aspeed_jtag->irq >= 0) {
 		aspeed_jtag->irq =
 			devm_request_irq(aspeed_jtag->dev, aspeed_jtag->irq,
@@ -1514,10 +1556,6 @@ static int aspeed_jtag_init(struct platform_device *pdev,
 	}
 
 	aspeed_jtag->llops->output_disable(aspeed_jtag);
-
-	aspeed_jtag->flag = 0;
-	aspeed_jtag->mode = 0;
-	init_waitqueue_head(&aspeed_jtag->jtag_wq);
 	return 0;
 }
 
