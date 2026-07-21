@@ -245,23 +245,32 @@ static void mctp_pcie_vdm_net_setup(struct net_device *ndev)
 
 	ndev->netdev_ops = &mctp_pcie_vdm_net_ops;
 	ndev->header_ops = &mctp_pcie_vdm_net_hdr_ops;
+
+	/* The transport driver raises carrier after validating the PCIe link. */
+	netif_carrier_off(ndev);
 }
 
-static int mctp_pcie_vdm_add_net_dev(struct net_device **dev, const char *ifname)
+static int mctp_pcie_vdm_add_net_dev(struct net_device **dev,
+				     struct device *parent,
+				     const struct mctp_pcie_vdm_ops *ops,
+				     const char *ifname)
 {
 	struct net_device *ndev = alloc_netdev(sizeof(struct mctp_pcie_vdm_dev),
 					       ifname ? ifname : "mctppci%d",
 					       NET_NAME_UNKNOWN,
 					       mctp_pcie_vdm_net_setup);
+	struct mctp_pcie_vdm_dev *vdm_dev;
+	int rc;
 
 	if (!ndev) {
 		pr_err("%s: failed to allocate net device\n", __func__);
 		return -ENOMEM;
 	}
-	dev_net_set(ndev, current->nsproxy->net_ns);
 
-	*dev = ndev;
-	int rc;
+	vdm_dev = netdev_priv(ndev);
+	vdm_dev->dev = parent;
+	vdm_dev->callback_ops = ops;
+	dev_net_set(ndev, current->nsproxy->net_ns);
 
 	rc = mctp_register_netdev(ndev, NULL, MCTP_PHYS_BINDING_PCIE_VDM);
 	if (rc) {
@@ -269,7 +278,10 @@ static int mctp_pcie_vdm_add_net_dev(struct net_device **dev, const char *ifname
 		free_netdev(ndev);
 		return rc;
 	}
-	return rc;
+
+	*dev = ndev;
+
+	return 0;
 }
 
 void mctp_pcie_vdm_receive_packet(struct net_device *ndev)
@@ -332,18 +344,13 @@ struct net_device *mctp_pcie_vdm_add_dev(struct device *dev,
 					 const char *ifname)
 {
 	struct net_device *ndev;
-	struct mctp_pcie_vdm_dev *vdm_dev;
 	int rc;
 
-	rc = mctp_pcie_vdm_add_net_dev(&ndev, ifname);
+	rc = mctp_pcie_vdm_add_net_dev(&ndev, dev, ops, ifname);
 	if (rc) {
 		pr_err("%s: failed to add net device\n", __func__);
 		return ERR_PTR(rc);
 	}
-
-	vdm_dev = netdev_priv(ndev);
-	vdm_dev->dev = dev;
-	vdm_dev->callback_ops = ops;
 
 	return ndev;
 }
@@ -351,12 +358,12 @@ EXPORT_SYMBOL_GPL(mctp_pcie_vdm_add_dev);
 
 void mctp_pcie_vdm_remove_dev(struct net_device *vdm_dev)
 {
-	pr_debug("%s: removing vdm_dev %s\n", __func__, vdm_dev->name);
+	if (!vdm_dev)
+		return;
 
-	if (vdm_dev) {
-		mctp_unregister_netdev(vdm_dev);
-		free_netdev(vdm_dev);
-	}
+	pr_debug("%s: removing vdm_dev %s\n", __func__, vdm_dev->name);
+	mctp_unregister_netdev(vdm_dev);
+	free_netdev(vdm_dev);
 }
 EXPORT_SYMBOL_GPL(mctp_pcie_vdm_remove_dev);
 
