@@ -102,6 +102,8 @@
 #define ASPEED_JTAG_TCK_WAIT		10
 #define ASPEED_JTAG_RESET_CNTR		10
 #define WAIT_ITERATIONS		300
+/* Upper bound for one HW shift chunk; only hit if an interrupt is lost */
+#define ASPEED_JTAG_WAIT_TIMEOUT	(HZ)
 
 /* Use this macro to switch between HW mode 1(comment out) and 2(defined)  */
 #define ASPEED_JTAG_HW_MODE_2_ENABLE	1
@@ -506,6 +508,29 @@ static inline void aspeed_jtag_xfer_hw_fifo_delay_26xx(void)
 	udelay(AST26XX_FIFO_UDELAY);
 }
 
+/*
+ * The wait must not be interruptible: a waiter woken by a signal would
+ * return to userspace while the controller is still shifting, and the
+ * late completion interrupt would leave a stale bit in ->flag that lets
+ * the next transfer complete early with garbage data.  A signal never
+ * reached userspace here anyway; the callers turn any error into
+ * -EFAULT.  The timeout is only an escape hatch for a lost interrupt.
+ */
+static int aspeed_jtag_wait_flag(struct aspeed_jtag *aspeed_jtag, u32 bit)
+{
+	int res = 0;
+
+	if (!wait_event_timeout(aspeed_jtag->jtag_wq,
+				aspeed_jtag->flag & bit,
+				ASPEED_JTAG_WAIT_TIMEOUT)) {
+		dev_err(aspeed_jtag->dev,
+			"timed out waiting for bit 0x%x\n", bit);
+		res = -EFAULT;
+	}
+	aspeed_jtag->flag &= ~bit;
+	return res;
+}
+
 static int aspeed_jtag_isr_wait(struct aspeed_jtag *aspeed_jtag, u32 bit)
 {
 	int res = 0;
@@ -513,9 +538,7 @@ static int aspeed_jtag_isr_wait(struct aspeed_jtag *aspeed_jtag, u32 bit)
 	u32 iterations = 0;
 
 	if (!aspeed_jtag->irq) {
-		res = wait_event_interruptible(aspeed_jtag->jtag_wq,
-					       aspeed_jtag->flag & bit);
-		aspeed_jtag->flag &= ~bit;
+		res = aspeed_jtag_wait_flag(aspeed_jtag, bit);
 	} else {
 		while ((status & bit) == 0) {
 			status = aspeed_jtag_read(aspeed_jtag, ASPEED_JTAG_ISR);
@@ -552,10 +575,8 @@ static int aspeed_jtag_wait_shift_complete(struct aspeed_jtag *aspeed_jtag)
 	u32 iterations = 0;
 
 	if (!aspeed_jtag->irq) {
-		res = wait_event_interruptible(aspeed_jtag->jtag_wq,
-					       aspeed_jtag->flag &
-						       ASPEED_JTAG_INTCTRL_SHCPL_IRQ_STAT);
-		aspeed_jtag->flag &= ~ASPEED_JTAG_INTCTRL_SHCPL_IRQ_STAT;
+		res = aspeed_jtag_wait_flag(aspeed_jtag,
+					    ASPEED_JTAG_INTCTRL_SHCPL_IRQ_STAT);
 	} else {
 		while ((status & ASPEED_JTAG_INTCTRL_SHCPL_IRQ_STAT) == 0) {
 			status = aspeed_jtag_read(aspeed_jtag,
@@ -1390,7 +1411,8 @@ static irqreturn_t aspeed_jtag_interrupt(s32 this_irq, void *dev_id)
 	}
 
 	if (aspeed_jtag->flag) {
-		wake_up_interruptible(&aspeed_jtag->jtag_wq);
+		/* wait_event_timeout() sleeps uninterruptibly */
+		wake_up(&aspeed_jtag->jtag_wq);
 		ret = IRQ_HANDLED;
 	} else {
 		dev_err(aspeed_jtag->dev, "irq status:%x\n", status);
@@ -1415,7 +1437,8 @@ static irqreturn_t aspeed_jtag_interrupt_hw2(s32 this_irq, void *dev_id)
 	}
 
 	if (aspeed_jtag->flag) {
-		wake_up_interruptible(&aspeed_jtag->jtag_wq);
+		/* wait_event_timeout() sleeps uninterruptibly */
+		wake_up(&aspeed_jtag->jtag_wq);
 		ret = IRQ_HANDLED;
 	} else {
 		dev_err(aspeed_jtag->dev, "irq status:%x\n", status);
