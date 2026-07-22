@@ -34,7 +34,7 @@ static DEFINE_SPINLOCK(otp_state_lock);
 #define OTP_CMD_BIST			0x23b1e368
 
 #define OTP_CMD_OFFSET			0x20
-#define OTP_MASTER			OTP_M0
+#define OTP_MASTER			OTP_M1
 
 #define OTP_KEY				0x0
 #define OTP_CMD				(OTP_MASTER * OTP_CMD_OFFSET + 0x4)
