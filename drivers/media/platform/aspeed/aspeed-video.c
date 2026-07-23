@@ -1125,10 +1125,12 @@ static void aspeed_video_frame_done_handler(struct aspeed_video *video,
 			if (video->format == VIDEO_FMT_PARTIAL) {
 				struct aspeed_video_box *box =
 					kmalloc(sizeof(struct aspeed_video_box),
-						GFP_KERNEL);
+						GFP_ATOMIC);
 
-				box->box = video->bounding_box;
-				list_add_tail(&box->link, &video->boxes);
+				if (box) {
+					box->box = video->bounding_box;
+					list_add_tail(&box->link, &video->boxes);
+				}
 			}
 		}
 	}
