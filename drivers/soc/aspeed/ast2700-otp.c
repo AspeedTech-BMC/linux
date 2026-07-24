@@ -332,29 +332,10 @@ static int aspeed_otp_write(struct aspeed_otp *ctx, int offset,
 	return ret;
 }
 
-static int aspeed_otp_ecc_en(struct aspeed_otp *ctx)
+static int aspeed_otp_ecc_en(struct aspeed_otp *ctx, int enable)
 {
-	struct device *dev = ctx->dev;
-	int ret = 0;
-
-	/* Check ecc is already enabled */
-	if (ctx->gbl_ecc_en == 1)
-		return 0;
-
-	otp_unlock(dev);
-
-	/* enable cfg ecc */
-	ret = otp_prog_data(ctx, OTPSTRAP14_ADDR, 0x1);
-	if (ret) {
-		dev_warn(dev, "%s: prog failed\n", __func__);
-		goto end;
-	}
-
-	ctx->gbl_ecc_en = 1;
-end:
-	otp_lock(dev);
-
-	return ret;
+	ctx->gbl_ecc_en = enable ? ECC_ENABLE : ECC_DISABLE;
+	return 0;
 }
 
 #ifdef CONFIG_AST2700_OTP_SYSFS
@@ -427,7 +408,7 @@ static long aspeed_otp_ioctl(struct file *file, unsigned int cmd, unsigned long 
 		break;
 
 	case ASPEED_OTP_SET_ECC:
-		ret = aspeed_otp_ecc_en(ctx);
+		ret = aspeed_otp_ecc_en(ctx, (int)arg);
 		break;
 
 	case ASPEED_OTP_GET_REVID:
