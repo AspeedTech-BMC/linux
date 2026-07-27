@@ -1,7 +1,7 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
+// SPDX-License-Identifier: GPL-2.0
 /* ASPEED CAN device driver
  *
- * Copyright (C) 2023 ASPEED Inc.
+ * Copyright (C) 2026 ASPEED Inc.
  */
 
 #include <linux/bitfield.h>
@@ -11,11 +11,12 @@
 #include <linux/init.h>
 #include <linux/interrupt.h>
 #include <linux/io.h>
+#include <linux/iopoll.h>
 #include <linux/kernel.h>
+#include <linux/list.h>
 #include <linux/module.h>
 #include <linux/netdevice.h>
 #include <linux/of.h>
-#include <linux/of_device.h>
 #include <linux/platform_device.h>
 #include <linux/reset.h>
 #include <linux/skbuff.h>
@@ -24,375 +25,233 @@
 #include <linux/types.h>
 #include <linux/can/dev.h>
 #include <linux/can/error.h>
-#include <linux/pm_runtime.h>
 
-#define DRIVER_NAME	"aspeed_can"
+#define CAN_AC_SEG		0x0004 /* nominal (arbitration) phase timing */
+#define  AC_SEG1_MASK		GENMASK(8, 0)
+#define  AC_SEG2_MASK		GENMASK(22, 16)
+#define  AC_SJW_MASK		GENMASK(30, 24)
+#define CAN_FD_SEG		0x0008 /* data phase timing */
+#define  FD_SEG1_MASK		GENMASK(7, 0)
+#define  FD_SEG2_MASK		GENMASK(22, 16)
+#define  FD_SJW_MASK		GENMASK(30, 24)
+#define CAN_BITTIME		0x0010 /* prescaler, TDC, retransmit limit */
+#define  PRESC_MASK		GENMASK(4, 0)
+#define  FD_SSPOFF_MASK		GENMASK(15, 8)
+#define  REALIM_MASK		GENMASK(26, 24)
+#define  RETLIM_MASK		GENMASK(30, 28)
+#define  RELIM_DEFAULT		0x7
+#define CAN_INTF		0x0014 /* interrupt flags */
+#define  INTF_EIF		BIT(1) /* general error */
+#define  INTF_TSIF		BIT(2) /* STB TX done */
+#define  INTF_RAFIF		BIT(4) /* RX buf almost full */
+#define  INTF_RFIF		BIT(5) /* RX buf full */
+#define  INTF_ROIF		BIT(6) /* RX buf overflow */
+#define  INTF_RIF		BIT(7) /* frame received */
+#define  INTF_BEIF		BIT(8) /* bus error */
+#define  INTF_ALIF		BIT(9) /* arbitration loss */
+#define  INTF_EPIF		BIT(10) /* error passive transition */
+#define  INTF_EPASS		BIT(30) /* error passive state */
+#define  INTF_EWARN		BIT(31) /* error warning limit reached */
+#define  INTF_ERR_MASK		(INTF_EIF | INTF_ROIF | INTF_BEIF | \
+				 INTF_ALIF | INTF_EPIF)
+#define  INTF_RX_MASK		(INTF_RAFIF | INTF_RFIF | INTF_RIF)
+#define CAN_INTE		0x0018 /* interrupt enable */
+#define INTE_ALL		(INTF_ERR_MASK | INTF_TSIF | INTF_RX_MASK)
+#define CAN_CFG_STAT		0x0028 /* cfg_stat, tcmd, tctrl, rctrl */
+#define  CFGSTAT_BUSOFF		BIT(0) /* bus off */
+#define  CFGSTAT_LBMI		BIT(5) /* loop back mode internal */
+#define  CFGSTAT_LBME		BIT(6) /* loop back mode external */
+#define  CFGSTAT_RESET		BIT(7) /* reset mode */
+#define  TCMD_TSALL		BIT(9) /* transmit STB all frames */
+#define  TCMD_LOM		BIT(14) /* listen-only mode */
+#define  TCMD_TBSEL		BIT(15) /* TX buf select: 0=PTB, 1=STB */
+#define  TCTRL_TSFF		BIT(18) /* STB full flag */
+#define  TCTRL_TSMODE		BIT(21) /* STB mode (0=FIFO, 1=priority) */
+#define  TCTRL_TSNEXT		BIT(22) /* STB next: advance to next slot */
+#define  TCTRL_FD_ISO		BIT(23) /* FD ISO mode (ISO 11898-1:2015) */
+#define  RCTRL_RSTAT_MASK	GENMASK(25, 24) /* receive status */
+#define  RCTRL_RREL		BIT(28) /* receive release */
+#define  RCTRL_SACK		BIT(31) /* self-ACK in loopback mode */
+#define CAN_LIMIT		0x002c /* limit, ealcap, recnt, tecnt */
+#define  LIMIT_EWL_MASK		GENMASK(3, 0) /* error warning limit */
+#define  LIMIT_AFWL_MASK	GENMASK(7, 4) /* almost full warning level */
+#define  EALCAP_KOER_MASK	GENMASK(15, 13) /* kind of error */
+#define  RECNT_MASK		GENMASK(23, 16) /* receive error counter */
+#define  TECNT_MASK		GENMASK(31, 24) /* transmit error counter */
+#define  LIMIT_AFWL_DEFAULT	0x2
+#define  LIMIT_EWL_DEFAULT	0xb
+#define CAN_ACFCTRL		0x0044 /* acceptance filter control */
+#define  ACFADR_MASK		GENMASK(3, 0) /* selects accessed filter */
+#define  ACF_EN_MASK		GENMASK(31, 16) /* per-filter enable bits */
+#define CAN_ACFC		0x0048 /* acceptance filter code */
+#define CAN_ACFM		0x0058 /* acceptance filter mask */
+#define CAN_RBUF		0x0070 /* receive buffer base */
+#define CAN_TBUF		0x0890 /* transmit buffer base */
+#define CAN_MODE_CFG		0x1100 /* can ctrl mode config */
+#define  MODE_CFG_FD_EN		BIT(0) /* enable CAN FD mode */
 
-#define CAN_AC_SEG		(0x0004) /* classic can seg */
-#define CAN_FD_SEG		(0x0008) /* can fd seg */
-#define CAN_BITITME		(0x0010) /* prescaler */
-#define CAN_INTF		(0x0014) /* can interrupt flag */
-#define CAN_INTE		(0x0018) /* can interrupt enabled */
-#define CAN_TSTAT		(0x001c) /* can transmit status */
+/* LLC frame buffer layout (TBUF/RBUF slot) */
+#define BUF_ID			0x00
+#define  BUF_ID_EFF_MASK	GENMASK(28, 0)
+#define  BUF_ID_SFF_MASK	GENMASK(28, 18)
+#define BUF_CTL			0x04
+#define  BUF_DLC_MASK		GENMASK(10, 0)
+#define  BUF_IDE		BIT(16)
+#define  BUF_FDF		BIT(17)
+#define  BUF_BRS		BIT(18)
+#define  BUF_RMF		BIT(20)
+#define  BUF_ESI		BIT(22)
+#define BUF_TYPE		0x08
+#define  BUF_HANDLE_SHIFT	24
+#define  BUF_HANDLE_MAX		0x100
+#define BUF_DATA		0x10
 
-#define CAN_CTRL		(0x0028)
-#define CAN_ERR_STAT		(0x002c) /* err ctrl and rx/tx err status */
+/* KOER (Kind Of ERror) field values */
+#define KOER_BIT		1
+#define KOER_FORM		2
+#define KOER_STUFF		3
+#define KOER_ACK		4
+#define KOER_CRC		5
 
-#define CAN_RBUF		(0x0070) /* receive buffer registers 0x070-0x88b(*/
-#define CAN_TBUF		(0x0890) /* transmit buffer registers 0x890-0x10ab */
+#define STB_SLOTS		3
+#define ECHO_SKB_SLOTS		STB_SLOTS
+#define ASPEED_CAN_RX_SLOTS	3
+#define ASPEED_CAN_NAPI_WEIGHT	ASPEED_CAN_RX_SLOTS
+#define STB_INVALID_HANDLE	0xffffffffu
 
-#define CAN_RBUF_ID		(CAN_RBUF + 0x0000)
-#define CAN_RBUF_CTL		(CAN_RBUF + 0x0004)
-#define CAN_RBUF_TYPE		(CAN_RBUF + 0x0008)
-#define CAN_RBUF_ACF		(CAN_RBUF + 0x000C)
-#define CAN_RBUF_DATA		(CAN_RBUF + 0x0010)
-
-#define CAN_TBUF_ID		(CAN_TBUF + 0x0000)
-#define CAN_TBUF_CTL		(CAN_TBUF + 0x0004)
-#define CAN_TBUF_TYPE		(CAN_TBUF + 0x0008)
-#define CAN_TBUF_ACF		(CAN_TBUF + 0x000C)
-#define CAN_TBUF_DATA		(CAN_TBUF + 0x0010)
-
-#define CAN_MODE_CONFIG		(0x1100)
-
-#define CAN_TBUF_MIRROR		(0x1190)
-#define CAN_TBUF_READ_ID	(CAN_TBUF_MIRROR + 0x0000)
-#define CAN_TBUF_READ_CTL	(CAN_TBUF_MIRROR + 0x0004)
-#define CAN_TBUF_READ_TYPE	(CAN_TBUF_MIRROR + 0x0008)
-#define CAN_TBUF_READ_ACF	(CAN_TBUF_MIRROR + 0x000C)
-#define CAN_TBUF_READ_DATA	(CAN_TBUF_MIRROR + 0x0010)
-
-/* CAN_AC_SEG(0x0004) bit description */
-#define CAN_TIMING_AC_SEG1_MASK		GENMASK(8, 0)
-#define CAN_TIMING_AC_SEG2_MASK		GENMASK(22, 16)
-#define CAN_TIMING_AC_SJW_MASK		GENMASK(30, 24)
-
-#define CAN_TIMING_AC_SEG1_BITOFF	0
-#define CAN_TIMING_AC_SEG2_BITOFF	16
-#define CAN_TIMING_AC_SJW_BITOFF	24
-
-/* CAN_FD_SEG(0x0008) bit description */
-#define CAN_TIMING_FD_SEG1_MASK		GENMASK(7, 0)
-#define CAN_TIMING_FD_SEG2_MASK		GENMASK(22, 16)
-#define CAN_TIMING_FD_SJW_MASK		GENMASK(30, 24)
-
-#define CAN_TIMING_FD_SEG1_BITOFF	0
-#define CAN_TIMING_FD_SEG2_BITOFF	16
-#define CAN_TIMING_FD_SJW_BITOFF	24
-
-/* CAN_BITTIME(0x0010) bit description */
-#define CAN_TIMING_PRESC_MASK		GENMASK(4, 0)
-#define CAN_TIMING_PRESC_BITOFF		0
-#define CAN_TIMING_FD_SSPOFF_MASK	GENMASK(15, 8)
-#define CAN_TIMING_FD_SSPOFF_BITOFF	8
-
-/* CAN_INTF(0x0014) bit description */
-#define CAN_INT_EIF_BIT			BIT(1) /* error interrupt flag */
-#define CAN_INT_TSIF_BIT		BIT(2) /* transmission secondary interrupt flag */
-#define CAN_INT_TPIF_BIT		BIT(3) /* transmission primary interrupt flag */
-#define CAN_INT_RAFIF_BIT		BIT(4) /* RB almost full interrupt flag */
-#define CAN_INT_RFIF_BIT		BIT(5) /* RB full interrupt flag */
-#define CAN_INT_ROIF_BIT		BIT(6) /* RB overflow interrupt flag */
-#define CAN_INT_RIF_BIT			BIT(7) /* receive interrupt flag */
-#define CAN_INT_BEIF_BIT		BIT(8) /* bus error interrupt flag */
-#define CAN_INT_ALIF_BIT		BIT(9) /* arbitration loss interrupt flag */
-#define CAN_INT_EPIF_BIT		BIT(10) /* error passive interrupt flag */
-#define CAN_EPASS_BIT			BIT(30) /* check if device is error passive */
-#define CAN_INT_EWARN_BIT		BIT(31) /* error Warning limit reached */
-
-/* CAN_INTE(0x0018) bit description */
-#define CAN_INT_EIE_BIT			BIT(1) /* error interrupt enable */
-#define CAN_INT_TSIE_BIT		BIT(2) /* transmission secondary interrupt enable */
-#define CAN_INT_TPIE_BIT		BIT(3) /* transmission secondary interrupt enable */
-#define CAN_INT_RAFIE_BIT		BIT(4) /* RB almost full interrupt enable */
-#define CAN_INT_RFIE_BIT		BIT(5) /* RB full interrupt enable */
-#define CAN_INT_ROIE_BIT		BIT(6) /* RB overflow interrupt enable */
-#define CAN_INT_RIE_BIT			BIT(7) /* receive interrupt enable */
-#define CAN_INT_BEIE_BIT		BIT(8) /* bus error interrupt enable */
-#define CAN_INT_ALIE_BIT		BIT(9) /* arbitration loss interrupt enable */
-#define CAN_INT_EPIE_BIT		BIT(10) /* error passive interrupt enable */
-
-/* CAN_TSTAT(0x001C) bit description */
-#define CAN_TSTAT1_MASK			GENMASK(10, 8)
-#define CAN_TSTAT1_BITOFF		8
-#define CAN_TSTAT2_HANDLE_MASK		GENMASK(23, 16)
-#define CAN_TSTAT2_HANDLE_BITOFF	16
-#define CAN_TSTAT2_MASK			GENMASK(26, 24)
-#define CAN_TSTAT2_BITOFF		24
-
-/* CAN_CTRL(0x0028) bit description */
-#define CAN_CTRL_BUSOFF_BIT		BIT(0)
-#define CAN_CTRL_LBMIMOD_BIT		BIT(5) /* set loop back mode, internal */
-#define CAN_CTRL_LBMEMOD_BIT		BIT(6) /* set loop back mode, external */
-#define CAN_CTRL_RST_BIT		BIT(7) /* set reset bit */
-#define CAN_CTRL_TSALL_BIT		BIT(9) /* transmit secondary all frame */
-#define CAN_CTRL_TSONE_BIT		BIT(10) /* transmit secondary one frame */
-#define CAN_CTRL_TPE_BIT		BIT(12) /* transmit primary enable */
-#define CAN_CTRL_STBY_BIT		BIT(13) /* transceiver standby */
-#define CAN_CTRL_TBSEL_BIT		BIT(15) /* transmit buffer select */
-#define CAN_CTRL_TSSTAT_MASK		GENMASK(17, 16) /* Transmission secondary status bits */
-#define CAN_CTRL_TSFF_BIT		BIT(18) /* transmit secondary buffer full flag */
-#define CAN_CTRL_TTBM_BIT		BIT(20) /* set TTTBM as 1->full TTCAN mode */
-#define CAN_CTRL_TSMODE_BIT		BIT(21) /* set TSMODE as 1->FIFO mode */
-#define CAN_CTRL_TSNEXT_BIT		BIT(22) /* transmit buffer secondary NEXT */
-#define CAN_CTRL_RSTAT_NOT_EMPTY_MASKT	GENMASK(25, 24)
-#define CAN_CTRL_RREL_BIT		BIT(28) /* receive buffer release */
-#define CAN_CTRL_SACK_BIT		BIT(31) /* self-ack mode */
-
-#define STB_IS_EMPTY			0x0
-
-/* CAN_ERR(0x002c) bit description */
-#define CAN_ERR_EWL_MASK		GENMASK(3, 0) /* programmable error warning limit */
-#define CAN_ERR_EWL_BITOFF		0
-#define CAN_ERR_AFWL_MASK		GENMASK(7, 4) /* receive buffer almost full warning limit */
-#define CAN_ERR_AFWL_BITOFF		4
-#define CAN_ERR_ALC_MASK		GENMASK(12, 8) /* arbitration lost capture */
-#define CAN_ERR_ALC_BITOFF		8
-#define CAN_ERR_KOER_MASK		GENMASK(15, 13) /* kind of error */
-#define CAN_ERR_KOER_BITOFF		13
-#define CAN_ERR_RECNT_MASK		GENMASK(23, 16) /* receive error count */
-#define CAN_ERR_RECNT_BITOFF		16
-#define CAN_ERR_TECNT_MASK		GENMASK(31, 24) /* transmit error count */
-#define CAN_ERR_TECNT_BITOFF		24
-
-/* CAN BUF bit description*/
-#define CAN_BUF_ID_BFF_MASK		GENMASK(28, 18) /* frame identifier */
-#define CAN_BUF_ID_BFF_BITOFF		18
-#define CAN_BUF_ID_EFF_MASK		GENMASK(28, 0) /* identifier extension */
-#define CAN_BUF_ID_EFF_BITOFF		0
-#define CAN_BUF_DLC_MASK		GENMASK(10, 0) /* data length code */
-#define CAN_BUF_IDE_BIT			BIT(16) /* identifier extension */
-#define CAN_BUF_FDF_BIT			BIT(17) /* CAN FD frame format */
-#define CAN_BUF_BRS_BIT			BIT(18) /* CAN FD bit rate switch enable */
-#define CAN_BUF_RMF_BIT			BIT(20) /* remot frame */
-#define CAN_BUF_HANDLE_BITOFF		24
-
-#define KOER_BIT_ERROR_MASK		(BIT(0))
-#define KOER_FORM_ERROR_MASK		(BIT(1))
-#define KOER_STUFF_ERROR_MASK		(BIT(1) | BIT(0))
-#define KOER_ACK_ERROR_MASK		(BIT(2))
-#define KOER_CRC_ERROR_MASK		(BIT(2) | BIT(0))
-#define KOER_OTH_ERROR_MASK		(BIT(2) | BIT(1))
-
-#define STAT_AFWL			0x04
-#define STAT_EWL			0x0b
-
-#define STB_IDX_RING_SZ			3
-
-#define PTB_MODE			0x01
-#define STB_MODE			0x02
-
-#define STB_TX_MODE_ALL			0x01 /* secondary tx buffer mode */
-#define STB_TX_MODE_ONE			0x02 /* secondary tx buffer mode */
-#define STB_POLICY_FIFO			0x10 /* secondary tx buffer fifo mode */
-#define STB_POLICY_PRIO			0x20 /* secondary tx buffer prioity mode */
-
-#define STB_INVALID_HANDLE_VAL		0xffffffff
-#define STB_INVALID_SKB_IDX		0xffffffff
-
-/* SW flag */
-#define ASPEED_CAN_INTERNEL_LOOPBACK	0x00000001
-
-struct can_stb_ring_obj {
-	u32 idx;
+struct aspeed_can_stb_slot {
+	struct list_head list;
 	u32 skb_idx;
 	u32 handle;
-	struct can_stb_ring_obj *next;
 };
 
 struct aspeed_can_priv {
-	/* Fix the location of "struct can_priv can"
-	 * in this struct.
-	 */
 	struct can_priv can;
 	void __iomem *reg_base;
-	struct device *dev;
-	/* Lock for synchronizing TX interrupt handling */
-	spinlock_t tx_lock;
-	struct can_stb_ring_obj *stb_ring;
-	struct can_stb_ring_obj *head_ptr;
-	struct can_stb_ring_obj *tail_ptr;
-	u32 tx_max;
+	spinlock_t tx_lock; /* Protects STB queue and echo skb state. */
+	struct list_head stb_head;
+	struct aspeed_can_stb_slot stb_slots[STB_SLOTS];
 	struct napi_struct napi;
 	struct clk *clk;
 	struct reset_control *reset;
-	u32 tb_mode;
-	u32 stb_mode_policy;
 	u32 frame_handle;
-	u32 flag;
 };
 
 static const struct can_bittiming_const aspeed_can_bittiming_const = {
-	.name = DRIVER_NAME,
+	.name = KBUILD_MODNAME,
 	.tseg1_min = 2,
-	.tseg1_max = 513,
+	.tseg1_max = 512,
 	.tseg2_min = 1,
 	.tseg2_max = 128,
 	.sjw_max = 128,
 	.brp_min = 1,
-	.brp_max = 128,
+	.brp_max = 32,
 	.brp_inc = 1,
 };
 
 static const struct can_bittiming_const aspeed_canfd_bittiming_const = {
-	.name = DRIVER_NAME,
+	.name = KBUILD_MODNAME,
 	.tseg1_min = 2,
-	.tseg1_max = 257,
+	.tseg1_max = 254,
 	.tseg2_min = 1,
 	.tseg2_max = 128,
 	.sjw_max = 128,
 	.brp_min = 1,
-	.brp_max = 128,
+	.brp_max = 32,
 	.brp_inc = 1,
 };
 
-inline void aspeed_can_set_bit(struct aspeed_can_priv *priv,
-			       u32 reg_off, u32 bit)
-{
-	u32 reg_val;
+static const struct can_tdc_const aspeed_canfd_tdc_const = {
+	/* Manual TDCV is unsupported. */
+	.tdcv_min = 0,
+	.tdcv_max = 0,
+	.tdco_min = 0,
+	.tdco_max = 255,
+	/* Filter window not supported */
+	.tdcf_min = 0,
+	.tdcf_max = 0,
+};
 
-	reg_val = readl(priv->reg_base + reg_off);
-	reg_val |= bit;
-	writel(reg_val, priv->reg_base + reg_off);
+static u32 aspeed_can_read(struct aspeed_can_priv *priv, u32 reg)
+{
+	return readl(priv->reg_base + reg);
 }
 
-inline void aspeed_can_clr_bit(struct aspeed_can_priv *priv,
-			       u32 reg_off, u32 bit)
+static void aspeed_can_write(struct aspeed_can_priv *priv, u32 reg, u32 val)
 {
-	u32 reg_val;
-
-	reg_val = readl(priv->reg_base + reg_off);
-	reg_val &= ~(bit);
-	writel(reg_val, priv->reg_base + reg_off);
+	writel(val, priv->reg_base + reg);
 }
 
-inline void aspeed_can_clr_irq_bits(struct aspeed_can_priv *priv,
-				    u32 reg_off, u32 bits)
+static void aspeed_can_set_bits(struct aspeed_can_priv *priv, u32 reg, u32 mask)
 {
-	writel(bits, priv->reg_base + reg_off);
+	writel(readl(priv->reg_base + reg) | mask, priv->reg_base + reg);
 }
 
-static bool aspeed_can_check_reset_mode(struct net_device *ndev)
+static void aspeed_can_clr_bits(struct aspeed_can_priv *priv, u32 reg, u32 mask)
 {
-	struct aspeed_can_priv *priv = netdev_priv(ndev);
-
-	if (!(readl(priv->reg_base + CAN_CTRL) & CAN_CTRL_RST_BIT))
-		return false;
-
-	return true;
+	writel(readl(priv->reg_base + reg) & ~mask, priv->reg_base + reg);
 }
 
-static void aspeed_can_stb_ring_obj_init(struct net_device *ndev)
+static void aspeed_can_clr_irq(struct aspeed_can_priv *priv, u32 bits)
 {
-	struct aspeed_can_priv *priv = netdev_priv(ndev);
+	writel(bits, priv->reg_base + CAN_INTF);
+}
+
+static void aspeed_can_stb_init(struct aspeed_can_priv *priv)
+{
 	int i;
 
-	for (i = 0; i < STB_IDX_RING_SZ; i++) {
-		priv->stb_ring[i].idx = i + 1;
-		priv->stb_ring[i].skb_idx = i + 1;
-		priv->stb_ring[i].handle = STB_INVALID_HANDLE_VAL;
-
-		if (i == STB_IDX_RING_SZ - 1) {
-			priv->stb_ring[i].next = &priv->stb_ring[0];
-		} else {
-			priv->stb_ring[i].next =
-				&priv->stb_ring[i + 1];
-		}
+	INIT_LIST_HEAD(&priv->stb_head);
+	for (i = 0; i < STB_SLOTS; i++) {
+		INIT_LIST_HEAD(&priv->stb_slots[i].list);
+		priv->stb_slots[i].skb_idx = i;
+		priv->stb_slots[i].handle = STB_INVALID_HANDLE;
 	}
-
-	priv->head_ptr = &priv->stb_ring[0];
-	priv->tail_ptr = &priv->stb_ring[0];
 }
 
-static u32 aspeed_can_get_skb_idx(struct net_device *ndev,
-				  u32 handle)
+static struct aspeed_can_stb_slot *
+aspeed_can_stb_alloc(struct aspeed_can_priv *priv)
 {
-	struct aspeed_can_priv *priv = netdev_priv(ndev);
-	struct can_stb_ring_obj *tmp_ptr = priv->tail_ptr;
+	int i;
 
-	if (tmp_ptr->handle == handle)
-		return tmp_ptr->skb_idx;
-
-	tmp_ptr = priv->tail_ptr->next;
-
-	while (tmp_ptr != priv->head_ptr) {
-		if (tmp_ptr->handle == handle)
-			return tmp_ptr->skb_idx;
-		tmp_ptr = tmp_ptr->next;
+	for (i = 0; i < STB_SLOTS; i++) {
+		if (list_empty(&priv->stb_slots[i].list))
+			return &priv->stb_slots[i];
 	}
-
-	return STB_INVALID_SKB_IDX;
+	return NULL;
 }
 
-static int aspeed_can_drop_ring_obj(struct net_device *ndev,
-				    u32 handle)
+static struct aspeed_can_stb_slot *
+aspeed_can_stb_find(struct aspeed_can_priv *priv, u32 handle)
 {
-	struct aspeed_can_priv *priv = netdev_priv(ndev);
-	struct can_stb_ring_obj *tmp_ptr = priv->tail_ptr;
-	u32 tmp_skb_idx;
+	struct aspeed_can_stb_slot *slot;
 
-	if (tmp_ptr->handle == handle) {
-		/* keep original skb idx */
-		tmp_ptr->handle = STB_INVALID_HANDLE_VAL;
-		priv->tail_ptr = priv->tail_ptr->next;
-		return 0;
+	list_for_each_entry(slot, &priv->stb_head, list) {
+		if (slot->handle == handle)
+			return slot;
 	}
-
-	tmp_ptr = priv->tail_ptr->next;
-
-	while (tmp_ptr != priv->head_ptr) {
-		if (tmp_ptr->handle == handle) {
-			tmp_skb_idx = tmp_ptr->skb_idx;
-			tmp_ptr->handle = priv->tail_ptr->handle;
-			tmp_ptr->skb_idx = priv->tail_ptr->skb_idx;
-
-			priv->tail_ptr->skb_idx = tmp_skb_idx;
-			priv->tail_ptr->handle = STB_INVALID_HANDLE_VAL;
-			priv->tail_ptr = priv->tail_ptr->next;
-			return 0;
-		}
-
-		tmp_ptr = tmp_ptr->next;
-	}
-
-	return -1;
-}
-
-static u32 aspeed_can_get_frame_num(struct net_device *ndev)
-{
-	struct aspeed_can_priv *priv = netdev_priv(ndev);
-	struct can_stb_ring_obj *tmp_ptr = priv->tail_ptr;
-	u32 len = 0;
-
-	if (tmp_ptr == priv->head_ptr)
-		return STB_IDX_RING_SZ;
-
-	while (tmp_ptr != priv->head_ptr) {
-		len++;
-		tmp_ptr = tmp_ptr->next;
-	}
-
-	return len;
+	return NULL;
 }
 
 static int aspeed_can_set_reset_mode(struct net_device *ndev)
 {
 	struct aspeed_can_priv *priv = netdev_priv(ndev);
-	unsigned long timeout;
+	unsigned long flags;
+	u32 val;
+	int ret;
 
-	aspeed_can_set_bit(priv, CAN_CTRL, CAN_CTRL_RST_BIT);
+	aspeed_can_set_bits(priv, CAN_CFG_STAT, CFGSTAT_RESET);
 
-	timeout = jiffies + (1 * HZ);
-	while (!aspeed_can_check_reset_mode(ndev)) {
-		if (time_after(jiffies, timeout)) {
-			netdev_warn(ndev, "timed out for config mode\n");
-			return -ETIMEDOUT;
-		}
-
-		usleep_range(500, 10000);
+	ret = readx_poll_timeout(readl, priv->reg_base + CAN_CFG_STAT,
+				 val, val & CFGSTAT_RESET, 500, USEC_PER_SEC);
+	if (ret) {
+		netdev_warn(ndev, "timed out entering reset mode\n");
+		return ret;
 	}
 
-	aspeed_can_stb_ring_obj_init(ndev);
+	spin_lock_irqsave(&priv->tx_lock, flags);
+	aspeed_can_stb_init(priv);
+	spin_unlock_irqrestore(&priv->tx_lock, flags);
 
 	return 0;
 }
@@ -400,524 +259,318 @@ static int aspeed_can_set_reset_mode(struct net_device *ndev)
 static int aspeed_can_exit_reset_mode(struct net_device *ndev)
 {
 	struct aspeed_can_priv *priv = netdev_priv(ndev);
-	unsigned long timeout;
+	u32 val;
+	int ret;
 
-	aspeed_can_clr_bit(priv, CAN_CTRL, CAN_CTRL_RST_BIT);
+	aspeed_can_clr_bits(priv, CAN_CFG_STAT, CFGSTAT_RESET);
 
-	timeout = jiffies + (1 * HZ);
-	while (aspeed_can_check_reset_mode(ndev)) {
-		if (time_after(jiffies, timeout)) {
-			netdev_warn(ndev, "timed out for config mode\n");
-			return -ETIMEDOUT;
-		}
+	ret = readx_poll_timeout(readl, priv->reg_base + CAN_CFG_STAT,
+				 val, !(val & CFGSTAT_RESET),
+				 500, USEC_PER_SEC);
+	if (ret)
+		netdev_warn(ndev, "timed out exiting reset mode\n");
 
-		usleep_range(500, 10000);
-	}
+	return ret;
+}
+
+static int aspeed_can_do_set_bittiming(struct net_device *ndev)
+{
+	struct aspeed_can_priv *priv = netdev_priv(ndev);
+	struct can_bittiming *bt = &priv->can.bittiming;
+	u32 ac_seg, val;
+
+	if (!(aspeed_can_read(priv, CAN_CFG_STAT) & CFGSTAT_RESET))
+		return 0;
+
+	ac_seg = FIELD_PREP(AC_SEG1_MASK, bt->prop_seg + bt->phase_seg1 - 1) |
+		 FIELD_PREP(AC_SEG2_MASK, bt->phase_seg2 - 1) |
+		 FIELD_PREP(AC_SJW_MASK, bt->sjw - 1);
+	aspeed_can_write(priv, CAN_AC_SEG, ac_seg);
+
+	/* Prescaler is shared with the data phase. */
+	val = aspeed_can_read(priv, CAN_BITTIME);
+	val &= ~PRESC_MASK;
+	val |= FIELD_PREP(PRESC_MASK, bt->brp - 1);
+	aspeed_can_write(priv, CAN_BITTIME, val);
 
 	return 0;
 }
 
-static void aspeed_can_err_init(struct net_device *ndev)
-{
-	struct aspeed_can_priv *priv = netdev_priv(ndev);
-	u32 reg_val;
-
-	reg_val = (STAT_AFWL << CAN_ERR_AFWL_BITOFF) & CAN_ERR_AFWL_MASK;
-	reg_val |= (STAT_EWL << CAN_ERR_EWL_BITOFF) & CAN_ERR_EWL_MASK;
-
-	writel(reg_val, priv->reg_base + CAN_ERR_STAT);
-}
-
-static void aspeed_can_interrupt_conf(struct net_device *ndev)
-{
-	struct aspeed_can_priv *priv = netdev_priv(ndev);
-	u32 inte;
-
-	inte = CAN_INT_EIE_BIT | CAN_INT_TSIE_BIT | CAN_INT_TPIE_BIT |
-	       CAN_INT_RAFIE_BIT | CAN_INT_RFIE_BIT | CAN_INT_ROIE_BIT |
-	       CAN_INT_RIE_BIT | CAN_INT_BEIE_BIT | CAN_INT_ALIE_BIT |
-	       CAN_INT_EPIE_BIT;
-
-	writel(inte, priv->reg_base + CAN_INTE);
-}
-
-static void aspeed_can_tb_mode_conf(struct net_device *ndev)
-{
-	struct aspeed_can_priv *priv = netdev_priv(ndev);
-
-	if (priv->tb_mode == STB_MODE)
-		aspeed_can_set_bit(priv, CAN_CTRL, CAN_CTRL_TBSEL_BIT);
-	else
-		aspeed_can_clr_bit(priv, CAN_CTRL, CAN_CTRL_TBSEL_BIT);
-}
-
-static void aspeed_can_sack_conf(struct net_device *ndev, bool enable)
-{
-	struct aspeed_can_priv *priv = netdev_priv(ndev);
-
-	if (enable)
-		aspeed_can_set_bit(priv, CAN_CTRL, CAN_CTRL_SACK_BIT);
-	else
-		aspeed_can_clr_bit(priv, CAN_CTRL, CAN_CTRL_SACK_BIT);
-}
-
-static void aspeed_can_loopback_ext_conf(struct net_device *ndev, bool enable)
-{
-	struct aspeed_can_priv *priv = netdev_priv(ndev);
-
-	if (enable)
-		aspeed_can_set_bit(priv, CAN_CTRL, CAN_CTRL_LBMEMOD_BIT);
-	else
-		aspeed_can_clr_bit(priv, CAN_CTRL, CAN_CTRL_LBMEMOD_BIT);
-}
-
-static void aspeed_can_loopback_int_conf(struct net_device *ndev, bool enable)
-{
-	struct aspeed_can_priv *priv = netdev_priv(ndev);
-
-	if (enable)
-		aspeed_can_set_bit(priv, CAN_CTRL, CAN_CTRL_LBMIMOD_BIT);
-	else
-		aspeed_can_clr_bit(priv, CAN_CTRL, CAN_CTRL_LBMIMOD_BIT);
-}
-
-static void aspeed_can_fd_init(struct net_device *ndev)
-{
-	struct aspeed_can_priv *priv = netdev_priv(ndev);
-
-	aspeed_can_set_bit(priv, CAN_MODE_CONFIG, BIT(0));
-}
-
-static void aspeed_can_reg_dump(struct net_device *ndev)
-{
-	struct aspeed_can_priv *priv = netdev_priv(ndev);
-	u32 reg_val;
-	u32 i;
-
-	reg_val = readl(priv->reg_base + CAN_AC_SEG);
-	netdev_info(ndev, "(REG004) CAN_AC_SEG = 0x%08x\n", reg_val);
-	netdev_info(ndev, "         ac_seg1  (8:0): 0x%02x\n",
-		    (u32)((reg_val & CAN_TIMING_AC_SEG1_MASK) >>
-			  CAN_TIMING_AC_SEG1_BITOFF));
-	netdev_info(ndev, "         ac_seg2(22:16): 0x%02x\n",
-		    (u32)((reg_val & CAN_TIMING_AC_SEG2_MASK) >>
-			  CAN_TIMING_AC_SEG2_BITOFF));
-	netdev_info(ndev, "         ac_sjw (30:24): 0x%02x\n",
-		    (u32)((reg_val & CAN_TIMING_AC_SJW_MASK) >>
-			  CAN_TIMING_AC_SJW_BITOFF));
-
-	reg_val = readl(priv->reg_base + CAN_FD_SEG);
-	netdev_info(ndev, "(REG008) CAN_FD_SEG = 0x%08x\n", reg_val);
-	netdev_info(ndev, "         fd_seg1  (7:0): 0x%02x\n",
-		    (u32)((reg_val & CAN_TIMING_FD_SEG1_MASK) >>
-			  CAN_TIMING_FD_SEG1_BITOFF));
-	netdev_info(ndev, "         fd_seg2(22:16): 0x%02x\n",
-		    (u32)((reg_val & CAN_TIMING_FD_SEG2_MASK) >>
-			  CAN_TIMING_FD_SEG2_BITOFF));
-	netdev_info(ndev, "         fd_sjw (30:24): 0x%02x\n",
-		    (u32)((reg_val & CAN_TIMING_FD_SJW_MASK) >>
-			  CAN_TIMING_FD_SJW_BITOFF));
-
-	reg_val = readl(priv->reg_base + CAN_BITITME);
-	netdev_info(ndev, "(REG010) CAN_BITITME = 0x%08x\n", reg_val);
-	netdev_info(ndev, "	 prescaler (4:0): 0x%02x\n",
-		    (u32)((reg_val & CAN_TIMING_PRESC_MASK) >>
-			  CAN_TIMING_PRESC_BITOFF));
-	netdev_info(ndev, "	 fd_sspoff(15:8): 0x%02x\n",
-		    (u32)((reg_val & CAN_TIMING_FD_SSPOFF_MASK) >>
-			  CAN_TIMING_FD_SSPOFF_BITOFF));
-
-	reg_val = readl(priv->reg_base + CAN_INTF);
-	netdev_info(ndev, "(REG014) CAN_INTF = 0x%08x\n", reg_val);
-	netdev_info(ndev, "	 EIF   (1): %d\n", (reg_val & CAN_INT_EIF_BIT) ? 1 : 0);
-	netdev_info(ndev, "	 TSIF  (2): %d\n", (reg_val & CAN_INT_TSIF_BIT) ? 1 : 0);
-	netdev_info(ndev, "	 TPIF  (3): %d\n", (reg_val & CAN_INT_TPIF_BIT) ? 1 : 0);
-	netdev_info(ndev, "	 RAFIF (4): %d\n", (reg_val & CAN_INT_RAFIF_BIT) ? 1 : 0);
-	netdev_info(ndev, "	 RFIF  (5): %d\n", (reg_val & CAN_INT_RFIF_BIT) ? 1 : 0);
-	netdev_info(ndev, "	 ROIF  (6): %d\n", (reg_val & CAN_INT_ROIF_BIT) ? 1 : 0);
-	netdev_info(ndev, "	 RIF   (7): %d\n", (reg_val & CAN_INT_RIF_BIT) ? 1 : 0);
-	netdev_info(ndev, "	 BEIF  (8): %d\n", (reg_val & CAN_INT_BEIF_BIT) ? 1 : 0);
-	netdev_info(ndev, "	 EPIF (10): %d\n", (reg_val & CAN_INT_EPIF_BIT) ? 1 : 0);
-	netdev_info(ndev, "	 EPASS(30): %d\n", (reg_val & CAN_EPASS_BIT) ? 1 : 0);
-	netdev_info(ndev, "	 EWARN(31): %d\n", (reg_val & CAN_INT_EWARN_BIT) ? 1 : 0);
-
-	reg_val = readl(priv->reg_base + CAN_INTE);
-	netdev_info(ndev, "(REG018) CAN_INTE = 0x%08x\n", reg_val);
-	netdev_info(ndev, "	 EIE   (1): %d\n", (reg_val & CAN_INT_EIE_BIT) ? 1 : 0);
-	netdev_info(ndev, "	 TSIE  (2): %d\n", (reg_val & CAN_INT_TSIE_BIT) ? 1 : 0);
-	netdev_info(ndev, "	 TPIE  (3): %d\n", (reg_val & CAN_INT_TPIE_BIT) ? 1 : 0);
-	netdev_info(ndev, "	 RAFIE (4): %d\n", (reg_val & CAN_INT_RAFIE_BIT) ? 1 : 0);
-	netdev_info(ndev, "	 RFIE  (5): %d\n", (reg_val & CAN_INT_RFIE_BIT) ? 1 : 0);
-	netdev_info(ndev, "	 ROIE  (6): %d\n", (reg_val & CAN_INT_ROIE_BIT) ? 1 : 0);
-	netdev_info(ndev, "	 RIE   (7): %d\n", (reg_val & CAN_INT_RIE_BIT) ? 1 : 0);
-	netdev_info(ndev, "	 BEIE  (8): %d\n", (reg_val & CAN_INT_BEIE_BIT) ? 1 : 0);
-	netdev_info(ndev, "	 EPIE (10): %d\n", (reg_val & CAN_INT_EPIE_BIT) ? 1 : 0);
-
-	reg_val = readl(priv->reg_base + CAN_TSTAT);
-	netdev_info(ndev, "(REG01C) CAN_TSTAT = 0x%08x\n", reg_val);
-	netdev_info(ndev, "	 TSTAT1 (10:8): 0x%02x\n",
-		    (u32)((reg_val & CAN_TSTAT1_MASK) >> CAN_TSTAT1_BITOFF));
-	netdev_info(ndev, "	 TSTAT2(26:24): 0x%02x\n",
-		    (u32)((reg_val & CAN_TSTAT2_MASK) >> CAN_TSTAT2_BITOFF));
-	netdev_info(ndev, "	     000 : no tx\n");
-	netdev_info(ndev, "	     001 : on-going\n");
-	netdev_info(ndev, "	     010 : lost arbitration\n");
-	netdev_info(ndev, "	     011 : transmitted\n");
-	netdev_info(ndev, "	     100 : aborted\n");
-	netdev_info(ndev, "	     101 : disturbed\n");
-	netdev_info(ndev, "	     110 : reject\n");
-
-	reg_val = readl(priv->reg_base + CAN_CTRL);
-	netdev_info(ndev, "(REG028) CAN_CTRL = 0x%08x\n", reg_val);
-	netdev_info(ndev, "	 BUSOFF     (0): %d\n", (reg_val & CAN_CTRL_BUSOFF_BIT) ? 1 : 0);
-	netdev_info(ndev, "	 LBMIMOD    (5): %d\n", (reg_val & CAN_CTRL_LBMIMOD_BIT) ? 1 : 0);
-	netdev_info(ndev, "	 LBMEMOD    (6): %d\n", (reg_val & CAN_CTRL_LBMEMOD_BIT) ? 1 : 0);
-	netdev_info(ndev, "	 RST        (7): %d\n", (reg_val & CAN_CTRL_RST_BIT) ? 1 : 0);
-	netdev_info(ndev, "	 TPE       (12): %d\n", (reg_val & CAN_CTRL_TPE_BIT) ? 1 : 0);
-	netdev_info(ndev, "	 STBY      (13): %d\n", (reg_val & CAN_CTRL_STBY_BIT) ? 1 : 0);
-	netdev_info(ndev, "	 TBSEL     (15): %d\n", (reg_val & CAN_CTRL_TBSEL_BIT) ? 1 : 0);
-	netdev_info(ndev, "	 TTBM      (20): %d\n", (reg_val & CAN_CTRL_TTBM_BIT) ? 1 : 0);
-	netdev_info(ndev, "	 TSMODE    (21): %d\n", (reg_val & CAN_CTRL_TSMODE_BIT) ? 1 : 0);
-	netdev_info(ndev, "	 TSNEXT    (22): %d\n", (reg_val & CAN_CTRL_TSNEXT_BIT) ? 1 : 0);
-	netdev_info(ndev, "	 RSTAT  (25:24): 0x%02x\n",
-		    (u32)((reg_val & CAN_CTRL_RSTAT_NOT_EMPTY_MASKT) >> 24));
-	netdev_info(ndev, "	 RREL      (28): %d\n", (reg_val & CAN_CTRL_RREL_BIT) ? 1 : 0);
-
-	reg_val = readl(priv->reg_base + CAN_ERR_STAT);
-	netdev_info(ndev, "(REG02C) ERR_STAT = 0x%08x\n", reg_val);
-	netdev_info(ndev, "	 EWL     (3:0): 0x%02x\n",
-		    (u32)((reg_val & CAN_ERR_EWL_MASK) >> CAN_ERR_EWL_BITOFF));
-	netdev_info(ndev, "	 AFWL    (7:4): 0x%02x\n",
-		    (u32)((reg_val & CAN_ERR_AFWL_MASK) >> CAN_ERR_AFWL_BITOFF));
-	netdev_info(ndev, "	 ALC    (12:8): 0x%02x\n",
-		    (u32)((reg_val & CAN_ERR_ALC_MASK) >> CAN_ERR_ALC_BITOFF));
-	netdev_info(ndev, "	 KOER  (15:13): 0x%02x\n",
-		    (u32)((reg_val & CAN_ERR_KOER_MASK) >> CAN_ERR_KOER_BITOFF));
-	netdev_info(ndev, "             000 : no error\n");
-	netdev_info(ndev, "             001 : bit error\n");
-	netdev_info(ndev, "             010 : form error\n");
-	netdev_info(ndev, "             011 : stuff error\n");
-	netdev_info(ndev, "             100 : ack error\n");
-	netdev_info(ndev, "             101 : crc error\n");
-	netdev_info(ndev, "             110 : other error\n");
-	netdev_info(ndev, "	 RECNT (23:16): 0x%02x\n",
-		    (u32)((reg_val & CAN_ERR_RECNT_MASK) >> CAN_ERR_RECNT_BITOFF));
-	netdev_info(ndev, "	 TECNT (31:24): 0x%02x\n",
-		    (u32)((reg_val & CAN_ERR_TECNT_MASK) >> CAN_ERR_TECNT_BITOFF));
-
-	for (i = 0; i < 0x50; i += 4)
-		netdev_info(ndev, "REG(%03x): 0x%08x\n", i, readl(priv->reg_base + i));
-
-	netdev_info(ndev, "TX_MIRROR\n");
-	for (i = 0; i < 0x30; i += 4)
-		netdev_info(ndev, "(0x%02x): 0x%08x\n", i, readl(priv->reg_base + CAN_TBUF_MIRROR + i));
-
-	netdev_info(ndev, "RX_BUF\n");
-	for (i = 0; i < 0x30; i += 4)
-		netdev_info(ndev, "(0x%02x): 0x%08x\n", i, readl(priv->reg_base + CAN_RBUF + i));
-}
-
-static int aspeed_can_set_bittiming(struct net_device *ndev)
+static int aspeed_can_do_set_data_bittiming(struct net_device *ndev)
 {
 	struct aspeed_can_priv *priv = netdev_priv(ndev);
 	struct can_bittiming *bt = &priv->can.bittiming;
 	struct can_bittiming *dbt = &priv->can.fd.data_bittiming;
-	u32 btr0, btr1;
-	u32 can_fd_ssp;
+	u32 fd_seg, val;
 
-	/* check whether the CAN controller is in reset mode */
-	if (!aspeed_can_check_reset_mode(ndev)) {
+	if (!(aspeed_can_read(priv, CAN_CFG_STAT) & CFGSTAT_RESET))
+		return 0;
+
+	/*
+	 * The hardware has a single prescaler shared by both the nominal and
+	 * data phase, so both must be configured with the same BRP value.
+	 */
+	if (bt->brp != dbt->brp) {
 		netdev_alert(ndev,
-			     "BUG! Cannot set bittiming - not in reset mode\n");
-		return -EPERM;
+			     "nominal (%u) and data (%u) prescaler must match\n",
+			     bt->brp, dbt->brp);
+		return -EINVAL;
 	}
 
-	/* parameter sanity */
-	if (bt->brp < 1 || bt->prop_seg + bt->phase_seg1 < 1 ||
-	    bt->phase_seg2 < 1 || bt->sjw < 1) {
-		netdev_alert(ndev,
-			     "invalid bittiming parameters\n");
-		netdev_alert(ndev,
-			     "brp: %x, prop: %x, seg1: %x, seg2: %x, sjw: %x\n",
-			     bt->brp, bt->prop_seg, bt->phase_seg1,
-			     bt->phase_seg2, bt->sjw);
-		return -EPERM;
-	}
+	fd_seg = FIELD_PREP(FD_SEG1_MASK,
+			    dbt->prop_seg + dbt->phase_seg1 - 1) |
+		 FIELD_PREP(FD_SEG2_MASK, dbt->phase_seg2 - 1) |
+		 FIELD_PREP(FD_SJW_MASK, dbt->sjw - 1);
+	aspeed_can_write(priv, CAN_FD_SEG, fd_seg);
 
-	/* setting prescaler value in PRESC Register */
-	btr0 = (bt->brp - 1);
-
-	/* setting time segment 1 in SEG_1 Register */
-	btr1 = (1 + bt->prop_seg + bt->phase_seg1 - 2);
-
-	/* Setting Time Segment 2 in SEG_2 Register */
-	btr1 |= (bt->phase_seg2 - 1) << 16;
-
-	/* Setting Synchronous jump width in BTR Register */
-	btr1 |= (bt->sjw - 1) << 24;
-
-	writel(btr1, priv->reg_base + CAN_AC_SEG);
-
-	if (dbt->prop_seg != 0 && dbt->phase_seg1 != 0 &&
-	    dbt->phase_seg2 != 0) {
-		if (bt->brp != dbt->brp) {
-			netdev_alert(ndev,
-				     "nominal (%d) and data (%d) prescaler isn't the same\n",
-				     bt->brp, dbt->brp);
-			return -EPERM;
-		}
-
-		if (dbt->sjw < 1) {
-			netdev_alert(ndev,
-				     "invalid data sjw %x\n", dbt->sjw);
-			return -EPERM;
-		}
-
-		/* Setting Time Segment 1 in BTR Register */
-		btr1 = 1 + dbt->prop_seg + dbt->phase_seg1 - 2;
-
-		/* Setting Time Segment 2 in BTR Register */
-		btr1 |= (dbt->phase_seg2 - 1) << 16;
-
-		/* Setting Synchronous jump width in BTR Register */
-		btr1 |= (dbt->sjw - 1) << 24;
-
-		writel(btr1, priv->reg_base + CAN_FD_SEG);
-
-		/* seg_1 + 1 */
-		can_fd_ssp = 1 + dbt->prop_seg + dbt->phase_seg1 + 1;
-
-		btr0 |= can_fd_ssp << 8;
-	}
-
-	writel(btr0 | 0x10000000, priv->reg_base + CAN_BITITME);
+	val = aspeed_can_read(priv, CAN_BITTIME);
+	val &= ~FD_SSPOFF_MASK;
+	if (can_fd_tdc_is_enabled(&priv->can))
+		val |= FIELD_PREP(FD_SSPOFF_MASK,
+				  priv->can.fd.tdc.tdco / dbt->brp);
+	aspeed_can_write(priv, CAN_BITTIME, val);
 
 	return 0;
+}
+
+static void aspeed_can_configure_filters(struct net_device *ndev)
+{
+	struct aspeed_can_priv *priv = netdev_priv(ndev);
+	u32 ctrl;
+
+	/* Accept every frame ID in hardware. */
+	aspeed_can_clr_bits(priv, CAN_ACFCTRL, ACF_EN_MASK);
+
+	ctrl = aspeed_can_read(priv, CAN_ACFCTRL);
+	ctrl &= ~ACFADR_MASK;
+	aspeed_can_write(priv, CAN_ACFCTRL, ctrl);
+
+	aspeed_can_write(priv, CAN_ACFC + BUF_ID, 0);
+	aspeed_can_write(priv, CAN_ACFC + BUF_CTL, 0);
+	aspeed_can_write(priv, CAN_ACFC + BUF_TYPE, 0);
+	aspeed_can_write(priv, CAN_ACFM + BUF_ID, 0xffffffff);
+	aspeed_can_write(priv, CAN_ACFM + BUF_CTL, 0xffffffff);
+	aspeed_can_write(priv, CAN_ACFM + BUF_TYPE, 0xffffffff);
+
+	aspeed_can_set_bits(priv, CAN_ACFCTRL, FIELD_PREP(ACF_EN_MASK, BIT(0)));
 }
 
 static int aspeed_can_chip_start(struct net_device *ndev)
 {
 	struct aspeed_can_priv *priv = netdev_priv(ndev);
-	int err;
+	u32 cfg, val;
+	int ret;
 
-	/* Check if it is in reset mode */
-	err = aspeed_can_set_reset_mode(ndev);
-	if (err < 0)
-		return err;
+	ret = aspeed_can_set_reset_mode(ndev);
+	if (ret)
+		return ret;
 
-	err = aspeed_can_set_bittiming(ndev);
-	if (err < 0)
-		return err;
+	ret = aspeed_can_do_set_bittiming(ndev);
+	if (ret)
+		return ret;
 
-	/* Always config to FD mode since it is
-	 * backward compatibility with CAN2.0B.
-	 */
-	aspeed_can_fd_init(ndev);
+	aspeed_can_clr_bits(priv, CAN_MODE_CFG, MODE_CFG_FD_EN);
+	aspeed_can_clr_bits(priv, CAN_CFG_STAT, TCTRL_FD_ISO);
 
-	err = aspeed_can_exit_reset_mode(ndev);
-	if (err < 0)
-		return err;
+	if (priv->can.ctrlmode & CAN_CTRLMODE_FD) {
+		ret = aspeed_can_do_set_data_bittiming(ndev);
+		if (ret)
+			return ret;
 
-	aspeed_can_err_init(ndev);
-	aspeed_can_interrupt_conf(ndev);
-
-	aspeed_can_tb_mode_conf(ndev);
-
-	aspeed_can_loopback_ext_conf(ndev, false);
-	if (priv->flag & ASPEED_CAN_INTERNEL_LOOPBACK) {
-		aspeed_can_loopback_int_conf(ndev, true);
-		aspeed_can_sack_conf(ndev, true);
-	} else {
-		if (priv->can.ctrlmode & CAN_CTRLMODE_LOOPBACK) {
-			aspeed_can_loopback_ext_conf(ndev, true);
-			aspeed_can_sack_conf(ndev, true);
-		}
-		aspeed_can_loopback_int_conf(ndev, false);
+		aspeed_can_set_bits(priv, CAN_MODE_CFG, MODE_CFG_FD_EN);
+		/* Set explicitly to guarantee FD ISO mode. */
+		aspeed_can_set_bits(priv, CAN_CFG_STAT, TCTRL_FD_ISO);
 	}
+
+	aspeed_can_configure_filters(ndev);
+
+	ret = aspeed_can_exit_reset_mode(ndev);
+	if (ret)
+		return ret;
+
+	val = aspeed_can_read(priv, CAN_BITTIME);
+	val &= ~(RETLIM_MASK | REALIM_MASK);
+	if (!(priv->can.ctrlmode & CAN_CTRLMODE_ONE_SHOT))
+		val |= FIELD_PREP(RETLIM_MASK, RELIM_DEFAULT) |
+		       FIELD_PREP(REALIM_MASK, RELIM_DEFAULT);
+	aspeed_can_write(priv, CAN_BITTIME, val);
+
+	val = aspeed_can_read(priv, CAN_LIMIT);
+	val &= ~(LIMIT_EWL_MASK | LIMIT_AFWL_MASK);
+	aspeed_can_write(priv, CAN_LIMIT, val |
+			 FIELD_PREP(LIMIT_AFWL_MASK, LIMIT_AFWL_DEFAULT) |
+			 FIELD_PREP(LIMIT_EWL_MASK, LIMIT_EWL_DEFAULT));
+
+	aspeed_can_set_bits(priv, CAN_CFG_STAT, TCMD_TBSEL);
+	aspeed_can_clr_bits(priv, CAN_CFG_STAT, TCTRL_TSMODE);
+
+	cfg = aspeed_can_read(priv, CAN_CFG_STAT);
+	cfg &= ~(CFGSTAT_LBME | CFGSTAT_LBMI | TCMD_LOM | RCTRL_SACK);
+	if (priv->can.ctrlmode & CAN_CTRLMODE_LISTENONLY)
+		cfg |= TCMD_LOM;
+	else if (priv->can.ctrlmode & CAN_CTRLMODE_LOOPBACK)
+		cfg |= RCTRL_SACK | CFGSTAT_LBME;
+	aspeed_can_write(priv, CAN_CFG_STAT, cfg);
 
 	priv->can.state = CAN_STATE_ERROR_ACTIVE;
 	priv->frame_handle = 0;
+
+	aspeed_can_write(priv, CAN_INTE, INTE_ALL);
 
 	return 0;
 }
 
 static int aspeed_can_do_set_mode(struct net_device *ndev, enum can_mode mode)
 {
-	int ret;
+	struct aspeed_can_priv *priv = netdev_priv(ndev);
+	unsigned long flags;
+	int ret, i;
 
 	switch (mode) {
 	case CAN_MODE_START:
+		spin_lock_irqsave(&priv->tx_lock, flags);
+		for (i = 0; i < STB_SLOTS; i++)
+			can_free_echo_skb(ndev, i, NULL);
+		spin_unlock_irqrestore(&priv->tx_lock, flags);
 		ret = aspeed_can_chip_start(ndev);
-		if (ret < 0) {
-			netdev_err(ndev, "aspeed_can_chip_start failed!\n");
+		if (ret) {
+			netdev_err(ndev, "chip_start failed: %d\n", ret);
 			return ret;
 		}
 		netif_wake_queue(ndev);
 		break;
 	default:
-		netdev_err(ndev, "unexpect can mode: %d\n", (u32)mode);
-		ret = -EOPNOTSUPP;
-		break;
+		return -EOPNOTSUPP;
 	}
 
-	return ret;
+	return 0;
 }
 
 static void aspeed_can_write_frame(struct net_device *ndev,
 				   struct sk_buff *skb)
 {
-	u32 id;
-	struct canfd_frame *cf = (struct canfd_frame *)skb->data;
-	u32 i;
 	struct aspeed_can_priv *priv = netdev_priv(ndev);
-	u32 buf_ctrl = 0;
-	u32 can_ctrl;
-	u32 can_type;
+	struct canfd_frame *cf = (struct canfd_frame *)skb->data;
+	u32 id, ctl, type;
+	unsigned int i;
 
-	can_ctrl = readl(priv->reg_base + CAN_CTRL);
+	if (cf->can_id & CAN_EFF_FLAG)
+		id = FIELD_PREP(BUF_ID_EFF_MASK, cf->can_id & CAN_EFF_MASK);
+	else
+		id = FIELD_PREP(BUF_ID_SFF_MASK, cf->can_id & CAN_SFF_MASK);
 
-	/* Watch carefully on the bit sequence */
-	if (cf->can_id & CAN_EFF_FLAG) {
-		id = (cf->can_id & CAN_EFF_MASK) << CAN_BUF_ID_EFF_BITOFF;
-		buf_ctrl |= CAN_BUF_IDE_BIT;
-	} else {
-		/* Standard CAN ID format */
-		id = (cf->can_id & CAN_SFF_MASK) << CAN_BUF_ID_BFF_BITOFF;
-	}
+	if (can_is_canfd_skb(skb))
+		ctl = can_fd_len2dlc(cf->len);
+	else
+		ctl = can_get_cc_dlc((struct can_frame *)cf,
+				     priv->can.ctrlmode);
 
-	if (cf->can_id & CAN_RTR_FLAG)
-		buf_ctrl |= CAN_BUF_RMF_BIT;
-
-	buf_ctrl |= can_fd_len2dlc(cf->len);
-
+	if (cf->can_id & CAN_EFF_FLAG)
+		ctl |= BUF_IDE;
 	if (can_is_canfd_skb(skb)) {
-		buf_ctrl |= CAN_BUF_FDF_BIT;
+		ctl |= BUF_FDF;
 		if (cf->flags & CANFD_BRS)
-			buf_ctrl |= CAN_BUF_BRS_BIT;
+			ctl |= BUF_BRS;
+	} else {
+		if (cf->can_id & CAN_RTR_FLAG)
+			ctl |= BUF_RMF;
 	}
 
-	can_type = priv->frame_handle << CAN_BUF_HANDLE_BITOFF;
+	type = (u32)priv->frame_handle << BUF_HANDLE_SHIFT;
 
-	writel(id, priv->reg_base + CAN_TBUF_ID);
-	writel(buf_ctrl, priv->reg_base + CAN_TBUF_CTL);
-	writel(can_type, priv->reg_base + CAN_TBUF_TYPE);
-
-	writel(0x0, priv->reg_base + CAN_TBUF_TYPE);
-	writel(0x0, priv->reg_base + CAN_TBUF_ACF);
+	aspeed_can_write(priv, CAN_TBUF + BUF_ID, id);
+	aspeed_can_write(priv, CAN_TBUF + BUF_CTL, ctl);
+	aspeed_can_write(priv, CAN_TBUF + BUF_TYPE, type);
 
 	if (cf->can_id & CAN_RTR_FLAG)
 		return;
 
-	for (i = 0; i < (cf->len / 4 + 3) * 4; i += 4) {
-		writel(*(u32 *)(cf->data + i),
-		       priv->reg_base + CAN_TBUF_DATA + i);
-	}
+	for (i = 0; i < round_up(cf->len, 4); i += 4)
+		aspeed_can_write(priv, CAN_TBUF + BUF_DATA + i,
+				 *(u32 *)(cf->data + i));
 }
 
-static int aspeed_can_start_frame_xmit(struct sk_buff *skb,
-				       struct net_device *ndev)
+static int aspeed_can_do_xmit(struct sk_buff *skb, struct net_device *ndev)
 {
 	struct aspeed_can_priv *priv = netdev_priv(ndev);
-	u32 i = 0;
-	u32 can_ctrl;
-	u32 int_flag;
-	u32 skb_idx;
+	struct aspeed_can_stb_slot *slot;
+	u32 cfg;
 	int ret;
 
-	/* avoid transmitting data finish suddenly */
-	while (i < 3) {
-		can_ctrl = readl(priv->reg_base + CAN_CTRL);
-		int_flag = readl(priv->reg_base + CAN_INTF);
-		i++;
+	cfg = aspeed_can_read(priv, CAN_CFG_STAT);
+	if (cfg & TCTRL_TSFF) {
+		netdev_err(ndev, "hardware STB full\n");
+		return -ENOSPC;
 	}
 
-	/* check whether STB or PTB is full */
-	if ((can_ctrl & CAN_CTRL_TBSEL_BIT) &&
-	    (can_ctrl & CAN_CTRL_TSFF_BIT))
-		return -ENOSPC;
-
-	if (!(can_ctrl & CAN_CTRL_TBSEL_BIT) &&
-	    ((can_ctrl & CAN_CTRL_TPE_BIT) ||
-	     (int_flag & CAN_INT_TPIF_BIT)))
-		return -ENOSPC;
-
-	if (priv->frame_handle == 0x100)
+	if (priv->frame_handle >= BUF_HANDLE_MAX)
 		priv->frame_handle = 0;
 
-	/* Use skb idex to check whether
-	 * the same handle already in STB.
-	 */
-	skb_idx = aspeed_can_get_skb_idx(ndev, priv->frame_handle);
-	if (skb_idx != STB_INVALID_SKB_IDX) {
-		netdev_err(ndev, "repeat handle %d\n", priv->frame_handle);
+	if (aspeed_can_stb_find(priv, priv->frame_handle)) {
+		netdev_err(ndev, "handle %u already in STB\n",
+			   priv->frame_handle);
+		return -ENOSPC;
+	}
+
+	slot = aspeed_can_stb_alloc(priv);
+	if (!slot) {
+		netdev_err(ndev, "no free STB slot\n");
 		return -ENOSPC;
 	}
 
 	aspeed_can_write_frame(ndev, skb);
-
-	if (can_ctrl & CAN_CTRL_TBSEL_BIT) {
-		/* STB */
-		ret = can_put_echo_skb(skb, ndev, priv->head_ptr->skb_idx, 0);
-		if (ret) {
-			netdev_err(ndev, "fail to put skb for stb %d\n", ret);
-			return ret;
-		}
-
-		priv->head_ptr->handle = priv->frame_handle;
-		priv->head_ptr = priv->head_ptr->next;
-
-		/* STB is full */
-		if (priv->head_ptr == priv->tail_ptr)
-			netif_stop_queue(ndev);
-
-		aspeed_can_set_bit(priv, CAN_CTRL, CAN_CTRL_TSNEXT_BIT);
-
-		/* no frame is transmitting or there is no unhandled finish flag */
-		if ((priv->stb_mode_policy & STB_TX_MODE_ONE) &&
-		    !(can_ctrl & CAN_CTRL_TSONE_BIT) &&
-		    !(int_flag & CAN_INT_TSIF_BIT))
-			aspeed_can_set_bit(priv, CAN_CTRL, CAN_CTRL_TSONE_BIT);
-		else if ((priv->stb_mode_policy & STB_TX_MODE_ALL) &&
-			 !(can_ctrl & CAN_CTRL_TSALL_BIT) &&
-			 !(int_flag & CAN_INT_TSIF_BIT))
-			aspeed_can_set_bit(priv, CAN_CTRL, CAN_CTRL_TSALL_BIT);
-	} else {
-		/* PTB */
-		ret = can_put_echo_skb(skb, ndev, 0, 0);
-		if (ret) {
-			netdev_err(ndev, "fail to put skb for ptb %d\n", ret);
-			return ret;
-		}
-
-		netif_stop_queue(ndev);
-		aspeed_can_set_bit(priv, CAN_CTRL, CAN_CTRL_TPE_BIT);
+	ret = can_put_echo_skb(skb, ndev, slot->skb_idx, 0);
+	if (ret) {
+		ndev->stats.tx_dropped++;
+		return 0;
 	}
 
-	priv->frame_handle++;
+	aspeed_can_set_bits(priv, CAN_CFG_STAT, TCTRL_TSNEXT);
+	/*
+	 * TSNEXT is self-clearing; HW updates the STB write pointer only
+	 * after it clears, so wait for it before issuing the TX command.
+	 */
+	if (readl_poll_timeout_atomic(priv->reg_base + CAN_CFG_STAT, cfg,
+				      !(cfg & TCTRL_TSNEXT), 0, 10)) {
+		netdev_err(ndev, "timeout waiting for TSNEXT\n");
+		can_free_echo_skb(ndev, slot->skb_idx, NULL);
+		ndev->stats.tx_dropped++;
+		ndev->stats.tx_errors++;
+		netif_stop_queue(ndev);
+		return 0;
+	}
 
+	slot->handle = priv->frame_handle;
+	list_add_tail(&slot->list, &priv->stb_head);
+
+	if (!aspeed_can_stb_alloc(priv))
+		netif_stop_queue(ndev);
+
+	if (!(cfg & TCMD_TSALL))
+		aspeed_can_set_bits(priv, CAN_CFG_STAT, TCMD_TSALL);
+
+	priv->frame_handle++;
 	return 0;
 }
 
 static netdev_tx_t aspeed_can_start_xmit(struct sk_buff *skb,
 					 struct net_device *ndev)
 {
-	int ret;
 	struct aspeed_can_priv *priv = netdev_priv(ndev);
 	unsigned long flags;
+	int ret;
 
 	if (can_dev_dropped_skb(ndev, skb))
-		return NET_XMIT_DROP;
+		return NETDEV_TX_OK;
 
 	spin_lock_irqsave(&priv->tx_lock, flags);
-
-	ret = aspeed_can_start_frame_xmit(skb, ndev);
-
+	ret = aspeed_can_do_xmit(skb, ndev);
 	spin_unlock_irqrestore(&priv->tx_lock, flags);
 
 	if (ret) {
-		netdev_err(ndev, "Fail to transmit data!\n");
 		netif_stop_queue(ndev);
-		return NET_XMIT_DROP;
+		dev_kfree_skb_any(skb);
+		ndev->stats.tx_dropped++;
 	}
 
 	return NETDEV_TX_OK;
@@ -929,86 +582,77 @@ static int aspeed_can_rx(struct net_device *ndev)
 	struct net_device_stats *stats = &ndev->stats;
 	struct canfd_frame *cf;
 	struct sk_buff *skb;
-	u32 data;
-	u32 rx_stat;
-	u32 buf_ctrl_reg;
-	u32 reg_val;
-	u32 i;
+	u32 id_reg, ctl_reg;
+	u8 dlc;
+	unsigned int i;
 
-	rx_stat = readl(priv->reg_base + CAN_CTRL);
-	if (!(rx_stat & CAN_CTRL_RSTAT_NOT_EMPTY_MASKT))
+	if (!(aspeed_can_read(priv, CAN_CFG_STAT) & RCTRL_RSTAT_MASK))
 		return 0;
 
-	buf_ctrl_reg = readl(priv->reg_base + CAN_RBUF_CTL);
-	if (buf_ctrl_reg & CAN_BUF_FDF_BIT)
+	ctl_reg = aspeed_can_read(priv, CAN_RBUF + BUF_CTL);
+	dlc = FIELD_GET(BUF_DLC_MASK, ctl_reg) & CAN_MAX_RAW_DLC;
+
+	if (ctl_reg & BUF_FDF)
 		skb = alloc_canfd_skb(ndev, &cf);
 	else
 		skb = alloc_can_skb(ndev, (struct can_frame **)&cf);
 
 	if (!skb) {
 		stats->rx_dropped++;
-		return 0;
+		aspeed_can_set_bits(priv, CAN_CFG_STAT, RCTRL_RREL);
+		return 1;
 	}
 
-	reg_val = readl(priv->reg_base + CAN_RBUF_ID);
-	if (buf_ctrl_reg & CAN_BUF_IDE_BIT) {
-		cf->can_id = reg_val & CAN_BUF_ID_EFF_MASK;
-		cf->can_id |= CAN_EFF_FLAG;
-	} else {
-		cf->can_id = (reg_val & CAN_BUF_ID_BFF_MASK) >>
-			     CAN_BUF_ID_BFF_BITOFF;
-	}
+	id_reg = aspeed_can_read(priv, CAN_RBUF + BUF_ID);
 
-	if (buf_ctrl_reg & CAN_BUF_RMF_BIT)
+	if (ctl_reg & BUF_IDE)
+		cf->can_id = FIELD_GET(BUF_ID_EFF_MASK, id_reg) | CAN_EFF_FLAG;
+	else
+		cf->can_id = FIELD_GET(BUF_ID_SFF_MASK, id_reg);
+
+	if (ctl_reg & BUF_RMF)
 		cf->can_id |= CAN_RTR_FLAG;
 
-	if (buf_ctrl_reg & CAN_BUF_FDF_BIT)
-		cf->len = can_fd_dlc2len(buf_ctrl_reg & CAN_BUF_DLC_MASK);
-	else
-		cf->len = can_cc_dlc2len(buf_ctrl_reg & CAN_BUF_DLC_MASK);
-
-	/* Check the frame received is FD or not*/
-	for (i = 0; i < cf->len; i += 4) {
-		data = readl(priv->reg_base + CAN_RBUF_DATA + i);
-		*(u32 *)(cf->data + i) = data;
+	if (ctl_reg & BUF_FDF) {
+		cf->len = can_fd_dlc2len(dlc);
+		if (ctl_reg & BUF_BRS)
+			cf->flags |= CANFD_BRS;
+		if (ctl_reg & BUF_ESI)
+			cf->flags |= CANFD_ESI;
+	} else {
+		can_frame_set_cc_len((struct can_frame *)cf, dlc,
+				     priv->can.ctrlmode);
 	}
 
-	if (!(cf->can_id & CAN_RTR_FLAG))
+	if (!(cf->can_id & CAN_RTR_FLAG)) {
+		for (i = 0; i < cf->len; i += 4)
+			*(u32 *)(cf->data + i) =
+				aspeed_can_read(priv, CAN_RBUF + BUF_DATA + i);
 		stats->rx_bytes += cf->len;
+	}
 
 	stats->rx_packets++;
 
-	/* release frame */
-	aspeed_can_set_bit(priv, CAN_CTRL, CAN_CTRL_RREL_BIT);
-
+	aspeed_can_set_bits(priv, CAN_CFG_STAT, RCTRL_RREL);
 	netif_receive_skb(skb);
 
 	return 1;
 }
 
-static enum can_state aspeed_can_current_error_state(struct net_device *ndev)
+static enum can_state aspeed_can_get_state(struct net_device *ndev)
 {
 	struct aspeed_can_priv *priv = netdev_priv(ndev);
-	u32 status;
-	u32 rx_cnt;
-	u32 tx_cnt;
-	u32 ctrl;
+	u32 cfg  = aspeed_can_read(priv, CAN_CFG_STAT);
+	u32 intf = aspeed_can_read(priv, CAN_INTF);
 
-	ctrl = readl(priv->reg_base + CAN_CTRL);
-	status = readl(priv->reg_base + CAN_INTF);
-	rx_cnt = (readl(priv->reg_base + CAN_ERR_STAT) & CAN_ERR_RECNT_MASK) >>
-		 CAN_ERR_RECNT_BITOFF;
-	tx_cnt = (readl(priv->reg_base + CAN_ERR_STAT) & CAN_ERR_TECNT_MASK) >>
-		 CAN_ERR_TECNT_BITOFF;
-
-	if (ctrl & CAN_CTRL_BUSOFF_BIT)
+	if (cfg & CFGSTAT_BUSOFF)
 		return CAN_STATE_BUS_OFF;
-	else if ((status & CAN_EPASS_BIT) == CAN_EPASS_BIT)
+	if (intf & INTF_EPASS)
 		return CAN_STATE_ERROR_PASSIVE;
-	else if (rx_cnt > 96 || tx_cnt > 96)
+	if (intf & INTF_EWARN)
 		return CAN_STATE_ERROR_WARNING;
-	else
-		return CAN_STATE_ERROR_ACTIVE;
+
+	return CAN_STATE_ERROR_ACTIVE;
 }
 
 static void aspeed_can_set_error_state(struct net_device *ndev,
@@ -1016,13 +660,12 @@ static void aspeed_can_set_error_state(struct net_device *ndev,
 				       struct can_frame *cf)
 {
 	struct aspeed_can_priv *priv = netdev_priv(ndev);
-	u32 ecr = readl(priv->reg_base + CAN_ERR_STAT);
-	u32 txerr = (ecr & CAN_ERR_RECNT_MASK) >> CAN_ERR_RECNT_BITOFF;
-	u32 rxerr = (ecr & CAN_ERR_TECNT_MASK) >> CAN_ERR_TECNT_BITOFF;
+	u32 cnt = aspeed_can_read(priv, CAN_LIMIT);
+	u32 txerr = FIELD_GET(TECNT_MASK, cnt);
+	u32 rxerr = FIELD_GET(RECNT_MASK, cnt);
 	enum can_state tx_state = txerr >= rxerr ? new_state : 0;
 	enum can_state rx_state = txerr <= rxerr ? new_state : 0;
 
-	/* non-ERROR states are handled elsewhere */
 	if (WARN_ON(new_state > CAN_STATE_ERROR_PASSIVE))
 		return;
 
@@ -1035,138 +678,88 @@ static void aspeed_can_set_error_state(struct net_device *ndev,
 	}
 }
 
-static void aspeed_can_update_error_state_after_rxtx(struct net_device *ndev)
-{
-	struct aspeed_can_priv *priv = netdev_priv(ndev);
-	enum can_state old_state = priv->can.state;
-	enum can_state new_state;
-
-	/* changing error state due to successful frame RX/TX can only
-	 * occur from these states
-	 */
-	if (old_state != CAN_STATE_ERROR_WARNING &&
-	    old_state != CAN_STATE_ERROR_PASSIVE)
-		return;
-
-	new_state = aspeed_can_current_error_state(ndev);
-
-	if (new_state != old_state) {
-		struct sk_buff *skb;
-		struct can_frame *cf;
-
-		skb = alloc_can_err_skb(ndev, &cf);
-
-		aspeed_can_set_error_state(ndev, new_state, skb ? cf : NULL);
-
-		if (skb)
-			netif_rx(skb);
-	}
-}
-
 static void aspeed_can_err_interrupt(struct net_device *ndev, u32 isr)
 {
 	struct aspeed_can_priv *priv = netdev_priv(ndev);
 	struct net_device_stats *stats = &ndev->stats;
-	struct can_frame cf = { };
-	u32 err;
-	u32 ctrl;
-	u32 koer;
-	u32 recnt;
-	u32 tecnt;
+	struct can_frame cf = {};
+	u32 cnt, cfg, koer;
 
-	netdev_err(ndev, "in error interrupt.\n");
+	cnt  = aspeed_can_read(priv, CAN_LIMIT);
+	cfg  = aspeed_can_read(priv, CAN_CFG_STAT);
+	koer = FIELD_GET(EALCAP_KOER_MASK, cnt);
 
-	aspeed_can_reg_dump(ndev);
+	if (cfg & CFGSTAT_BUSOFF) {
+		u32 txerr = FIELD_GET(TECNT_MASK, cnt);
+		u32 rxerr = FIELD_GET(RECNT_MASK, cnt);
 
-	err = readl(priv->reg_base + CAN_ERR_STAT);
-	ctrl = readl(priv->reg_base + CAN_CTRL);
-
-	koer = (err & CAN_ERR_KOER_MASK) >> CAN_ERR_KOER_BITOFF;
-	recnt = (err & CAN_ERR_RECNT_MASK) >> CAN_ERR_RECNT_BITOFF;
-	tecnt = (err & CAN_ERR_TECNT_MASK) >> CAN_ERR_TECNT_BITOFF;
-
-	if (ctrl & CAN_CTRL_BUSOFF_BIT) {
-		priv->can.state = CAN_STATE_BUS_OFF;
-		priv->can.can_stats.bus_off++;
-		/* Leave device in Config Mode in bus-off state */
-		aspeed_can_set_bit(priv, CAN_CTRL, CAN_CTRL_RST_BIT);
+		can_change_state(ndev, &cf,
+				 CAN_STATE_BUS_OFF, CAN_STATE_BUS_OFF);
+		cf.can_id |= CAN_ERR_CNT;
+		cf.data[6] = txerr;
+		cf.data[7] = rxerr;
+		aspeed_can_set_bits(priv, CAN_CFG_STAT, CFGSTAT_RESET);
 		can_bus_off(ndev);
-		cf.can_id |= CAN_ERR_BUSOFF;
 	} else {
-		enum can_state new_state = aspeed_can_current_error_state(ndev);
+		enum can_state new_state = aspeed_can_get_state(ndev);
 
 		if (new_state != priv->can.state)
 			aspeed_can_set_error_state(ndev, new_state, &cf);
 	}
 
-	if (isr & CAN_INT_ALIF_BIT) {
+	if (isr & INTF_ALIF) {
 		priv->can.can_stats.arbitration_lost++;
 		cf.can_id |= CAN_ERR_LOSTARB;
 		cf.data[0] = CAN_ERR_LOSTARB_UNSPEC;
 	}
 
-	if (isr & CAN_INT_ROIF_BIT) {
+	if (isr & INTF_ROIF) {
 		stats->rx_over_errors++;
 		stats->rx_errors++;
 		cf.can_id |= CAN_ERR_CRTL;
 		cf.data[1] |= CAN_ERR_CRTL_RX_OVERFLOW;
 	}
 
-	/* Check for error interrupt */
-	if (isr & CAN_INT_BEIF_BIT) {
-		bool berr_reporting = false;
+	if (isr & INTF_BEIF) {
+		bool berr = !!(priv->can.ctrlmode &
+			       CAN_CTRLMODE_BERR_REPORTING);
 
-		if (priv->can.ctrlmode & CAN_CTRLMODE_BERR_REPORTING) {
-			berr_reporting = true;
+		priv->can.can_stats.bus_error++;
+
+		if (berr)
 			cf.can_id |= CAN_ERR_PROT | CAN_ERR_BUSERROR;
-		}
 
-		if (koer == KOER_ACK_ERROR_MASK) {
-			netdev_err(ndev, "ACK error exists\n");
+		switch (koer) {
+		case KOER_BIT:
 			stats->tx_errors++;
-			if (berr_reporting) {
+			if (berr)
+				cf.data[2] = CAN_ERR_PROT_BIT;
+			break;
+		case KOER_FORM:
+			stats->rx_errors++;
+			if (berr)
+				cf.data[2] = CAN_ERR_PROT_FORM;
+			break;
+		case KOER_STUFF:
+			stats->rx_errors++;
+			if (berr)
+				cf.data[2] = CAN_ERR_PROT_STUFF;
+			break;
+		case KOER_ACK:
+			stats->tx_errors++;
+			if (berr) {
 				cf.can_id |= CAN_ERR_ACK;
 				cf.data[3] = CAN_ERR_PROT_LOC_ACK;
 			}
-		}
-
-		if (koer == KOER_BIT_ERROR_MASK) {
-			netdev_err(ndev, "BIT error exists\n");
-			stats->tx_errors++;
-			if (berr_reporting) {
-				cf.can_id |= CAN_ERR_PROT;
-				cf.data[2] = CAN_ERR_PROT_BIT;
-			}
-		}
-
-		if (koer == KOER_STUFF_ERROR_MASK) {
-			netdev_err(ndev, "STUFF error exists\n");
+			break;
+		case KOER_CRC:
 			stats->rx_errors++;
-			if (berr_reporting) {
-				cf.can_id |= CAN_ERR_PROT;
-				cf.data[2] = CAN_ERR_PROT_STUFF;
-			}
-		}
-
-		if (koer == KOER_FORM_ERROR_MASK) {
-			netdev_err(ndev, "FORM error exists\n");
-			stats->rx_errors++;
-			if (berr_reporting) {
-				cf.can_id |= CAN_ERR_PROT;
-				cf.data[2] = CAN_ERR_PROT_FORM;
-			}
-		}
-
-		if (koer == KOER_CRC_ERROR_MASK) {
-			netdev_err(ndev, "CRC error exists\n");
-			stats->rx_errors++;
-			if (berr_reporting) {
-				cf.can_id |= CAN_ERR_PROT;
+			if (berr)
 				cf.data[3] = CAN_ERR_PROT_LOC_CRC_SEQ;
-			}
+			break;
+		default:
+			break;
 		}
-
-		priv->can.can_stats.bus_error++;
 	}
 
 	if (cf.can_id) {
@@ -1186,177 +779,73 @@ static int aspeed_can_rx_poll(struct napi_struct *napi, int quota)
 	struct net_device *ndev = napi->dev;
 	struct aspeed_can_priv *priv = netdev_priv(ndev);
 	int work_done = 0;
-	u32 rx_stat;
-	u32 ier;
 
-	rx_stat = readl(priv->reg_base + CAN_CTRL);
-
-	while ((rx_stat & CAN_CTRL_RSTAT_NOT_EMPTY_MASKT) != 0 &&
-	       (work_done < quota)) {
+	while (work_done < quota &&
+	       aspeed_can_read(priv, CAN_CFG_STAT) & RCTRL_RSTAT_MASK)
 		work_done += aspeed_can_rx(ndev);
-		rx_stat = readl(priv->reg_base + CAN_CTRL);
-	}
 
-	if (work_done)
-		aspeed_can_update_error_state_after_rxtx(ndev);
-
-	if (work_done < quota) {
-		if (napi_complete_done(napi, work_done)) {
-			ier = readl(priv->reg_base + CAN_INTE);
-			ier |= CAN_INT_RIE_BIT;
-			writel(ier, priv->reg_base + CAN_INTE);
-		}
-	}
+	if (work_done < quota && napi_complete_done(napi, work_done))
+		aspeed_can_set_bits(priv, CAN_INTE, INTF_RX_MASK);
 
 	return work_done;
 }
 
-static void aspeed_can_tx_interrupt(struct net_device *ndev, u32 intr_flag)
+static void aspeed_can_tx_interrupt(struct net_device *ndev)
 {
 	struct aspeed_can_priv *priv = netdev_priv(ndev);
 	struct net_device_stats *stats = &ndev->stats;
-	u32 frames_in_fifo;
+	struct aspeed_can_stb_slot *slot, *tmp;
 	unsigned long flags;
-	u32 can_ctrl;
-	u32 stauts_2;
-	u32 handle;
-	u32 skb_idx;
-	int ret;
 
 	spin_lock_irqsave(&priv->tx_lock, flags);
 
-	/* PTB */
-	if (intr_flag & CAN_INT_TPIF_BIT) {
-		aspeed_can_clr_irq_bits(priv, CAN_INTF, CAN_INT_TPIF_BIT);
-		stats->tx_bytes += can_get_echo_skb(ndev, 0, NULL);
-		goto exit;
+	aspeed_can_clr_irq(priv, INTF_TSIF);
+
+	if (list_empty(&priv->stb_head)) {
+		netdev_warn(ndev, "STB TX interrupt with no pending frame\n");
+		netif_wake_queue(ndev);
+		goto done;
 	}
 
-	/* STB */
-	can_ctrl = readl(priv->reg_base + CAN_CTRL);
-	stauts_2 = readl(priv->reg_base + CAN_TSTAT);
-
-	switch (priv->stb_mode_policy) {
-	case (STB_TX_MODE_ONE | STB_POLICY_PRIO):
-		aspeed_can_clr_irq_bits(priv, CAN_INTF, CAN_INT_TSIF_BIT);
-
-		handle = (stauts_2 & CAN_TSTAT2_HANDLE_MASK) >>
-			 CAN_TSTAT2_HANDLE_BITOFF;
-		skb_idx = aspeed_can_get_skb_idx(ndev, handle);
-		if (skb_idx == STB_INVALID_SKB_IDX) {
-			netdev_err(ndev, "fail to get skb idx (%x)\n",
-				   STB_TX_MODE_ONE | STB_POLICY_PRIO);
-		} else {
-			stats->tx_bytes += can_get_echo_skb(ndev, skb_idx, NULL);
-			stats->tx_packets++;
-			ret = aspeed_can_drop_ring_obj(ndev, handle);
-			/* priv->tail_ptr = priv->tail_ptr.next; */
-			if (ret < 0) {
-				netdev_err(ndev, "fail to drop a ring obj (%x)\n",
-					   STB_TX_MODE_ONE | STB_POLICY_PRIO);
-			}
-		}
-
-		/* something still in STB */
-		if ((can_ctrl & CAN_CTRL_TSSTAT_MASK) != 0x0)
-			aspeed_can_set_bit(priv, CAN_CTRL, CAN_CTRL_TSONE_BIT);
-		break;
-
-	case (STB_TX_MODE_ALL | STB_POLICY_FIFO):
-	case (STB_TX_MODE_ALL | STB_POLICY_PRIO):
-
-		aspeed_can_clr_irq_bits(priv, CAN_INTF, CAN_INT_TSIF_BIT);
-
-		frames_in_fifo = aspeed_can_get_frame_num(ndev);
-
-		/* Potential situation: A frame is submitted before this ISR.
-		 *                      That new frame waits for transmission.
-		 * This frame should be handled in the next ISR.
-		 */
-		if (can_ctrl & CAN_CTRL_TSSTAT_MASK)
-			frames_in_fifo--;
-
-		while (frames_in_fifo != 0) {
-			stats->tx_bytes += can_get_echo_skb(ndev,
-							    priv->tail_ptr->skb_idx,
-							    NULL);
-			priv->tail_ptr->handle = STB_INVALID_HANDLE_VAL;
-			priv->tail_ptr = priv->tail_ptr->next;
-			stats->tx_packets++;
-			frames_in_fifo--;
-		}
-
-		/* something still in STB */
-		if (can_ctrl & CAN_CTRL_TSSTAT_MASK)
-			aspeed_can_set_bit(priv, CAN_CTRL, CAN_CTRL_TSALL_BIT);
-
-		break;
-	default:
-		/* including STB_TX_MODE_ONE and STB_POLICY_FIFO mode */
-		aspeed_can_clr_irq_bits(priv, CAN_INTF, CAN_INT_TSIF_BIT);
-
-		stats->tx_bytes += can_get_echo_skb(ndev,
-						    priv->tail_ptr->skb_idx,
-						    NULL);
-		priv->tail_ptr = priv->tail_ptr->next;
+	/* TSIF fires only when the STB is empty; echo all pending frames. */
+	list_for_each_entry_safe(slot, tmp, &priv->stb_head, list) {
+		stats->tx_bytes += can_get_echo_skb(ndev, slot->skb_idx, NULL);
 		stats->tx_packets++;
-
-		/* something in STB */
-		if ((can_ctrl & CAN_CTRL_TSSTAT_MASK) != 0x0)
-			aspeed_can_set_bit(priv, CAN_CTRL, CAN_CTRL_TSONE_BIT);
+		list_del_init(&slot->list);
 	}
 
-exit:
 	netif_wake_queue(ndev);
 
+done:
 	spin_unlock_irqrestore(&priv->tx_lock, flags);
-
-	aspeed_can_update_error_state_after_rxtx(ndev);
 }
 
 static irqreturn_t aspeed_can_interrupt(int irq, void *dev_id)
 {
-	struct net_device *ndev = (struct net_device *)dev_id;
+	struct net_device *ndev = dev_id;
 	struct aspeed_can_priv *priv = netdev_priv(ndev);
 	u32 isr;
-	u32 ier;
-	u32 isr_errors;
-	u32 rx_int_mask = CAN_INT_RIF_BIT;
 
-	isr = readl(priv->reg_base + CAN_INTF);
+	isr = aspeed_can_read(priv, CAN_INTF);
 	if (!isr)
 		return IRQ_NONE;
 
-	/* Check for Tx interrupt and Processing it */
-	if (isr & (CAN_INT_TPIF_BIT | CAN_INT_TSIF_BIT))
-		aspeed_can_tx_interrupt(ndev, isr);
+	if (isr & INTF_TSIF)
+		aspeed_can_tx_interrupt(ndev);
 
-	if (isr & CAN_INT_RAFIF_BIT) {
-		netdev_warn(ndev, "Receive buffer is almost full\n");
-		aspeed_can_clr_irq_bits(priv, CAN_INTF, CAN_INT_RAFIF_BIT);
-	}
-
-	if (isr & CAN_INT_RFIF_BIT) {
-		netdev_warn(ndev, "Receive buffer is full\n");
-		aspeed_can_clr_irq_bits(priv, CAN_INTF, CAN_INT_RFIF_BIT);
-	}
-
-	/* Check for the type of error interrupt and Processing it */
-	isr_errors = isr & (CAN_INT_EIF_BIT | CAN_INT_ROIF_BIT |
-			    CAN_INT_BEIF_BIT | CAN_INT_ALIF_BIT |
-			    CAN_INT_EPIF_BIT | CAN_INT_EWARN_BIT);
-	if (isr_errors) {
-		aspeed_can_clr_irq_bits(priv, CAN_INTF, isr_errors);
-		aspeed_can_err_interrupt(ndev, isr);
-	}
-
-	/* Check for the type of receive interrupt and Processing it */
-	if (isr & rx_int_mask) {
-		aspeed_can_clr_irq_bits(priv, CAN_INTF, rx_int_mask);
-		ier = readl(priv->reg_base + CAN_INTE);
-		ier &= ~rx_int_mask; /* CAN_INT_RIE_BIT */
-		writel(ier, priv->reg_base + CAN_INTE);
+	if (isr & INTF_RX_MASK) {
+		if (isr & INTF_RAFIF)
+			netdev_dbg(ndev, "RX buffer almost full\n");
+		if (isr & INTF_RFIF)
+			netdev_dbg(ndev, "RX buffer full\n");
+		aspeed_can_clr_irq(priv, isr & INTF_RX_MASK);
+		aspeed_can_clr_bits(priv, CAN_INTE, INTF_RX_MASK);
 		napi_schedule(&priv->napi);
+	}
+
+	if (isr & INTF_ERR_MASK) {
+		aspeed_can_clr_irq(priv, isr & INTF_ERR_MASK);
+		aspeed_can_err_interrupt(ndev, isr);
 	}
 
 	return IRQ_HANDLED;
@@ -1367,10 +856,10 @@ static void aspeed_can_chip_stop(struct net_device *ndev)
 	struct aspeed_can_priv *priv = netdev_priv(ndev);
 	int ret;
 
-	/* Disable interrupts and leave the can in configuration mode */
+	aspeed_can_write(priv, CAN_INTE, 0);
 	ret = aspeed_can_set_reset_mode(ndev);
-	if (ret < 0)
-		netdev_dbg(ndev, "aspeed_can_set_reset_mode() Failed\n");
+	if (ret)
+		netdev_err(ndev, "chip_stop: set_reset_mode failed\n");
 
 	priv->can.state = CAN_STATE_STOPPED;
 }
@@ -1380,63 +869,52 @@ static int aspeed_can_open(struct net_device *ndev)
 	struct aspeed_can_priv *priv = netdev_priv(ndev);
 	int ret;
 
-	ret = pm_runtime_get_sync(priv->dev);
-	if (ret < 0) {
-		netdev_err(ndev, "%s: pm_runtime_get failed(%d)\n",
-			   __func__, ret);
-		goto err;
-	}
-
-	ret = request_irq(ndev->irq, aspeed_can_interrupt, 0,
-			  ndev->name, ndev);
-	if (ret < 0) {
-		netdev_err(ndev, "irq allocation for CAN failed\n");
-		goto err;
-	}
-
-	/* Set chip into reset mode */
-	ret = aspeed_can_set_reset_mode(ndev);
-	if (ret < 0) {
-		netdev_err(ndev, "mode resetting failed!\n");
-		goto err_irq;
-	}
-
-	/* Common open */
 	ret = open_candev(ndev);
 	if (ret)
-		goto err_irq;
+		return ret;
 
-	ret = aspeed_can_chip_start(ndev);
-	if (ret < 0) {
-		netdev_err(ndev, "aspeed_can_chip_start failed!\n");
+	ret = request_irq(ndev->irq, aspeed_can_interrupt,
+			  0, ndev->name, ndev);
+	if (ret) {
+		netdev_err(ndev, "failed to request IRQ: %d\n", ret);
 		goto err_candev;
 	}
 
 	napi_enable(&priv->napi);
+
+	ret = aspeed_can_chip_start(ndev);
+	if (ret) {
+		netdev_err(ndev, "chip_start failed: %d\n", ret);
+		goto err_napi;
+	}
+
 	netif_start_queue(ndev);
 
 	return 0;
 
+err_napi:
+	napi_disable(&priv->napi);
+	free_irq(ndev->irq, ndev);
 err_candev:
 	close_candev(ndev);
-err_irq:
-	free_irq(ndev->irq, ndev);
-err:
-	pm_runtime_put(priv->dev);
-
 	return ret;
 }
 
 static int aspeed_can_close(struct net_device *ndev)
 {
 	struct aspeed_can_priv *priv = netdev_priv(ndev);
+	int i;
 
 	netif_stop_queue(ndev);
+	aspeed_can_write(priv, CAN_INTE, 0);
 	napi_disable(&priv->napi);
 	aspeed_can_chip_stop(ndev);
 	free_irq(ndev->irq, ndev);
+
+	for (i = 0; i < STB_SLOTS; i++)
+		can_free_echo_skb(ndev, i, NULL);
+
 	close_candev(ndev);
-	pm_runtime_put(priv->dev);
 
 	return 0;
 }
@@ -1445,120 +923,50 @@ static int aspeed_can_get_berr_counter(const struct net_device *ndev,
 				       struct can_berr_counter *bec)
 {
 	struct aspeed_can_priv *priv = netdev_priv(ndev);
-	int ret;
+	u32 cnt = aspeed_can_read(priv, CAN_LIMIT);
 
-	ret = pm_runtime_get_sync(priv->dev);
-	if (ret < 0) {
-		netdev_err(ndev, "%s: pm_runtime_get failed(%d)\n",
-			   __func__, ret);
-		pm_runtime_put(priv->dev);
-		return ret;
-	}
-
-	bec->rxerr = (readl(priv->reg_base + CAN_ERR_STAT) &
-		      CAN_ERR_RECNT_MASK) >> CAN_ERR_RECNT_BITOFF;
-	bec->txerr = (readl(priv->reg_base + CAN_ERR_STAT) &
-		      CAN_ERR_TECNT_MASK) >> CAN_ERR_TECNT_BITOFF;
-
-	pm_runtime_put(priv->dev);
+	bec->rxerr = FIELD_GET(RECNT_MASK, cnt);
+	bec->txerr = FIELD_GET(TECNT_MASK, cnt);
 
 	return 0;
 }
 
-static int aspeed_can_get_auto_tdcv(const struct net_device *ndev, u32 *tdcv)
+static void aspeed_can_tx_timeout(struct net_device *ndev,
+				  unsigned int txqueue)
 {
 	struct aspeed_can_priv *priv = netdev_priv(ndev);
-	u32 reg;
+	unsigned long flags;
+	int i;
 
-	reg = readl(priv->reg_base + CAN_BITITME);
-	*tdcv = (reg & CAN_TIMING_FD_SSPOFF_MASK) >> CAN_TIMING_FD_SSPOFF_BITOFF;
+	netdev_warn(ndev, "TX timeout\n");
 
-	return 0;
+	aspeed_can_write(priv, CAN_INTE, 0);
+
+	spin_lock_irqsave(&priv->tx_lock, flags);
+	for (i = 0; i < STB_SLOTS; i++)
+		can_free_echo_skb(ndev, i, NULL);
+	spin_unlock_irqrestore(&priv->tx_lock, flags);
+
+	if (!aspeed_can_chip_start(ndev))
+		netif_wake_queue(ndev);
+	else
+		netdev_err(ndev, "failed to recover from TX timeout\n");
 }
 
 static const struct net_device_ops aspeed_can_netdev_ops = {
 	.ndo_open	= aspeed_can_open,
 	.ndo_stop	= aspeed_can_close,
 	.ndo_start_xmit	= aspeed_can_start_xmit,
-	.ndo_change_mtu	= can_change_mtu,
+	.ndo_tx_timeout	= aspeed_can_tx_timeout,
 };
 
 static const struct ethtool_ops aspeed_can_ethtool_ops = {
 	.get_ts_info = ethtool_op_get_ts_info,
 };
 
-static int __maybe_unused aspeed_can_suspend(struct device *dev)
-{
-	struct net_device *ndev = dev_get_drvdata(dev);
-
-	if (netif_running(ndev)) {
-		netif_stop_queue(ndev);
-		netif_device_detach(ndev);
-		aspeed_can_chip_stop(ndev);
-	}
-
-	return pm_runtime_force_suspend(dev);
-}
-
-static int __maybe_unused aspeed_can_resume(struct device *dev)
-{
-	struct net_device *ndev = dev_get_drvdata(dev);
-	int ret;
-
-	ret = pm_runtime_force_resume(dev);
-	if (ret) {
-		dev_err(dev, "pm_runtime_force_resume failed on resume\n");
-		return ret;
-	}
-
-	if (netif_running(ndev)) {
-		ret = aspeed_can_chip_start(ndev);
-		if (ret) {
-			dev_err(dev, "aspeed_can_chip_start failed on resume\n");
-			return ret;
-		}
-
-		netif_device_attach(ndev);
-		netif_start_queue(ndev);
-	}
-
-	return 0;
-}
-
-static int __maybe_unused aspeed_can_runtime_suspend(struct device *dev)
-{
-	struct net_device *ndev = dev_get_drvdata(dev);
-	struct aspeed_can_priv *priv = netdev_priv(ndev);
-
-	clk_disable_unprepare(priv->clk);
-
-	return 0;
-}
-
-static int __maybe_unused aspeed_can_runtime_resume(struct device *dev)
-{
-	struct net_device *ndev = dev_get_drvdata(dev);
-	struct aspeed_can_priv *priv = netdev_priv(ndev);
-	int ret;
-
-	ret = clk_prepare_enable(priv->clk);
-	if (ret) {
-		dev_err(dev, "Cannot enable clock.\n");
-		return ret;
-	}
-
-	return 0;
-}
-
-static const struct dev_pm_ops aspeed_can_dev_pm_ops = {
-	SET_SYSTEM_SLEEP_PM_OPS(aspeed_can_suspend, aspeed_can_resume)
-	SET_RUNTIME_PM_OPS(aspeed_can_runtime_suspend, aspeed_can_runtime_resume, NULL)
-};
-
-/* Match table for OF platform binding */
 static const struct of_device_id aspeed_can_of_match[] = {
-	{ .compatible = "aspeed,canfd", .data = NULL },
-	{ /* end of list */ },
+	{ .compatible = "aspeed,ast2700-canfd" },
+	{ /* sentinel */ },
 };
 MODULE_DEVICE_TABLE(of, aspeed_can_of_match);
 
@@ -1566,135 +974,103 @@ static int aspeed_can_probe(struct platform_device *pdev)
 {
 	struct net_device *ndev;
 	struct aspeed_can_priv *priv;
-	int ret;
-	/* Fixed to temporarily. */
-	u32 rx_max = 3;
 	u32 can_clk;
+	int ret;
 
-	ndev = alloc_candev(sizeof(struct aspeed_can_priv), 4);
+	ndev = alloc_candev(sizeof(*priv), ECHO_SKB_SLOTS);
 	if (!ndev)
 		return -ENOMEM;
 
 	priv = netdev_priv(ndev);
 
-	priv->dev = &pdev->dev;
 	priv->reg_base = devm_platform_ioremap_resource(pdev, 0);
 	if (IS_ERR(priv->reg_base)) {
 		ret = PTR_ERR(priv->reg_base);
-		goto err;
-	};
-
-	priv->can.bittiming_const = &aspeed_can_bittiming_const;
-	priv->can.fd.data_bittiming_const = &aspeed_canfd_bittiming_const;
-	priv->can.do_set_mode = aspeed_can_do_set_mode;
-	priv->can.do_get_berr_counter = aspeed_can_get_berr_counter;
-	priv->can.ctrlmode_supported = CAN_CTRLMODE_LOOPBACK |
-				       CAN_CTRLMODE_BERR_REPORTING |
-				       CAN_CTRLMODE_FD |
-				       CAN_CTRLMODE_CC_LEN8_DLC |
-				       CAN_CTRLMODE_TDC_AUTO;
-	priv->can.fd.do_get_auto_tdcv = aspeed_can_get_auto_tdcv;
-
-	priv->tx_max = 3;
-	spin_lock_init(&priv->tx_lock);
-
-	/* Get IRQ for the device */
-	ret = platform_get_irq(pdev, 0);
-	if (ret < 0)
 		goto err_free;
+	}
 
-	ndev->irq = ret;
-
-	/* We support local echo */
-	ndev->flags |= IFF_ECHO;
-
-	platform_set_drvdata(pdev, ndev);
-	SET_NETDEV_DEV(ndev, &pdev->dev);
-	ndev->netdev_ops = &aspeed_can_netdev_ops;
-	ndev->ethtool_ops = &aspeed_can_ethtool_ops;
-
-	/* Getting the CAN can_clk info */
 	priv->clk = devm_clk_get(&pdev->dev, NULL);
 	if (IS_ERR(priv->clk)) {
-		dev_err(&pdev->dev, "missing clock\n");
-		return PTR_ERR(priv->clk);
+		ret = dev_err_probe(&pdev->dev, PTR_ERR(priv->clk),
+				    "missing clock\n");
+		goto err_free;
 	}
 
 	can_clk = clk_get_rate(priv->clk);
 	if (!can_clk) {
-		dev_err(&pdev->dev, "invalid clock\n");
-		return -EINVAL;
+		ret = dev_err_probe(&pdev->dev, -EINVAL,
+				    "invalid clock rate\n");
+		goto err_free;
+	}
+
+	priv->reset = devm_reset_control_get_exclusive(&pdev->dev, NULL);
+	if (IS_ERR(priv->reset)) {
+		ret = PTR_ERR(priv->reset);
+		goto err_free;
 	}
 
 	ret = clk_prepare_enable(priv->clk);
 	if (ret) {
-		dev_err(&pdev->dev, "can not enable the clock\n");
-		return ret;
+		dev_err_probe(&pdev->dev, ret, "failed to enable clock\n");
+		goto err_free;
 	}
+
+	ret = reset_control_deassert(priv->reset);
+	if (ret)
+		goto err_clk;
+
+	ret = platform_get_irq(pdev, 0);
+	if (ret < 0)
+		goto err_reset;
+	ndev->irq = ret;
 
 	priv->can.clock.freq = can_clk;
+	priv->can.bittiming_const = &aspeed_can_bittiming_const;
+	priv->can.fd.data_bittiming_const = &aspeed_canfd_bittiming_const;
+	priv->can.fd.tdc_const = &aspeed_canfd_tdc_const;
+	priv->can.do_set_bittiming = aspeed_can_do_set_bittiming;
+	priv->can.fd.do_set_data_bittiming = aspeed_can_do_set_data_bittiming;
+	priv->can.do_set_mode = aspeed_can_do_set_mode;
+	priv->can.do_get_berr_counter = aspeed_can_get_berr_counter;
+	priv->can.ctrlmode_supported = CAN_CTRLMODE_LOOPBACK |
+				       CAN_CTRLMODE_LISTENONLY |
+				       CAN_CTRLMODE_BERR_REPORTING |
+				       CAN_CTRLMODE_FD |
+				       CAN_CTRLMODE_TDC_AUTO |
+				       CAN_CTRLMODE_CC_LEN8_DLC |
+				       CAN_CTRLMODE_ONE_SHOT;
 
-	priv->tb_mode = PTB_MODE;
-	if (of_property_read_bool(priv->dev->of_node, "can-stb-mode"))
-		priv->tb_mode = STB_MODE;
+	spin_lock_init(&priv->tx_lock);
 
-	priv->stb_mode_policy = STB_TX_MODE_ONE;
-	if (of_property_read_bool(priv->dev->of_node, "can-stb-tx-all"))
-		priv->stb_mode_policy = STB_TX_MODE_ALL;
+	aspeed_can_stb_init(priv);
 
-	if (of_property_read_bool(priv->dev->of_node, "can-stb-priority"))
-		priv->stb_mode_policy |= STB_POLICY_PRIO;
-	else
-		priv->stb_mode_policy |= STB_POLICY_FIFO;
+	ndev->flags |= IFF_ECHO;
+	ndev->netdev_ops = &aspeed_can_netdev_ops;
+	ndev->ethtool_ops = &aspeed_can_ethtool_ops;
+	ndev->watchdog_timeo = msecs_to_jiffies(1000);
+	SET_NETDEV_DEV(ndev, &pdev->dev);
+	platform_set_drvdata(pdev, ndev);
 
-	priv->stb_ring = kzalloc(sizeof(*priv->stb_ring) *
-				 STB_IDX_RING_SZ, GFP_KERNEL);
-	aspeed_can_stb_ring_obj_init(ndev);
-
-	if (of_property_read_bool(priv->dev->of_node, "can-internal-loopback"))
-		priv->flag |= ASPEED_CAN_INTERNEL_LOOPBACK;
-
-	priv->reset = devm_reset_control_get_exclusive(&pdev->dev, NULL);
-	if (IS_ERR(priv->reset))
-		return PTR_ERR(priv->reset);
-
-	reset_control_deassert(priv->reset);
-
-	ret = aspeed_can_set_reset_mode(ndev);
-	if (ret < 0)
-		goto err;
-
-	pm_runtime_enable(&pdev->dev);
-	ret = pm_runtime_get_sync(&pdev->dev);
-	if (ret < 0) {
-		netdev_err(ndev, "%s: pm_runtime_get failed(%d)\n",
-			   __func__, ret);
-		goto err_disableclks;
-	}
-
-	netif_napi_add_weight(ndev, &priv->napi, aspeed_can_rx_poll, rx_max);
+	netif_napi_add_weight(ndev, &priv->napi, aspeed_can_rx_poll,
+			      ASPEED_CAN_NAPI_WEIGHT);
 
 	ret = register_candev(ndev);
 	if (ret) {
-		dev_err(&pdev->dev, "fail to register failed (err=%d)\n", ret);
-		goto err_disableclks;
+		dev_err_probe(&pdev->dev, ret, "register_candev failed\n");
+		goto err_reset;
 	}
 
-	pm_runtime_put(&pdev->dev);
-
-	netdev_dbg(ndev, "reg_base = 0x%p, irq = %d, clock = %d\n",
+	netdev_dbg(ndev, "reg_base=%p irq=%d clk=%u Hz\n",
 		   priv->reg_base, ndev->irq, priv->can.clock.freq);
 
 	return 0;
 
-err_disableclks:
-	pm_runtime_put(priv->dev);
-	pm_runtime_disable(&pdev->dev);
+err_reset:
+	reset_control_assert(priv->reset);
+err_clk:
+	clk_disable_unprepare(priv->clk);
 err_free:
 	free_candev(ndev);
-err:
-	kfree(priv->stb_ring);
-
 	return ret;
 }
 
@@ -1703,21 +1079,19 @@ static void aspeed_can_remove(struct platform_device *pdev)
 	struct net_device *ndev = platform_get_drvdata(pdev);
 	struct aspeed_can_priv *priv = netdev_priv(ndev);
 
-	reset_control_assert(priv->reset);
 	unregister_candev(ndev);
-	pm_runtime_disable(&pdev->dev);
-	kfree(priv->stb_ring);
-
+	netif_napi_del(&priv->napi);
+	reset_control_assert(priv->reset);
+	clk_disable_unprepare(priv->clk);
 	free_candev(ndev);
 }
 
 static struct platform_driver aspeed_can_driver = {
 	.probe = aspeed_can_probe,
-	.remove	= aspeed_can_remove,
-	.driver	= {
-		.name = DRIVER_NAME,
-		.pm = &aspeed_can_dev_pm_ops,
-		.of_match_table	= aspeed_can_of_match,
+	.remove = aspeed_can_remove,
+	.driver = {
+		.name = KBUILD_MODNAME,
+		.of_match_table = aspeed_can_of_match,
 	},
 };
 
@@ -1725,4 +1099,4 @@ module_platform_driver(aspeed_can_driver);
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Chin-Ting Kuo <chin-ting_kuo@aspeedtech.com>");
-MODULE_DESCRIPTION("ASPEED CAN interface");
+MODULE_DESCRIPTION("ASPEED CAN controller driver");
