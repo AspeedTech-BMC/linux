@@ -346,6 +346,7 @@
 			phys = <&uphy3b>;
 			phy-names = "usb3-phy";
 			dr_mode = "host";
+			tx-fifo-resize;
 			status = "disabled";
 		};
 
