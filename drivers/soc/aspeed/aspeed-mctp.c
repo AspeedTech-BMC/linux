@@ -334,9 +334,11 @@ struct aspeed_mctp {
 	/* Delayed work for periodic detection of Rx packets */
 	struct delayed_work rx_det_dwork;
 	u32 rx_det_period_us;
+	int mctp_irq;
+	int pcie_irq;
+	bool stopping;
 #if IS_ENABLED(CONFIG_MCTP_TRANSPORT_PCIE_VDM)
 	struct net_device *ndev;
-	bool pcie_vdm_enabled;
 #endif
 };
 
@@ -1970,7 +1972,18 @@ static int aspeed_mctp_pcie_vdm_op_send_pkt(struct device *dev,
 
 	rc = aspeed_mctp_send_packet(priv->default_client, packet);
 	if (rc) {
-		dev_err(priv->dev, "failed to send packet\n");
+		dev_dbg(priv->dev, "failed to send packet, rc %d\n", rc);
+
+		/*
+		 * ENETDOWN and ENODEV mean that the PCIe link is not usable.
+		 * Stop transmission and poll until the link becomes operational.
+		 */
+		if (rc == -ENETDOWN || rc == -ENODEV) {
+			mctp_pcie_vdm_set_carrier(priv->ndev, false);
+			if (!READ_ONCE(priv->stopping))
+				mod_delayed_work(system_wq, &priv->pcie.rst_dwork,
+						 msecs_to_jiffies(1000));
+		}
 		aspeed_mctp_packet_free(packet);
 		return rc;
 	}
@@ -2019,21 +2032,41 @@ static const struct mctp_pcie_vdm_ops aspeed_mctp_pcie_vdm_ops = {
 	.uninit = aspeed_mctp_pcie_vdm_op_uninit,
 };
 
-static void aspeed_mctp_pcie_vdm_register(struct aspeed_mctp *priv)
+static int aspeed_mctp_pcie_vdm_register(struct aspeed_mctp *priv)
 {
 	struct net_device *ndev;
 	struct mctp_client *client;
 	char ifname[IFNAMSIZ];
+	int ret;
 
 	/** use priv's default client to send/receive mctp packets */
 	client = aspeed_mctp_create_client(priv);
-	aspeed_mctp_register_default_handler(client);
+	if (!client) {
+		dev_err(priv->dev, "Failed to create mctp client\n");
+		return -ENOMEM;
+	}
+
+	ret = aspeed_mctp_register_default_handler(client);
+	if (ret) {
+		dev_err(priv->dev, "Failed to register default MCTP client: %d\n",
+			ret);
+		aspeed_mctp_delete_client(client);
+		return ret;
+	}
 
 	snprintf(ifname, IFNAMSIZ, "mctppci%d", priv->dev_id);
 	ndev = mctp_pcie_vdm_add_dev(priv->dev, &aspeed_mctp_pcie_vdm_ops, ifname);
-	if (IS_ERR(ndev))
-		dev_err(priv->dev, "Failed to add mctp pcie vdm device Err %ld\n", PTR_ERR(ndev));
+	if (IS_ERR(ndev)) {
+		ret = PTR_ERR(ndev);
+		dev_err(priv->dev,
+			"Failed to add MCTP PCIe VDM device: %d\n", ret);
+		aspeed_mctp_delete_client(client);
+		return ret;
+	}
+
 	priv->ndev = ndev;
+
+	return 0;
 }
 
 #endif
@@ -2094,7 +2127,6 @@ static void aspeed_mctp_pcie_setup(struct aspeed_mctp *priv)
 	ret = _get_bdf(priv);
 
 	if (ret >= 0) {
-		cancel_delayed_work(&priv->pcie.rst_dwork);
 		if (priv->match_data->need_address_mapping)
 			regmap_update_bits(priv->map, ASPEED_MCTP_EID,
 					   MEMORY_SPACE_MAPPING, BIT(31));
@@ -2134,13 +2166,16 @@ static void aspeed_mctp_pcie_setup(struct aspeed_mctp *priv)
 		aspeed_mctp_rx_trigger(&priv->rx);
 		aspeed_mctp_send_pcie_uevent(kobj, true);
 #if IS_ENABLED(CONFIG_MCTP_TRANSPORT_PCIE_VDM)
-		mctp_pcie_vdm_set_carrier(priv->ndev, true);
+		if (priv->ndev)
+			mctp_pcie_vdm_set_carrier(priv->ndev, true);
 #endif
 	} else {
-		schedule_delayed_work(&priv->pcie.rst_dwork,
-				      msecs_to_jiffies(1000));
+		if (!READ_ONCE(priv->stopping))
+			mod_delayed_work(system_wq, &priv->pcie.rst_dwork,
+					 msecs_to_jiffies(1000));
 #if IS_ENABLED(CONFIG_MCTP_TRANSPORT_PCIE_VDM)
-		mctp_pcie_vdm_set_carrier(priv->ndev, false);
+		if (priv->ndev)
+			mctp_pcie_vdm_set_carrier(priv->ndev, false);
 #endif
 	}
 }
@@ -2150,6 +2185,9 @@ static void aspeed_mctp_reset_work(struct work_struct *work)
 	struct aspeed_mctp *priv = container_of(work, typeof(*priv),
 						pcie.rst_dwork.work);
 	struct kobject *kobj = &priv->mctp_miscdev.this_device->kobj;
+
+	if (READ_ONCE(priv->stopping))
+		return;
 
 	if (priv->pcie.need_uevent) {
 		aspeed_mctp_send_pcie_uevent(kobj, false);
@@ -2163,6 +2201,9 @@ static void aspeed_mctp_rx_detect_work(struct work_struct *work)
 {
 	struct aspeed_mctp *priv =
 		container_of(work, typeof(*priv), rx_det_dwork.work);
+
+	if (READ_ONCE(priv->stopping))
+		return;
 
 	tasklet_hi_schedule(&priv->rx.tasklet);
 	schedule_delayed_work(&priv->rx_det_dwork,
@@ -2180,6 +2221,9 @@ static irqreturn_t aspeed_mctp_irq_handler(int irq, void *arg)
 	struct aspeed_mctp *priv = arg;
 	u32 handled = 0;
 	u32 status;
+
+	if (READ_ONCE(priv->stopping))
+		return IRQ_NONE;
 
 	regmap_read(priv->map, ASPEED_MCTP_INT_STS, &status);
 	regmap_write(priv->map, ASPEED_MCTP_INT_STS, status);
@@ -2222,6 +2266,9 @@ static irqreturn_t aspeed_mctp_pcie_rst_irq_handler(int irq, void *arg)
 {
 	struct aspeed_mctp *priv = arg;
 
+	if (READ_ONCE(priv->stopping))
+		return IRQ_NONE;
+
 	aspeed_mctp_channels_init(priv);
 
 	priv->pcie.need_uevent = true;
@@ -2240,6 +2287,8 @@ static void aspeed_mctp_drv_init(struct aspeed_mctp *priv)
 
 	spin_lock_init(&priv->clients_lock);
 	mutex_init(&priv->endpoints_lock);
+	priv->mctp_irq = -1;
+	priv->pcie_irq = -1;
 
 	INIT_DELAYED_WORK(&priv->pcie.rst_dwork, aspeed_mctp_reset_work);
 
@@ -2260,6 +2309,22 @@ static void aspeed_mctp_drv_fini(struct aspeed_mctp *priv)
 	cancel_delayed_work_sync(&priv->pcie.rst_dwork);
 	if (priv->miss_mctp_int)
 		cancel_delayed_work_sync(&priv->rx_det_dwork);
+}
+
+static void aspeed_mctp_quiesce(struct aspeed_mctp *priv)
+{
+	WRITE_ONCE(priv->stopping, true);
+	aspeed_mctp_irq_disable(priv);
+	if (priv->mctp_irq >= 0)
+		synchronize_irq(priv->mctp_irq);
+	if (priv->pcie_irq >= 0)
+		synchronize_irq(priv->pcie_irq);
+	aspeed_mctp_drv_fini(priv);
+
+	/* A setup work item already running could have re-enabled the IRQ. */
+	aspeed_mctp_irq_disable(priv);
+	if (priv->mctp_irq >= 0)
+		synchronize_irq(priv->mctp_irq);
 }
 
 static int aspeed_mctp_resources_init(struct aspeed_mctp *priv)
@@ -2432,6 +2497,7 @@ static int aspeed_mctp_irq_init(struct aspeed_mctp *priv)
 				       IRQF_SHARED, dev_name(&pdev->dev), priv);
 		if (ret)
 			return ret;
+		priv->mctp_irq = irq;
 		aspeed_mctp_irq_enable(priv);
 	}
 	irq = platform_get_irq_byname(pdev, "pcie");
@@ -2442,6 +2508,7 @@ static int aspeed_mctp_irq_init(struct aspeed_mctp *priv)
 			       IRQF_SHARED, dev_name(&pdev->dev), priv);
 	if (ret)
 		return ret;
+	priv->pcie_irq = irq;
 
 	return 0;
 }
@@ -2553,10 +2620,9 @@ static int aspeed_mctp_probe(struct platform_device *pdev)
 	priv->mctp_miscdev.this_device->type = &aspeed_mctp_type;
 
 #if IS_ENABLED(CONFIG_MCTP_TRANSPORT_PCIE_VDM)
-	if (!priv->pcie_vdm_enabled) {
-		aspeed_mctp_pcie_vdm_register(priv);
-		priv->pcie_vdm_enabled = true;
-	}
+	ret = aspeed_mctp_pcie_vdm_register(priv);
+	if (ret)
+		goto out_misc;
 #endif
 
 	ret = aspeed_mctp_irq_init(priv);
@@ -2574,9 +2640,22 @@ static int aspeed_mctp_probe(struct platform_device *pdev)
 
 	return 0;
 out_irq:
+	aspeed_mctp_quiesce(priv);
+#if IS_ENABLED(CONFIG_MCTP_TRANSPORT_PCIE_VDM)
+	mctp_pcie_vdm_remove_dev(priv->ndev);
+	priv->ndev = NULL;
+#endif
+	misc_deregister(&priv->mctp_miscdev);
+	aspeed_mctp_dma_fini(priv);
+	goto out;
+#if IS_ENABLED(CONFIG_MCTP_TRANSPORT_PCIE_VDM)
+out_misc:
+#endif
 	misc_deregister(&priv->mctp_miscdev);
 out_dma:
+	aspeed_mctp_drv_fini(priv);
 	aspeed_mctp_dma_fini(priv);
+	goto out;
 out_drv:
 	aspeed_mctp_drv_fini(priv);
 out:
@@ -2588,10 +2667,13 @@ static void aspeed_mctp_remove(struct platform_device *pdev)
 {
 	struct aspeed_mctp *priv = platform_get_drvdata(pdev);
 
+	aspeed_mctp_quiesce(priv);
+
 #if IS_ENABLED(CONFIG_MCTP_TRANSPORT_PCIE_VDM)
-	if (priv->pcie_vdm_enabled) {
+	if (priv->ndev) {
+		mctp_pcie_vdm_set_carrier(priv->ndev, false);
 		mctp_pcie_vdm_remove_dev(priv->ndev);
-		priv->pcie_vdm_enabled = false;
+		priv->ndev = NULL;
 	}
 #endif
 
@@ -2599,11 +2681,7 @@ static void aspeed_mctp_remove(struct platform_device *pdev)
 
 	misc_deregister(&priv->mctp_miscdev);
 
-	aspeed_mctp_irq_disable(priv);
-
 	aspeed_mctp_dma_fini(priv);
-
-	aspeed_mctp_drv_fini(priv);
 }
 
 static const struct aspeed_mctp_match_data ast2500_mctp_match_data = {
