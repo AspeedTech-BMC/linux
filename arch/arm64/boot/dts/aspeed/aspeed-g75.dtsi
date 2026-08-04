@@ -110,3 +110,67 @@
 		};
 	};
 };
+
+&i2c0 {
+	compatible = "aspeed,ast2705-i2c";
+};
+
+&i2c1 {
+	compatible = "aspeed,ast2705-i2c";
+};
+
+&i2c2 {
+	compatible = "aspeed,ast2705-i2c";
+};
+
+&i2c3 {
+	compatible = "aspeed,ast2705-i2c";
+};
+
+&i2c4 {
+	compatible = "aspeed,ast2705-i2c";
+};
+
+&i2c5 {
+	compatible = "aspeed,ast2705-i2c";
+};
+
+&i2c6 {
+	compatible = "aspeed,ast2705-i2c";
+};
+
+&i2c7 {
+	compatible = "aspeed,ast2705-i2c";
+};
+
+&i2c8 {
+	compatible = "aspeed,ast2705-i2c";
+};
+
+&i2c9 {
+	compatible = "aspeed,ast2705-i2c";
+};
+
+&i2c10 {
+	compatible = "aspeed,ast2705-i2c";
+};
+
+&i2c11 {
+	compatible = "aspeed,ast2705-i2c";
+};
+
+&i2c12 {
+	compatible = "aspeed,ast2705-i2c";
+};
+
+&i2c13 {
+	compatible = "aspeed,ast2705-i2c";
+};
+
+&i2c14 {
+	compatible = "aspeed,ast2705-i2c";
+};
+
+&i2c15 {
+	compatible = "aspeed,ast2705-i2c";
+};
