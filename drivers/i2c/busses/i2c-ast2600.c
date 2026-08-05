@@ -316,6 +316,7 @@ enum xfer_mode {
 enum i2c_version {
 	AST2600,
 	AST2700,
+	AST2705,
 };
 
 struct i2c_divisor {
@@ -600,6 +601,10 @@ static void ast2700_i2c_get_target(struct ast2600_i2c_bus *i2c_bus, u8 addr)
 {
 	u8 i = 0;
 	bool target_find = false;
+
+	/* ast2705 design is differnet with ast2700*/
+	if (i2c_bus->version == AST2705)
+		addr = addr >> 1;
 
 	/* find target by address */
 	for (i = 0; i < AST2600_I2C_TARGET_COUNT; i++) {
@@ -3119,6 +3124,7 @@ static void ast2600_i2c_remove(struct platform_device *pdev)
 static const struct of_device_id ast2600_i2c_of_match[] = {
 	{ .compatible = "aspeed,ast2600-i2cv2",  .data = (const void *)AST2600, },
 	{ .compatible = "aspeed,ast2700-i2c",  .data = (const void *)AST2700, },
+	{ .compatible = "aspeed,ast2705-i2c",  .data = (const void *)AST2705, },
 	{}
 };
 MODULE_DEVICE_TABLE(of, ast2600_i2c_of_match);
