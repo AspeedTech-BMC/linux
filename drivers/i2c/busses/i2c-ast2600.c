@@ -30,6 +30,9 @@
 #define AST2600_I2CG_OWNER		0x08
 #define AST2600_I2CG_CTRL		0x0C
 #define AST2600_I2CG_CLK_DIV_CTRL	0x10
+#define AST2600_I2CG_SRAM_CTRL	0x14
+#define AST2600_I2CG_SRAM_CTRL1	0x18
+#define AST2600_I2CG_SRAM_SETTING 0x66666666
 
 #define AST2600_I2CG_SLAVE_PKT_NAK	BIT(4)
 #define AST2600_I2CG_M_S_SEPARATE_INTR	BIT(3)
@@ -2424,12 +2427,12 @@ static void ast2600_i2c_controller_packet_irq(struct ast2600_i2c_bus *i2c_bus, u
 		if (msg->flags & I2C_M_RECV_LEN) {
 			u8 recv_len = 0;
 
-			if (i2c_bus->version == AST2700) {
-				recv_len = AST2700_I2CC_GET_BUFF(readl(i2c_bus->reg_base
-											   + BYTE_DATA_LOG));
-			} else {
+			if (i2c_bus->version == AST2600) {
 				recv_len = AST2600_I2CC_GET_RX_BUFF(readl(i2c_bus->reg_base
 											   + AST2600_I2CC_STS_AND_BUFF));
+			} else {
+				recv_len = AST2700_I2CC_GET_BUFF(readl(i2c_bus->reg_base
+											   + BYTE_DATA_LOG));
 			}
 
 			msg->len = min_t(unsigned int, recv_len, I2C_SMBUS_BLOCK_MAX);
@@ -2633,13 +2636,11 @@ static int ast2600_i2c_init(struct ast2600_i2c_bus *i2c_bus)
 					      &i2c_bus->debounce_level)) {
 			u32 debounce_level = 0;
 
-			/* AST2700 support manual debounce setting */
-			if (i2c_bus->version == AST2700) {
-				if (i2c_bus->debounce_level > AST2700_DEBOUNCE_LEVEL_MAX)
-					i2c_bus->debounce_level = AST2700_DEBOUNCE_LEVEL_MAX;
-				if (i2c_bus->debounce_level < AST2700_DEBOUNCE_LEVEL_MIN)
-					i2c_bus->debounce_level = AST2700_DEBOUNCE_LEVEL_MIN;
-			}
+			/* AST270x support manual debounce setting */
+			if (i2c_bus->debounce_level > AST2700_DEBOUNCE_LEVEL_MAX)
+				i2c_bus->debounce_level = AST2700_DEBOUNCE_LEVEL_MAX;
+			if (i2c_bus->debounce_level < AST2700_DEBOUNCE_LEVEL_MIN)
+				i2c_bus->debounce_level = AST2700_DEBOUNCE_LEVEL_MIN;
 
 			debounce_level = readl(i2c_bus->reg_base + MSIC2_CONFIG)
 			& ~(AST2700_DEBOUNCE_MASK);
@@ -2656,7 +2657,7 @@ static int ast2600_i2c_init(struct ast2600_i2c_bus *i2c_bus)
 	/* disable target address */
 	writel(0, i2c_bus->reg_base + AST2600_I2CS_ADDR_CTRL);
 
-	if (i2c_bus->version == AST2700 && i2c_bus->mode == BUFF_MODE) {
+	if (i2c_bus->version != AST2600 && i2c_bus->mode == BUFF_MODE) {
 		writel(0x00, i2c_bus->reg_base + AST2600_I2CM_TX_DMA);
 		writel(0x00, i2c_bus->reg_base + AST2600_I2CM_TX_DMA_H);
 		writel(0x10, i2c_bus->reg_base + AST2600_I2CM_RX_DMA);
@@ -2794,7 +2795,7 @@ static int ast2600_i2c_reg_target(struct i2c_client *client)
 		       i2c_bus->reg_base + AST2600_I2CS_DMA_LEN);
 	} else if (i2c_bus->mode == BUFF_MODE) {
 		cmd = TARGET_TRIGGER_CMD;
-		if (i2c_bus->version == AST2700) {
+		if (i2c_bus->version != AST2600) {
 			writel(AST2600_I2CS_SET_RX_DMA_LEN(i2c_bus->buf_size),
 			       i2c_bus->reg_base + AST2600_I2CS_DMA_LEN);
 			cmd |= AST2600_I2CS_RX_DMA_EN;
@@ -2904,22 +2905,27 @@ static int ast2600_i2c_probe(struct platform_device *pdev)
 	regmap_read(i2c_bus->global_regs, AST2600_I2CG_CTRL, &global_ctrl);
 	if ((global_ctrl & AST2600_GLOBAL_INIT) != AST2600_GLOBAL_INIT) {
 		regmap_write(i2c_bus->global_regs, AST2600_I2CG_CTRL, AST2600_GLOBAL_INIT);
-		if (i2c_bus->version == AST2600)
+		if (i2c_bus->version == AST2600) {
 			regmap_write(i2c_bus->global_regs,
 				     AST2600_I2CG_CLK_DIV_CTRL, AST2600_I2CCG_DIV_CTRL);
-		else
+		} else {
 			regmap_write(i2c_bus->global_regs,
 				     AST2600_I2CG_CLK_DIV_CTRL, AST2700_I2CCG_DIV_CTRL);
+			regmap_write(i2c_bus->global_regs,
+				     AST2600_I2CG_SRAM_CTRL, AST2600_I2CG_SRAM_SETTING);
+			regmap_write(i2c_bus->global_regs,
+				     AST2600_I2CG_SRAM_CTRL1, AST2600_I2CG_SRAM_SETTING);
+		}
 	}
 
-	if (i2c_bus->version == AST2700) {
-		i2c_bus->ac_timing_config = ast2700_i2c_ac_timing_config;
-		i2c_bus->irq_err_to_errno = ast2700_i2c_irq_err_to_errno;
-		i2c_bus->irq_clear = ast2700_i2c_irq_clear;
-	} else {
+	if (i2c_bus->version == AST2600) {
 		i2c_bus->ac_timing_config = ast2600_i2c_ac_timing_config;
 		i2c_bus->irq_err_to_errno = ast2600_i2c_irq_err_to_errno;
 		i2c_bus->irq_clear = ast2600_i2c_irq_clear;
+	} else {
+		i2c_bus->ac_timing_config = ast2700_i2c_ac_timing_config;
+		i2c_bus->irq_err_to_errno = ast2700_i2c_irq_err_to_errno;
+		i2c_bus->irq_clear = ast2700_i2c_irq_clear;
 	}
 
 	/* Default BUFF mode, allow override */
@@ -2944,7 +2950,15 @@ static int ast2600_i2c_probe(struct platform_device *pdev)
 	i2c_bus->dev = dev;
 	i2c_bus->multi_master = device_property_read_bool(dev, "multi-master");
 
-	if (i2c_bus->version == AST2700) {
+	if (i2c_bus->version == AST2600) {
+		if (i2c_bus->mode == BUFF_MODE) {
+			i2c_bus->buf_base = devm_platform_get_and_ioremap_resource(pdev, 1, &res);
+			if (IS_ERR(i2c_bus->buf_base))
+				i2c_bus->mode = BYTE_MODE;
+			else
+				i2c_bus->buf_size = resource_size(res) / 2;
+		}
+	} else {
 		/* select the transfer method*/
 		u32 xfer_type = readl(i2c_bus->reg_base + I2CC_VERSION_CTRL);
 
@@ -2967,14 +2981,6 @@ static int ast2600_i2c_probe(struct platform_device *pdev)
 			}
 		}
 		writel(xfer_type, i2c_bus->reg_base + I2CC_VERSION_CTRL);
-	} else {
-		if (i2c_bus->mode == BUFF_MODE) {
-			i2c_bus->buf_base = devm_platform_get_and_ioremap_resource(pdev, 1, &res);
-			if (IS_ERR(i2c_bus->buf_base))
-				i2c_bus->mode = BYTE_MODE;
-			else
-				i2c_bus->buf_size = resource_size(res) / 2;
-		}
 	}
 
 	switch (i2c_bus->mode) {
@@ -2984,12 +2990,12 @@ static int ast2600_i2c_probe(struct platform_device *pdev)
 		break;
 	case BUFF_MODE:
 	default:
-		if (i2c_bus->version == AST2700) {
-			i2c_bus->setup_tx = ast2700_i2c_setup_buff_tx;
-			i2c_bus->setup_rx = ast2700_i2c_setup_buff_rx;
-		} else {
+		if (i2c_bus->version == AST2600) {
 			i2c_bus->setup_tx = ast2600_i2c_setup_buff_tx;
 			i2c_bus->setup_rx = ast2600_i2c_setup_buff_rx;
+		} else {
+			i2c_bus->setup_tx = ast2700_i2c_setup_buff_tx;
+			i2c_bus->setup_rx = ast2700_i2c_setup_buff_rx;
 		}
 		break;
 	case BYTE_MODE:
@@ -3001,17 +3007,17 @@ static int ast2600_i2c_probe(struct platform_device *pdev)
 #if IS_ENABLED(CONFIG_I2C_SLAVE)
 	switch (i2c_bus->mode) {
 	case DMA_MODE:
-		if (i2c_bus->version == AST2700)
-			i2c_bus->target_packet_irq = ast2700_i2c_target_packet_dma_irq;
-		else
+		if (i2c_bus->version == AST2600)
 			i2c_bus->target_packet_irq = ast2600_i2c_target_packet_dma_irq;
+		else
+			i2c_bus->target_packet_irq = ast2700_i2c_target_packet_dma_irq;
 		break;
 	case BUFF_MODE:
 	default:
-		if (i2c_bus->version == AST2700)
-			i2c_bus->target_packet_irq = ast2700_i2c_target_packet_buff_irq;
-		else
+		if (i2c_bus->version == AST2600)
 			i2c_bus->target_packet_irq = ast2600_i2c_target_packet_buff_irq;
+		else
+			i2c_bus->target_packet_irq = ast2700_i2c_target_packet_buff_irq;
 		break;
 	case BYTE_MODE:
 		i2c_bus->target_byte_irq = ast2600_i2c_target_byte_irq;
