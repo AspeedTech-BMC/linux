@@ -174,3 +174,11 @@
 &i2c15 {
 	compatible = "aspeed,ast2705-i2c";
 };
+
+&adc0 {
+	compatible = "aspeed,ast2705-adc0";
+};
+
+&adc1 {
+	compatible = "aspeed,ast2705-adc1";
+};

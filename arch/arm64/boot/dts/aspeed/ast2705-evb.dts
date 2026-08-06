@@ -264,7 +264,7 @@
 };
 
 &adc0 {
-	aspeed,int-vref-microvolt = <2500000>;
+	aspeed,int-vref-microvolt = <1200000>;
 	status = "okay";
 
 	pinctrl-names = "default";
@@ -275,7 +275,7 @@
 };
 
 &adc1 {
-	aspeed,int-vref-microvolt = <2500000>;
+	aspeed,int-vref-microvolt = <1200000>;
 	status = "okay";
 
 	pinctrl-names = "default";
