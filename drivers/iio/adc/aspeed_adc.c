@@ -39,6 +39,7 @@
 #define ASPEED_REG_INTERRUPT_CONTROL	0x04
 #define ASPEED_REG_VGA_DETECT_CONTROL	0x08
 #define ASPEED_REG_CLOCK_CONTROL	0x0C
+#define ASPEED_REG_ENGINE_CONTROL1	0x28
 #define ASPEED_REG_COMPENSATION_TRIM	0xC4
 /*
  * The register offset between 0xC8~0xCC can be read and won't affect the
@@ -62,6 +63,9 @@
 #define ASPEED_ADC_REF_VOLTAGE_1200mV		1
 #define ASPEED_ADC_REF_VOLTAGE_EXT_HIGH		2
 #define ASPEED_ADC_REF_VOLTAGE_EXT_LOW		3
+#define ASPEED_ADC_G75_REF_VOLTAGE		BIT(7)
+#define ASPEED_ADC_G75_REF_VOLTAGE_1200mV	0
+#define ASPEED_ADC_G75_REF_VOLTAGE_EXTERNAL	1
 #define ASPEED_ADC_BAT_SENSING_DIV		BIT(6)
 #define ASPEED_ADC_BAT_SENSING_DIV_2_3		0
 #define ASPEED_ADC_BAT_SENSING_DIV_1_3		1
@@ -70,6 +74,7 @@
 #define ASPEED_ADC_CH7_NORMAL			0
 #define ASPEED_ADC_CH7_BAT			1
 #define ASPEED_ADC_BAT_SENSING_ENABLE		BIT(13)
+#define ASPEED_ADC_INPUT_BUFFER_ENABLE		BIT(0)
 #define ASPEED_ADC_CTRL_CHANNEL			GENMASK(31, 16)
 #define ASPEED_ADC_CTRL_CHANNEL_ENABLE(ch)	FIELD_PREP(ASPEED_ADC_CTRL_CHANNEL, BIT(ch))
 #define ADC_MASK(n)				((n) < 16 ? ((1U << (n)) - 1) : 0xFFFF)
@@ -96,6 +101,8 @@ struct aspeed_adc_model_data {
 	unsigned int min_sampling_rate;	// Hz
 	unsigned int max_sampling_rate;	// Hz
 	unsigned int vref_fixed_mv;
+	bool vref_single_bit;
+	bool has_input_buffer_ctrl;
 	bool wait_init_sequence;
 	bool need_prescaler;
 	bool bat_sense_sup;
@@ -560,6 +567,52 @@ static void aspeed_adc_power_down(void *data)
 	       priv_data->base + ASPEED_REG_ENGINE_CONTROL);
 }
 
+static int aspeed_adc_g75_vref_config(struct aspeed_adc_data *data)
+{
+	u32 adc_engine_control_reg_val;
+	int ret;
+
+	adc_engine_control_reg_val =
+		readl(data->base + ASPEED_REG_ENGINE_CONTROL);
+	adc_engine_control_reg_val &= ~ASPEED_ADC_G75_REF_VOLTAGE;
+
+	ret = devm_regulator_get_enable_read_voltage(data->dev, "vref");
+	if (ret < 0 && ret != -ENODEV)
+		return ret;
+
+	if (ret != -ENODEV) {
+		data->vref_mv = ret / 1000;
+		if (data->vref_mv < 1000 || data->vref_mv > 1800) {
+			dev_err(data->dev, "Regulator voltage %d not support",
+				data->vref_mv);
+			return -EOPNOTSUPP;
+		}
+
+		writel(adc_engine_control_reg_val |
+		       FIELD_PREP(ASPEED_ADC_G75_REF_VOLTAGE,
+				  ASPEED_ADC_G75_REF_VOLTAGE_EXTERNAL),
+		       data->base + ASPEED_REG_ENGINE_CONTROL);
+		return 0;
+	}
+
+	data->vref_mv = 1200000;
+	of_property_read_u32(data->dev->of_node, "aspeed,int-vref-microvolt",
+			     &data->vref_mv);
+	/* Conversion from uV to mV */
+	data->vref_mv /= 1000;
+	if (data->vref_mv != 1200) {
+		dev_err(data->dev, "Voltage %d not support", data->vref_mv);
+		return -EOPNOTSUPP;
+	}
+
+	writel(adc_engine_control_reg_val |
+	       FIELD_PREP(ASPEED_ADC_G75_REF_VOLTAGE,
+			  ASPEED_ADC_G75_REF_VOLTAGE_1200mV),
+	       data->base + ASPEED_REG_ENGINE_CONTROL);
+
+	return 0;
+}
+
 static int aspeed_adc_vref_config(struct iio_dev *indio_dev)
 {
 	struct aspeed_adc_data *data = iio_priv(indio_dev);
@@ -570,6 +623,9 @@ static int aspeed_adc_vref_config(struct iio_dev *indio_dev)
 		data->vref_mv = data->model_data->vref_fixed_mv;
 		return 0;
 	}
+	if (data->model_data->vref_single_bit)
+		return aspeed_adc_g75_vref_config(data);
+
 	adc_engine_control_reg_val =
 		readl(data->base + ASPEED_REG_ENGINE_CONTROL);
 	adc_engine_control_reg_val &= ~ASPEED_ADC_REF_VOLTAGE;
@@ -775,6 +831,10 @@ static int aspeed_adc_probe(struct platform_device *pdev)
 	if (ret)
 		return ret;
 
+	if (data->model_data->has_input_buffer_ctrl)
+		writel(ASPEED_ADC_INPUT_BUFFER_ENABLE,
+		       data->base + ASPEED_REG_ENGINE_CONTROL1);
+
 	adc_engine_control_reg_val =
 		readl(data->base + ASPEED_REG_ENGINE_CONTROL);
 	adc_engine_control_reg_val |=
@@ -928,6 +988,32 @@ static const struct aspeed_adc_model_data ast2700_adc1_model_data = {
 	.trim_locate = &ast2700_adc1_trim,
 };
 
+static const struct aspeed_adc_model_data ast2705_adc0_model_data = {
+	.model_name = "ast2705-adc0",
+	.min_sampling_rate = 10000,
+	.max_sampling_rate = 500000,
+	.vref_single_bit = true,
+	.has_input_buffer_ctrl = true,
+	.wait_init_sequence = true,
+	.bat_sense_sup = true,
+	.scaler_bit_width = 16,
+	.num_channels = 8,
+	.trim_locate = &ast2700_adc0_trim,
+};
+
+static const struct aspeed_adc_model_data ast2705_adc1_model_data = {
+	.model_name = "ast2705-adc1",
+	.min_sampling_rate = 10000,
+	.max_sampling_rate = 500000,
+	.vref_single_bit = true,
+	.has_input_buffer_ctrl = true,
+	.wait_init_sequence = true,
+	.bat_sense_sup = true,
+	.scaler_bit_width = 16,
+	.num_channels = 8,
+	.trim_locate = &ast2700_adc1_trim,
+};
+
 static const struct of_device_id aspeed_adc_matches[] = {
 	{ .compatible = "aspeed,ast2400-adc", .data = &ast2400_model_data },
 	{ .compatible = "aspeed,ast2500-adc", .data = &ast2500_model_data },
@@ -935,6 +1021,8 @@ static const struct of_device_id aspeed_adc_matches[] = {
 	{ .compatible = "aspeed,ast2600-adc1", .data = &ast2600_adc1_model_data },
 	{ .compatible = "aspeed,ast2700-adc0", .data = &ast2700_adc0_model_data },
 	{ .compatible = "aspeed,ast2700-adc1", .data = &ast2700_adc1_model_data },
+	{ .compatible = "aspeed,ast2705-adc0", .data = &ast2705_adc0_model_data },
+	{ .compatible = "aspeed,ast2705-adc1", .data = &ast2705_adc1_model_data },
 	{ }
 };
 MODULE_DEVICE_TABLE(of, aspeed_adc_matches);
