@@ -354,7 +354,7 @@ struct uhci_td {
  * To prevent "bouncing" in the presence of electrical noise,
  * when there are no devices attached we delay for 1 second in the
  * RUNNING_NODEVS state before switching to the AUTO_STOPPED state.
- * 
+ *
  * (Note that the AUTO_STOPPED state won't be necessary once the hub
  * driver learns to autosuspend.)
  */
@@ -430,6 +430,7 @@ struct uhci_hcd {
 	unsigned int big_endian_mmio:1;		/* Big endian registers */
 	unsigned int big_endian_desc:1;		/* Big endian descriptors */
 	unsigned int is_aspeed:1;		/* Aspeed impl. workarounds */
+	unsigned int aspeed_dma_quirk:1;	/* Aspeed FIFO/DMA workaround */
 
 	/* Support for port suspend/resume/reset */
 	unsigned long port_c_suspend;		/* Bit-arrays of ports */
@@ -500,6 +501,18 @@ struct urb_priv {
 static inline bool uhci_is_aspeed(const struct uhci_hcd *uhci)
 {
 	return IS_ENABLED(CONFIG_USB_UHCI_ASPEED) && uhci->is_aspeed;
+}
+
+/*
+ * Some Aspeed UHCI instances (e.g. AST2600, AST2700, and the "uhci0"
+ *  instance on AST2705) have a FIFO/DMA errata that requires forcing
+ * SPD on IN TDs and bouncing OUT TDs that cross the 1KB DMA boundary.
+ * Other instances (e.g. AST2705 "uhci1") use a fixed IP revision
+ * and don't need these workarounds.
+ */
+static inline bool uhci_has_dma_quirk(const struct uhci_hcd *uhci)
+{
+	return IS_ENABLED(CONFIG_USB_UHCI_ASPEED) && uhci->aspeed_dma_quirk;
 }
 
 /*

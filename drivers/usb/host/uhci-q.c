@@ -1021,8 +1021,8 @@ static int uhci_submit_common(struct uhci_hcd *uhci, struct urb *urb,
 	unsigned int toggle;
 	struct scatterlist  *sg;
 	int i;
-	bool aspeed_out_xfer = usb_pipeout(urb->pipe) && uhci_is_aspeed(uhci);
-	int aspeed_in_all_spd = usb_pipein(urb->pipe) && uhci_is_aspeed(uhci);
+	bool aspeed_out_xfer = usb_pipeout(urb->pipe) && uhci_has_dma_quirk(uhci);
+	int aspeed_in_all_spd = usb_pipein(urb->pipe) && uhci_has_dma_quirk(uhci);
 
 	if (len < 0)
 		return -EINVAL;
@@ -1342,7 +1342,7 @@ static int uhci_result_common(struct uhci_hcd *uhci, struct urb *urb)
 	struct uhci_td *td, *tmp;
 	unsigned status;
 	int ret = 0;
-	int aspeed_in_all_spd = usb_pipein(urb->pipe) && uhci_is_aspeed(uhci);
+	int aspeed_in_all_spd = usb_pipein(urb->pipe) && uhci_has_dma_quirk(uhci);
 
 	list_for_each_entry_safe(td, tmp, &urbp->td_list, list) {
 		unsigned int ctrlstat;

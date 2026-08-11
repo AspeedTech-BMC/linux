@@ -128,6 +128,11 @@ static int uhci_hcd_platform_probe(struct platform_device *pdev)
 			dev_info(&pdev->dev,
 				 "Enabled Aspeed implementation workarounds\n");
 		}
+
+		uhci->aspeed_dma_quirk = of_property_read_bool(np, "aspeed,dma-quirk");
+		if (uhci->aspeed_dma_quirk)
+			dev_info(&pdev->dev,
+				 "Enabled Aspeed UHCI FIFO/DMA workaround\n");
 	}
 
 	/* Get and enable clock if any specified */

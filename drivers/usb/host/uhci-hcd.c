@@ -553,7 +553,7 @@ static void release_uhci(struct uhci_hcd *uhci)
 
 	dma_pool_destroy(uhci->td_pool);
 
-	if (uhci_is_aspeed(uhci))
+	if (uhci_has_dma_quirk(uhci))
 		uhci_bounce_pool_destroy(uhci);
 
 	kfree(uhci->frame_cpu);
@@ -622,7 +622,7 @@ static int uhci_start(struct usb_hcd *hcd)
 	if (!uhci->frame_cpu)
 		goto err_alloc_frame_cpu;
 
-	if (uhci_is_aspeed(uhci)) {
+	if (uhci_has_dma_quirk(uhci)) {
 		uhci->bounce_pool = dma_pool_create("uhci_bounce", uhci_dev(uhci),
 						    BOUNCE_BUF_SIZE,
 						    BOUNCE_BUF_ALIGN, 0);
@@ -717,7 +717,7 @@ err_create_qh_pool:
 	dma_pool_destroy(uhci->td_pool);
 
 err_create_td_pool:
-	if (uhci_is_aspeed(uhci))
+	if (uhci_has_dma_quirk(uhci))
 		uhci_bounce_pool_destroy(uhci);
 
 err_create_bounce_pool:
