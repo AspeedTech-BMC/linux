@@ -361,6 +361,7 @@
 			interrupts = <GIC_SPI 10 IRQ_TYPE_LEVEL_HIGH>;
 			#ports = <2>;
 			clocks = <&syscon ASPEED_CLK_GATE_USBUHCICLK>;
+			aspeed,dma-quirk;
 			status = "disabled";
 			/*
 			 * No default pinmux, it will follow EHCI, use an

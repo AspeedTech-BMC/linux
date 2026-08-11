@@ -182,3 +182,8 @@
 &adc1 {
 	compatible = "aspeed,ast2705-adc1";
 };
+
+&uhci1 {
+	/* AST2705 uhci1 has a fixed IP revision, no errata workaround needed */
+	/delete-property/ aspeed,dma-quirk;
+};

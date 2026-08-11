@@ -329,6 +329,7 @@
 			#ports = <2>;
 			clocks = <&syscon0 SCU0_CLK_GATE_UHCICLK>;
 			resets = <&syscon0 SCU0_RESET_UHCI>;
+			aspeed,dma-quirk;
 			status = "disabled";
 		};
 
@@ -1402,6 +1403,7 @@
 			#ports = <2>;
 			clocks = <&syscon1 SCU1_CLK_GATE_UHCICLK>;
 			resets = <&syscon1 SCU1_RESET_UHCI>;
+			aspeed,dma-quirk;
 			status = "disabled";
 		};
 
