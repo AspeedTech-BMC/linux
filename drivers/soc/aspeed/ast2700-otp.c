@@ -218,7 +218,14 @@ static void otp_unlock(struct device *dev)
 	writel(OTP_PASSWD, ctx->base + OTP_KEY);
 }
 
-static void otp_lock(struct device *dev)
+/*
+ * OTP_KEY (offset 0x0) is a single lock register shared by all OTP
+ * masters, not per-master, so calling this after a normal read/prog
+ * could lock out other masters concurrently accessing OTP. All call
+ * sites are disabled for that reason; kept (__maybe_unused) in case
+ * a caller intentionally needs to force-lock the whole OTP block.
+ */
+static void __maybe_unused otp_lock(struct device *dev)
 {
 	struct aspeed_otp *ctx = dev_get_drvdata(dev);
 
@@ -306,7 +313,7 @@ static int aspeed_otp_read(struct aspeed_otp *ctx, int offset,
 		}
 	}
 
-	otp_lock(dev);
+	/* otp_lock(dev); see comment on otp_lock() */
 	return ret;
 }
 
@@ -328,7 +335,7 @@ static int aspeed_otp_write(struct aspeed_otp *ctx, int offset,
 	if (ret)
 		dev_warn(ctx->dev, "prog failed\n");
 
-	otp_lock(dev);
+	/* otp_lock(dev); see comment on otp_lock() */
 	return ret;
 }
 
@@ -447,7 +454,7 @@ static int aspeed_otp_ecc_init(struct device *dev)
 	else
 		ctx->gbl_ecc_en = 0x0;
 
-	otp_lock(dev);
+	/* otp_lock(dev); see comment on otp_lock() */
 
 	return 0;
 }
