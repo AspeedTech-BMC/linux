@@ -906,6 +906,15 @@ static void stmmac_mac_link_up(struct phylink_config *config,
 		case SPEED_2500:
 			ctrl |= priv->hw->link.xgmii.speed2500;
 			break;
+		case SPEED_1000:
+			ctrl |= priv->hw->link.speed1000;
+			break;
+		case SPEED_100:
+			ctrl |= priv->hw->link.speed100;
+			break;
+		case SPEED_10:
+			ctrl |= priv->hw->link.speed10;
+			break;
 		default:
 			return;
 		}
@@ -1129,7 +1138,9 @@ static int stmmac_init_phy(struct net_device *dev)
 		return 0;
 
 	if (priv->hw->xpcs &&
-	    xpcs_get_an_mode(priv->hw->xpcs, mode) == DW_AN_C73)
+	    (xpcs_get_an_mode(priv->hw->xpcs, mode) == DW_AN_C73 ||
+	     xpcs_get_an_mode(priv->hw->xpcs, mode) == DW_AN_VR_USXGMII ||
+	     xpcs_get_an_mode(priv->hw->xpcs, mode) == DW_10GBASER))
 		return 0;
 
 	fwnode = priv->plat->port_node;

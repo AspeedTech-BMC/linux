@@ -20,6 +20,7 @@
 #define DW_2500BASEX			3
 #define DW_AN_C37_1000BASEX		4
 #define DW_10GBASER			5
+#define DW_AN_VR_USXGMII		6
 
 enum dw_xpcs_pcs_id {
 	DW_XPCS_ID_NATIVE = 0,

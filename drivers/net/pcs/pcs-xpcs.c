@@ -23,10 +23,23 @@ static const int xpcs_usxgmii_features[] = {
 	ETHTOOL_LINK_MODE_Pause_BIT,
 	ETHTOOL_LINK_MODE_Asym_Pause_BIT,
 	ETHTOOL_LINK_MODE_Autoneg_BIT,
+	ETHTOOL_LINK_MODE_10baseT_Half_BIT,
+	ETHTOOL_LINK_MODE_10baseT_Full_BIT,
+	ETHTOOL_LINK_MODE_100baseT_Half_BIT,
+	ETHTOOL_LINK_MODE_100baseT_Full_BIT,
+	ETHTOOL_LINK_MODE_1000baseT_Full_BIT,
 	ETHTOOL_LINK_MODE_1000baseKX_Full_BIT,
+	ETHTOOL_LINK_MODE_2500baseT_Full_BIT,
+	ETHTOOL_LINK_MODE_2500baseX_Full_BIT,
+	ETHTOOL_LINK_MODE_5000baseT_Full_BIT,
+	ETHTOOL_LINK_MODE_10000baseT_Full_BIT,
 	ETHTOOL_LINK_MODE_10000baseKX4_Full_BIT,
 	ETHTOOL_LINK_MODE_10000baseKR_Full_BIT,
-	ETHTOOL_LINK_MODE_2500baseX_Full_BIT,
+	ETHTOOL_LINK_MODE_10000baseCR_Full_BIT,
+	ETHTOOL_LINK_MODE_10000baseSR_Full_BIT,
+	ETHTOOL_LINK_MODE_10000baseLR_Full_BIT,
+	ETHTOOL_LINK_MODE_10000baseLRM_Full_BIT,
+	ETHTOOL_LINK_MODE_10000baseER_Full_BIT,
 	__ETHTOOL_LINK_MODE_MASK_NBITS,
 };
 
@@ -119,6 +132,37 @@ struct dw_xpcs_desc {
 	u32 mask;
 	const struct dw_xpcs_compat *compat;
 };
+
+/* TODO:: Remove from A1 */
+static int xpcs_init_sram(struct dw_xpcs *xpcs)
+{
+	int ret, val;
+
+	ret = xpcs_write(xpcs, MDIO_MMD_PCS, 0x8000, 0x0002);
+	if (ret < 0)
+		return ret;
+
+	val = xpcs_read(xpcs, MDIO_MMD_PMAPMD, 0x809b);
+	if (val < 0) {
+		dev_err(&xpcs->mdiodev->dev, "read dev1 reg 0x809b: %d\n",
+			val);
+		return val;
+	}
+
+	ret = xpcs_write(xpcs, MDIO_MMD_PCS, 0x8000, 0x0000);
+	if (ret < 0)
+		return ret;
+
+	if (val & 0x01) {
+		ret = xpcs_write(xpcs, MDIO_MMD_PMAPMD, 0x809b, 0x0002);
+		if (ret < 0)
+			return ret;
+	}
+
+	usleep_range(20000, 25000);
+
+	return 0;
+}
 
 static const struct dw_xpcs_compat *
 xpcs_find_compat(struct dw_xpcs *xpcs, phy_interface_t interface)
@@ -244,6 +288,7 @@ static int xpcs_soft_reset(struct dw_xpcs *xpcs,
 	case DW_AN_C37_SGMII:
 	case DW_2500BASEX:
 	case DW_AN_C37_1000BASEX:
+	case DW_AN_VR_USXGMII:
 		dev = MDIO_MMD_VEND2;
 		break;
 	default:
@@ -253,6 +298,12 @@ static int xpcs_soft_reset(struct dw_xpcs *xpcs,
 	ret = xpcs_write(xpcs, dev, MII_BMCR, BMCR_RESET);
 	if (ret < 0)
 		return ret;
+
+	usleep_range(20000, 25000);
+
+	ret = xpcs_init_sram(xpcs);
+	if (ret)
+		dev_err(&xpcs->mdiodev->dev, "xpcs_init_sram() failed");
 
 	return xpcs_poll_reset(xpcs, dev);
 }
@@ -583,6 +634,7 @@ static unsigned int xpcs_inband_caps(struct phylink_pcs *pcs,
 
 	case DW_AN_C37_SGMII:
 	case DW_AN_C37_1000BASEX:
+	case DW_AN_VR_USXGMII:
 		return LINK_INBAND_DISABLE | LINK_INBAND_ENABLE;
 
 	case DW_10GBASER:
@@ -723,6 +775,42 @@ static int xpcs_config_aneg_c37_sgmii(struct dw_xpcs *xpcs,
 	return ret;
 }
 
+static int xpcs_config_aneg_vr_usxgmii(struct dw_xpcs *xpcs,
+				       unsigned int neg_mode)
+{
+	int ret, mdio_ctrl;
+	u16 mask, val;
+
+	ret = xpcs_modify(xpcs, MDIO_MMD_PCS, DW_VENDOR | DW_VR_XS_PCS_DIG_CTRL1,
+			  DW_USXGMII_EN, DW_USXGMII_EN);
+	if (ret < 0)
+		return ret;
+
+	mdio_ctrl = xpcs_read(xpcs, MDIO_MMD_VEND2, MII_BMCR);
+	if (mdio_ctrl < 0)
+		return mdio_ctrl;
+
+	if (mdio_ctrl & BMCR_ANENABLE) {
+		ret = xpcs_write(xpcs, MDIO_MMD_VEND2, MII_BMCR,
+				 mdio_ctrl & ~BMCR_ANENABLE);
+		if (ret < 0)
+			return ret;
+	}
+
+	mask = DW_VR_MII_AN_INTR_EN | DW_VR_MII_TX_CONFIG_MASK;
+	val = DW_VR_MII_AN_INTR_EN |
+	      FIELD_PREP(DW_VR_MII_TX_CONFIG_MASK, DW_VR_MII_TX_CONFIG_MAC_SIDE_SGMII);
+	ret = xpcs_modify(xpcs, MDIO_MMD_VEND2, DW_VR_MII_AN_CTRL, mask, val);
+	if (ret < 0)
+		return ret;
+
+	if (neg_mode == PHYLINK_PCS_NEG_INBAND_ENABLED)
+		ret = xpcs_write(xpcs, MDIO_MMD_VEND2, MII_BMCR,
+				 mdio_ctrl | BMCR_ANENABLE);
+
+	return ret;
+}
+
 static int xpcs_config_aneg_c37_1000basex(struct dw_xpcs *xpcs,
 					  unsigned int neg_mode,
 					  const unsigned long *advertising)
@@ -841,6 +929,11 @@ static int xpcs_do_config(struct dw_xpcs *xpcs, phy_interface_t interface,
 		break;
 	case DW_AN_C37_SGMII:
 		ret = xpcs_config_aneg_c37_sgmii(xpcs, neg_mode);
+		if (ret)
+			return ret;
+		break;
+	case DW_AN_VR_USXGMII:
+		ret = xpcs_config_aneg_vr_usxgmii(xpcs, neg_mode);
 		if (ret)
 			return ret;
 		break;
@@ -1018,6 +1111,68 @@ static int xpcs_get_state_c37_sgmii(struct dw_xpcs *xpcs,
 	return 0;
 }
 
+static int xpcs_get_state_vr_usxgmii(struct dw_xpcs *xpcs,
+				     struct phylink_link_state *state)
+{
+	int ret, status;
+
+	/* Reset link_state */
+	state->link = false;
+	state->speed = SPEED_UNKNOWN;
+	state->duplex = DUPLEX_UNKNOWN;
+	state->pause = 0;
+
+	/* USXGMII Clause 37 style AN: DW_VR_MII_AN_INTR_STS bits [14:8]
+	 * (USXG_AN_STS) always reflect the current link/speed/duplex
+	 * negotiated with the link partner, and must be consulted on every
+	 * poll. Bit 0 (AN-complete) only latches whether a *new* AN event
+	 * happened since it was last cleared - it must not gate whether the
+	 * status bits above are read, otherwise the link is reported down
+	 * on every poll after the interrupt bit has been cleared, even
+	 * though the link is still up.
+	 */
+	ret = xpcs_read(xpcs, MDIO_MMD_VEND2, DW_VR_MII_AN_INTR_STS);
+	if (ret < 0)
+		return ret;
+
+	status = FIELD_GET(DW_VR_MII_USXG_AN_STS_MASK, ret);
+
+	state->link = !!(status & DW_VR_MII_USXG_AN_STS_LINK_UP);
+	if (state->link) {
+		switch (FIELD_GET(DW_VR_MII_USXG_AN_STS_SPEED_MASK, status)) {
+		case DW_VR_MII_USXG_AN_STS_SPEED_10:
+			state->speed = SPEED_10;
+			break;
+		case DW_VR_MII_USXG_AN_STS_SPEED_100:
+			state->speed = SPEED_100;
+			break;
+		case DW_VR_MII_USXG_AN_STS_SPEED_1000:
+			state->speed = SPEED_1000;
+			break;
+		case DW_VR_MII_USXG_AN_STS_SPEED_10000:
+			state->speed = SPEED_10000;
+			break;
+		case DW_VR_MII_USXG_AN_STS_SPEED_2500:
+			state->speed = SPEED_2500;
+			break;
+		case DW_VR_MII_USXG_AN_STS_SPEED_5000:
+			state->speed = SPEED_5000;
+			break;
+		default:
+			break;
+		}
+
+		state->duplex = (status & DW_VR_MII_USXG_AN_STS_DUPLEX_FULL) ?
+				 DUPLEX_FULL : DUPLEX_HALF;
+	}
+
+	if (!(ret & DW_VR_MII_AN_STS_C37_ANCMPLT_INTR))
+		return 0;
+
+	/* Clear AN complete interrupt */
+	return xpcs_write(xpcs, MDIO_MMD_VEND2, DW_VR_MII_AN_INTR_STS, 0);
+}
+
 static int xpcs_get_state_c37_1000basex(struct dw_xpcs *xpcs,
 					unsigned int neg_mode,
 					struct phylink_link_state *state)
@@ -1102,6 +1257,12 @@ static void xpcs_get_state(struct phylink_pcs *pcs, unsigned int neg_mode,
 		if (ret)
 			dev_err(&xpcs->mdiodev->dev, "%s returned %pe\n",
 				"xpcs_get_state_c37_sgmii", ERR_PTR(ret));
+		break;
+	case DW_AN_VR_USXGMII:
+		ret = xpcs_get_state_vr_usxgmii(xpcs, state);
+		if (ret)
+			dev_err(&xpcs->mdiodev->dev, "%s returned %pe\n",
+				"xpcs_get_state_vr_usxgmii", ERR_PTR(ret));
 		break;
 	case DW_AN_C37_1000BASEX:
 		ret = xpcs_get_state_c37_1000basex(xpcs, neg_mode, state);
@@ -1242,6 +1403,10 @@ static int xpcs_read_ids(struct dw_xpcs *xpcs)
 	int ret;
 	u32 id;
 
+	ret = xpcs_init_sram(xpcs);
+	if (ret)
+		dev_err(&xpcs->mdiodev->dev, "xpcs_init_sram() failed");
+
 	/* First, search C73 PCS using PCS MMD 3. Return ENODEV if communication
 	 * failed indicating that device couldn't be reached.
 	 */
@@ -1307,7 +1472,8 @@ static const struct dw_xpcs_compat synopsys_xpcs_compat[] = {
 	{
 		.interface = PHY_INTERFACE_MODE_USXGMII,
 		.supported = xpcs_usxgmii_features,
-		.an_mode = DW_AN_C73,
+		.an_mode = DW_AN_VR_USXGMII,
+		.pma_config = aspeed_xpcs_usxgmii_pma_config,
 	}, {
 		.interface = PHY_INTERFACE_MODE_10GKR,
 		.supported = xpcs_10gkr_features,
@@ -1320,10 +1486,12 @@ static const struct dw_xpcs_compat synopsys_xpcs_compat[] = {
 		.interface = PHY_INTERFACE_MODE_10GBASER,
 		.supported = xpcs_10gbaser_features,
 		.an_mode = DW_10GBASER,
+		.pma_config = aspeed_xpcs_10gbaser_pma_config,
 	}, {
 		.interface = PHY_INTERFACE_MODE_SGMII,
 		.supported = xpcs_sgmii_features,
 		.an_mode = DW_AN_C37_SGMII,
+		.pma_config = aspeed_xpcs_sgmii_pma_config,
 	}, {
 		.interface = PHY_INTERFACE_MODE_1000BASEX,
 		.supported = xpcs_1000basex_features,
