@@ -13,6 +13,7 @@
 			interrupts-extended = <&intc1_4 2>;
 			interrupt-names = "macirq";
 			phy-mode = "10gbase-r";
+			managed = "in-band-status";
 			rx-fifo-depth = <4096>;
 			tx-fifo-depth = <4096>;
 			clocks = <&syscon1 SCU1_CLK_GATE_MAC2CLK>;
@@ -26,7 +27,6 @@
 			snps,tso;
 			snps,pbl = <8>;
 			pcs-handle = <&xpcs0>;
-			phy-handle = <&xpcs0>;
 
 			stmmac_axi_setup: stmmac-axi-config {
 				snps,wr_osr_lmt = <0xf>;
