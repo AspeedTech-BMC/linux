@@ -170,9 +170,17 @@ static DEFINE_SPINLOCK(otp_state_lock);
 
 enum otp_error_code {
 	OTP_SUCCESS,
-	OTP_READ_FAIL,
-	OTP_PROG_FAIL,
-	OTP_CMP_FAIL,
+
+	/*
+	 * Dedicated error codes for OTP_STATUS[7:4] command results, kept
+	 * out of the POSIX errno range so callers can tell them apart from
+	 * generic I/O errors.
+	 */
+	OTP_CMD_ERR_BASE = 200,
+	OTP_CMD_ERR_FAIL,		/* prog fail or soak limit exceeded */
+	OTP_CMD_ERR_CMP_FAIL,		/* compare mismatch */
+	OTP_CMD_ERR_REGION_FAIL,	/* region write/read protected */
+	OTP_CMD_ERR_MASTER_FAIL,	/* master protection error */
 };
 
 enum aspeed_otp_master_id {
@@ -231,15 +239,39 @@ static void __maybe_unused otp_lock(struct device *dev)
 static int wait_complete(struct device *dev)
 {
 	struct aspeed_otp *ctx = dev_get_drvdata(dev);
+	u32 cmd_sts, addr, val;
 	int ret;
-	u32 val;
 
-	ret = readl_poll_timeout(ctx->base + OTP_STATUS, val, (val == 0x0),
-				 1, OTP_TIMEOUT_US);
-	if (ret)
+	ret = readl_poll_timeout(ctx->base + OTP_STATUS, val,
+				  !(val & OTP_STS_BUSY), 1, OTP_TIMEOUT_US);
+	if (ret) {
 		dev_warn(dev, "timeout. sts:0x%x\n", val);
+		return ret;
+	}
 
-	return ret;
+	cmd_sts = OTP_GET_CMD_STS(val);
+	if (cmd_sts == OTP_STS_PASS)
+		return OTP_SUCCESS;
+
+	addr = readl(ctx->base + OTP_ADDR);
+
+	switch (cmd_sts) {
+	case OTP_STS_FAIL:
+		dev_warn(dev, "prog fail or soak limit exceeded at addr 0x%x\n", addr);
+		return -OTP_CMD_ERR_FAIL;
+	case OTP_STS_CMP_FAIL:
+		dev_warn(dev, "compare mismatch at addr 0x%x\n", addr);
+		return -OTP_CMD_ERR_CMP_FAIL;
+	case OTP_STS_REGION_FAIL:
+		dev_warn(dev, "region write/read protected at addr 0x%x\n", addr);
+		return -OTP_CMD_ERR_REGION_FAIL;
+	case OTP_STS_MASTER_FAIL:
+		dev_warn(dev, "master protection error at addr 0x%x\n", addr);
+		return -OTP_CMD_ERR_MASTER_FAIL;
+	default:
+		dev_warn(dev, "unknown cmd sts:0x%x\n", cmd_sts);
+		return -EIO;
+	}
 }
 
 static int otp_read_data(struct aspeed_otp *ctx, u32 offset, u16 *data)
@@ -252,7 +284,7 @@ static int otp_read_data(struct aspeed_otp *ctx, u32 offset, u16 *data)
 	writel(OTP_CMD_READ, ctx->base + OTP_CMD);
 	ret = wait_complete(dev);
 	if (ret)
-		return OTP_READ_FAIL;
+		return ret;
 
 	data[0] = readl(ctx->base + OTP_RDATA);
 
@@ -262,23 +294,18 @@ static int otp_read_data(struct aspeed_otp *ctx, u32 offset, u16 *data)
 int otp_prog_data(struct aspeed_otp *ctx, u32 offset, u16 data)
 {
 	struct device *dev = ctx->dev;
-	int ret;
 
 	writel(ctx->gbl_ecc_en, ctx->base + OTP_ECC_EN);
 	writel(offset, ctx->base + OTP_ADDR);
 	writel(data, ctx->base + OTP_WDATA_0);
 	writel(OTP_CMD_PROG, ctx->base + OTP_CMD);
-	ret = wait_complete(dev);
-	if (ret)
-		return OTP_PROG_FAIL;
 
-	return 0;
+	return wait_complete(dev);
 }
 
 int otp_prog_multi_data(struct aspeed_otp *ctx, u32 offset, u32 *data, int count)
 {
 	struct device *dev = ctx->dev;
-	int ret;
 
 	writel(ctx->gbl_ecc_en, ctx->base + OTP_ECC_EN);
 	writel(offset, ctx->base + OTP_ADDR);
@@ -286,11 +313,8 @@ int otp_prog_multi_data(struct aspeed_otp *ctx, u32 offset, u32 *data, int count
 		writel(data[i], ctx->base + OTP_WDATA_0 + 4 * i);
 
 	writel(OTP_CMD_PROG_MULTI, ctx->base + OTP_CMD);
-	ret = wait_complete(dev);
-	if (ret)
-		return OTP_PROG_FAIL;
 
-	return 0;
+	return wait_complete(dev);
 }
 
 static int aspeed_otp_read(struct aspeed_otp *ctx, int offset,
@@ -377,7 +401,7 @@ static long aspeed_otp_ioctl(struct file *file, unsigned int cmd, unsigned long 
 
 		ret = aspeed_otp_read(ctx, rdata.offset, ctx->data, rdata.len);
 		if (ret)
-			return -EFAULT;
+			return ret;
 
 		if (copy_to_user(rdata.data, ctx->data, rdata.len * 2))
 			return -EFAULT;
@@ -428,7 +452,7 @@ static int aspeed_otp_ecc_init(struct device *dev)
 	writel(OTP_CMD_READ, ctx->base + OTP_CMD);
 	ret = wait_complete(dev);
 	if (ret)
-		return OTP_READ_FAIL;
+		return ret;
 
 	val = readl(ctx->base + OTP_RDATA);
 	if (val & 0x1)
