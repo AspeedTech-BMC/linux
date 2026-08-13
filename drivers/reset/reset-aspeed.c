@@ -18,6 +18,7 @@
 #define SCU1_RESET_CTRL1 0x200
 #define SCU1_RESET_CTRL2 0x220
 #define AST2705_SCU1_RESET_CTRL2 0x218
+#define AST2705_SCU1_RESET_CTRL3 0x230
 #define SCU1_PCIE3_CTRL 0x908
 
 struct ast2700_reset_signal {
@@ -217,6 +218,7 @@ static const struct ast2700_reset_signal ast2705_reset1_signals[] = {
 	[SCU1_RESET_PORTD_VHUB_EHCI] = { true, AST2705_SCU1_RESET_CTRL2, BIT(29) },
 	[SCU1_RESET_H2X] = { true, AST2705_SCU1_RESET_CTRL2, BIT(30) },
 	[SCU1_RESET_I3CDMA] = { true, AST2705_SCU1_RESET_CTRL2, BIT(31) },
+	[SCU1_RESET_AONRTC] = { true, AST2705_SCU1_RESET_CTRL3, BIT(31) },
 	[SCU1_RESET_PCIE2RST] = { false, SCU1_PCIE3_CTRL, BIT(0) },
 };
 
