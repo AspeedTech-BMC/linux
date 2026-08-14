@@ -26,6 +26,25 @@ struct otp_revid {
 	uint32_t revid1;
 };
 
+enum otp_region_id {
+	OTP_REGION_ROM = 0,
+	OTP_REGION_RBP,
+	OTP_REGION_CFG,
+	OTP_REGION_STRAP,
+	OTP_REGION_STRAPEXT,
+	OTP_REGION_USR,
+	OTP_REGION_SEC,
+	OTP_REGION_CAL,
+	OTP_REGION_PUF,
+	OTP_REGION_MAX,
+};
+
+struct otp_ecc_policy {
+	uint32_t region;		/* enum otp_region_id, set by caller */
+	uint32_t ecc_en;		/* 0: disabled, 1: enabled */
+	uint32_t ecc_supported;	/* set by ASPEED_OTP_GET_ECC_POLICY, ignored on input */
+};
+
 #define OTP_A0				0
 #define OTP_A1				1
 #define OTP_A2				2
@@ -43,5 +62,7 @@ struct otp_revid {
 #define ASPEED_OTP_GET_ECC		_IOR(OTPIOC_BASE, 7, uint32_t)
 #define ASPEED_OTP_SET_ECC		_IO(OTPIOC_BASE, 8)
 #define ASPEED_OTP_GET_REVID		_IOR(OTPIOC_BASE, 9, struct otp_revid)
+#define ASPEED_OTP_GET_ECC_POLICY	_IOR(OTPIOC_BASE, 10, struct otp_ecc_policy)
+#define ASPEED_OTP_SET_ECC_POLICY	_IOW(OTPIOC_BASE, 11, struct otp_ecc_policy)
 
 #endif /* _UAPI_LINUX_OTP_AST2700_H */
