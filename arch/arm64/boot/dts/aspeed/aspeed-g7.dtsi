@@ -1250,6 +1250,12 @@
 			status = "disabled";
 		};
 
+		nisttrng: nisttrng@14c3b000 {
+			compatible = "aspeed,ast2700-nisttrng";
+			reg = <0x0 0x14c3b000 0x0 0x800>;
+			status = "disabled";
+		};
+
 		can0: can@14c3e000 {
 			reg = <0x0 0x14c3e000 0x0 0x2000>;
 			compatible = "aspeed,ast2700-canfd";
