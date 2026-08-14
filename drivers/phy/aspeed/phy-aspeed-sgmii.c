@@ -10,8 +10,6 @@
 #include <linux/regmap.h>
 #include <linux/ethtool.h>
 
-#define SCU_HW_REVISION_ID	GENMASK(23, 16)
-
 #define SGMII_CFG			0x00
 #define   SGMII_CFG_FIFO_MODE			BIT(0)
 #define   SGMII_CFG_SPEED_SEL_MASK		GENMASK(5, 4)
@@ -46,7 +44,6 @@ struct aspeed_sgmii {
 	struct device *dev;
 	void __iomem *regs;
 	struct regmap *pcie_phy_regmap;
-	u8 revision;
 };
 
 static int aspeed_sgmii_conf(struct phy *phy, int speed)
@@ -59,11 +56,8 @@ static int aspeed_sgmii_conf(struct phy *phy, int speed)
 	writel(0, sgmii->regs + SGMII_CFG);
 	if (speed == 0) {
 		/* Configure for auto-negotiation */
-		if (sgmii->revision == 1)
-			writel(SGMII_CFG_AN_ENABLE, sgmii->regs + SGMII_CFG);
-		else
-			writel(SGMII_CFG_AN_ENABLE | SGMII_CFG_FIFO_MODE,
-			       sgmii->regs + SGMII_CFG);
+		writel(SGMII_CFG_AN_ENABLE | SGMII_CFG_FIFO_MODE,
+		       sgmii->regs + SGMII_CFG);
 	} else {
 		switch (speed) {
 		case SPEED_10:
@@ -79,18 +73,11 @@ static int aspeed_sgmii_conf(struct phy *phy, int speed)
 			return -EINVAL;
 		}
 		writel(SGMII_PHY_SPEED(cfg), sgmii->regs + SGMII_PHY_CFG1);
-		if (sgmii->revision == 1)
-			writel(SGMII_CFG_SPEED_SEL(cfg),
-			       sgmii->regs + SGMII_CFG);
-		else
-			writel(SGMII_CFG_SPEED_SEL(cfg) | SGMII_CFG_FIFO_MODE,
-			       sgmii->regs + SGMII_CFG);
+		writel(SGMII_CFG_SPEED_SEL(cfg) | SGMII_CFG_FIFO_MODE,
+		       sgmii->regs + SGMII_CFG);
 	}
 
-	if (sgmii->revision == 1)
-		writel(0x0c, sgmii->regs + SGMII_FIFO_DELAY_THREHOLD);
-	else
-		writel(0x0e, sgmii->regs + SGMII_FIFO_DELAY_THREHOLD);
+	writel(0x0e, sgmii->regs + SGMII_FIFO_DELAY_THREHOLD);
 	writel(SGMII_PCTL_TX_NO_DEEMPH, sgmii->regs + SGMII_PHY_PIPE_CTL);
 
 	/* Set link timer for state change */
@@ -119,11 +106,9 @@ static int aspeed_sgmii_phy_init(struct phy *phy)
 	 */
 	reg = PCIEPHY_CLK_SEL_INTERNAL_25M | PCIEPHY_CLK_FREQ_MULTI(0x2b);
 	regmap_write(sgmii->pcie_phy_regmap, PCIEPHY_CLK, reg);
-	if (sgmii->revision > 1) {
-		regmap_read(sgmii->pcie_phy_regmap, PEHR280, &reg);
-		reg |= SGMII_INTERNAL_CLK_EN;
-		regmap_write(sgmii->pcie_phy_regmap, PEHR280, reg);
-	}
+	regmap_read(sgmii->pcie_phy_regmap, PEHR280, &reg);
+	reg |= SGMII_INTERNAL_CLK_EN;
+	regmap_write(sgmii->pcie_phy_regmap, PEHR280, reg);
 
 	return 0;
 }
@@ -165,12 +150,10 @@ static int aspeed_sgmii_probe(struct platform_device *pdev)
 {
 	struct phy_provider *provider;
 	struct aspeed_sgmii *sgmii;
-	struct regmap *scu_regmap;
 	struct device_node *np;
 	struct resource *res;
 	struct device *dev;
 	struct phy *phy;
-	u32 reg;
 
 	dev = &pdev->dev;
 
@@ -193,22 +176,12 @@ static int aspeed_sgmii_probe(struct platform_device *pdev)
 	}
 
 	np = pdev->dev.of_node;
-	sgmii->pcie_phy_regmap = syscon_regmap_lookup_by_phandle(np, "phys");
+	sgmii->pcie_phy_regmap = syscon_regmap_lookup_by_phandle(np, "aspeed,pcie-phy");
 	if (IS_ERR(sgmii->pcie_phy_regmap)) {
-		dev_err(sgmii->dev, "Unable to find phys regmap (%ld)\n",
+		dev_err(sgmii->dev, "Unable to find aspeed,pcie-phy regmap (%ld)\n",
 			PTR_ERR(sgmii->pcie_phy_regmap));
 		return PTR_ERR(sgmii->pcie_phy_regmap);
 	}
-
-	scu_regmap = syscon_regmap_lookup_by_phandle(np, "aspeed,scu");
-	if (IS_ERR(scu_regmap)) {
-		dev_err(sgmii->dev, "Unable to find SCU regmap (%ld)\n",
-			PTR_ERR(scu_regmap));
-		return PTR_ERR(scu_regmap);
-	}
-
-	regmap_read(scu_regmap, 0x00, &reg);
-	sgmii->revision = FIELD_GET(SCU_HW_REVISION_ID, reg);
 
 	phy = devm_phy_create(dev, NULL, &aspeed_sgmii_phyops);
 	if (IS_ERR(phy)) {
