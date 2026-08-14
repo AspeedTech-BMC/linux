@@ -2022,6 +2022,17 @@ config RTC_DRV_ASPEED
 	  This driver can also be built as a module, if so, the module
 	  will be called "rtc-aspeed".
 
+config RTC_DRV_ASPEED_AONRTC
+	tristate "ASPEED ALWAYS ON RTC"
+	depends on OF
+	depends on ARCH_ASPEED || COMPILE_TEST
+	help
+	  If you say yes here you get support for the ASPEED BMC SoC battery
+	  store real time clocks.
+
+	  This driver can also be built as a module, if so, the module
+	  will be called "rtc-aspeed-aonrtc".
+
 config RTC_DRV_TI_K3
 	tristate "TI K3 RTC"
 	depends on ARCH_K3 || COMPILE_TEST
