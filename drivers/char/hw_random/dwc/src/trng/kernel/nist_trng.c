@@ -54,6 +54,7 @@
 #include <linux/io.h>
 #include <linux/module.h>
 #include <linux/interrupt.h>
+#include <linux/of.h>
 #include <linux/platform_device.h>
 
 #include <linux/crypto.h>
@@ -2011,7 +2012,7 @@ static int nisttrng_driver_probe(struct platform_device *pdev)
 {
 	struct synopsys_nisttrng_driver *data;
 	struct hwrng *hwrng_driver_info = 0;
-	struct resource *cfg, *irq;
+	struct resource *cfg;
 	u32 *base_addr;
 	int ret;
 
@@ -2019,10 +2020,8 @@ static int nisttrng_driver_probe(struct platform_device *pdev)
 	SYNHW_PRINT("DWC_TRNG_DriverSDK_%s\n", TRNG_VERSION);
 
 	cfg = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-	irq = platform_get_resource(pdev, IORESOURCE_IRQ, 0);
-
-	if (!cfg || !irq) {
-		SYNHW_PRINT("no memory or IRQ resource\n");
+	if (!cfg) {
+		SYNHW_PRINT("no memory resource\n");
 		return -ENOMEM;
 	}
 
@@ -2142,27 +2141,23 @@ static void nisttrng_driver_remove(struct platform_device *pdev)
 	devm_kfree(&pdev->dev, data);
 }
 
+static const struct of_device_id nisttrng_of_match[] = {
+	{ .compatible = "aspeed,ast2700-nisttrng" },
+	{},
+};
+MODULE_DEVICE_TABLE(of, nisttrng_of_match);
+
 static struct platform_driver s_nisttrng_platform_driver_info = {
 	.probe      = nisttrng_driver_probe,
 	.remove     = nisttrng_driver_remove,
 	.driver     = {
-		.name = "nist_trng",
-		.owner   = THIS_MODULE,
+		.name           = "nist_trng",
+		.owner          = THIS_MODULE,
+		.of_match_table = nisttrng_of_match,
 	},
 };
 
-static int __init nisttrng_platform_driver_start(void)
-{
-	return platform_driver_register(&s_nisttrng_platform_driver_info);
-}
-
-static void __exit nisttrng_platform_driver_end(void)
-{
-	platform_driver_unregister(&s_nisttrng_platform_driver_info);
-}
-
-module_init(nisttrng_platform_driver_start);
-module_exit(nisttrng_platform_driver_end);
+module_platform_driver(s_nisttrng_platform_driver_info);
 
 module_param(max_reads, ulong, 0);
 MODULE_PARM_DESC(max_reads, "Max # of reads between reseeds (default is 128)");
