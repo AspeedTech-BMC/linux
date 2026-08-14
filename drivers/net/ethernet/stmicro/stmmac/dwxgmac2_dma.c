@@ -102,6 +102,9 @@ static void dwxgmac2_dma_axi(void __iomem *ioaddr, struct stmmac_axi *axi)
 	if (!axi->axi_fb)
 		value |= XGMAC_UNDEF;
 
+	if (axi->axi_kbbe)
+		value |= XGMAC_ONEKBBE;
+
 	value &= ~XGMAC_BLEN;
 	for (i = 0; i < AXI_BLEN; i++) {
 		switch (axi->axi_blen[i]) {

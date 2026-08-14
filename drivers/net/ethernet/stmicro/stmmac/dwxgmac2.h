@@ -333,6 +333,7 @@
 #define XGMAC_RD_OSR_LMT_SHIFT		16
 #define XGMAC_EN_LPI			BIT(15)
 #define XGMAC_LPI_XIT_PKT		BIT(14)
+#define XGMAC_ONEKBBE			BIT(13)
 #define XGMAC_AAL			BIT(12)
 #define XGMAC_EAME			BIT(11)
 #define XGMAC_BLEN			GENMASK(7, 1)
