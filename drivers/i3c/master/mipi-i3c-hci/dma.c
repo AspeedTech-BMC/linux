@@ -738,204 +738,220 @@ static void hci_dma_process_ibi(struct i3c_hci *hci, struct hci_rh_data *rh)
 		"RING_OP1_IBI_DEQ_PTR = %x, RING_OP2_IBI_ENQ_PTR = %x", deq_ptr,
 		enq_ptr);
 
-	ibi_status_error = 0;
-	ibi_addr = -1;
-	ibi_chunks = 0;
-	ibi_size = 0;
-	last_ptr = -1;
+	/*
+	 * enq_ptr is a snapshot taken once here. A single IBI_READY
+	 * interrupt can correspond to more than one completed IBI already
+	 * sitting in the status ring (e.g. a hot-join and a normal IBI
+	 * landing back to back before this handler runs), each ending in
+	 * its own IBI_LAST_STATUS entry. Drain all of them now instead of
+	 * processing only the first and leaving the rest stranded until
+	 * some later, unrelated IBI happens to re-arm the edge-triggered
+	 * IBI_READY interrupt. We deliberately do not re-read enq_ptr on
+	 * every iteration: that would let a continuous stream of incoming
+	 * IBIs keep this loop running indefinitely inside a single
+	 * interrupt. Anything enqueued after this snapshot raises its own
+	 * IBI_READY interrupt and is handled on a later call.
+	 */
+	while (deq_ptr != enq_ptr) {
+		ibi_status_error = 0;
+		ibi_addr = -1;
+		ibi_chunks = 0;
+		ibi_size = 0;
+		last_ptr = -1;
 
-	/* let's find all we can about this IBI */
-	for (ptr = deq_ptr; ptr != enq_ptr;
-	     ptr = (ptr + 1) % rh->ibi_status_entries) {
-		ring_ibi_status = rh->ibi_status + rh->ibi_status_sz * ptr;
-		ibi_status = *ring_ibi_status;
-		dev_dbg(&hci->master.dev, "status = %#x", ibi_status);
+		/* let's find all we can about this IBI */
+		for (ptr = deq_ptr; ptr != enq_ptr;
+		     ptr = (ptr + 1) % rh->ibi_status_entries) {
+			ring_ibi_status = rh->ibi_status + rh->ibi_status_sz * ptr;
+			ibi_status = *ring_ibi_status;
+			dev_dbg(&hci->master.dev, "status = %#x", ibi_status);
 
-		if (hci->master.target) {
-			dev = hci->master.this;
-			size_t nbytes = TARGET_RESP_DATA_LENGTH(ibi_status);
-			dev_dbg(&hci->master.dev, a1_debug_s,
-				TARGET_RESP_STATUS(ibi_status),
-				TARGET_RESP_XFER_TYPE(ibi_status),
-				TARGET_RESP_CCC_INDICATE(ibi_status),
-				TARGET_RESP_TID(ibi_status),
-				TARGET_RESP_CCC_HDR(ibi_status),
-				TARGET_RESP_DATA_LENGTH(ibi_status));
-			if (TARGET_RESP_XFER_TYPE(ibi_status)) {
-				chunks = DIV_ROUND_UP(nbytes, rh->ibi_chunk_sz);
-				ibi_chunks += chunks;
-				ibi_size += nbytes;
+			if (hci->master.target) {
+				dev = hci->master.this;
+				size_t nbytes = TARGET_RESP_DATA_LENGTH(ibi_status);
+
+				dev_dbg(&hci->master.dev, a1_debug_s,
+					TARGET_RESP_STATUS(ibi_status),
+					TARGET_RESP_XFER_TYPE(ibi_status),
+					TARGET_RESP_CCC_INDICATE(ibi_status),
+					TARGET_RESP_TID(ibi_status),
+					TARGET_RESP_CCC_HDR(ibi_status),
+					TARGET_RESP_DATA_LENGTH(ibi_status));
+				if (TARGET_RESP_XFER_TYPE(ibi_status)) {
+					chunks = DIV_ROUND_UP(nbytes, rh->ibi_chunk_sz);
+					ibi_chunks += chunks;
+					ibi_size += nbytes;
+				}
+				last_ptr = ptr;
+				break;
 			}
-			last_ptr = ptr;
+			if (ibi_status_error) {
+				/* we no longer care */
+			} else if (ibi_status & IBI_ERROR) {
+				ibi_status_error = ibi_status;
+			} else if (ibi_addr ==  -1) {
+				ibi_addr = FIELD_GET(IBI_TARGET_ADDR, ibi_status);
+			} else if (ibi_addr != FIELD_GET(IBI_TARGET_ADDR, ibi_status)) {
+				/* the address changed unexpectedly */
+				ibi_status_error = ibi_status;
+			}
+			ibi_rnw = FIELD_GET(IBI_TARGET_RNW, ibi_status);
+
+			chunks = FIELD_GET(IBI_CHUNKS, ibi_status);
+			ibi_chunks += chunks;
+			if (!(ibi_status & IBI_LAST_STATUS)) {
+				ibi_size += chunks * rh->ibi_chunk_sz;
+			} else {
+				if (chunks) {
+					ibi_size += (chunks - 1) * rh->ibi_chunk_sz;
+					ibi_size += FIELD_GET(IBI_DATA_LENGTH, ibi_status);
+				}
+				last_ptr = ptr;
+				break;
+			}
+		}
+
+		/* validate what we've got */
+
+		if (last_ptr == -1) {
+			/* this IBI sequence is not yet complete */
+			dev_dbg(&hci->master.dev,
+				"no LAST_STATUS available (e=%d d=%d)",
+				enq_ptr, deq_ptr);
 			break;
 		}
-		if (ibi_status_error) {
-			/* we no longer care */
-		} else if (ibi_status & IBI_ERROR) {
-			ibi_status_error = ibi_status;
-		} else if (ibi_addr ==  -1) {
-			ibi_addr = FIELD_GET(IBI_TARGET_ADDR, ibi_status);
-		} else if (ibi_addr != FIELD_GET(IBI_TARGET_ADDR, ibi_status)) {
-			/* the address changed unexpectedly */
-			ibi_status_error = ibi_status;
-		}
-		ibi_rnw = FIELD_GET(IBI_TARGET_RNW, ibi_status);
-
-		chunks = FIELD_GET(IBI_CHUNKS, ibi_status);
-		ibi_chunks += chunks;
-		if (!(ibi_status & IBI_LAST_STATUS)) {
-			ibi_size += chunks * rh->ibi_chunk_sz;
-		} else {
-			if (chunks) {
-				ibi_size += (chunks - 1) * rh->ibi_chunk_sz;
-				ibi_size += FIELD_GET(IBI_DATA_LENGTH, ibi_status);
+		deq_ptr = last_ptr + 1;
+		deq_ptr %= rh->ibi_status_entries;
+		if (!hci->master.target) {
+			if (ibi_status_error) {
+				dev_err(&hci->master.dev, "IBI error from %#x\n",
+					ibi_addr);
+				goto done;
 			}
-			last_ptr = ptr;
-			break;
-		}
-	}
+			if (IBI_TYPE_HJ(ibi_addr, ibi_rnw)) {
+				queue_work(hci->master.wq, &hci->hj_work);
+				goto done;
+			} else if (IBI_TYPE_CR(ibi_addr, ibi_rnw)) {
+				dev_info(&hci->master.dev,
+					 "get control role requeset from %02x\n",
+					 ibi_addr);
+				goto done;
+			}
 
-	/* validate what we've got */
+			/* determine who this is for */
+			dev = i3c_hci_addr_to_dev(hci, ibi_addr);
+			if (!dev || dev == hci->master.this) {
+				dev_err(&hci->master.dev,
+					"IBI for unknown device %#x\n", ibi_addr);
+				goto done;
+			}
 
-	if (last_ptr == -1) {
-		/* this IBI sequence is not yet complete */
-		dev_dbg(&hci->master.dev,
-			"no LAST_STATUS available (e=%d d=%d)",
-			enq_ptr, deq_ptr);
-		spin_unlock(&hci->lock);
-		return;
-	}
-	deq_ptr = last_ptr + 1;
-	deq_ptr %= rh->ibi_status_entries;
-	if (!hci->master.target) {
-		if (ibi_status_error) {
-			dev_err(&hci->master.dev, "IBI error from %#x\n",
-				ibi_addr);
-			goto done;
-		}
-		if (IBI_TYPE_HJ(ibi_addr, ibi_rnw)) {
-			queue_work(hci->master.wq, &hci->hj_work);
-			goto done;
-		} else if (IBI_TYPE_CR(ibi_addr, ibi_rnw)) {
-			dev_info(&hci->master.dev,
-				 "get control role requeset from %02x\n",
-				 ibi_addr);
-			goto done;
-		}
+			dev_data = i3c_dev_get_master_data(dev);
+			dev_ibi = dev_data->ibi_data;
+			if (!dev_ibi) {
+				dev_err(&hci->master.dev,
+					"IBI received for device %#x without IBI setup\n",
+					ibi_addr);
+				goto done;
+			}
+			if (ibi_size > dev_ibi->max_len) {
+				dev_err(&hci->master.dev,
+					"IBI payload too big (%d > %d)\n", ibi_size,
+					dev_ibi->max_len);
+				goto done;
+			}
 
-		/* determine who this is for */
-		dev = i3c_hci_addr_to_dev(hci, ibi_addr);
-		if (!dev || dev == hci->master.this) {
-			dev_err(&hci->master.dev,
-				"IBI for unknown device %#x\n", ibi_addr);
-			goto done;
+			/*
+			 * This ring model is not suitable for zero-copy processing of IBIs.
+			 * We have the data chunk ring wrap-around to deal with, meaning
+			 * that the payload might span multiple chunks beginning at the
+			 * end of the ring and wrap to the start of the ring. Furthermore
+			 * there is no guarantee that those chunks will be released in order
+			 * and in a timely manner by the upper driver. So let's just copy
+			 * them to a discrete buffer. In practice they're supposed to be
+			 * small anyway.
+			 */
+			slot = i3c_generic_ibi_get_free_slot(dev_ibi->pool);
+			if (!slot) {
+				dev_err(&hci->master.dev, "no free slot for IBI\n");
+				goto done;
+			}
 		}
-
-		dev_data = i3c_dev_get_master_data(dev);
-		dev_ibi = dev_data->ibi_data;
-		if (!dev_ibi) {
-			dev_err(&hci->master.dev,
-				"IBI received for device %#x without IBI setup\n",
-				ibi_addr);
-			goto done;
-		}
-		if (ibi_size > dev_ibi->max_len) {
-			dev_err(&hci->master.dev,
-				"IBI payload too big (%d > %d)\n", ibi_size,
-				dev_ibi->max_len);
-			goto done;
-		}
-
-		/*
-		 * This ring model is not suitable for zero-copy processing of IBIs.
-		 * We have the data chunk ring wrap-around to deal with, meaning
-		 * that the payload might span multiple chunks beginning at the
-		 * end of the ring and wrap to the start of the ring. Furthermore
-		 * there is no guarantee that those chunks will be released in order
-		 * and in a timely manner by the upper driver. So let's just copy
-		 * them to a discrete buffer. In practice they're supposed to be
-		 * small anyway.
-		 */
-		slot = i3c_generic_ibi_get_free_slot(dev_ibi->pool);
-		if (!slot) {
-			dev_err(&hci->master.dev, "no free slot for IBI\n");
-			goto done;
-		}
-	}
-	/* copy first part of the payload */
-	ibi_data_offset = rh->ibi_chunk_sz * rh->ibi_chunk_ptr;
-	ring_ibi_data = rh->ibi_data + ibi_data_offset;
-	ring_ibi_data_dma = rh->ibi_data_dma + ibi_data_offset;
-	first_part = (rh->ibi_chunks_total - rh->ibi_chunk_ptr)
-			* rh->ibi_chunk_sz;
-	if (first_part > ibi_size)
-		first_part = ibi_size;
-	dev_dbg(&hci->master.dev, "ibi_data_offset = %x, first_part = %x",
-		ibi_data_offset, first_part);
-	dma_sync_single_for_cpu(rings->sysdev, ring_ibi_data_dma,
-				first_part, DMA_FROM_DEVICE);
-	if (hci->master.target) {
-		memcpy(hci->target_rx.buf, ring_ibi_data, first_part);
-		dev_dbg(&hci->master.dev, "first_part got: %*ph",
-			(u32)first_part, hci->target_rx.buf);
-	} else {
-		memcpy(slot->data, ring_ibi_data, first_part);
-		dev_dbg(&hci->master.dev, "first_part got: %*ph",
-			(u32)first_part, slot->data);
-	}
-	/* copy second part if any */
-	if (ibi_size > first_part) {
-		/* we wrap back to the start and copy remaining data */
-		ring_ibi_data = rh->ibi_data;
-		ring_ibi_data_dma = rh->ibi_data_dma;
+		/* copy first part of the payload */
+		ibi_data_offset = rh->ibi_chunk_sz * rh->ibi_chunk_ptr;
+		ring_ibi_data = rh->ibi_data + ibi_data_offset;
+		ring_ibi_data_dma = rh->ibi_data_dma + ibi_data_offset;
+		first_part = (rh->ibi_chunks_total - rh->ibi_chunk_ptr)
+				* rh->ibi_chunk_sz;
+		if (first_part > ibi_size)
+			first_part = ibi_size;
+		dev_dbg(&hci->master.dev, "ibi_data_offset = %x, first_part = %x",
+			ibi_data_offset, first_part);
 		dma_sync_single_for_cpu(rings->sysdev, ring_ibi_data_dma,
-					ibi_size - first_part, DMA_FROM_DEVICE);
+					first_part, DMA_FROM_DEVICE);
 		if (hci->master.target) {
-			memcpy(hci->target_rx.buf + first_part, ring_ibi_data,
-			       ibi_size - first_part);
-			dev_dbg(&hci->master.dev, "remain got: %*ph",
-				(u32)ibi_size - first_part,
-				hci->target_rx.buf + first_part);
+			memcpy(hci->target_rx.buf, ring_ibi_data, first_part);
+			dev_dbg(&hci->master.dev, "first_part got: %*ph",
+				(u32)first_part, hci->target_rx.buf);
 		} else {
-			memcpy(slot->data + first_part, ring_ibi_data,
-			       ibi_size - first_part);
-			dev_dbg(&hci->master.dev, "remain got: %*ph",
-				(u32)ibi_size - first_part,
-				slot->data + first_part);
+			memcpy(slot->data, ring_ibi_data, first_part);
+			dev_dbg(&hci->master.dev, "first_part got: %*ph",
+				(u32)first_part, slot->data);
 		}
-	}
-	if (hci->master.target) {
-		/* Bypass the priv_xfer data to target layer */
-		if (dev->target_info.read_handler &&
-		    !TARGET_RESP_CCC_INDICATE(ibi_status))
-			dev->target_info.read_handler(dev->dev,
-						      hci->target_rx.buf,
-						      ibi_size);
-		if (TARGET_RESP_CCC_INDICATE(ibi_status))
-			aspeed_i3c_ccc_handler(hci, TARGET_RESP_CCC_HDR(ibi_status));
-	} else {
-		/* submit it */
-		slot->dev = dev;
-		slot->len = ibi_size;
-		i3c_master_queue_ibi(dev, slot);
-	}
+		/* copy second part if any */
+		if (ibi_size > first_part) {
+			/* we wrap back to the start and copy remaining data */
+			ring_ibi_data = rh->ibi_data;
+			ring_ibi_data_dma = rh->ibi_data_dma;
+			dma_sync_single_for_cpu(rings->sysdev, ring_ibi_data_dma,
+						ibi_size - first_part, DMA_FROM_DEVICE);
+			if (hci->master.target) {
+				memcpy(hci->target_rx.buf + first_part, ring_ibi_data,
+				       ibi_size - first_part);
+				dev_dbg(&hci->master.dev, "remain got: %*ph",
+					(u32)ibi_size - first_part,
+					hci->target_rx.buf + first_part);
+			} else {
+				memcpy(slot->data + first_part, ring_ibi_data,
+				       ibi_size - first_part);
+				dev_dbg(&hci->master.dev, "remain got: %*ph",
+					(u32)ibi_size - first_part,
+					slot->data + first_part);
+			}
+		}
+		if (hci->master.target) {
+			/* Bypass the priv_xfer data to target layer */
+			if (dev->target_info.read_handler &&
+			    !TARGET_RESP_CCC_INDICATE(ibi_status))
+				dev->target_info.read_handler(dev->dev,
+							      hci->target_rx.buf,
+							      ibi_size);
+			if (TARGET_RESP_CCC_INDICATE(ibi_status))
+				aspeed_i3c_ccc_handler(hci, TARGET_RESP_CCC_HDR(ibi_status));
+		} else {
+			/* submit it */
+			slot->dev = dev;
+			slot->len = ibi_size;
+			i3c_master_queue_ibi(dev, slot);
+		}
 
 done:
-	op1_val = rh_reg_read(RING_OPERATION1);
-	op1_val &= ~RING_OP1_IBI_DEQ_PTR;
-	op1_val |= FIELD_PREP(RING_OP1_IBI_DEQ_PTR, deq_ptr);
-	dev_dbg(&hci->master.dev, "Write RING_OP1_IBI_DEQ_PTR = %x", op1_val);
-	rh_reg_write(RING_OPERATION1, op1_val);
+		op1_val = rh_reg_read(RING_OPERATION1);
+		op1_val &= ~RING_OP1_IBI_DEQ_PTR;
+		op1_val |= FIELD_PREP(RING_OP1_IBI_DEQ_PTR, deq_ptr);
+		dev_dbg(&hci->master.dev, "Write RING_OP1_IBI_DEQ_PTR = %x", op1_val);
+		rh_reg_write(RING_OPERATION1, op1_val);
+
+		/* update the chunk pointer */
+		rh->ibi_chunk_ptr += ibi_chunks;
+		rh->ibi_chunk_ptr %= rh->ibi_chunks_total;
+		dev_dbg(&hci->master.dev, "rh->ibi_chunk_ptr = %x ibi_chunk_ptr = %x",
+			ibi_chunks, rh->ibi_chunk_ptr);
+
+		/* and tell the hardware about freed chunks */
+		rh_reg_write(CHUNK_CONTROL, rh_reg_read(CHUNK_CONTROL) + ibi_chunks);
+	}
 	spin_unlock(&hci->lock);
-
-	/* update the chunk pointer */
-	rh->ibi_chunk_ptr += ibi_chunks;
-	rh->ibi_chunk_ptr %= rh->ibi_chunks_total;
-	dev_dbg(&hci->master.dev, "rh->ibi_chunk_ptr = %x ibi_chunk_ptr = %x",
-		ibi_chunks, rh->ibi_chunk_ptr);
-
-	/* and tell the hardware about freed chunks */
-	rh_reg_write(CHUNK_CONTROL, rh_reg_read(CHUNK_CONTROL) + ibi_chunks);
 }
 
 #ifdef CONFIG_ARCH_ASPEED
