@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0+
 /*
- * Copyright 2023 Aspeed Technology Inc.
+ * Copyright 2026 Aspeed Technology Inc.
  */
 #include <linux/sizes.h>
 #include <linux/module.h>
@@ -51,14 +51,7 @@ static int aspeed_sgmii_conf(struct phy *phy, int speed)
 	struct aspeed_sgmii *sgmii = phy_get_drvdata(phy);
 	u32 cfg;
 
-	writel(0, sgmii->regs + SGMII_MODE);
-
-	writel(0, sgmii->regs + SGMII_CFG);
-	if (speed == 0) {
-		/* Configure for auto-negotiation */
-		writel(SGMII_CFG_AN_ENABLE | SGMII_CFG_FIFO_MODE,
-		       sgmii->regs + SGMII_CFG);
-	} else {
+	if (speed) {
 		switch (speed) {
 		case SPEED_10:
 			cfg = SGMII_SPEED_10M;
@@ -72,6 +65,16 @@ static int aspeed_sgmii_conf(struct phy *phy, int speed)
 		default:
 			return -EINVAL;
 		}
+	}
+
+	writel(0, sgmii->regs + SGMII_MODE);
+	writel(0, sgmii->regs + SGMII_CFG);
+
+	if (speed == 0) {
+		/* Configure for auto-negotiation */
+		writel(SGMII_CFG_AN_ENABLE | SGMII_CFG_FIFO_MODE,
+		       sgmii->regs + SGMII_CFG);
+	} else {
 		writel(SGMII_PHY_SPEED(cfg), sgmii->regs + SGMII_PHY_CFG1);
 		writel(SGMII_CFG_SPEED_SEL(cfg) | SGMII_CFG_FIFO_MODE,
 		       sgmii->regs + SGMII_CFG);
@@ -189,11 +192,11 @@ static int aspeed_sgmii_probe(struct platform_device *pdev)
 		return PTR_ERR(phy);
 	}
 
+	phy_set_drvdata(phy, sgmii);
+
 	provider = devm_of_phy_provider_register(dev, of_phy_simple_xlate);
 	if (IS_ERR(provider))
 		return PTR_ERR(provider);
-
-	phy_set_drvdata(phy, sgmii);
 
 	dev_info(dev, "module loaded\n");
 
