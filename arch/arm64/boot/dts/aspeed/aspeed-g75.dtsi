@@ -62,6 +62,26 @@
 			};
 		};
 
+		/*
+		 * SGMII PHY at 0x14c01000 is not present on AST2705; that address
+		 * is used by the AONRTC instead.  Remove the node and drop the
+		 * dangling phy reference from mac2.
+		 */
+		/delete-node/ sgmii;
+
+		mac2: ethernet@14070000 {
+			/delete-property/ phys;
+			/delete-property/ phy-names;
+		};
+
+		aonrtc: rtc@14c01000 {
+			compatible = "aspeed,ast2705-aonrtc";
+			reg = <0 0x14c01000 0 0x100>;
+			resets = <&syscon1 SCU1_RESET_AONRTC>;
+			interrupts-extended = <&intc1_1 24>;
+			status = "disabled";
+		};
+
 		syscon1: syscon@14c02000 {
 			compatible = "aspeed,ast2705-scu1", "syscon", "simple-mfd";
 			reg = <0x0 0x14c02000 0x0 0x1000>;
