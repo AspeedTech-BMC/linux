@@ -145,7 +145,7 @@ static int aspeed_usb3_phy_init(struct phy *phy)
 	}
 
 	val = readl(aspeed_phy->regs + PHY3S00);
-	val |= PHY3S00_SRAM_BYPASS;
+	val |= PHY3S00_SRAM_EXT_LOAD;
 	writel(val, aspeed_phy->regs + PHY3S00);
 
 	/* Set protocol1_ext signals as default PHY3 settings based on SNPS documents.
