@@ -1014,10 +1014,12 @@ static int aspeed_espi_mmbi_hw_init(struct ast2700_espi_mmbi *priv)
 	reg |= ESPI_CH0_MCYC0_MASKL_EN;
 	regmap_write(priv->espi_map, ESPI_CH0_MCYC0_MASKL, reg);
 
-	/* keep Peripheral Channel Mem Read/Write after WDT reset */
-	regmap_read(priv->espi_map, ESPI_CH0_CTRL, &reg);
-	reg &= ~(ESPI_CH0_CTRL_MCYC_RD_DIS_WDT | ESPI_CH0_CTRL_MCYC_WR_DIS_WDT);
-	regmap_write(priv->espi_map, ESPI_CH0_CTRL, reg);
+	/*
+	 * The AST2700 eSPI driver clears ESPI_CH0_CTRL_MCYC_WR_DIS,
+	 * ESPI_CH0_CTRL_MCYC_RD_DIS, ESPI_CH0_CTRL_MCYC_RD_DIS_WDT, and
+	 * ESPI_CH0_CTRL_MCYC_WR_DIS_WDT because eSPI MMBI requires memory
+	 * cycles to remain enabled.
+	 */
 
 	return 0;
 }
