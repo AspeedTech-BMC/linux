@@ -12,7 +12,7 @@
 			reg = <0x0 0x140a0000 0x0 0x8000>;
 			interrupts-extended = <&intc1_4 2>;
 			interrupt-names = "macirq";
-			phy-mode = "10gbase-r";
+			phy-mode = "usxgmii";
 			managed = "in-band-status";
 			rx-fifo-depth = <4096>;
 			tx-fifo-depth = <4096>;
