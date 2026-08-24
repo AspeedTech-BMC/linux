@@ -16,12 +16,12 @@ partitions {
 	};
 
 	kernel@420000 {
-		reg = <0x420000 0x900000>; // 9MB
+		reg = <0x420000 0xC00000>; // 12MB
 		label = "kernel-a";
 	};
 
-	rofs@d20000 {
-		reg = <0xd20000 0x52E0000>; // 82.875MB
+	rofs@1020000 {
+		reg = <0x1020000 0x4FE0000>; // 79.875MB
 		label = "rofs-a";
 	};
 
@@ -41,12 +41,12 @@ partitions {
 	};
 
 	kernel@8420000 {
-		reg = <0x8420000 0x900000>; // 9MB
+		reg = <0x8420000 0xC00000>; // 12MB
 		label = "kernel-b";
 	};
 
-	rofs@8d20000 {
-		reg = <0x8d20000 0x52E0000>; // 82.875MB
+	rofs@9020000 {
+		reg = <0x9020000 0x4FE0000>; // 79.875MB
 		label = "rofs-b";
 	};
 
