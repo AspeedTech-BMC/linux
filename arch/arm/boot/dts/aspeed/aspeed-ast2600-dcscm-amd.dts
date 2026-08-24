@@ -95,17 +95,17 @@
 			};
 
 			kernel@160000 {
-				reg = <0x160000 0x800000>; // 8MB
+				reg = <0x160000 0xa00000>; // 10MB
 				label = "kernel";
 			};
 
-			rofs@960000 {
-				reg = <0x960000 0x24a0000>; // 36.625MB
+			rofs@b60000 {
+				reg = <0xb60000 0x25a0000>; // 37.625MB
 				label = "rofs";
 			};
 
-			rwfs@2e00000 {
-				reg = <0x2e00000 0xfe0000>; // 16256KB
+			rwfs@3100000 {
+				reg = <0x3100000 0xce0000>; // 13184KB
 				label = "rwfs";
 			};
 
