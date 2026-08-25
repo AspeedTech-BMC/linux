@@ -1,0 +1,10 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
+
+/dts-v1/;
+#include "ast2705-evb.dts"
+
+/ {
+	model = "AST2705 EVB NET Boot";
+};
+
+/delete-node/ &fmc;
