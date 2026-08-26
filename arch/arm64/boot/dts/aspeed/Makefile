@@ -32,3 +32,7 @@ dtb-$(CONFIG_ARCH_ASPEED) += \
 	ast2705-evb.dtb \
 	ast2705-fpga.dtb \
 	ast2705-netboot.dtb \
+	ast2705-ci-host.dtb \
+	ast2705-ncsi.dtb \
+	ast2705-evb-s0.dtb \
+	ast2705-evb-s1.dtb \
