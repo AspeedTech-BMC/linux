@@ -82,6 +82,13 @@
 			status = "disabled";
 		};
 
+		cptra_mci: cptra-mci@14c40000 {
+			compatible = "aspeed,ast2705-cptra-mci";
+			reg = <0x0 0x14c40000 0x0 0x10000>;
+			aspeed,scu1 = <&syscon1>;
+			status = "disabled";
+		};
+
 		syscon1: syscon@14c02000 {
 			compatible = "aspeed,ast2705-scu1", "syscon", "simple-mfd";
 			reg = <0x0 0x14c02000 0x0 0x1000>;

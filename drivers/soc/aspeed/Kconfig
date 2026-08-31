@@ -160,6 +160,28 @@ config AST2700_OTP_SYSFS
 	  Expose OTP information (e.g. vendor key hash) via sysfs attributes
 	  under the platform device directory.
 
+config ASPEED_CPTRA_MCI
+	tristate "Caliptra-SS MCI driver for Aspeed SoCs"
+	depends on ARCH_ASPEED
+	select REGMAP
+	select MFD_SYSCON
+	help
+	  Select this option to enable a driver for the Caliptra-SS MCI
+	  (Manageability Controller Interface), integrated in AST27xx BMC
+	  SoCs: the mailbox transport plus a direct status register read.
+
+	  Unlike the legacy always-mapped Caliptra mailbox, the MCI
+	  mailbox's CSR block and data SRAM are reachable only through a
+	  paged 64KB SCU1 window.
+
+	  Also registers /dev/aspeed-cptra-mci, a misc device exposing a
+	  thin ioctl passthrough onto the mailbox execute and register read
+	  operations for userspace test tools (no uapi header -- see the
+	  ioctl struct comments in aspeed-cptra-mci.c). Command-specific
+	  request/response layout, checksums and semantics are entirely up
+	  to the userspace caller; this driver has no notion of individual
+	  mailbox commands.
+
 source "drivers/soc/aspeed/espi/Kconfig"
 
 source "drivers/soc/aspeed/rvas/Kconfig"

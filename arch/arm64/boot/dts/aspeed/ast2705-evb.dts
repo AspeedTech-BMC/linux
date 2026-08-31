@@ -236,6 +236,10 @@
 	status = "okay";
 };
 
+&cptra_mci {
+	status = "okay";
+};
+
 &mctp0 {
 	status = "okay";
 	memory-region = <&mctp0_reserved>;
