@@ -1,0 +1,27 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
+
+#include "ast2705-evb.dts"
+
+/ {
+	model = "AST2705 EVB Ship Test";
+};
+
+&pcie2 {
+	status = "okay";
+};
+
+&uphy3a {
+	status = "okay";
+};
+
+&uphy3b {
+	status = "okay";
+};
+
+&xhci0 {
+	status = "okay";
+};
+
+&xhci1 {
+	status = "okay";
+};
