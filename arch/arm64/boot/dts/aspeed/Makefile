@@ -36,3 +36,4 @@ dtb-$(CONFIG_ARCH_ASPEED) += \
 	ast2705-ncsi.dtb \
 	ast2705-evb-s0.dtb \
 	ast2705-evb-s1.dtb \
+	ast2705-evb-ship-test.dtb \
