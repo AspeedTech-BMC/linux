@@ -1248,12 +1248,10 @@
 
 &vhuba0 {
 	status = "okay";
-	pinctrl-0 = <&pinctrl_usb2ahpd0_default>;
 };
 
 &vhubb0 {
 	status = "okay";
-	pinctrl-0 = <&pinctrl_usb2bhpd0_default>;
 };
 
 &vhubc {
