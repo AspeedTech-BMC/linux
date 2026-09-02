@@ -452,6 +452,7 @@
 
 &vhubb0 {
 	status = "okay";
+	pinctrl-0 = <&pinctrl_usb2bd0_default>;
 };
 
 &vhubb1 {

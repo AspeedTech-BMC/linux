@@ -1223,7 +1223,6 @@
 
 &vhuba0 {
 	status = "okay";
-	pinctrl-0 = <&pinctrl_usb2ahpd0_default>;
 };
 
 &usb3ahp {
@@ -1233,7 +1232,6 @@
 
 &vhubb0 {
 	status = "okay";
-	pinctrl-0 = <&pinctrl_usb2bhpd0_default>;
 };
 
 &usb3bhp {
