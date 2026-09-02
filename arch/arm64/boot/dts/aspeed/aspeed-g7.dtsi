@@ -368,7 +368,7 @@
 			aspeed,vhub-downstream-ports = <7>;
 			aspeed,vhub-generic-endpoints = <21>;
 			pinctrl-names = "default";
-			pinctrl-0 = <&pinctrl_usb2ad0_default>;
+			pinctrl-0 = <&pinctrl_usb2ahpd0_default>;
 			aspeed,txfifo-retry-quirk;
 			status = "disabled";
 		};
@@ -402,7 +402,7 @@
 			aspeed,vhub-downstream-ports = <7>;
 			aspeed,vhub-generic-endpoints = <21>;
 			pinctrl-names = "default";
-			pinctrl-0 = <&pinctrl_usb2bd0_default>;
+			pinctrl-0 = <&pinctrl_usb2bhpd0_default>;
 			aspeed,txfifo-retry-quirk;
 			status = "disabled";
 		};
