@@ -63,6 +63,20 @@ config I3C_PERF
 	  Useful for benchmarking master and bus-level performance.
 	  Only enable for development/testing.
 
+config I3C_OCP_RECOVERY
+	tristate "OCP Secure Firmware Recovery I3C binding"
+	depends on I3C
+	help
+	  Binds to I3C devices that advertise DCR 0xBD (OCP Secure
+	  Firmware Recovery target) and exposes a raw command/response
+	  sysfs interface at <i3c-device>/ocp_recovery/{cmd,cmd_resp},
+	  including SMBus PEC (CRC-8) framing on both directions, for
+	  use by userspace recovery tooling such as libocp /
+	  ocp-recovery-tool.
+
+	  This support is also available as a module. If so, the module
+	  will be called ocp-recovery.
+
 config I3C_HUB
 	tristate "I3C HUB support"
 	depends on I3C
