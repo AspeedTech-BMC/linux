@@ -1080,5 +1080,6 @@
 };
 
 &otp {
+	compatible = "aspeed,ast2705-otp";
 	status = "okay";
 };
