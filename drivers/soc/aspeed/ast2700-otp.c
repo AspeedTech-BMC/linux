@@ -145,28 +145,51 @@ static DEFINE_SPINLOCK(otp_state_lock);
 #define ECC_DISABLE			0x0
 #define ECCBRP_EN			BIT(0)
 
-#define ROM_REGION_START_ADDR		0x0
-#define ROM_REGION_END_ADDR		0x3e0
-#define RBP_REGION_START_ADDR		ROM_REGION_END_ADDR
-#define RBP_REGION_END_ADDR		0x400
-#define CONF_REGION_START_ADDR		RBP_REGION_END_ADDR
-#define CONF_REGION_END_ADDR		0x420
-#define STRAP_REGION_START_ADDR		CONF_REGION_END_ADDR
-#define STRAP_REGION_END_ADDR		0x430
-#define STRAPEXT_REGION_START_ADDR	STRAP_REGION_END_ADDR
-#define STRAPEXT_REGION_END_ADDR	0x440
-#define USER_REGION_START_ADDR		STRAPEXT_REGION_END_ADDR
-#define USER_REGION_END_ADDR		0x1000
-#define SEC_REGION_START_ADDR		USER_REGION_END_ADDR
-#define SEC_REGION_END_ADDR		0x1c00
-#define CAL_REGION_START_ADDR		SEC_REGION_END_ADDR
-#define CAL_REGION_END_ADDR		0x1f80
-#define SW_PUF_REGION_START_ADDR	CAL_REGION_END_ADDR
-#define SW_PUF_REGION_END_ADDR		0x1fc0
-#define HW_PUF_REGION_START_ADDR	SW_PUF_REGION_END_ADDR
-#define HW_PUF_REGION_END_ADDR		0x2000
+/* AST2700 region layout (word addresses) */
+#define AST2700_ROM_REGION_START_ADDR		0x0
+#define AST2700_ROM_REGION_END_ADDR		0x3e0
+#define AST2700_RBP_REGION_START_ADDR		AST2700_ROM_REGION_END_ADDR
+#define AST2700_RBP_REGION_END_ADDR		0x400
+#define AST2700_CONF_REGION_START_ADDR		AST2700_RBP_REGION_END_ADDR
+#define AST2700_CONF_REGION_END_ADDR		0x420
+#define AST2700_STRAP_REGION_START_ADDR		AST2700_CONF_REGION_END_ADDR
+#define AST2700_STRAP_REGION_END_ADDR		0x430
+#define AST2700_STRAPEXT_REGION_START_ADDR	AST2700_STRAP_REGION_END_ADDR
+#define AST2700_STRAPEXT_REGION_END_ADDR	0x440
+#define AST2700_USER_REGION_START_ADDR		AST2700_STRAPEXT_REGION_END_ADDR
+#define AST2700_USER_REGION_END_ADDR		0x1000
+#define AST2700_SEC_REGION_START_ADDR		AST2700_USER_REGION_END_ADDR
+#define AST2700_SEC_REGION_END_ADDR		0x1c00
+#define AST2700_CAL_REGION_START_ADDR		AST2700_SEC_REGION_END_ADDR
+#define AST2700_CAL_REGION_END_ADDR		0x1f80
+#define AST2700_SW_PUF_REGION_START_ADDR	AST2700_CAL_REGION_END_ADDR
+#define AST2700_SW_PUF_REGION_END_ADDR		0x1fc0
+#define AST2700_HW_PUF_REGION_START_ADDR	AST2700_SW_PUF_REGION_END_ADDR
+#define AST2700_HW_PUF_REGION_END_ADDR		0x2000
+#define AST2700_OTP_MEM_SIZE			AST2700_HW_PUF_REGION_END_ADDR
 
-#define OTP_MEMORY_SIZE			(HW_PUF_REGION_END_ADDR * 2)
+/* AST2705 region layout (word addresses) - TBD */
+#define AST2705_ROM_REGION_START_ADDR		0x0
+#define AST2705_ROM_REGION_END_ADDR		0x0
+#define AST2705_RBP_REGION_START_ADDR		0x0
+#define AST2705_RBP_REGION_END_ADDR		0x0
+#define AST2705_CONF_REGION_START_ADDR		0x0
+#define AST2705_CONF_REGION_END_ADDR		0x0
+#define AST2705_STRAP_REGION_START_ADDR		0x0
+#define AST2705_STRAP_REGION_END_ADDR		0x0
+#define AST2705_STRAPEXT_REGION_START_ADDR	0x0
+#define AST2705_STRAPEXT_REGION_END_ADDR	0x0
+#define AST2705_USER_REGION_START_ADDR		0x0
+#define AST2705_USER_REGION_END_ADDR		0x0
+#define AST2705_SEC_REGION_START_ADDR		0x0
+#define AST2705_SEC_REGION_END_ADDR		0x0
+#define AST2705_CAL_REGION_START_ADDR		0x0
+#define AST2705_CAL_REGION_END_ADDR		0x0
+#define AST2705_SW_PUF_REGION_START_ADDR	0x0
+#define AST2705_SW_PUF_REGION_END_ADDR		0x0
+#define AST2705_HW_PUF_REGION_START_ADDR	0x0
+#define AST2705_HW_PUF_REGION_END_ADDR		0x0
+#define AST2705_OTP_MEM_SIZE			0x1000
 
 #define OTP_TIMEOUT_US			10000
 
@@ -174,8 +197,8 @@ static DEFINE_SPINLOCK(otp_state_lock);
 #define OTPCAL_VKEY_HASH_W_OFFSET	0x12
 #define OTPCAL_VKEY_HASH_WORDS		24
 
-/* OTPSTRAP */
-#define OTPSTRAP0_ADDR			STRAP_REGION_START_ADDR
+/* OTPSTRAP (AST2700) */
+#define OTPSTRAP0_ADDR			AST2700_STRAP_REGION_START_ADDR
 #define OTPSTRAP14_ADDR			(OTPSTRAP0_ADDR + 0xe)
 
 #define OTPTOOL_VERSION(a, b, c)	(((a) << 24) + ((b) << 12) + (c))
@@ -217,17 +240,36 @@ struct otp_region_ecc {
 	bool	ecc_en;
 };
 
+/**
+ * struct aspeed_otp_plat_data - per-SoC OTP hardware configuration
+ * @gran_bits:           OTP word width in bits (16 or 32)
+ * @region_ecc:          per-region ECC policy defaults
+ * @mem_words:           total OTP address space in words
+ * @has_vendor_key_hash: vendor_key_hash sysfs attribute is supported
+ * @ecc_strap_addr:      OTP word address of the ECC-enable strap bit;
+ *                       0 means unknown (skip ecc_init, default disabled)
+ */
+struct aspeed_otp_plat_data {
+	u8				gran_bits;
+	const struct otp_region_ecc	*region_ecc;
+	u32				mem_words;
+	bool				has_vendor_key_hash;
+	u32				ecc_strap_addr;
+};
+
 struct aspeed_otp {
-	struct miscdevice	miscdev;
-	struct device		*dev;
-	void __iomem		*base;
-	u32			chip_revid0;
-	u32			chip_revid1;
-	bool			is_open;
-	int			gbl_ecc_en;
-	u8			*data;
-	/* per-instance live copy of otp_region_ecc_defaults, see below */
-	struct otp_region_ecc	region_ecc[OTP_REGION_MAX];
+	struct miscdevice			miscdev;
+	struct device				*dev;
+	void __iomem				*base;
+	const struct aspeed_otp_plat_data	*plat;
+	u32					chip_revid0;
+	u32					chip_revid1;
+	bool					is_open;
+	int					gbl_ecc_en;
+	u8					*data;
+
+	/* per-instance live copy of region_ecc from platform data */
+	struct otp_region_ecc			region_ecc[OTP_REGION_MAX];
 };
 
 enum otp_ioctl_cmds {
@@ -248,23 +290,42 @@ enum otp_ecc_codes {
  * OTPRBP/OTPSTRAP don't support ECC in hardware, so ecc_supported is false
  * and ecc_en can never be set for them, even by force. OTPSTRAPEXT does
  * support ECC, unlike OTPSTRAP.
+ *
+ * start/end are OTP word addresses (not byte offsets).
  */
-static const struct otp_region_ecc otp_region_ecc_defaults[OTP_REGION_MAX] = {
-	[OTP_REGION_ROM]      = { ROM_REGION_START_ADDR,      ROM_REGION_END_ADDR,       true,  true  },
-	[OTP_REGION_RBP]      = { RBP_REGION_START_ADDR,      RBP_REGION_END_ADDR,       false, false },
-	[OTP_REGION_CFG]      = { CONF_REGION_START_ADDR,     CONF_REGION_END_ADDR,      true,  false },
-	[OTP_REGION_STRAP]    = { STRAP_REGION_START_ADDR,    STRAP_REGION_END_ADDR,     false, false },
-	[OTP_REGION_STRAPEXT] = { STRAPEXT_REGION_START_ADDR, STRAPEXT_REGION_END_ADDR,  true,  false },
-	[OTP_REGION_USR]      = { USER_REGION_START_ADDR,     USER_REGION_END_ADDR,      true,  false },
-	[OTP_REGION_SEC]      = { SEC_REGION_START_ADDR,      SEC_REGION_END_ADDR,       true,  false },
-	[OTP_REGION_CAL]      = { CAL_REGION_START_ADDR,      CAL_REGION_END_ADDR,       true,  false },
-	[OTP_REGION_PUF]      = { SW_PUF_REGION_START_ADDR,   HW_PUF_REGION_END_ADDR,    true,  true  },
+static const struct otp_region_ecc ast2700_region_ecc[OTP_REGION_MAX] = {
+	[OTP_REGION_ROM]      = { AST2700_ROM_REGION_START_ADDR,      AST2700_ROM_REGION_END_ADDR,       true,  true  },
+	[OTP_REGION_RBP]      = { AST2700_RBP_REGION_START_ADDR,      AST2700_RBP_REGION_END_ADDR,       false, false },
+	[OTP_REGION_CFG]      = { AST2700_CONF_REGION_START_ADDR,     AST2700_CONF_REGION_END_ADDR,      true,  false },
+	[OTP_REGION_STRAP]    = { AST2700_STRAP_REGION_START_ADDR,    AST2700_STRAP_REGION_END_ADDR,     false, false },
+	[OTP_REGION_STRAPEXT] = { AST2700_STRAPEXT_REGION_START_ADDR, AST2700_STRAPEXT_REGION_END_ADDR,  true,  false },
+	[OTP_REGION_USR]      = { AST2700_USER_REGION_START_ADDR,     AST2700_USER_REGION_END_ADDR,      true,  false },
+	[OTP_REGION_SEC]      = { AST2700_SEC_REGION_START_ADDR,      AST2700_SEC_REGION_END_ADDR,       true,  false },
+	[OTP_REGION_CAL]      = { AST2700_CAL_REGION_START_ADDR,      AST2700_CAL_REGION_END_ADDR,       true,  false },
+	[OTP_REGION_PUF]      = { AST2700_SW_PUF_REGION_START_ADDR,   AST2700_HW_PUF_REGION_END_ADDR,    true,  true  },
+};
+
+static const struct aspeed_otp_plat_data ast2700_otp_plat_data = {
+	.gran_bits           = 16,
+	.region_ecc          = ast2700_region_ecc,
+	.mem_words           = AST2700_OTP_MEM_SIZE,
+	.has_vendor_key_hash = true,
+	.ecc_strap_addr      = OTPSTRAP14_ADDR,
+};
+
+static const struct aspeed_otp_plat_data ast2705_otp_plat_data = {
+	.gran_bits  = 32,
+	.region_ecc = NULL,
+	.mem_words  = AST2705_OTP_MEM_SIZE,
 };
 
 static bool otp_region_ecc_active(struct aspeed_otp *ctx, u32 offset)
 {
 	struct otp_region_ecc *region;
 	int i;
+
+	if (!ctx->plat->region_ecc)
+		return ctx->gbl_ecc_en;
 
 	for (i = 0; i < OTP_REGION_MAX; i++) {
 		region = &ctx->region_ecc[i];
@@ -377,7 +438,7 @@ static void otp_ecc_cfg(struct device *dev, bool ecc_en, bool auto_cfg)
 		writel(0x40008, ctx->base + OTP_DAP_CFG_RQ);
 }
 
-static int otp_read_data(struct aspeed_otp *ctx, u32 offset, u16 *data)
+static int otp_read_data(struct aspeed_otp *ctx, u32 offset, u32 *data)
 {
 	struct device *dev = ctx->dev;
 	bool ecc_en = otp_region_ecc_active(ctx, offset);
@@ -400,7 +461,7 @@ static int otp_read_data(struct aspeed_otp *ctx, u32 offset, u16 *data)
 	return ret;
 }
 
-static int otp_prog_data(struct aspeed_otp *ctx, u32 offset, u16 data)
+static int otp_prog_data(struct aspeed_otp *ctx, u32 offset, u32 data)
 {
 	struct device *dev = ctx->dev;
 
@@ -418,6 +479,9 @@ static int otp_prog_multi_data(struct aspeed_otp *ctx, u32 offset, u32 *data, in
 {
 	struct device *dev = ctx->dev;
 
+	if (count > 4)
+		return -EINVAL;
+
 	writel(otp_region_ecc_active(ctx, offset), ctx->base + OTP_ECC_EN);
 	writel(0x0, ctx->base + OTP_PMC_CQ);
 
@@ -434,16 +498,21 @@ static int aspeed_otp_read(struct aspeed_otp *ctx, int offset,
 			   void *buf, int size)
 {
 	struct device *dev = ctx->dev;
-	u16 *data = buf;
-	int ret;
+	u8 gran = ctx->plat->gran_bits;
+	u32 rdata;
+	int ret = 0;
 
 	otp_unlock(dev);
 	for (int i = 0; i < size; i++) {
-		ret = otp_read_data(ctx, offset + i, data + i);
+		ret = otp_read_data(ctx, offset + i, &rdata);
 		if (ret) {
 			dev_warn(ctx->dev, "read failed\n");
 			break;
 		}
+		if (gran == 32)
+			((u32 *)buf)[i] = rdata;
+		else
+			((u16 *)buf)[i] = (u16)rdata;
 	}
 
 	/* otp_lock(dev); see comment on otp_lock() */
@@ -454,16 +523,26 @@ static int aspeed_otp_write(struct aspeed_otp *ctx, int offset,
 			    const void *buf, int size)
 {
 	struct device *dev = ctx->dev;
-	u32 *data32 = (u32 *)buf;
-	u16 *data = (u16 *)buf;
+	u8 gran = ctx->plat->gran_bits;
 	int ret;
 
 	otp_unlock(dev);
 
-	if (size == 1)
-		ret = otp_prog_data(ctx, offset, data[0]);
-	else
-		ret = otp_prog_multi_data(ctx, offset, data32, size / 2);
+	if (gran == 32) {
+		const u32 *data = buf;
+
+		if (size == 1)
+			ret = otp_prog_data(ctx, offset, data[0]);
+		else
+			ret = otp_prog_multi_data(ctx, offset, (u32 *)data, size);
+	} else {
+		const u16 *data = buf;
+
+		if (size == 1)
+			ret = otp_prog_data(ctx, offset, data[0]);
+		else
+			ret = otp_prog_multi_data(ctx, offset, (u32 *)data, size / 2);
+	}
 
 	if (ret)
 		dev_warn(ctx->dev, "prog failed\n");
@@ -482,7 +561,7 @@ static int aspeed_otp_ecc_en(struct aspeed_otp *ctx, int enable)
 static ssize_t vendor_key_hash_show(struct device *dev,
 				    struct device_attribute *attr, char *buf)
 {
-	u32 offset = CAL_REGION_START_ADDR + OTPCAL_VKEY_HASH_W_OFFSET;
+	u32 offset = AST2700_CAL_REGION_START_ADDR + OTPCAL_VKEY_HASH_W_OFFSET;
 	struct aspeed_otp *ctx = dev_get_drvdata(dev);
 	u16 data[OTPCAL_VKEY_HASH_WORDS];
 	u8 *bytes = (u8 *)data;
@@ -520,18 +599,25 @@ static long aspeed_otp_ioctl(struct file *file, unsigned int cmd, unsigned long 
 	struct otp_read rdata;
 	struct otp_prog pdata;
 	struct otp_ecc_policy policy;
+	unsigned int gran_bytes;
 	int ret = 0;
+
+	gran_bytes = ctx->plat->gran_bits / 8;
 
 	switch (cmd) {
 	case ASPEED_OTP_READ_DATA:
 		if (copy_from_user(&rdata, argp, sizeof(struct otp_read)))
 			return -EFAULT;
 
+		if (rdata.len == 0 || rdata.len > ctx->plat->mem_words ||
+		    rdata.offset > ctx->plat->mem_words - rdata.len)
+			return -EINVAL;
+
 		ret = aspeed_otp_read(ctx, rdata.offset, ctx->data, rdata.len);
 		if (ret)
 			return ret;
 
-		if (copy_to_user(rdata.data, ctx->data, rdata.len * 2))
+		if (copy_to_user(rdata.data, ctx->data, rdata.len * gran_bytes))
 			return -EFAULT;
 
 		break;
@@ -540,7 +626,15 @@ static long aspeed_otp_ioctl(struct file *file, unsigned int cmd, unsigned long 
 		if (copy_from_user(&pdata, argp, sizeof(struct otp_prog)))
 			return -EFAULT;
 
-		ret = aspeed_otp_write(ctx, pdata.w_offset, pdata.data, pdata.len);
+		if (pdata.len == 0 || pdata.len > ctx->plat->mem_words ||
+		    pdata.w_offset > ctx->plat->mem_words - pdata.len)
+			return -EINVAL;
+
+		if (copy_from_user(ctx->data, (const void __user *)pdata.data,
+				   pdata.len * gran_bytes))
+			return -EFAULT;
+
+		ret = aspeed_otp_write(ctx, pdata.w_offset, ctx->data, pdata.len);
 		break;
 
 	case ASPEED_OTP_GET_ECC:
@@ -560,6 +654,9 @@ static long aspeed_otp_ioctl(struct file *file, unsigned int cmd, unsigned long 
 		break;
 
 	case ASPEED_OTP_GET_ECC_POLICY:
+		if (!ctx->plat->region_ecc)
+			return -EOPNOTSUPP;
+
 		if (copy_from_user(&policy, argp, sizeof(policy)))
 			return -EFAULT;
 
@@ -574,6 +671,9 @@ static long aspeed_otp_ioctl(struct file *file, unsigned int cmd, unsigned long 
 		break;
 
 	case ASPEED_OTP_SET_ECC_POLICY:
+		if (!ctx->plat->region_ecc)
+			return -EOPNOTSUPP;
+
 		if (copy_from_user(&policy, argp, sizeof(policy)))
 			return -EFAULT;
 
@@ -600,11 +700,16 @@ static int aspeed_otp_ecc_init(struct device *dev)
 	int ret;
 	u32 val;
 
+	if (!ctx->plat->ecc_strap_addr) {
+		ctx->gbl_ecc_en = 0;
+		return 0;
+	}
+
 	otp_unlock(dev);
 
 	/* Check cfg_ecc_en */
 	writel(0, ctx->base + OTP_ECC_EN);
-	writel(OTPSTRAP14_ADDR, ctx->base + OTP_ADDR);
+	writel(ctx->plat->ecc_strap_addr, ctx->base + OTP_ADDR);
 	writel(OTP_CMD_READ, ctx->base + OTP_CMD);
 	ret = wait_complete(dev);
 	if (ret)
@@ -662,7 +767,8 @@ static const struct file_operations otp_fops = {
 };
 
 static const struct of_device_id aspeed_otp_of_matches[] = {
-	{ .compatible = "aspeed,ast2700-otp" },
+	{ .compatible = "aspeed,ast2700-otp", .data = &ast2700_otp_plat_data },
+	{ .compatible = "aspeed,ast2705-otp", .data = &ast2705_otp_plat_data },
 	{ }
 };
 MODULE_DEVICE_TABLE(of, aspeed_otp_of_matches);
@@ -679,7 +785,12 @@ static int aspeed_otp_probe(struct platform_device *pdev)
 	if (!priv)
 		return -ENOMEM;
 
-	memcpy(priv->region_ecc, otp_region_ecc_defaults, sizeof(priv->region_ecc));
+	priv->plat = device_get_match_data(dev);
+	if (!priv->plat)
+		return -ENODEV;
+
+	if (priv->plat->region_ecc)
+		memcpy(priv->region_ecc, priv->plat->region_ecc, sizeof(priv->region_ecc));
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	if (!res) {
@@ -709,7 +820,7 @@ static int aspeed_otp_probe(struct platform_device *pdev)
 	if (rc)
 		return -EIO;
 
-	priv->data = kmalloc(OTP_MEMORY_SIZE, GFP_KERNEL);
+	priv->data = kmalloc(priv->plat->mem_words * (priv->plat->gran_bits / 8), GFP_KERNEL);
 	if (!priv->data)
 		return -ENOMEM;
 
@@ -726,11 +837,13 @@ static int aspeed_otp_probe(struct platform_device *pdev)
 	}
 
 #ifdef CONFIG_AST2700_OTP_SYSFS
-	rc = devm_device_add_group(dev, &aspeed_otp_attr_group);
-	if (rc) {
-		dev_err(dev, "failed to add sysfs attributes\n");
-		misc_deregister(&priv->miscdev);
-		return rc;
+	if (priv->plat->has_vendor_key_hash) {
+		rc = devm_device_add_group(dev, &aspeed_otp_attr_group);
+		if (rc) {
+			dev_err(dev, "failed to add sysfs attributes\n");
+			misc_deregister(&priv->miscdev);
+			return rc;
+		}
 	}
 #endif
 
