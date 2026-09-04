@@ -1,0 +1,43 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
+
+#include "ast2700-evb.dts"
+
+/ {
+	model = "AST2700 EVB USB Test";
+};
+
+&vhuba0 {
+	status = "disabled";
+};
+
+&vhuba1 {
+	status = "okay";
+};
+
+&vhubb0 {
+	status = "disabled";
+};
+
+&vhubb1 {
+	status = "okay";
+};
+
+&vhubc {
+	status = "okay";
+};
+
+&vhubd {
+	status = "okay";
+};
+
+&ehci2 {
+	status = "disabled";
+};
+
+&ehci3 {
+	status = "disabled";
+};
+
+&uhci1 {
+	status = "disabled";
+};

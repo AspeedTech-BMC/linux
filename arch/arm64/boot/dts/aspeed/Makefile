@@ -18,6 +18,7 @@ dtb-$(CONFIG_ARCH_ASPEED) += \
 	ast2700-fpga.dtb \
 	ast2700-ci-host.dtb \
 	ast2700-evb-ship-test.dtb \
+	ast2700-evb-usb.dtb \
 	ast2700a1-evb.dtb \
 	ast2700a1-raw.dtb \
 	ast2700a1-ncsi.dtb \
