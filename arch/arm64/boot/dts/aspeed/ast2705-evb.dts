@@ -1260,6 +1260,10 @@
 	status = "okay";
 };
 
+&rng {
+	status = "okay";
+};
+
 #if 0
 &soc0 {
 	mbox-ssp-0 {

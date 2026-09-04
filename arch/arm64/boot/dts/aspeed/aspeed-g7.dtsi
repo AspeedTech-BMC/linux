@@ -1548,6 +1548,7 @@
 		rng: hwrng@14c020f0 {
 			compatible = "aspeed,ast2700-trng";
 			reg = <0x0 0x14c020f0 0x0 0x8>;
+			aspeed,rng-mode = <3>;
 			status = "disabled";
 		};
 

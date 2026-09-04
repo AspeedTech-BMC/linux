@@ -138,6 +138,10 @@
 	};
 };
 
+&rng {
+	aspeed,rng-mode = <1>;
+};
+
 &i2c0 {
 	compatible = "aspeed,ast2705-i2c";
 };
