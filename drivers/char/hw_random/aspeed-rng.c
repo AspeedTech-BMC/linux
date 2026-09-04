@@ -6,7 +6,7 @@
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/mod_devicetable.h>
-#include <linux/regmap.h>
+#include <linux/of.h>
 #include <linux/slab.h>
 #include <linux/err.h>
 #include <linux/io.h>
@@ -16,17 +16,15 @@
 #define TRNG_CTL	0x00
 #define TRNG_EN		0x0
 #define TRNG_MODE	0x04
+#define TRNG_MODE_MASK	(3 << TRNG_MODE)
 #define TRNG_RDY	0x1f
 #define TRNG_ODATA	0x04
 
 struct aspeed_trng {
-	u32 ver;
+	struct device *dev;
 	void __iomem *base;
+	u32 mode;
 	struct hwrng rng;
-	unsigned int present: 1;
-	ktime_t period;
-	struct hrtimer timer;
-	struct completion completion;
 };
 
 static int aspeed_trng_read(struct hwrng *rng, void *buf, size_t max,
@@ -37,11 +35,17 @@ static int aspeed_trng_read(struct hwrng *rng, void *buf, size_t max,
 	size_t read = 0;
 	int timeout = max / 4 + 1;
 
+	dev_dbg(priv->dev, "read: max=%zu wait=%d CTL=0x%08x\n",
+		max, wait, readl(priv->base + TRNG_CTL));
+
 	while (read < max) {
 		if (!(readl(priv->base + TRNG_CTL) & (1 << TRNG_RDY))) {
 			if (wait) {
-				if (timeout-- == 0)
+				if (timeout-- == 0) {
+					dev_dbg(priv->dev, "read timeout: CTL=0x%08x\n",
+						readl(priv->base + TRNG_CTL));
 					return read;
+				}
 			} else {
 				return 0;
 			}
@@ -60,10 +64,12 @@ static void aspeed_trng_enable(struct aspeed_trng *priv)
 	u32 ctl;
 
 	ctl = readl(priv->base + TRNG_CTL);
-	ctl = ctl & ~(1 << TRNG_EN); /* enable rng */
-	ctl = ctl | (3 << TRNG_MODE); /* select mode */
-
+	ctl &= ~((1 << TRNG_EN) | TRNG_MODE_MASK);
+	ctl |= priv->mode << TRNG_MODE;
 	writel(ctl, priv->base + TRNG_CTL);
+
+	dev_dbg(priv->dev, "TRNG enabled: CTL=0x%08x (mode=%u)\n",
+		readl(priv->base + TRNG_CTL), priv->mode);
 }
 
 static void aspeed_trng_disable(struct aspeed_trng *priv)
@@ -82,10 +88,21 @@ static int aspeed_trng_probe(struct platform_device *pdev)
 	if (!priv)
 		return -ENOMEM;
 
+	priv->dev = dev;
+
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-	priv->base = devm_ioremap_resource(&pdev->dev, res);
-	if (IS_ERR(priv->base))
-		return PTR_ERR(priv->base);
+	if (!res)
+		return -EINVAL;
+
+	priv->base = devm_ioremap(&pdev->dev, res->start, resource_size(res));
+	if (!priv->base)
+		return -ENOMEM;
+
+	if (of_property_read_u32(dev->of_node, "aspeed,rng-mode", &priv->mode) ||
+	    priv->mode > 3) {
+		dev_warn(dev, "invalid or missing rng-mode, defaulting to 3\n");
+		priv->mode = 3;
+	}
 
 	priv->rng.name = pdev->name;
 	priv->rng.quality = 900;
