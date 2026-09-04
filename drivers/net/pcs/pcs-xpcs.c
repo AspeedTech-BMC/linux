@@ -1122,6 +1122,12 @@ static int xpcs_get_state_vr_usxgmii(struct dw_xpcs *xpcs,
 	state->duplex = DUPLEX_UNKNOWN;
 	state->pause = 0;
 
+	ret = xpcs_read(xpcs, MDIO_MMD_PCS, MDIO_STAT1);
+	if (ret < 0)
+		return ret;
+	if (!(ret & MDIO_STAT1_LSTATUS))
+		return 0;
+
 	/* USXGMII Clause 37 style AN: DW_VR_MII_AN_INTR_STS bits [14:8]
 	 * (USXG_AN_STS) always reflect the current link/speed/duplex
 	 * negotiated with the link partner, and must be consulted on every
