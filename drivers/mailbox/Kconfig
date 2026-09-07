@@ -297,10 +297,19 @@ config QCOM_IPCC
 
 config AST2700_MBOX
 	tristate "ASPEED AST2700 IPC driver"
-	depends on ARCH_ASPEED
+	depends on ARCH_ASPEED || COMPILE_TEST
 	help
-	  Say y here to enable support for the AST2700 IPC mailbox driver,
-	  providing an interface for invoking the inter-process communication
-	  signals from the application processor to other masters.
+	  Mailbox driver implementation for ASPEED AST27XX SoCs. This driver
+	  can be used to send message between different processors in SoC.
+	  The driver provides mailbox support for sending interrupts to the
+	  clients. Say Y here if you want to build this driver.
+
+config AST2700_MBOX_TX_POLL_PERIOD
+	int "ASPEED mailbox TX polling period"
+	depends on AST2700_MBOX
+	default 5
+	help
+	  Set the TX polling period in milliseconds for the AST2700
+	  mailbox controller.
 
 endif
