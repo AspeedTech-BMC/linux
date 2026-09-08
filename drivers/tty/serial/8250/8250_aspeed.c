@@ -450,7 +450,7 @@ static int ast8250_probe(struct platform_device *pdev)
 	if (!data)
 		return -ENOMEM;
 
-	data->dma.rx_rb = devm_kzalloc(dev, sizeof(data->dma.rx_rb), GFP_KERNEL);
+	data->dma.rx_rb = devm_kzalloc(dev, sizeof(*data->dma.rx_rb), GFP_KERNEL);
 	if (!data->dma.rx_rb)
 		return -ENOMEM;
 
