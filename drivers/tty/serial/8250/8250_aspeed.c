@@ -160,14 +160,19 @@ static void ast8250_dma_rx_complete(int rx_rb_wptr, void *id)
 			dma->rx_addr, dma->rx_rbsz, DMA_FROM_DEVICE);
 
 	while (CIRC_CNT(rx_rb->head, rx_rb->tail, rx_rbsz)) {
-		count = CIRC_CNT_TO_END(rx_rb->head, rx_rb->tail, rx_rbsz);
+		u32 chunk = CIRC_CNT_TO_END(rx_rb->head, rx_rb->tail, rx_rbsz);
+		size_t inserted;
 
-		tty_insert_flip_string(tp, rx_rb->buf + rx_rb->tail, count);
+		inserted = tty_insert_flip_string(tp, rx_rb->buf + rx_rb->tail, chunk);
 
-		rx_rb->tail += count;
+		rx_rb->tail += inserted;
 		rx_rb->tail %= rx_rbsz;
 
-		up->icount.rx += count;
+		count += inserted;
+		up->icount.rx += inserted;
+
+		if (inserted < chunk)
+			break;
 	}
 
 	if (count) {
@@ -196,6 +201,33 @@ static void ast8250_dma_flush_buffer(struct uart_port *port)
 	aspeed_udma_set_tx_wptr(dma->ch, rptr);
 }
 
+static void ast8250_dma_set_termios(struct uart_port *port,
+				    struct ktermios *termios,
+				    const struct ktermios *old)
+{
+	struct ast8250_data *data = port->private_data;
+	struct ast8250_udma *dma = &data->dma;
+	unsigned long flags;
+	u32 wptr;
+
+	serial8250_do_set_termios(port, termios, old);
+
+	if (!data->use_dma)
+		return;
+
+	uart_port_lock_irqsave(port, &flags);
+
+	wptr = aspeed_udma_get_rx_wptr(dma->ch);
+
+	dma->rx_rb->head = wptr;
+	dma->rx_rb->tail = wptr;
+	aspeed_udma_set_rx_rptr(dma->ch, wptr);
+
+	uart_port_unlock_irqrestore(port, flags);
+
+	aspeed_udma_rx_chan_ctrl(dma->ch, ASPEED_UDMA_OP_ENABLE);
+}
+
 static void ast8250_dma_pops_hook(struct uart_port *port)
 {
 	static int first = 1;
@@ -204,6 +236,7 @@ static void ast8250_dma_pops_hook(struct uart_port *port)
 		ast8250_pops = *port->ops;
 		ast8250_pops.start_tx = ast8250_dma_start_tx;
 		ast8250_pops.flush_buffer = ast8250_dma_flush_buffer;
+		ast8250_pops.set_termios = ast8250_dma_set_termios;
 	}
 
 	first = 0;
