@@ -84,21 +84,56 @@ struct ast8250_data {
 	struct ast8250_udma dma;
 };
 
+static void ast8250_dma_kick_tx(struct uart_port *port)
+{
+	struct ast8250_data *data = port->private_data;
+	struct ast8250_udma *dma = &data->dma;
+	typeof(dma->tport->xmit_fifo) *tmp = &dma->tport->xmit_fifo;
+	struct __kfifo *tx_rb = &tmp->kfifo;
+	u32 queued = tx_rb->in - tx_rb->out;
+	u32 wptr = tx_rb->in;
+
+	if (!queued)
+		return;
+
+	dma_sync_single_for_device(port->dev,
+				   dma->tx_addr, dma->tx_rbsz, DMA_TO_DEVICE);
+
+	/*
+	 * The UDMA engine can't tell "ring completely full" from "ring
+	 * empty" when wptr and rptr land on the same ring phase, so never
+	 * hand it a full ring in one go -- hold back the last byte and let
+	 * it go out on the next kick.
+	 */
+	if (queued >= dma->tx_rbsz)
+		wptr = tx_rb->in - 1;
+
+	aspeed_udma_set_tx_wptr(dma->ch, wptr % dma->tx_rbsz);
+}
+
 static void ast8250_dma_tx_complete(int tx_rb_rptr, void *id)
 {
 	unsigned long flags;
 	struct uart_port *port = id;
 	struct ast8250_data *data = port->private_data;
-	unsigned int count, tail;
+	unsigned int count, tail, queued;
 
 	uart_port_lock_irqsave(port, &flags);
 
+	queued = kfifo_len(&data->dma.tport->xmit_fifo);
 	count = kfifo_out_linear(&data->dma.tport->xmit_fifo, &tail, data->dma.tx_rbsz);
 	count = CIRC_CNT(tx_rb_rptr, tail, data->dma.tx_rbsz);
-	if (!count)
+	if (!count && queued == data->dma.tx_rbsz)
 		count = data->dma.tx_rbsz;
+
+	if (count > queued)
+		count = queued;
+
 	kfifo_dma_out_finish(&data->dma.tport->xmit_fifo, count);
 	port->icount.tx += count;
+
+	if (kfifo_len(&data->dma.tport->xmit_fifo))
+		ast8250_dma_kick_tx(port);
 
 	if (kfifo_len(&data->dma.tport->xmit_fifo) < WAKEUP_CHARS)
 		uart_write_wakeup(port);
@@ -145,15 +180,20 @@ static void ast8250_dma_rx_complete(int rx_rb_wptr, void *id)
 
 static void ast8250_dma_start_tx(struct uart_port *port)
 {
+	ast8250_dma_kick_tx(port);
+}
+
+static void ast8250_dma_flush_buffer(struct uart_port *port)
+{
 	struct ast8250_data *data = port->private_data;
 	struct ast8250_udma *dma = &data->dma;
-	typeof(&dma->tport->xmit_fifo) tmp = &dma->tport->xmit_fifo;
+	typeof(dma->tport->xmit_fifo) *tmp = &dma->tport->xmit_fifo;
 	struct __kfifo *tx_rb = &tmp->kfifo;
+	u32 rptr = aspeed_udma_get_tx_rptr(dma->ch);
 
-	dma_sync_single_for_device(port->dev,
-			dma->tx_addr, dma->tx_rbsz, DMA_TO_DEVICE);
-
-	aspeed_udma_set_tx_wptr(dma->ch, tx_rb->in);
+	tx_rb->in = rptr;
+	tx_rb->out = rptr;
+	aspeed_udma_set_tx_wptr(dma->ch, rptr);
 }
 
 static void ast8250_dma_pops_hook(struct uart_port *port)
@@ -163,6 +203,7 @@ static void ast8250_dma_pops_hook(struct uart_port *port)
 	if (first) {
 		ast8250_pops = *port->ops;
 		ast8250_pops.start_tx = ast8250_dma_start_tx;
+		ast8250_pops.flush_buffer = ast8250_dma_flush_buffer;
 	}
 
 	first = 0;
