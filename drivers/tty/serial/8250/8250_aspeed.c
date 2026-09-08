@@ -271,7 +271,7 @@ static int ast8250_startup(struct uart_port *port)
 		if (dma_mapping_error(port->dev, dma->tx_addr)) {
 			dev_err(port->dev, "failed to map streaming TX DMA region\n");
 			rc = -ENOMEM;
-			goto free_dma_n_out;
+			goto free_buf;
 		}
 
 		dma->rx_addr = dma_map_single(port->dev, dma->rx_rb->buf,
@@ -279,21 +279,21 @@ static int ast8250_startup(struct uart_port *port)
 		if (dma_mapping_error(port->dev, dma->rx_addr)) {
 			dev_err(port->dev, "failed to map streaming RX DMA region\n");
 			rc = -ENOMEM;
-			goto free_dma_n_out;
+			goto unmap_tx;
 		}
 
 		rc = aspeed_udma_request_tx_chan(dma->ch, dma->tx_addr,
 				dma->tx_rbsz, ast8250_dma_tx_complete, port, dma->tx_tmout_dis);
 		if (rc) {
 			dev_err(port->dev, "failed to request DMA TX channel\n");
-			goto free_dma_n_out;
+			goto unmap_rx;
 		}
 
 		rc = aspeed_udma_request_rx_chan(dma->ch, dma->rx_addr,
 				dma->rx_rbsz, ast8250_dma_rx_complete, port, dma->rx_tmout_dis);
 		if (rc) {
 			dev_err(port->dev, "failed to request DMA RX channel\n");
-			goto free_dma_n_out;
+			goto free_tx_chan;
 		}
 
 		ast8250_dma_pops_hook(port);
@@ -305,7 +305,13 @@ static int ast8250_startup(struct uart_port *port)
 	memset(&port->icount, 0, sizeof(port->icount));
 	return serial8250_do_startup(port);
 
-free_dma_n_out:
+free_tx_chan:
+	aspeed_udma_free_tx_chan(dma->ch);
+unmap_rx:
+	dma_unmap_single(port->dev, dma->rx_addr, dma->rx_rbsz, DMA_FROM_DEVICE);
+unmap_tx:
+	dma_unmap_single(port->dev, dma->tx_addr, dma->tx_rbsz, DMA_TO_DEVICE);
+free_buf:
 	kfree(dma->rx_rb->buf);
 out:
 	return rc;
