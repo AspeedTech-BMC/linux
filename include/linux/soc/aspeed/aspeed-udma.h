@@ -11,6 +11,8 @@ enum aspeed_udma_ops {
 
 void aspeed_udma_set_tx_wptr(u32 ch_no, u32 wptr);
 void aspeed_udma_set_rx_rptr(u32 ch_no, u32 rptr);
+u32  aspeed_udma_get_tx_rptr(u32 ch_no);
+u32  aspeed_udma_get_rx_wptr(u32 ch_no);
 
 void aspeed_udma_tx_chan_ctrl(u32 ch_no, enum aspeed_udma_ops op);
 void aspeed_udma_rx_chan_ctrl(u32 ch_no, enum aspeed_udma_ops op);
