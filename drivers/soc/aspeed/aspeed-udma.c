@@ -251,7 +251,7 @@ static void aspeed_udma_chan_ctrl(u32 ch_no, u32 op, bool is_tx)
 	unsigned long flags;
 	u32 reg_en, reg_rst;
 	u32 reg_en_off = (is_tx) ? UDMA_TX_DMA_EN : UDMA_RX_DMA_EN;
-	u32 reg_rst_off = (is_tx) ? UDMA_TX_DMA_RST : UDMA_TX_DMA_RST;
+	u32 reg_rst_off = (is_tx) ? UDMA_TX_DMA_RST : UDMA_RX_DMA_RST;
 
 	if (ch_no > UDMA_MAX_CHANNEL)
 		return;
