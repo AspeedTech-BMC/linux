@@ -1472,4 +1472,40 @@
 		groups = "MACLINK1";
 	};
 
+	/*
+	 * The following groups from aspeed-g7-pinctrl1.dtsi do not exist in
+	 * pinctrl-aspeed-g75-soc1.c (either genuinely absent on this SoC, or
+	 * renamed to a different group name), so drop the inherited nodes.
+	 */
+	/delete-node/ dsgpm0-default;
+	/delete-node/ pwm8-default;
+	/delete-node/ pwm9-default;
+	/delete-node/ pwm10-default;
+	/delete-node/ pwm11-default;
+	/delete-node/ pwm12-default;
+	/delete-node/ pwm13-default;
+	/delete-node/ pwm14-default;
+	/delete-node/ pwm15-default;
+	/delete-node/ vpi-default;
+	/delete-node/ hvi3c0-default;
+	/delete-node/ hvi3c1-default;
+	/delete-node/ hvi3c2-default;
+	/delete-node/ hvi3c3-default;
+	/delete-node/ hvi3c12-default;
+	/delete-node/ hvi3c13-default;
+	/delete-node/ hvi3c14-default;
+	/delete-node/ hvi3c15-default;
+	/delete-node/ ltpipsi2c0_default;
+	/delete-node/ ltpipsi2c1_default;
+	/delete-node/ ltpipsi2c2_default;
+	/delete-node/ ltpipsi2c3_default;
+	/delete-node/ canstby-default;
+	/delete-node/ di2c8-default;
+	/delete-node/ di2c9-default;
+	/delete-node/ di2c10-default;
+	/delete-node/ di2c11-default;
+	/delete-node/ di2c12-default;
+	/delete-node/ di2c13-default;
+	/delete-node/ di2c14-default;
+	/delete-node/ di2c15-default;
 };
