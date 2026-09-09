@@ -645,10 +645,6 @@ static void ast2700_i2c_target_packet_dma_irq(struct ast2600_i2c_bus *i2c_bus, u
 		writel(ac_timing, i2c_bus->reg_base + AST2600_I2CC_AC_TIMING);
 		ac_timing |= AST2700_I2CC_TTIMEOUT(i2c_bus->timeout);
 		writel(ac_timing, i2c_bus->reg_base + AST2600_I2CC_AC_TIMING);
-		cmd = TARGET_TRIGGER_CMD | AST2600_I2CS_RX_DMA_EN;
-		writel(AST2600_I2CS_SET_RX_DMA_LEN(I2C_TARGET_MSG_BUF_SIZE),
-		       i2c_bus->reg_base + AST2600_I2CS_DMA_LEN);
-		writel(cmd, i2c_bus->reg_base + AST2600_I2CS_CMD_STS);
 		/* clear sirq log */
 		while ((sirq_log = readl(i2c_bus->reg_base + AST2700_I2CC_SIRQ_LOG))) {
 			/* assign the target client*/
@@ -663,15 +659,15 @@ static void ast2700_i2c_target_packet_dma_irq(struct ast2600_i2c_bus *i2c_bus, u
 			i2c_slave_event(i2c_bus->target, I2C_SLAVE_STOP, &value);
 			i2c_bus->target = NULL;
 		}
+		cmd = TARGET_TRIGGER_CMD | AST2600_I2CS_RX_DMA_EN;
+		writel(AST2600_I2CS_SET_RX_DMA_LEN(I2C_TARGET_MSG_BUF_SIZE),
+		       i2c_bus->reg_base + AST2600_I2CS_DMA_LEN);
+		writel(cmd, i2c_bus->reg_base + AST2600_I2CS_CMD_STS);
 		return;
 	}
 
 	if (sts & AST2600_I2CS_ABNOR_STOP) {
 		dev_err(i2c_bus->dev, "The target abnomal protocol occurs isr: 0x%08x.\n", isr);
-		cmd = TARGET_TRIGGER_CMD | AST2600_I2CS_RX_DMA_EN;
-		writel(AST2600_I2CS_SET_RX_DMA_LEN(I2C_TARGET_MSG_BUF_SIZE),
-		       i2c_bus->reg_base + AST2600_I2CS_DMA_LEN);
-		writel(cmd, i2c_bus->reg_base + AST2600_I2CS_CMD_STS);
 		/* clear sirq log */
 		while ((sirq_log = readl(i2c_bus->reg_base + AST2700_I2CC_SIRQ_LOG))) {
 			/* assign the target client*/
@@ -686,6 +682,10 @@ static void ast2700_i2c_target_packet_dma_irq(struct ast2600_i2c_bus *i2c_bus, u
 			i2c_slave_event(i2c_bus->target, I2C_SLAVE_STOP, &value);
 			i2c_bus->target = NULL;
 		}
+		cmd = TARGET_TRIGGER_CMD | AST2600_I2CS_RX_DMA_EN;
+		writel(AST2600_I2CS_SET_RX_DMA_LEN(I2C_TARGET_MSG_BUF_SIZE),
+		       i2c_bus->reg_base + AST2600_I2CS_DMA_LEN);
+		writel(cmd, i2c_bus->reg_base + AST2600_I2CS_CMD_STS);
 		return;
 	}
 
@@ -1085,7 +1085,6 @@ static void ast2700_i2c_target_packet_buff_irq(struct ast2600_i2c_bus *i2c_bus, 
 		writel(ac_timing, i2c_bus->reg_base + AST2600_I2CC_AC_TIMING);
 		ac_timing |= AST2700_I2CC_TTIMEOUT(i2c_bus->timeout);
 		writel(ac_timing, i2c_bus->reg_base + AST2600_I2CC_AC_TIMING);
-		writel(TARGET_TRIGGER_CMD, i2c_bus->reg_base + AST2600_I2CS_CMD_STS);
 		/* clear sirq log */
 		while ((sirq_log = readl(i2c_bus->reg_base + AST2700_I2CC_SIRQ_LOG))) {
 			/* assign the target client*/
@@ -1100,13 +1099,14 @@ static void ast2700_i2c_target_packet_buff_irq(struct ast2600_i2c_bus *i2c_bus, 
 			i2c_slave_event(i2c_bus->target, I2C_SLAVE_STOP, &value);
 			i2c_bus->target = NULL;
 		}
+		cmd = TARGET_TRIGGER_CMD | AST2600_I2CS_RX_DMA_EN;
+		writel(cmd, i2c_bus->reg_base + AST2600_I2CS_CMD_STS);
 		i2c_bus->target_operate = 0;
 		return;
 	}
 
 	if (sts & AST2600_I2CS_ABNOR_STOP) {
 		dev_err(i2c_bus->dev, "The target abnomal protocol occurs isr: 0x%08x.\n", isr);
-		writel(TARGET_TRIGGER_CMD, i2c_bus->reg_base + AST2600_I2CS_CMD_STS);
 		/* clear sirq log */
 		while ((sirq_log = readl(i2c_bus->reg_base + AST2700_I2CC_SIRQ_LOG))) {
 			/* assign the target client*/
@@ -1121,6 +1121,8 @@ static void ast2700_i2c_target_packet_buff_irq(struct ast2600_i2c_bus *i2c_bus, 
 			i2c_slave_event(i2c_bus->target, I2C_SLAVE_STOP, &value);
 			i2c_bus->target = NULL;
 		}
+		cmd = TARGET_TRIGGER_CMD | AST2600_I2CS_RX_DMA_EN;
+		writel(cmd, i2c_bus->reg_base + AST2600_I2CS_CMD_STS);
 		i2c_bus->target_operate = 0;
 		return;
 	}
