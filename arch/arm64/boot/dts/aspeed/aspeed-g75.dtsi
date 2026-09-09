@@ -120,7 +120,7 @@
 			};
 
 			pinctrl1: pinctrl@400 {
-				compatible = "aspeed,ast2700-soc1-pinctrl";
+				compatible = "aspeed,ast2705-soc1-pinctrl";
 				reg = <0x400 0x100>;
 			};
 		};
@@ -218,3 +218,42 @@
 	/* AST2705 uhci1 has a fixed IP revision, no errata workaround needed */
 	/delete-property/ aspeed,dma-quirk;
 };
+
+/*
+ * aspeed-g7.dtsi points these at the HVI3Cn pinctrl nodes, which no longer
+ * exist under the g75 soc1 pinctrl driver (renamed to I3Cn). Repoint them
+ * at the correct nodes; all of these remain status = "disabled" by default.
+ */
+&i3c0 {
+	pinctrl-0 = <&pinctrl_i3c0_default>;
+};
+
+&i3c1 {
+	pinctrl-0 = <&pinctrl_i3c1_default>;
+};
+
+&i3c2 {
+	pinctrl-0 = <&pinctrl_i3c2_default>;
+};
+
+&i3c3 {
+	pinctrl-0 = <&pinctrl_i3c3_default>;
+};
+
+&i3c12 {
+	pinctrl-0 = <&pinctrl_i3c12_default>;
+};
+
+&i3c13 {
+	pinctrl-0 = <&pinctrl_i3c13_default>;
+};
+
+&i3c14 {
+	pinctrl-0 = <&pinctrl_i3c14_default>;
+};
+
+&i3c15 {
+	pinctrl-0 = <&pinctrl_i3c15_default>;
+};
+
+#include "aspeed-g75-pinctrl1.dtsi"

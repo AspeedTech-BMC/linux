@@ -150,7 +150,6 @@
 		     &pinctrl_pwm2_default &pinctrl_pwm3_default
 		     &pinctrl_pwm4_default &pinctrl_pwm5_default
 		     &pinctrl_pwm6_default &pinctrl_pwm7_default
-		     &pinctrl_pwm8_default
 		     &pinctrl_tach0_default &pinctrl_tach1_default
 		     &pinctrl_tach2_default &pinctrl_tach3_default
 		     &pinctrl_tach4_default &pinctrl_tach5_default
