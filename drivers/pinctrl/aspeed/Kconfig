@@ -38,4 +38,26 @@ config PINCTRL_ASPEED_G7
 	select PINCTRL_ASPEED
 	help
 	  Say Y here to enable pin controller support for Aspeed's 7th
+	  generation SoCs (soc0 and ltpi are shared with g75; this also
+	  covers g7's own soc1, see PINCTRL_ASPEED_G7_SOC1). GPIO is
+	  provided by a separate GPIO driver.
+
+config PINCTRL_ASPEED_G7_SOC1
+	bool "Aspeed G7 SoC1 (ast2700) pin control"
+	depends on PINCTRL_ASPEED_G7
+	default y
+	help
+	  Say Y here to enable the g7 (ast2700) variant's own soc1 pin
+	  controller. Say N if this kernel image only needs to support g75
+	  (ast2705) boards and doesn't need g7's soc1 driver.
+
+config PINCTRL_ASPEED_G75
+	bool "Aspeed G75 SoC pin control"
+	depends on (ARCH_ASPEED || COMPILE_TEST) && OF
+	select PINCTRL_ASPEED
+	select PINCTRL_ASPEED_G7
+	help
+	  Say Y here to enable pin controller support for Aspeed's G75
 	  generation SoCs. GPIO is provided by a separate GPIO driver.
+	  G75 reuses g7's soc0 and ltpi pin controllers, so this selects
+	  PINCTRL_ASPEED_G7.
