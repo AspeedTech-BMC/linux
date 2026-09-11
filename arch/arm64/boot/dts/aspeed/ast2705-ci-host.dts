@@ -100,14 +100,6 @@
 	status = "okay";
 };
 
-&mdio0 {
-	status = "disabled";
-};
-
-&mdio1 {
-	status = "disabled";
-};
-
 &sgpios {
 	status = "disabled";
 };
