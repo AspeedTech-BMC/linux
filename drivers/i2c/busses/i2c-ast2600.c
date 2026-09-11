@@ -1283,8 +1283,8 @@ static void ast2700_i2c_target_packet_buff_irq(struct ast2600_i2c_bus *i2c_bus, 
 			if (!i2c_bus->target)
 				ast2700_i2c_get_target(i2c_bus, sirq_log >> SLAVE_ADDR_SHIFT);
 			if (i2c_bus->target) {
-				i2c_slave_event(i2c_bus->target, I2C_SLAVE_WRITE_REQUESTED,
-						&i2c_bus->target_dma_buf[0]);
+				value = readb(i2c_bus->buf_base + 0x30);
+				i2c_slave_event(i2c_bus->target, I2C_SLAVE_WRITE_REQUESTED, &value);
 			}
 			sirq_log = readl(i2c_bus->reg_base + AST2700_I2CC_SIRQ_LOG);
 		}
