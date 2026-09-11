@@ -1565,8 +1565,6 @@ static void ast2700_i2c_target_packet_buff_irq(struct ast2600_i2c_bus *i2c_bus, 
 
 	if ((sts & AST2600_I2CS_STOP) && !(sts & AST2600_I2CS_SLAVE_PENDING))
 		i2c_bus->target_operate = 0;
-	else
-		i2c_bus->previous_idx = AST2600_I2CS_GET_TARGET(sts);
 }
 
 static void ast2600_i2c_target_packet_dma_irq(struct ast2600_i2c_bus *i2c_bus, u32 sts)
