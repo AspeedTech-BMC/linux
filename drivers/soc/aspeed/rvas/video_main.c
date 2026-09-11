@@ -1150,12 +1150,19 @@ void enable_rvas_engines(struct AstRVAS *pAstRVAS)
 
 static void reset_rvas_engine(struct AstRVAS *pAstRVAS)
 {
+	if (pAstRVAS->config->version == 7) {
+		reset_control_assert(pAstRVAS->rvas_reset);
+		usleep_range(100, 200);
+	}
+
 	disable_rvas_engines(pAstRVAS);
-	mdelay(200);
+	mdelay(20);
+	enable_rvas_engines(pAstRVAS);
+	mdelay(20);
 	if (pAstRVAS->config->version == 7)
 		reset_control_deassert(pAstRVAS->rvas_reset);
-	mdelay(200);
-	enable_rvas_engines(pAstRVAS);
+
+	mdelay(20);
 
 	rvas_init(pAstRVAS);
 }
@@ -1729,6 +1736,7 @@ static int video_drv_probe(struct platform_device *pdev)
 	VIDEO_DBG("After IRQ registration\n");
 
 	init_osr_es(pAstRVAS);
+	reset_rvas_engine(pAstRVAS);
 	rvas_init(pAstRVAS);
 	video_engine_reserveMem(pAstRVAS);
 	video_on(pAstRVAS);
