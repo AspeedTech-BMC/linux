@@ -52,6 +52,7 @@ struct i3c_hci {
 	void *io_data;
 	const struct hci_cmd_ops *cmd;
 	spinlock_t lock;
+	bool irq_inactive;
 	struct mutex control_mutex;
 	atomic_t next_cmd_tid;
 	u32 caps;
@@ -70,7 +71,6 @@ struct i3c_hci {
 	void *vendor_data;
 	struct completion ibi_comp;
 	struct completion pending_r_comp;
-	struct work_struct hj_work;
 	struct work_struct halt_rst_work;
 
 	/* Used for handling private write */

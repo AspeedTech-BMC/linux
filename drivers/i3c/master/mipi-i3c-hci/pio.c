@@ -140,7 +140,7 @@ static int hci_pio_init(struct i3c_hci *hci)
 	struct hci_pio_data *pio;
 	u32 val, size_val, rx_thresh, tx_thresh, ibi_val;
 
-	pio = kzalloc(sizeof(*pio), GFP_KERNEL);
+	pio = devm_kzalloc(hci->master.dev.parent, sizeof(*pio), GFP_KERNEL);
 	if (!pio)
 		return -ENOMEM;
 
@@ -251,8 +251,6 @@ static void hci_pio_cleanup(struct i3c_hci *hci)
 		BUG_ON(pio->curr_rx);
 		BUG_ON(pio->curr_tx);
 		BUG_ON(pio->curr_resp);
-		kfree(pio);
-		hci->io_data = NULL;
 	}
 }
 
@@ -1038,7 +1036,7 @@ static bool hci_pio_prep_new_ibi(struct i3c_hci *hci, struct hci_pio_data *pio)
 	ibi_addr = FIELD_GET(IBI_TARGET_ADDR, ibi_status);
 	ibi_rnw = FIELD_GET(IBI_TARGET_RNW, ibi_status);
 	if (IBI_TYPE_HJ(ibi_addr, ibi_rnw)) {
-		queue_work(hci->master.wq, &hci->hj_work);
+		i3c_master_queue_hotjoin(&hci->master);
 		return false;
 	} else if (IBI_TYPE_CR(ibi_addr, ibi_rnw)) {
 		dev_info(&hci->master.dev,

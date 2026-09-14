@@ -14,6 +14,10 @@
 
 extern const struct device_type i3c_masterdev_type;
 
+int __must_check i3c_bus_rpm_get(struct i3c_bus *bus);
+void i3c_bus_rpm_put(struct i3c_bus *bus);
+bool i3c_bus_rpm_ibi_allowed(struct i3c_bus *bus);
+
 void i3c_bus_normaluse_lock(struct i3c_bus *bus);
 void i3c_bus_normaluse_unlock(struct i3c_bus *bus);
 
