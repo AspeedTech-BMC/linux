@@ -1240,7 +1240,6 @@ static struct platform_driver aspeed_pcie_driver = {
 		.name = "aspeed-pcie",
 		.of_match_table = aspeed_pcie_of_match,
 		.suppress_bind_attrs = true,
-		.probe_type = PROBE_PREFER_ASYNCHRONOUS,
 	},
 	.probe = aspeed_pcie_probe,
 };
