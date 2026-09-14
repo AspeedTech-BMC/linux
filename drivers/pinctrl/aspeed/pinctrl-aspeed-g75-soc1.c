@@ -49,11 +49,7 @@
 #define SCU460 0x460 /* Multi-function Pin Control #25 */
 #define SCU464 0x464 /* Multi-function Pin Control #26 */
 #define SCU468 0x468 /* Multi-function Pin Control #27 */
-#define SCU46C 0x46C /* Multi-function Pin Control #28 */
-#define SCU470 0x470 /* Multi-function Pin Control #29 */
-#define SCU474 0x474 /* Multi-function Pin Control #30 */
-#define SCU478 0x478 /* Multi-function Pin Control #31 */
-#define SCU47C 0x47C
+#define SCU46C 0x46C /* Multi-function Pin Control #31 (PHY select) */
 
 #define SCU908 0x908 /* PCIe RC PERST Pin Control */
 
@@ -2016,7 +2012,7 @@ FUNCFG_DESCL(L26, PIN_CFG(SGPM1, SCU468, GENMASK(26, 24), (1 << 24)),
 FUNCFG_DESCL(K26, PIN_CFG(SGPM1LD_R, SCU468, GENMASK(30, 28), (1 << 28)),
 	     PIN_CFG(WDTRST6N, SCU468, GENMASK(30, 28), (2 << 28)),
 	     PIN_CFG(MACLINK1, SCU468, GENMASK(30, 28), (3 << 28)));
-FUNCFG_DESCL(SGMII0, PIN_CFG(SGMII, SCU47C, BIT(0), 1 << 0));
+FUNCFG_DESCL(SGMII0, PIN_CFG(SGMII, SCU46C, BIT(0), 1 << 0));
 FUNCFG_DESCL(PCIERC2_PERST, PIN_CFG(PE2SGRSTN, SCU908, BIT(1), 1 << 1));
 FUNCFG_DESCL(PORTC_MODE, PIN_CFG(USB2CUD, SCU3B0, GENMASK(1, 0), 0),
 	     PIN_CFG(USB2CD, SCU3B0, GENMASK(1, 0), 1 << 0),
