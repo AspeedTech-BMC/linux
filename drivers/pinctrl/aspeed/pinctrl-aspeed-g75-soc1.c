@@ -51,6 +51,106 @@
 #define SCU468 0x468 /* Multi-function Pin Control #27 */
 #define SCU46C 0x46C /* Multi-function Pin Control #31 (PHY select) */
 
+#define SCU470 0x470 /* Disable Pull-Down Control #7 (GPIOY0-7/GPIOZ0-7) */
+#define SCU490 0x490 /* GPIOA0/A1 PIN Configuration Register */
+#define SCU494 0x494 /* GPIOA2/A3 PIN Configuration Register */
+#define SCU498 0x498 /* GPIOA4/A5 PIN Configuration Register */
+#define SCU49C 0x49C /* GPIOA6/A7 PIN Configuration Register */
+#define SCU4A0 0x4A0 /* GPIOB0/B1 PIN Configuration Register */
+#define SCU4A4 0x4A4 /* GPIOB2/B3 PIN Configuration Register */
+#define SCU4A8 0x4A8 /* GPIOB4/B5 PIN Configuration Register */
+#define SCU4AC 0x4AC /* GPIOB6/B7 PIN Configuration Register */
+#define SCU4B0 0x4B0 /* GPIOC0/C1 PIN Configuration Register */
+#define SCU4B4 0x4B4 /* GPIOC2/C3 PIN Configuration Register */
+#define SCU4B8 0x4B8 /* GPIOC4/C5 PIN Configuration Register */
+#define SCU4BC 0x4BC /* GPIOC6/C7 PIN Configuration Register */
+#define SCU4C0 0x4C0 /* GPIOD0/D1 PIN Configuration Register */
+#define SCU4C4 0x4C4 /* GPIOD2/D3 PIN Configuration Register */
+#define SCU4C8 0x4C8 /* GPIOD4/D5 PIN Configuration Register */
+#define SCU4CC 0x4CC /* GPIOD6/D7 PIN Configuration Register */
+#define SCU4D0 0x4D0 /* GPIOE0/E1 PIN Configuration Register */
+#define SCU4D4 0x4D4 /* GPIOE2/E3 PIN Configuration Register */
+#define SCU4D8 0x4D8 /* GPIOE4/E5 PIN Configuration Register */
+#define SCU4DC 0x4DC /* GPIOE6/E7 PIN Configuration Register */
+#define SCU4E0 0x4E0 /* GPIOF0/F1 PIN Configuration Register */
+#define SCU4E4 0x4E4 /* GPIOF2/F3 PIN Configuration Register */
+#define SCU4E8 0x4E8 /* GPIOF4/F5 PIN Configuration Register */
+#define SCU4EC 0x4EC /* GPIOF6/F7 PIN Configuration Register */
+#define SCU4F0 0x4F0 /* GPIOG0/G1 PIN Configuration Register */
+#define SCU4F4 0x4F4 /* GPIOG2/G3 PIN Configuration Register */
+#define SCU4F8 0x4F8 /* GPIOG4/G5 PIN Configuration Register */
+#define SCU4FC 0x4FC /* GPIOG6/G7 PIN Configuration Register */
+#define SCU500 0x500 /* GPIOH0/H1 PIN Configuration Register */
+#define SCU504 0x504 /* GPIOH2/H3 PIN Configuration Register */
+#define SCU510 0x510 /* GPIOI0/I1 PIN Configuration Register */
+#define SCU514 0x514 /* GPIOI2/I3 PIN Configuration Register */
+#define SCU518 0x518 /* GPIOI4/I5 PIN Configuration Register */
+#define SCU51C 0x51C /* GPIOI6/I7 PIN Configuration Register */
+#define SCU520 0x520 /* GPIOJ0/J1 PIN Configuration Register */
+#define SCU524 0x524 /* GPIOJ2/J3 PIN Configuration Register */
+#define SCU528 0x528 /* GPIOJ4/J5 PIN Configuration Register */
+#define SCU52C 0x52C /* GPIOJ6/J7 PIN Configuration Register */
+#define SCU530 0x530 /* GPIOK0/K1 PIN Configuration Register */
+#define SCU534 0x534 /* GPIOK2/K3 PIN Configuration Register */
+#define SCU538 0x538 /* GPIOK4/K5 PIN Configuration Register */
+#define SCU53C 0x53C /* GPIOK6/K7 PIN Configuration Register */
+#define SCU540 0x540 /* GPIOL0/L1 PIN Configuration Register */
+#define SCU544 0x544 /* GPIOL2/L3 PIN Configuration Register */
+#define SCU548 0x548 /* GPIOL4/L5 PIN Configuration Register */
+#define SCU54C 0x54C /* GPIOL6/L7 PIN Configuration Register */
+#define SCU550 0x550 /* GPIOM0/M1 PIN Configuration Register */
+#define SCU554 0x554 /* GPIOM2/M3 PIN Configuration Register */
+#define SCU558 0x558 /* GPIOM4/M5 PIN Configuration Register */
+#define SCU55C 0x55C /* GPIOM6/M7 PIN Configuration Register */
+#define SCU560 0x560 /* GPION0/N1 PIN Configuration Register */
+#define SCU564 0x564 /* GPION2/N3 PIN Configuration Register */
+#define SCU568 0x568 /* GPION4/N5 PIN Configuration Register */
+#define SCU56C 0x56C /* GPION6/N7 PIN Configuration Register */
+#define SCU570 0x570 /* GPIOO0/O1 PIN Configuration Register */
+#define SCU574 0x574 /* GPIOO2/O3 PIN Configuration Register */
+#define SCU578 0x578 /* GPIOO4/O5 PIN Configuration Register */
+#define SCU57C 0x57C /* GPIOO6/O7 PIN Configuration Register */
+#define SCU580 0x580 /* GPIOP0/P1 PIN Configuration Register */
+#define SCU584 0x584 /* GPIOP2/P3 PIN Configuration Register */
+#define SCU588 0x588 /* GPIOP4/P5 PIN Configuration Register */
+#define SCU58C 0x58C /* GPIOP6/P7 PIN Configuration Register */
+#define SCU590 0x590 /* GPIOQ0/Q1 PIN Configuration Register */
+#define SCU594 0x594 /* GPIOQ2/Q3 PIN Configuration Register */
+#define SCU598 0x598 /* GPIOQ4/Q5 PIN Configuration Register */
+#define SCU59C 0x59C /* GPIOQ6/Q7 PIN Configuration Register */
+#define SCU5A0 0x5A0 /* GPIOR0/R1 PIN Configuration Register */
+#define SCU5A4 0x5A4 /* GPIOR2/R3 PIN Configuration Register */
+#define SCU5A8 0x5A8 /* GPIOR4/R5 PIN Configuration Register */
+#define SCU5AC 0x5AC /* GPIOR6/R7 PIN Configuration Register */
+#define SCU5B0 0x5B0 /* GPIOS0/S1 PIN Configuration Register */
+#define SCU5B4 0x5B4 /* GPIOS2/S3 PIN Configuration Register */
+#define SCU5B8 0x5B8 /* GPIOS4/S5 PIN Configuration Register */
+#define SCU5BC 0x5BC /* GPIOS6/S7 PIN Configuration Register */
+#define SCU5C0 0x5C0 /* GPIOT0/T1 PIN Configuration Register */
+#define SCU5C4 0x5C4 /* GPIOT2/T3 PIN Configuration Register */
+#define SCU5C8 0x5C8 /* GPIOT4/T5 PIN Configuration Register */
+#define SCU5CC 0x5CC /* GPIOT6/T7 PIN Configuration Register */
+#define SCU5D0 0x5D0 /* GPIOU0/U1 PIN Configuration Register */
+#define SCU5D4 0x5D4 /* GPIOU2/U3 PIN Configuration Register */
+#define SCU5D8 0x5D8 /* GPIOU4/U5 PIN Configuration Register */
+#define SCU5DC 0x5DC /* GPIOU6/U7 PIN Configuration Register */
+#define SCU5E0 0x5E0 /* GPIOV0/V1 PIN Configuration Register */
+#define SCU5E4 0x5E4 /* GPIOV2/V3 PIN Configuration Register */
+#define SCU5E8 0x5E8 /* GPIOV4/V5 PIN Configuration Register */
+#define SCU5EC 0x5EC /* GPIOV6/V7 PIN Configuration Register */
+#define SCU5F0 0x5F0 /* GPIOW0/W1 PIN Configuration Register */
+#define SCU5F4 0x5F4 /* GPIOW2/W3 PIN Configuration Register */
+#define SCU5F8 0x5F8 /* GPIOW4/W5 PIN Configuration Register */
+#define SCU5FC 0x5FC /* GPIOW6/W7 PIN Configuration Register */
+#define SCU600 0x600 /* GPIOX0/X1 PIN Configuration Register */
+#define SCU604 0x604 /* GPIOX2/X3 PIN Configuration Register */
+#define SCU608 0x608 /* GPIOX4/X5 PIN Configuration Register */
+#define SCU60C 0x60C /* GPIOX6/X7 PIN Configuration Register */
+#define SCU610 0x610 /* GPIOAA0/AA1 PIN Configuration Register */
+#define SCU614 0x614 /* GPIOAA2/AA3 PIN Configuration Register */
+#define SCU618 0x618 /* GPIOAA4/AA5 PIN Configuration Register */
+#define SCU61C 0x61C /* GPIOAA6/AA7 PIN Configuration Register */
+
 #define SCU908 0x908 /* PCIe RC PERST Pin Control */
 
 enum {
@@ -2258,6 +2358,545 @@ static void aspeed_g75_soc1_dt_free_map(struct pinctrl_dev *pctldev,
 	kfree(map);
 }
 
+/*
+ * PD/PU/drive-strength pinconf.
+ *
+ * Most balls have a dedicated 32-bit "PIN Configuration Register"
+ * (SCU490-SCU61C) shared by two balls: the lower-numbered ball occupies
+ * bits [15:0] (base = 0), the higher-numbered ball occupies bits [31:16]
+ * (base = 16). Within each 16-bit half: bit(base+8) enables a 10Kohm
+ * pull-down, bits[base+6:base+4] select a pull-up strength (bit+4=750ohm,
+ * bit+5=550ohm, bit+6=400ohm), and bits[base+1:base] select a drive
+ * strength (0=55ohm, 1=40ohm, 2=25ohm, 3=10ohm). Unlike SCU470 below,
+ * these PD/PU bits are *enable*-type: writing 1 turns the resistor on.
+ *
+ * The 16 ADC-alternate-function balls (GPIOY0-7/GPIOZ0-7) instead share a
+ * single *disable*-type register, SCU470, with one bit per ball (bit = 1
+ * disables an otherwise-always-on pull-down); they have no pull-up or
+ * drive-strength control.
+ *
+ * ABI notes (deliberate departures from the generic pinconf doc comments):
+ *  - PIN_CONFIG_BIAS_PULL_UP's argument is the pull-up strength in ohms
+ *    (0, 750, 550 or 400), not a boolean -- this hardware offers a real
+ *    3-way strength select, not just on/off.
+ *  - PIN_CONFIG_DRIVE_STRENGTH's argument is the raw 2-bit hardware code
+ *    (0-3), not mA as the generic doc specifies: the datasheet defines
+ *    this field purely as an output impedance in ohms (55/40/25/10), with
+ *    no equivalent current rating to convert from.
+ *
+ * Pull-down and pull-up share one bias field per ball; setting either one
+ * always clears the other's bits first; so they can never both be active
+ * at once regardless of prior state (reset default, bootloader, or an
+ * earlier pinctrl state).
+ */
+struct aspeed_g75_soc1_pinconf_field {
+	unsigned int reg;
+	unsigned int base;
+};
+
+struct aspeed_g75_soc1_pdonly_field {
+	unsigned int pin;
+	unsigned int bit;
+};
+
+static const struct aspeed_g75_soc1_pinconf_field
+	aspeed_g75_soc1_pinconf_fields[ARRAY_SIZE(aspeed_g75_soc1_pins)] = {
+	[Y22] = { SCU490, 0 },
+	[U22] = { SCU490, 16 },
+	[U16] = { SCU494, 0 },
+	[U15] = { SCU494, 16 },
+	[U23] = { SCU498, 0 },
+	[U19] = { SCU498, 16 },
+	[V18] = { SCU49C, 0 },
+	[V19] = { SCU49C, 16 },
+	[G10] = { SCU4A0, 0 },
+	[G9] = { SCU4A0, 16 },
+	[G8] = { SCU4A4, 0 },
+	[F9] = { SCU4A4, 16 },
+	[F10] = { SCU4A8, 0 },
+	[H11] = { SCU4A8, 16 },
+	[E10] = { SCU4AC, 0 },
+	[G11] = { SCU4AC, 16 },
+	[F12] = { SCU4B0, 0 },
+	[D10] = { SCU4B0, 16 },
+	[H7] = { SCU4B4, 0 },
+	[H5] = { SCU4B4, 16 },
+	[G4] = { SCU4B8, 0 },
+	[F8] = { SCU4B8, 16 },
+	[G5] = { SCU4BC, 0 },
+	[Y24] = { SCU4BC, 16 },
+	[P13] = { SCU4C0, 0 },
+	[G12] = { SCU4C0, 16 },
+	[H12] = { SCU4C4, 0 },
+	[T17] = { SCU4C4, 16 },
+	[T19] = { SCU4C8, 0 },
+	[Y26] = { SCU4C8, 16 },
+	[G15] = { SCU4CC, 0 },
+	[V26] = { SCU4CC, 16 },
+	[E9] = { SCU4D0, 0 },
+	[D9] = { SCU4D0, 16 },
+	[C9] = { SCU4D4, 0 },
+	[H13] = { SCU4D4, 16 },
+	[G13] = { SCU4D8, 0 },
+	[AA24] = { SCU4D8, 16 },
+	[Y23] = { SCU4DC, 0 },
+	[M12] = { SCU4DC, 16 },
+	[N13] = { SCU4E0, 0 },
+	[M13] = { SCU4E0, 16 },
+	[L12] = { SCU4E4, 0 },
+	[A6] = { SCU4E4, 16 },
+	[B7] = { SCU4E8, 0 },
+	[A7] = { SCU4E8, 16 },
+	[A8] = { SCU4EC, 0 },
+	[B8] = { SCU4EC, 16 },
+	[U26] = { SCU4F0, 0 },
+	[E16] = { SCU4F0, 16 },
+	[P26] = { SCU4F4, 0 },
+	[E8] = { SCU4F4, 16 },
+	[C12] = { SCU4F8, 0 },
+	[L25] = { SCU4F8, 16 },
+	[M25] = { SCU4FC, 0 },
+	[N25] = { SCU4FC, 16 },
+	[M26] = { SCU500, 0 },
+	[N26] = { SCU500, 16 },
+	[B19] = { SCU504, 0 },
+	[B20] = { SCU504, 16 },
+	[AD25] = { SCU510, 0 },
+	[AF24] = { SCU510, 16 },
+	[AC25] = { SCU514, 0 },
+	[AE24] = { SCU514, 16 },
+	[AC24] = { SCU518, 0 },
+	[AD24] = { SCU518, 16 },
+	[V24] = { SCU51C, 0 },
+	[AD19] = { SCU51C, 16 },
+	[B13] = { SCU520, 0 },
+	[C15] = { SCU520, 16 },
+	[A12] = { SCU524, 0 },
+	[B14] = { SCU524, 16 },
+	[C16] = { SCU528, 0 },
+	[D17] = { SCU528, 16 },
+	[A14] = { SCU52C, 0 },
+	[A15] = { SCU52C, 16 },
+	[F13] = { SCU530, 0 },
+	[R15] = { SCU530, 16 },
+	[E12] = { SCU534, 0 },
+	[J11] = { SCU534, 16 },
+	[F14] = { SCU538, 0 },
+	[T18] = { SCU538, 16 },
+	[E13] = { SCU53C, 0 },
+	[AA25] = { SCU53C, 16 },
+	[D15] = { SCU540, 0 },
+	[D14] = { SCU540, 16 },
+	[R26] = { SCU544, 0 },
+	[P25] = { SCU544, 16 },
+	[D13] = { SCU548, 0 },
+	[F17] = { SCU548, 16 },
+	[D16] = { SCU54C, 0 },
+	[B10] = { SCU54C, 16 },
+	[AD17] = { SCU550, 0 },
+	[AC22] = { SCU550, 16 },
+	[AC20] = { SCU554, 0 },
+	[AC19] = { SCU554, 16 },
+	[AA19] = { SCU558, 0 },
+	[Y20] = { SCU558, 16 },
+	[W23] = { SCU55C, 0 },
+	[AB20] = { SCU55C, 16 },
+	[AA22] = { SCU560, 0 },
+	[T14] = { SCU560, 16 },
+	[U24] = { SCU564, 0 },
+	[U21] = { SCU564, 16 },
+	[V22] = { SCU568, 0 },
+	[U20] = { SCU568, 16 },
+	[V20] = { SCU56C, 0 },
+	[U17] = { SCU56C, 16 },
+	[W22] = { SCU570, 0 },
+	[AA15] = { SCU570, 16 },
+	[AA16] = { SCU574, 0 },
+	[AA17] = { SCU574, 16 },
+	[AA18] = { SCU578, 0 },
+	[AA21] = { SCU578, 16 },
+	[W20] = { SCU57C, 0 },
+	[W18] = { SCU57C, 16 },
+	[AF25] = { SCU580, 0 },
+	[W25] = { SCU580, 16 },
+	[AD23] = { SCU584, 0 },
+	[V25] = { SCU584, 16 },
+	[V23] = { SCU588, 0 },
+	[AD20] = { SCU588, 16 },
+	[AD21] = { SCU58C, 0 },
+	[AE25] = { SCU58C, 16 },
+	[A9] = { SCU590, 0 },
+	[B9] = { SCU590, 16 },
+	[J10] = { SCU594, 0 },
+	[H10] = { SCU594, 16 },
+	[F11] = { SCU598, 0 },
+	[J9] = { SCU598, 16 },
+	[E11] = { SCU59C, 0 },
+	[AE26] = { SCU59C, 16 },
+	[AC23] = { SCU5A0, 0 },
+	[AD18] = { SCU5A0, 16 },
+	[AD22] = { SCU5A4, 0 },
+	[AC17] = { SCU5A4, 16 },
+	[AC18] = { SCU5A8, 0 },
+	[AC21] = { SCU5A8, 16 },
+	[W24] = { SCU5AC, 0 },
+	[AA20] = { SCU5AC, 16 },
+	[Y19] = { SCU5B0, 0 },
+	[AB21] = { SCU5B0, 16 },
+	[AB22] = { SCU5B4, 0 },
+	[AB19] = { SCU5B4, 16 },
+	[V16] = { SCU5B8, 0 },
+	[U14] = { SCU5B8, 16 },
+	[C10] = { SCU5BC, 0 },
+	[G7] = { SCU5BC, 16 },
+	[F15] = { SCU5C0, 0 },
+	[T25] = { SCU5C0, 16 },
+	[E14] = { SCU5C4, 0 },
+	[T24] = { SCU5C4, 16 },
+	[Y25] = { SCU5C8, 0 },
+	[U25] = { SCU5C8, 16 },
+	[E15] = { SCU5CC, 0 },
+	[D12] = { SCU5CC, 16 },
+	[D11] = { SCU5D0, 0 },
+	[C11] = { SCU5D0, 16 },
+	[F16] = { SCU5D4, 0 },
+	[T26] = { SCU5D4, 16 },
+	[W26] = { SCU5D8, 0 },
+	[R25] = { SCU5D8, 16 },
+	[AD26] = { SCU5DC, 0 },
+	[AC26] = { SCU5DC, 16 },
+	[B16] = { SCU5E0, 0 },
+	[C18] = { SCU5E0, 16 },
+	[B18] = { SCU5E4, 0 },
+	[A18] = { SCU5E4, 16 },
+	[A19] = { SCU5E8, 0 },
+	[C22] = { SCU5E8, 16 },
+	[D22] = { SCU5EC, 0 },
+	[C21] = { SCU5EC, 16 },
+	[B11] = { SCU5F0, 0 },
+	[B12] = { SCU5F0, 16 },
+	[A11] = { SCU5F4, 0 },
+	[C13] = { SCU5F4, 16 },
+	[A10] = { SCU5F8, 0 },
+	[C14] = { SCU5F8, 16 },
+	[B15] = { SCU5FC, 0 },
+	[A13] = { SCU5FC, 16 },
+	[C20] = { SCU600, 0 },
+	[J26] = { SCU600, 16 },
+	[E22] = { SCU604, 0 },
+	[E23] = { SCU604, 16 },
+	[F26] = { SCU608, 0 },
+	[G26] = { SCU608, 16 },
+	[G25] = { SCU60C, 0 },
+	[H24] = { SCU60C, 16 },
+	[C17] = { SCU610, 0 },
+	[A16] = { SCU610, 16 },
+	[B17] = { SCU614, 0 },
+	[A17] = { SCU614, 16 },
+	[J25] = { SCU618, 0 },
+	[C19] = { SCU618, 16 },
+	[L26] = { SCU61C, 0 },
+	[K26] = { SCU61C, 16 },
+};
+
+static const struct aspeed_g75_soc1_pdonly_field aspeed_g75_soc1_pdonly_fields[] = {
+	{ W14, 0 },
+	{ W16, 1 },
+	{ W15, 2 },
+	{ W19, 3 },
+	{ Y15, 4 },
+	{ Y16, 5 },
+	{ AA13, 6 },
+	{ AA14, 7 },
+	{ AB18, 8 },
+	{ AB15, 9 },
+	{ V15, 10 },
+	{ V14, 11 },
+	{ Y13, 12 },
+	{ Y14, 13 },
+	{ AB16, 14 },
+	{ AB17, 15 },
+};
+
+/*
+ * bits[base+6:base+4] of the PIN Configuration Register are one-hot: bit4
+ * selects 750ohm, bit5 550ohm, bit6 400ohm. Map the PIN_CONFIG_BIAS_PULL_UP
+ * argument to/from those ohm values directly, rather than exposing the raw
+ * one-hot encoding as the ABI.
+ */
+static int aspeed_g75_soc1_pullup_ohm_to_raw(u32 ohm, unsigned int *raw)
+{
+	switch (ohm) {
+	case 0:
+		*raw = 0;
+		break;
+	/*
+	 * The generic DT parser maps a bare "bias-pull-up;" boolean property
+	 * (no explicit ohm value) to argument 1, so that has to be accepted
+	 * as a request for *some* pull-up strength rather than rejected;
+	 * 750ohm is the weakest option and bit0 of the one-hot field, so
+	 * treat it as the default.
+	 */
+	case 1:
+	case 750:
+		*raw = BIT(0);
+		break;
+	case 550:
+		*raw = BIT(1);
+		break;
+	case 400:
+		*raw = BIT(2);
+		break;
+	default:
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
+static u32 aspeed_g75_soc1_pullup_raw_to_ohm(unsigned int raw)
+{
+	/*
+	 * raw is normally one-hot (set() never writes more than one bit),
+	 * but reset default or a prior non-driver write could leave more
+	 * than one bit set; test from the strongest pull-up down so a get()
+	 * right after such a state still reports a defined, enabled value
+	 * instead of -EINVAL.
+	 */
+	if (raw & BIT(2))
+		return 400;
+	if (raw & BIT(1))
+		return 550;
+	if (raw & BIT(0))
+		return 750;
+	return 0;
+}
+
+static int aspeed_g75_soc1_pdonly_bit(unsigned int pin, unsigned int *bit)
+{
+	unsigned int i;
+
+	for (i = 0; i < ARRAY_SIZE(aspeed_g75_soc1_pdonly_fields); i++) {
+		if (aspeed_g75_soc1_pdonly_fields[i].pin == pin) {
+			*bit = aspeed_g75_soc1_pdonly_fields[i].bit;
+			return 0;
+		}
+	}
+
+	return -ENOTSUPP;
+}
+
+static int aspeed_g75_soc1_pin_config_get(struct pinctrl_dev *pctldev,
+					  unsigned int pin,
+					  unsigned long *config)
+{
+	struct aspeed_pinctrl_data *pdata = pinctrl_dev_get_drvdata(pctldev);
+	enum pin_config_param param = pinconf_to_config_param(*config);
+	const struct aspeed_g75_soc1_pinconf_field *field = NULL;
+	unsigned int bit, val, arg;
+	int rc;
+
+	if (pin < ARRAY_SIZE(aspeed_g75_soc1_pinconf_fields) &&
+	    aspeed_g75_soc1_pinconf_fields[pin].reg)
+		field = &aspeed_g75_soc1_pinconf_fields[pin];
+
+	if (field) {
+		rc = regmap_read(pdata->scu, field->reg, &val);
+		if (rc < 0)
+			return rc;
+
+		switch (param) {
+		case PIN_CONFIG_DRIVE_STRENGTH:
+			arg = (val >> field->base) & GENMASK(1, 0);
+			*config = pinconf_to_config_packed(param, arg);
+			return 0;
+		case PIN_CONFIG_BIAS_PULL_DOWN:
+			arg = !!(val & BIT(field->base + 8));
+			break;
+		case PIN_CONFIG_BIAS_PULL_UP: {
+			unsigned int raw = (val >> (field->base + 4)) & GENMASK(2, 0);
+
+			arg = aspeed_g75_soc1_pullup_raw_to_ohm(raw);
+			break;
+		}
+		case PIN_CONFIG_BIAS_DISABLE:
+			arg = !(val & (BIT(field->base + 8) |
+				       GENMASK(field->base + 6, field->base + 4)));
+			break;
+		default:
+			return -ENOTSUPP;
+		}
+
+		if (!arg)
+			return -EINVAL;
+
+		*config = pinconf_to_config_packed(param, arg);
+		return 0;
+	}
+
+	rc = aspeed_g75_soc1_pdonly_bit(pin, &bit);
+	if (rc < 0)
+		return rc;
+
+	rc = regmap_read(pdata->scu, SCU470, &val);
+	if (rc < 0)
+		return rc;
+
+	switch (param) {
+	case PIN_CONFIG_BIAS_PULL_DOWN:
+		arg = !(val & BIT(bit));
+		break;
+	case PIN_CONFIG_BIAS_DISABLE:
+		arg = !!(val & BIT(bit));
+		break;
+	default:
+		return -ENOTSUPP;
+	}
+
+	if (!arg)
+		return -EINVAL;
+
+	*config = pinconf_to_config_packed(param, arg);
+	return 0;
+}
+
+static int aspeed_g75_soc1_pin_config_set(struct pinctrl_dev *pctldev,
+					  unsigned int pin,
+					  unsigned long *configs,
+					  unsigned int num_configs)
+{
+	struct aspeed_pinctrl_data *pdata = pinctrl_dev_get_drvdata(pctldev);
+	const struct aspeed_g75_soc1_pinconf_field *field = NULL;
+	unsigned int i, bit;
+	int rc;
+
+	if (pin < ARRAY_SIZE(aspeed_g75_soc1_pinconf_fields) &&
+	    aspeed_g75_soc1_pinconf_fields[pin].reg)
+		field = &aspeed_g75_soc1_pinconf_fields[pin];
+
+	if (field) {
+		for (i = 0; i < num_configs; i++) {
+			enum pin_config_param param = pinconf_to_config_param(configs[i]);
+			u32 arg = pinconf_to_config_argument(configs[i]);
+			unsigned int mask, val;
+
+			switch (param) {
+			case PIN_CONFIG_BIAS_PULL_DOWN:
+				/*
+				 * Pull-down and pull-up share one bias field;
+				 * enabling one must clear the other so they
+				 * can never both be active at once.
+				 */
+				mask = BIT(field->base + 8) |
+				       GENMASK(field->base + 6, field->base + 4);
+				val = BIT(field->base + 8);
+				break;
+			case PIN_CONFIG_BIAS_PULL_UP: {
+				unsigned int raw;
+
+				if (aspeed_g75_soc1_pullup_ohm_to_raw(arg, &raw))
+					return -EINVAL;
+				mask = BIT(field->base + 8) |
+				       GENMASK(field->base + 6, field->base + 4);
+				val = raw << (field->base + 4);
+				break;
+			}
+			case PIN_CONFIG_DRIVE_STRENGTH:
+				if (arg > GENMASK(1, 0))
+					return -EINVAL;
+				mask = GENMASK(field->base + 1, field->base);
+				val = arg << field->base;
+				break;
+			case PIN_CONFIG_BIAS_DISABLE:
+				mask = BIT(field->base + 8) |
+				       GENMASK(field->base + 6, field->base + 4);
+				val = 0;
+				break;
+			default:
+				return -ENOTSUPP;
+			}
+
+			rc = regmap_update_bits(pdata->scu, field->reg, mask, val);
+			if (rc < 0)
+				return rc;
+		}
+
+		return 0;
+	}
+
+	rc = aspeed_g75_soc1_pdonly_bit(pin, &bit);
+	if (rc < 0)
+		return rc;
+
+	for (i = 0; i < num_configs; i++) {
+		enum pin_config_param param = pinconf_to_config_param(configs[i]);
+		unsigned int val;
+
+		switch (param) {
+		case PIN_CONFIG_BIAS_PULL_DOWN:
+			val = 0;
+			break;
+		case PIN_CONFIG_BIAS_DISABLE:
+			val = BIT(bit);
+			break;
+		default:
+			return -ENOTSUPP;
+		}
+
+		rc = regmap_update_bits(pdata->scu, SCU470, BIT(bit), val);
+		if (rc < 0)
+			return rc;
+	}
+
+	return 0;
+}
+
+static int aspeed_g75_soc1_pin_config_group_get(struct pinctrl_dev *pctldev,
+						unsigned int selector,
+						unsigned long *config)
+{
+	const unsigned int *pins;
+	unsigned int npins;
+	int rc;
+
+	rc = aspeed_pinctrl_get_group_pins(pctldev, selector, &pins, &npins);
+	if (rc < 0)
+		return rc;
+	if (!npins)
+		return -ENODEV;
+
+	return aspeed_g75_soc1_pin_config_get(pctldev, pins[0], config);
+}
+
+/*
+ * Applies to every pin in the group, so a group containing even one pin
+ * with no PIN Configuration field (SGMII0, PCIERC2_PERST, PORTC_MODE/
+ * PORTD_MODE, HOLE0-3) fails the whole call with -ENOTSUPP. Intentional:
+ * pinconf nodes in this driver are meant to target individual balls (as
+ * the existing drive-strength/bias DT nodes do), not whole mux groups.
+ */
+static int aspeed_g75_soc1_pin_config_group_set(struct pinctrl_dev *pctldev,
+						unsigned int selector,
+						unsigned long *configs,
+						unsigned int num_configs)
+{
+	const unsigned int *pins;
+	unsigned int npins;
+	int rc, i;
+
+	rc = aspeed_pinctrl_get_group_pins(pctldev, selector, &pins, &npins);
+	if (rc < 0)
+		return rc;
+
+	for (i = 0; i < npins; i++) {
+		rc = aspeed_g75_soc1_pin_config_set(pctldev, pins[i], configs, num_configs);
+		if (rc < 0)
+			return rc;
+	}
+
+	return 0;
+}
+
 static const struct pinctrl_ops aspeed_g75_soc1_pinctrl_ops = {
 	.get_groups_count = aspeed_pinctrl_get_groups_count,
 	.get_group_name = aspeed_pinctrl_get_group_name,
@@ -2278,10 +2917,10 @@ static const struct pinmux_ops aspeed_g75_soc1_pinmux_ops = {
 
 static const struct pinconf_ops aspeed_g75_soc1_pinconf_ops = {
 	.is_generic = true,
-	.pin_config_get = aspeed_pin_config_get,
-	.pin_config_set = aspeed_pin_config_set,
-	.pin_config_group_get = aspeed_pin_config_group_get,
-	.pin_config_group_set = aspeed_pin_config_group_set,
+	.pin_config_get = aspeed_g75_soc1_pin_config_get,
+	.pin_config_set = aspeed_g75_soc1_pin_config_set,
+	.pin_config_group_get = aspeed_g75_soc1_pin_config_group_get,
+	.pin_config_group_set = aspeed_g75_soc1_pin_config_group_set,
 };
 
 /* pinctrl_desc */
@@ -2306,11 +2945,6 @@ static struct aspeed_pinctrl_data aspeed_g75_pinctrl_data = {
 		.configs_g7 = aspeed_g75_pin_cfg,
 		.nconfigs_g7 = ARRAY_SIZE(aspeed_g75_pin_cfg),
 	},
-	/* TODO: drive-strength / pull-up-down / voltage-selection config to be added once register table is available */
-	.configs = NULL,
-	.nconfigs = 0,
-	.confmaps = NULL,
-	.nconfmaps = 0,
 };
 
 static int aspeed_g75_soc1_pinctrl_probe(struct platform_device *pdev)
