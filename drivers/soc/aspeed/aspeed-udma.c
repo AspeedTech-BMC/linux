@@ -48,7 +48,7 @@
 #define   UDMA_RX_CTRL_BUFSZ		GENMASK(1, 0)
 
 #define UDMA_MAX_CHANNEL	16
-#define UDMA_TMOUT		0x200
+#define UDMA_TMOUT		0x40
 
 enum aspeed_udma_bufsz_code {
 	UDMA_BUFSZ_CODE_1KB,
