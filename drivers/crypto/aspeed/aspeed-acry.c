@@ -249,7 +249,7 @@ static int aspeed_acry_probe(struct platform_device *pdev)
 		dev_err(dev, "err in register alg");
 		return err;
 	}
-	printk("ASPEED RSA Accelerator successfully registered \n");
+	printk("Aspeed ACRY Accelerator successfully registered\n");
 
 	return 0;
 }

@@ -308,7 +308,7 @@ static int aspeed_hace_probe(struct platform_device *pdev)
 		return err;
 	}
 
-	dev_info(dev, "ASPEED Crypto Accelerator successfully registered\n");
+	dev_info(dev, "Aspeed Crypto Accelerator successfully registered\n");
 
 	return 0;
 }
