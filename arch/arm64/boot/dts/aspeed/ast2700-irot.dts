@@ -439,27 +439,39 @@
 };
 
 &i3c12 {
-	initial-role = "target";
-	pid = <0x000007ec 0x0601C000>;
-	dcr = /bits/ 8 <0xcc>;
+	initial-role = "primary";
+	i3c-scl-hz = <200000>;
+	i3c-od-scl-hi-period-ns = <2500>;
+	i3c-od-scl-lo-period-ns = <2500>;
 	status = "okay";
+	mctp-controller;
 };
 
 &i3c13 {
 	initial-role = "primary";
+	i3c-scl-hz = <200000>;
+	i3c-od-scl-hi-period-ns = <2500>;
+	i3c-od-scl-lo-period-ns = <2500>;
 	status = "okay";
+	mctp-controller;
 };
 
 &i3c14 {
-	initial-role = "target";
-	pid = <0x000007ec 0x0601E000>;
-	dcr = /bits/ 8 <0xcc>;
+	initial-role = "primary";
+	i3c-scl-hz = <200000>;
+	i3c-od-scl-hi-period-ns = <2500>;
+	i3c-od-scl-lo-period-ns = <2500>;
 	status = "okay";
+	mctp-controller;
 };
 
 &i3c15 {
 	initial-role = "primary";
+	i3c-scl-hz = <200000>;
+	i3c-od-scl-hi-period-ns = <2500>;
+	i3c-od-scl-lo-period-ns = <2500>;
 	status = "okay";
+	mctp-controller;
 };
 
 &uart12 {
