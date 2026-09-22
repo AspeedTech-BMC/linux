@@ -2185,7 +2185,8 @@ int i3c_master_do_daa_ext(struct i3c_master_controller *master, bool rstdaa)
 
 		master->init_done = false;
 		ret = i3c_master_sethid_locked(master);
-		ret = i3c_master_setaasa_locked(master);
+		if (!ret || ret == I3C_ERROR_M2)
+			ret = i3c_master_setaasa_locked(master);
 		master->init_done = init_done;
 	} else {
 		if (rstdaa)
@@ -2197,6 +2198,9 @@ int i3c_master_do_daa_ext(struct i3c_master_controller *master, bool rstdaa)
 
 	if (ret && ret != I3C_ERROR_M2)
 		goto out;
+
+	/* M2 just means no active devices acked; the DAA itself succeeded. */
+	ret = 0;
 
 	queue_work(master->wq, &master->reg_work);
 out:
