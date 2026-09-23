@@ -2694,7 +2694,7 @@ static int ast2600_i2c_init(struct ast2600_i2c_bus *i2c_bus)
 	}
 
 	/* Clear Interrupt */
-	writel(GENMASK(27, 0), i2c_bus->reg_base + AST2600_I2CM_ISR);
+	writel(GENMASK(31, 0), i2c_bus->reg_base + AST2600_I2CM_ISR);
 
 #if IS_ENABLED(CONFIG_I2C_SLAVE)
 	/* for memory buffer initial */
@@ -2706,7 +2706,7 @@ static int ast2600_i2c_init(struct ast2600_i2c_bus *i2c_bus)
 			return -ENOMEM;
 	}
 
-	writel(GENMASK(27, 0), i2c_bus->reg_base + AST2600_I2CS_ISR);
+	writel(GENMASK(31, 0), i2c_bus->reg_base + AST2600_I2CS_ISR);
 
 	if (i2c_bus->mode == BYTE_MODE)
 		writel(GENMASK(15, 0), i2c_bus->reg_base + AST2600_I2CS_IER);
