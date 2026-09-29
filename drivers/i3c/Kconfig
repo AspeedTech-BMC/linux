@@ -66,6 +66,7 @@ config I3C_PERF
 config I3C_OCP_RECOVERY
 	tristate "OCP Secure Firmware Recovery I3C binding"
 	depends on I3C
+	select CRC8
 	help
 	  Binds to I3C devices that advertise DCR 0xBD (OCP Secure
 	  Firmware Recovery target) and exposes a raw command/response
