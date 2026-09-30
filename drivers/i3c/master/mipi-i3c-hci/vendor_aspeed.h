@@ -389,6 +389,12 @@
 #define PHY_PULLUP_EN_DDR_SCL	GENMASK(6, 4)
 #define PHY_PULLUP_EN_DDR_SDA	GENMASK(2, 0)
 
+#define PHY_TIMED_RST_PERIOD 0xAC
+/* JESD403 Timed Reset SCL low duration bounds, in nanoseconds */
+#define PHY_TIMED_RST_MIN_NS		10000000
+#define PHY_TIMED_RST_MAX_NS		50000000
+#define PHY_TIMED_RST_DEFAULT_NS	PHY_TIMED_RST_MAX_NS
+
 #define PHY_I3C_OD_CTRL4	0xD8
 // SDA drive high (push-pull) time After tCBP
 #define PHY_I3C_OD_CTRL4_DAP	GENMASK(26, 16)
