@@ -48,7 +48,8 @@
 
 #define SCU_IO_PINS_TRAP1			0x10
 #define SCU_IO_PINS_TRAP1_CLEAR			0x14
-#define   SCU_IO_PINS_TRAP_LTPI			GENMASK(2, 0)
+// 0: LTPI mode, 2: LTPI index, [15:14]: LTPI IO Driving
+#define   SCU_IO_PINS_TRAP_LTPI			(BIT(0) | BIT(2) | GENMASK(15, 14))
 #define SCU_IO_OTP_TRAP1			0xa00
 #define SCU_IO_OTP_TRAP1_CLEAR			0xa04
 #define SCU_IO_OTP_TRAP2			0xa20
