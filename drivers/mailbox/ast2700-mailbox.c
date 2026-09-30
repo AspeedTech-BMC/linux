@@ -199,6 +199,9 @@ static int ast2700_mbox_probe(struct platform_device *pdev)
 	mb->mbox.txpoll_period = CONFIG_AST2700_MBOX_TX_POLL_PERIOD;
 	spin_lock_init(&mb->lock);
 
+	writel(0, mb->rx_regs + IPCR_ENABLE);
+	writel(RX_IRQ_MASK, mb->rx_regs + IPCR_STATUS);
+
 	irq = platform_get_irq(pdev, 0);
 	if (irq < 0)
 		return irq;
