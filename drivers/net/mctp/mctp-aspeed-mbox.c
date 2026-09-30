@@ -36,6 +36,9 @@ static void mctp_mbox_rx_callback(struct mbox_client *cl, void *msg)
 
 	struct mctp_ipc_hdr *hdr = (struct mctp_ipc_hdr *)msg;
 
+	if (!netif_running(mctp_dev))
+		return;
+
 	skb = netdev_alloc_skb(mctp_dev, hdr->msg_len);
 	if (!skb)
 		return;
@@ -166,12 +169,6 @@ static int mctp_mbox_net_probe(struct platform_device *pdev)
 
 	dev_info(&pdev->dev, "tx_mmio=%p, rx_mmio=%p\n", tx_mmio, rx_mmio);
 
-	mctp_mbox_chan = mbox_request_channel(&mctp_mbox_client, 0);
-	if (IS_ERR(mctp_mbox_chan)) {
-		pr_err("%s: failed to request mailbox channel\n", DRV_NAME);
-		return PTR_ERR(mctp_mbox_chan);
-	}
-
 	mctp_dev = alloc_netdev(0, "mctpmbox%d", NET_NAME_ENUM, mctp_mbox_net_setup);
 	if (!mctp_dev) {
 		pr_err("%s: failed to allocate netdev\n", DRV_NAME);
@@ -181,16 +178,30 @@ static int mctp_mbox_net_probe(struct platform_device *pdev)
 	mctp_dev->dev.parent = &pdev->dev;
 	mctp_dev->dev.of_node = pdev->dev.of_node;
 
+	mctp_mbox_chan = mbox_request_channel(&mctp_mbox_client, 0);
+	if (IS_ERR(mctp_mbox_chan)) {
+		pr_err("%s: failed to request mailbox channel\n", DRV_NAME);
+		ret = PTR_ERR(mctp_mbox_chan);
+		goto err_free_netdev;
+	}
+
 	ret = register_netdev(mctp_dev);
 	if (ret) {
 		pr_err("%s: failed to register netdev\n", DRV_NAME);
-		free_netdev(mctp_dev);
-		return ret;
+		goto err_free_chan;
 	}
 
 	platform_set_drvdata(pdev, mctp_dev);
 	pr_info("%s: device registered as %s\n", DRV_NAME, mctp_dev->name);
 	return 0;
+
+err_free_chan:
+	mbox_free_channel(mctp_mbox_chan);
+err_free_netdev:
+	mctp_mbox_chan = NULL;
+	free_netdev(mctp_dev);
+	mctp_dev = NULL;
+	return ret;
 }
 
 static void mctp_mbox_net_remove(struct platform_device *pdev)
@@ -198,7 +209,10 @@ static void mctp_mbox_net_remove(struct platform_device *pdev)
 	struct net_device *dev = platform_get_drvdata(pdev);
 
 	unregister_netdev(dev);
+	mbox_free_channel(mctp_mbox_chan);
+	mctp_mbox_chan = NULL;
 	free_netdev(dev);
+	mctp_dev = NULL;
 }
 
 static const struct of_device_id mctp_net_of_match[] = {
