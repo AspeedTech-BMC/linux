@@ -942,8 +942,14 @@
 	status = "okay";
 	memory-region = <&pcie0_mmbi0_memory>;
 
-	bmc-int-value = /bits/ 8 <0x00>;
-	bmc-int-location = <0>;
+	noi = <7>;
+	aspeed,mmbi-interface = "mctp-netdev", /* ch0 */
+				"ioctl",       /* ch1 */
+				"ioctl",       /* ch2 */
+				"ioctl",       /* ch3 */
+				"ioctl",       /* ch4 */
+				"ioctl",       /* ch5 */
+				"ioctl";       /* ch6 */
 };
 #else /* !PCIE0_EP */
 &pcie0 {
@@ -1011,8 +1017,14 @@
 	status = "okay";
 	memory-region = <&pcie1_mmbi4_memory>;
 
-	bmc-int-value = /bits/ 8 <0x00>;
-	bmc-int-location = <0>;
+	noi = <7>;
+	aspeed,mmbi-interface = "mctp-netdev", /* ch0 */
+				"ioctl",       /* ch1 */
+				"ioctl",       /* ch2 */
+				"ioctl",       /* ch3 */
+				"ioctl",       /* ch4 */
+				"ioctl",       /* ch5 */
+				"ioctl";       /* ch6 */
 };
 #else /* !PCIE1_EP */
 &pcie1 {
