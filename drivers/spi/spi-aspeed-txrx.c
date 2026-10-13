@@ -352,7 +352,7 @@ static void aspeed_spi_transfer_tx(struct aspeed_spi_host *host, const u8 *tx_bu
 	for (i = 0; i < len; i++) {
 		writeb(tx_buf[i], dst);
 
-		if (rx_buf && tx_buf == rx_buf)
+		if (rx_buf)
 			rx_buf[i] = readb(host->ctrl_reg + SPI_FULL_DUPLEX_RX_REG);
 	}
 }
@@ -440,7 +440,7 @@ static int aspeed_spi_transfer(struct spi_controller *ctlr,
 					       xfer->len);
 		}
 
-		if (rx_buf && rx_buf != tx_buf) {
+		if (rx_buf && !tx_buf) {
 			ctrl_val &= ~SPI_IO_MASK;
 			if (xfer->rx_nbits == SPI_NBITS_DUAL)
 				ctrl_val |= SPI_DUAL_IO_MODE;
