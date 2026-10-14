@@ -285,7 +285,8 @@
 	pinctrl-0 = <&pinctrl_adc8_default &pinctrl_adc9_default
 		&pinctrl_adc10_default &pinctrl_adc11_default
 		&pinctrl_adc12_default &pinctrl_adc13_default
-		&pinctrl_adc14_default &pinctrl_adc15_default>;
+		&pinctrl_adc14_default &pinctrl_adc15_default
+		&pinctrl_adc13_bias>;
 };
 
 &pinctrl0 {
@@ -307,6 +308,72 @@
 		pins = "AD14", "AE14", "AF14", "AB13", "AF13", "AC13", "AD13", "AE13";
 		drive-strength = <1>;
 	};
+};
+
+&pinctrl1 {
+	pinctrl_i3c0_driving: i3c0-driving {
+		pins = "D15", "D14";
+		drive-strength = <2>;
+	};
+
+	pinctrl_i3c1_driving: i3c1-driving {
+		pins = "R26", "P25";
+		drive-strength = <2>;
+	};
+
+	pinctrl_i3c2_driving: i3c2-driving {
+		pins = "D13", "F17";
+		drive-strength = <2>;
+	};
+
+	pinctrl_i3c3_driving: i3c3-driving {
+		pins = "D16", "B10";
+		drive-strength = <2>;
+	};
+
+	pinctrl_i3c12_driving: i3c12-driving {
+		pins = "AD25", "AF24";
+		drive-strength = <2>;
+	};
+
+	pinctrl_i3c13_driving: i3c13-driving {
+		pins = "AC25", "AE24";
+		drive-strength = <2>;
+	};
+
+	pinctrl_i3c14_driving: i3c14-driving {
+		pins = "AC24", "AD24";
+		drive-strength = <2>;
+	};
+
+	pinctrl_i3c15_driving: i3c15-driving {
+		pins = "V24", "AD19";
+		drive-strength = <2>;
+	};
+
+	pinctrl_rgmii0_driving: rgmii0-driving {
+		pins = "AC23", "AD18", "AD22", "AC17", "AC18", "AC21",
+		       "W24", "AA20", "Y19", "AB21", "AB22", "AB19";
+		drive-strength = <1>;
+	};
+
+	pinctrl_rgmii1_driving: rgmii1-driving {
+		pins = "F15", "T25", "E14", "T24", "Y25", "U25",
+		       "E15", "D12", "D11", "C11", "F16", "T26";
+		drive-strength = <1>;
+	};
+	pinctrl_adc13_bias: adc13-bias {
+		pins = "Y14";
+		bias-disable;
+	};
+};
+
+&gpio1 {
+	pinctrl-0 = <&pinctrl_i3c0_driving &pinctrl_i3c1_driving
+		     &pinctrl_i3c2_driving &pinctrl_i3c3_driving
+		     &pinctrl_i3c12_driving &pinctrl_i3c13_driving
+		     &pinctrl_i3c14_driving &pinctrl_i3c15_driving>;
+	pinctrl-names = "default";
 };
 
 &i3c0 {
@@ -624,7 +691,7 @@
 	phy-handle = <&ethphy0>;
 
 	pinctrl-names = "default";
-	pinctrl-0 = <&pinctrl_rgmii0_default>;
+	pinctrl-0 = <&pinctrl_rgmii0_default &pinctrl_rgmii0_driving>;
 };
 
 &mac1 {
@@ -634,7 +701,7 @@
 	phy-handle = <&ethphy1>;
 
 	pinctrl-names = "default";
-	pinctrl-0 = <&pinctrl_rgmii1_default>;
+	pinctrl-0 = <&pinctrl_rgmii1_default &pinctrl_rgmii1_driving>;
 };
 
 #if 0
