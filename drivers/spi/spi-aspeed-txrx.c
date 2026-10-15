@@ -387,6 +387,7 @@ static int aspeed_spi_transfer(struct spi_controller *ctlr,
 	void __iomem *ctrl_reg;
 	bool is_last;
 	bool keep_cs = false;
+	int ret = 0;
 
 	/* Drop a CS held by another device before starting this message. */
 	if (host->cs_change_spi && host->cs_change_spi != spi) {
@@ -423,6 +424,15 @@ static int aspeed_spi_transfer(struct spi_controller *ctlr,
 
 		tx_buf = xfer->tx_buf;
 		rx_buf = xfer->rx_buf;
+
+		/* Full-duplex RX is only latched on single I/O */
+		if (tx_buf && rx_buf &&
+		    (xfer->tx_nbits != SPI_NBITS_SINGLE ||
+		     xfer->rx_nbits != SPI_NBITS_SINGLE)) {
+			dev_err(dev, "full-duplex transfer requires single I/O\n");
+			ret = -EINVAL;
+			break;
+		}
 
 		if (tx_buf) {
 			ctrl_val &= ~SPI_IO_MASK;
@@ -484,11 +494,11 @@ static int aspeed_spi_transfer(struct spi_controller *ctlr,
 		host->cs_change_spi = spi;
 	}
 
-	msg->status = 0;
+	msg->status = ret;
 
 	spi_finalize_current_message(ctlr);
 
-	return 0;
+	return ret;
 }
 
 static int aspeed_spi_probe(struct platform_device *pdev)
