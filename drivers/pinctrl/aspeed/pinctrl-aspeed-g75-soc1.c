@@ -2378,11 +2378,20 @@ static void aspeed_g75_soc1_dt_free_map(struct pinctrl_dev *pctldev,
  * ABI notes (deliberate departures from the generic pinconf doc comments):
  *  - PIN_CONFIG_BIAS_PULL_UP's argument is the pull-up strength in ohms
  *    (0, 750, 550 or 400), not a boolean -- this hardware offers a real
- *    3-way strength select, not just on/off.
- *  - PIN_CONFIG_DRIVE_STRENGTH's argument is the raw 2-bit hardware code
- *    (0-3), not mA as the generic doc specifies: the datasheet defines
- *    this field purely as an output impedance in ohms (55/40/25/10), with
- *    no equivalent current rating to convert from.
+ *    3-way strength select, not just on/off. This 3-way/750-550-400ohm
+ *    shape, and the enable-type 10Kohm pull-down, hold for most balls,
+ *    but not all of them (see aspeed_g75_soc1_pdonly_fields below for an
+ *    entirely different, non-selectable pull-down-only group; some
+ *    other balls also have a narrower 1-way or 2-way pull-up with
+ *    different ohm values, not yet modeled here).
+ *  - PIN_CONFIG_DRIVE_STRENGTH's argument is the raw hardware code (not
+ *    mA as the generic doc specifies) for the field's natural width:
+ *    2 bits (0-3) on most balls, where the datasheet defines the field
+ *    purely as an output impedance in ohms (55/40/25/10) with no mA
+ *    rating to convert from; 3 bits (0-7) on balls whose pad cell has a
+ *    wider table (either a bigger ohm table, or an IOL/IOH mA rating
+ *    table -- still just a raw code either way, not a converted SI
+ *    value). See aspeed_g75_soc1_pinconf_field.drv_3bit.
  *
  * Pull-down and pull-up share one bias field per ball; setting either one
  * always clears the other's bits first; so they can never both be active
@@ -2392,6 +2401,15 @@ static void aspeed_g75_soc1_dt_free_map(struct pinctrl_dev *pctldev,
 struct aspeed_g75_soc1_pinconf_field {
 	unsigned int reg;
 	unsigned int base;
+	/*
+	 * The DRV field is 2 bits (0-3) on most balls, but 3 bits (0-7) on
+	 * balls whose pad cell has a wider driving-impedance/current table;
+	 * the two halves of a register are not always the same width
+	 * (e.g. SCU59C: GPQ7 is 2-bit, GPQ6 is 3-bit). Checked bit-by-bit
+	 * against every "PIN Configuration Register" entry in the AST2755
+	 * datasheet, not inferred.
+	 */
+	bool drv_3bit;
 };
 
 struct aspeed_g75_soc1_pdonly_field {
@@ -2409,30 +2427,30 @@ static const struct aspeed_g75_soc1_pinconf_field
 	[U19] = { SCU498, 16 },
 	[V18] = { SCU49C, 0 },
 	[V19] = { SCU49C, 16 },
-	[G10] = { SCU4A0, 0 },
-	[G9] = { SCU4A0, 16 },
-	[G8] = { SCU4A4, 0 },
-	[F9] = { SCU4A4, 16 },
-	[F10] = { SCU4A8, 0 },
-	[H11] = { SCU4A8, 16 },
-	[E10] = { SCU4AC, 0 },
-	[G11] = { SCU4AC, 16 },
-	[F12] = { SCU4B0, 0 },
-	[D10] = { SCU4B0, 16 },
-	[H7] = { SCU4B4, 0 },
-	[H5] = { SCU4B4, 16 },
-	[G4] = { SCU4B8, 0 },
-	[F8] = { SCU4B8, 16 },
-	[G5] = { SCU4BC, 0 },
-	[Y24] = { SCU4BC, 16 },
-	[P13] = { SCU4C0, 0 },
-	[G12] = { SCU4C0, 16 },
-	[H12] = { SCU4C4, 0 },
-	[T17] = { SCU4C4, 16 },
-	[T19] = { SCU4C8, 0 },
-	[Y26] = { SCU4C8, 16 },
-	[G15] = { SCU4CC, 0 },
-	[V26] = { SCU4CC, 16 },
+	[G10] = { SCU4A0, 0, true },
+	[G9] = { SCU4A0, 16, true },
+	[G8] = { SCU4A4, 0, true },
+	[F9] = { SCU4A4, 16, true },
+	[F10] = { SCU4A8, 0, true },
+	[H11] = { SCU4A8, 16, true },
+	[E10] = { SCU4AC, 0, true },
+	[G11] = { SCU4AC, 16, true },
+	[F12] = { SCU4B0, 0, true },
+	[D10] = { SCU4B0, 16, true },
+	[H7] = { SCU4B4, 0, true },
+	[H5] = { SCU4B4, 16, true },
+	[G4] = { SCU4B8, 0, true },
+	[F8] = { SCU4B8, 16, true },
+	[G5] = { SCU4BC, 0, true },
+	[Y24] = { SCU4BC, 16, true },
+	[P13] = { SCU4C0, 0, true },
+	[G12] = { SCU4C0, 16, true },
+	[H12] = { SCU4C4, 0, true },
+	[T17] = { SCU4C4, 16, true },
+	[T19] = { SCU4C8, 0, true },
+	[Y26] = { SCU4C8, 16, true },
+	[G15] = { SCU4CC, 0, true },
+	[V26] = { SCU4CC, 16, true },
 	[E9] = { SCU4D0, 0 },
 	[D9] = { SCU4D0, 16 },
 	[C9] = { SCU4D4, 0 },
@@ -2441,24 +2459,24 @@ static const struct aspeed_g75_soc1_pinconf_field
 	[AA24] = { SCU4D8, 16 },
 	[Y23] = { SCU4DC, 0 },
 	[M12] = { SCU4DC, 16 },
-	[N13] = { SCU4E0, 0 },
-	[M13] = { SCU4E0, 16 },
-	[L12] = { SCU4E4, 0 },
-	[A6] = { SCU4E4, 16 },
-	[B7] = { SCU4E8, 0 },
-	[A7] = { SCU4E8, 16 },
-	[A8] = { SCU4EC, 0 },
-	[B8] = { SCU4EC, 16 },
-	[U26] = { SCU4F0, 0 },
-	[E16] = { SCU4F0, 16 },
-	[P26] = { SCU4F4, 0 },
-	[E8] = { SCU4F4, 16 },
-	[C12] = { SCU4F8, 0 },
-	[L25] = { SCU4F8, 16 },
-	[M25] = { SCU4FC, 0 },
-	[N25] = { SCU4FC, 16 },
-	[M26] = { SCU500, 0 },
-	[N26] = { SCU500, 16 },
+	[N13] = { SCU4E0, 0, true },
+	[M13] = { SCU4E0, 16, true },
+	[L12] = { SCU4E4, 0, true },
+	[A6] = { SCU4E4, 16, true },
+	[B7] = { SCU4E8, 0, true },
+	[A7] = { SCU4E8, 16, true },
+	[A8] = { SCU4EC, 0, true },
+	[B8] = { SCU4EC, 16, true },
+	[U26] = { SCU4F0, 0, true },
+	[E16] = { SCU4F0, 16, true },
+	[P26] = { SCU4F4, 0, true },
+	[E8] = { SCU4F4, 16, true },
+	[C12] = { SCU4F8, 0, true },
+	[L25] = { SCU4F8, 16, true },
+	[M25] = { SCU4FC, 0, true },
+	[N25] = { SCU4FC, 16, true },
+	[M26] = { SCU500, 0, true },
+	[N26] = { SCU500, 16, true },
 	[B19] = { SCU504, 0 },
 	[B20] = { SCU504, 16 },
 	[AD25] = { SCU510, 0 },
@@ -2525,13 +2543,13 @@ static const struct aspeed_g75_soc1_pinconf_field
 	[AD20] = { SCU588, 16 },
 	[AD21] = { SCU58C, 0 },
 	[AE25] = { SCU58C, 16 },
-	[A9] = { SCU590, 0 },
-	[B9] = { SCU590, 16 },
-	[J10] = { SCU594, 0 },
-	[H10] = { SCU594, 16 },
-	[F11] = { SCU598, 0 },
-	[J9] = { SCU598, 16 },
-	[E11] = { SCU59C, 0 },
+	[A9] = { SCU590, 0, true },
+	[B9] = { SCU590, 16, true },
+	[J10] = { SCU594, 0, true },
+	[H10] = { SCU594, 16, true },
+	[F11] = { SCU598, 0, true },
+	[J9] = { SCU598, 16, true },
+	[E11] = { SCU59C, 0, true },
 	[AE26] = { SCU59C, 16 },
 	[AC23] = { SCU5A0, 0 },
 	[AD18] = { SCU5A0, 16 },
@@ -2547,48 +2565,48 @@ static const struct aspeed_g75_soc1_pinconf_field
 	[AB19] = { SCU5B4, 16 },
 	[V16] = { SCU5B8, 0 },
 	[U14] = { SCU5B8, 16 },
-	[C10] = { SCU5BC, 0 },
-	[G7] = { SCU5BC, 16 },
-	[F15] = { SCU5C0, 0 },
-	[T25] = { SCU5C0, 16 },
-	[E14] = { SCU5C4, 0 },
-	[T24] = { SCU5C4, 16 },
-	[Y25] = { SCU5C8, 0 },
-	[U25] = { SCU5C8, 16 },
-	[E15] = { SCU5CC, 0 },
-	[D12] = { SCU5CC, 16 },
-	[D11] = { SCU5D0, 0 },
-	[C11] = { SCU5D0, 16 },
-	[F16] = { SCU5D4, 0 },
-	[T26] = { SCU5D4, 16 },
-	[W26] = { SCU5D8, 0 },
-	[R25] = { SCU5D8, 16 },
+	[C10] = { SCU5BC, 0, true },
+	[G7] = { SCU5BC, 16, true },
+	[F15] = { SCU5C0, 0, true },
+	[T25] = { SCU5C0, 16, true },
+	[E14] = { SCU5C4, 0, true },
+	[T24] = { SCU5C4, 16, true },
+	[Y25] = { SCU5C8, 0, true },
+	[U25] = { SCU5C8, 16, true },
+	[E15] = { SCU5CC, 0, true },
+	[D12] = { SCU5CC, 16, true },
+	[D11] = { SCU5D0, 0, true },
+	[C11] = { SCU5D0, 16, true },
+	[F16] = { SCU5D4, 0, true },
+	[T26] = { SCU5D4, 16, true },
+	[W26] = { SCU5D8, 0, true },
+	[R25] = { SCU5D8, 16, true },
 	[AD26] = { SCU5DC, 0 },
 	[AC26] = { SCU5DC, 16 },
-	[B16] = { SCU5E0, 0 },
-	[C18] = { SCU5E0, 16 },
-	[B18] = { SCU5E4, 0 },
-	[A18] = { SCU5E4, 16 },
-	[A19] = { SCU5E8, 0 },
-	[C22] = { SCU5E8, 16 },
-	[D22] = { SCU5EC, 0 },
-	[C21] = { SCU5EC, 16 },
-	[B11] = { SCU5F0, 0 },
-	[B12] = { SCU5F0, 16 },
-	[A11] = { SCU5F4, 0 },
-	[C13] = { SCU5F4, 16 },
-	[A10] = { SCU5F8, 0 },
-	[C14] = { SCU5F8, 16 },
-	[B15] = { SCU5FC, 0 },
-	[A13] = { SCU5FC, 16 },
-	[C20] = { SCU600, 0 },
-	[J26] = { SCU600, 16 },
-	[E22] = { SCU604, 0 },
-	[E23] = { SCU604, 16 },
-	[F26] = { SCU608, 0 },
-	[G26] = { SCU608, 16 },
-	[G25] = { SCU60C, 0 },
-	[H24] = { SCU60C, 16 },
+	[B16] = { SCU5E0, 0, true },
+	[C18] = { SCU5E0, 16, true },
+	[B18] = { SCU5E4, 0, true },
+	[A18] = { SCU5E4, 16, true },
+	[A19] = { SCU5E8, 0, true },
+	[C22] = { SCU5E8, 16, true },
+	[D22] = { SCU5EC, 0, true },
+	[C21] = { SCU5EC, 16, true },
+	[B11] = { SCU5F0, 0, true },
+	[B12] = { SCU5F0, 16, true },
+	[A11] = { SCU5F4, 0, true },
+	[C13] = { SCU5F4, 16, true },
+	[A10] = { SCU5F8, 0, true },
+	[C14] = { SCU5F8, 16, true },
+	[B15] = { SCU5FC, 0, true },
+	[A13] = { SCU5FC, 16, true },
+	[C20] = { SCU600, 0, true },
+	[J26] = { SCU600, 16, true },
+	[E22] = { SCU604, 0, true },
+	[E23] = { SCU604, 16, true },
+	[F26] = { SCU608, 0, true },
+	[G26] = { SCU608, 16, true },
+	[G25] = { SCU60C, 0, true },
+	[H24] = { SCU60C, 16, true },
 	[C17] = { SCU610, 0 },
 	[A16] = { SCU610, 16 },
 	[B17] = { SCU614, 0 },
@@ -2707,7 +2725,8 @@ static int aspeed_g75_soc1_pin_config_get(struct pinctrl_dev *pctldev,
 
 		switch (param) {
 		case PIN_CONFIG_DRIVE_STRENGTH:
-			arg = (val >> field->base) & GENMASK(1, 0);
+			arg = (val >> field->base) &
+			      (field->drv_3bit ? GENMASK(2, 0) : GENMASK(1, 0));
 			*config = pinconf_to_config_packed(param, arg);
 			return 0;
 		case PIN_CONFIG_BIAS_PULL_DOWN:
@@ -2802,9 +2821,11 @@ static int aspeed_g75_soc1_pin_config_set(struct pinctrl_dev *pctldev,
 				break;
 			}
 			case PIN_CONFIG_DRIVE_STRENGTH:
-				if (arg > GENMASK(1, 0))
+				if (arg > (field->drv_3bit ? GENMASK(2, 0) : GENMASK(1, 0)))
 					return -EINVAL;
-				mask = GENMASK(field->base + 1, field->base);
+				mask = field->drv_3bit ?
+					GENMASK(field->base + 2, field->base) :
+					GENMASK(field->base + 1, field->base);
 				val = arg << field->base;
 				break;
 			case PIN_CONFIG_BIAS_DISABLE:
