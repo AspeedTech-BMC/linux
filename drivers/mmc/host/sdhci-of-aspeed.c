@@ -168,7 +168,7 @@ static void aspeed_sdhci_reset(struct sdhci_host *host, u8 mask)
 	aspeed_sdhci = sdhci_pltfm_priv(pltfm_priv);
 	aspeed_sdc = aspeed_sdhci->parent;
 
-	if (!IS_ERR(aspeed_sdc->rst)) {
+	if (aspeed_sdc->rst) {
 		for (i = 0; i < ARRAY_SIZE(reg_array); i++)
 			save_array[i] = sdhci_readl(host, reg_array[i]);
 
@@ -560,7 +560,7 @@ static int aspeed_sdc_probe(struct platform_device *pdev)
 
 	spin_lock_init(&sdc->lock);
 
-	sdc->rst = devm_reset_control_get_exclusive(&pdev->dev, NULL);
+	sdc->rst = devm_reset_control_get_optional_exclusive(&pdev->dev, NULL);
 	if (IS_ERR(sdc->rst))
 		return dev_err_probe(&pdev->dev, PTR_ERR(sdc->rst),
 				     "failed to get reset control\n");
