@@ -41,8 +41,6 @@
 
 #define SCU_AST2500_PCIE_CONF			0x180
 #define SCU_AST2600_PCIE_CONF			0xc20
-#define SCU_AST2700_PCIE0_CONF			0x970
-#define SCU_AST2700_PCIE1_CONF			0x9B0
 #define  SCU_PCIE_CONF_VGA_EN			 BIT(0)
 #define  SCU_PCIE_CONF_VGA_EN_MMIO		 BIT(1)
 #define  SCU_PCIE_CONF_VGA_EN_LPC		 BIT(2)
@@ -979,8 +977,9 @@ static int aspeed_xdma_init_scu(struct aspeed_xdma *ctx, struct device *dev)
 			selection = vga;
 		}
 
-		regmap_update_bits(scu, ctx->chip->scu_pcie_conf, bmc | vga,
-				   selection);
+		if (ctx->chip->scu_pcie_conf)
+			regmap_update_bits(scu, ctx->chip->scu_pcie_conf, bmc | vga,
+					   selection);
 
 		if (ctx->chip->scu_misc_ctrl) {
 			regmap_update_bits(scu, ctx->chip->scu_misc_ctrl,
@@ -1296,7 +1295,7 @@ static const struct aspeed_xdma_chip aspeed_ast2700_xdma0_chip = {
 	.scu_misc_ctrl = SCU_AST2600_MISC_CTRL,
 	.scu_misc_mask = SCU_AST2700_MISC_CTRL_XDMA_CLIENT,
 	.scu_disable_mask = DEBUG_CTRL_AST2600_XDMA_DISABLE | DEBUG_CTRL_AST2700_XDMA_DISABLE,
-	.scu_pcie_conf = SCU_AST2700_PCIE0_CONF,
+	.scu_pcie_conf = 0,
 	.scu_pcie_ctrl = SCU_AST2700_PCIE0_CTRL,
 	.queue_entry_size = XDMA_AST2700_QUEUE_ENTRY_SIZE,
 	.regs = {
@@ -1323,7 +1322,7 @@ static const struct aspeed_xdma_chip aspeed_ast2700_xdma1_chip = {
 	.scu_misc_ctrl = SCU_AST2600_MISC_CTRL,
 	.scu_misc_mask = SCU_AST2700_MISC_CTRL_XDMA_CLIENT,
 	.scu_disable_mask = DEBUG_CTRL_AST2600_XDMA_DISABLE | DEBUG_CTRL_AST2700_XDMA_DISABLE,
-	.scu_pcie_conf = SCU_AST2700_PCIE1_CONF,
+	.scu_pcie_conf = 0,
 	.scu_pcie_ctrl = SCU_AST2700_PCIE1_CTRL,
 	.queue_entry_size = XDMA_AST2700_QUEUE_ENTRY_SIZE,
 	.regs = {
