@@ -150,7 +150,7 @@ static int aspeed_xpcs_pma_config_common(struct dw_xpcs *xpcs)
 	ret = xpcs_modify(xpcs, MDIO_MMD_PMAPMD, ASPEED_PMA_RX_EQ_CTRL0,
 			  ASPEED_PMA_CTLE_BOOST_0_MASK | ASPEED_PMA_CTLE_POLE_0_MASK,
 			  FIELD_PREP(ASPEED_PMA_CTLE_BOOST_0_MASK, 0xa) |
-			  FIELD_PREP(ASPEED_PMA_CTLE_POLE_0_MASK, 0x1));
+			  FIELD_PREP(ASPEED_PMA_CTLE_POLE_0_MASK, 0x2));
 	if (ret < 0)
 		return ret;
 
