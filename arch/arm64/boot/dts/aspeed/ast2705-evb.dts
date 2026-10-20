@@ -351,16 +351,10 @@
 		drive-strength = <2>;
 	};
 
-	pinctrl_rgmii0_driving: rgmii0-driving {
-		pins = "AC23", "AD18", "AD22", "AC17", "AC18", "AC21",
-		       "W24", "AA20", "Y19", "AB21", "AB22", "AB19";
-		drive-strength = <1>;
-	};
-
 	pinctrl_rgmii1_driving: rgmii1-driving {
 		pins = "F15", "T25", "E14", "T24", "Y25", "U25",
 		       "E15", "D12", "D11", "C11", "F16", "T26";
-		drive-strength = <1>;
+		drive-strength = <3>;
 	};
 	pinctrl_adc13_bias: adc13-bias {
 		pins = "Y14";
@@ -691,7 +685,7 @@
 	phy-handle = <&ethphy0>;
 
 	pinctrl-names = "default";
-	pinctrl-0 = <&pinctrl_rgmii0_default &pinctrl_rgmii0_driving>;
+	pinctrl-0 = <&pinctrl_rgmii0_default>;
 };
 
 &mac1 {
