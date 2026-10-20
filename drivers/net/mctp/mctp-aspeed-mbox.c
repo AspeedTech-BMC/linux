@@ -20,6 +20,8 @@ static struct mbox_client mctp_mbox_client;
 static struct mbox_chan *mctp_mbox_chan;
 void __iomem *tx_mmio;
 void __iomem *rx_mmio;
+static resource_size_t tx_mmio_size;
+static resource_size_t rx_mmio_size;
 u32 tx_buf[8] = {0};
 
 struct mctp_ipc_hdr {
@@ -39,22 +41,24 @@ static void mctp_mbox_rx_callback(struct mbox_client *cl, void *msg)
 	if (!netif_running(mctp_dev))
 		return;
 
-	skb = netdev_alloc_skb(mctp_dev, hdr->msg_len);
-	if (!skb)
+	if (!hdr->msg_len || hdr->msg_len > rx_mmio_size) {
+		pr_warn_ratelimited("%s: invalid RX length %u\n", DRV_NAME, hdr->msg_len);
+		mctp_dev->stats.rx_dropped++;
 		return;
+	}
+
+	skb = netdev_alloc_skb(mctp_dev, hdr->msg_len);
+	if (!skb) {
+		mctp_dev->stats.rx_dropped++;
+		return;
+	}
 
 	skb->protocol = htons(ETH_P_MCTP);
 
 	pr_debug("%s: received MCTP IPC SHM packet %p\n", DRV_NAME, rx_mmio);
 
-	buf = kzalloc(hdr->msg_len, GFP_ATOMIC);
-	if (!buf)
-		return;
+	buf = skb_put(skb, hdr->msg_len);
 	memcpy_fromio(buf, rx_mmio, hdr->msg_len);
-
-	skb_put_data(skb, buf, hdr->msg_len);
-
-	kfree(buf);
 
 	skb_reset_network_header(skb);
 
@@ -100,17 +104,13 @@ static netdev_tx_t mctp_mbox_net_start_xmit(struct sk_buff *skb, struct net_devi
 	struct mctp_ipc_hdr *hdr;
 	int rc;
 
-	if (!mctp_mbox_chan) {
-		dev_kfree_skb(skb);
-		return NETDEV_TX_BUSY;
-	}
-
 	plen = skb->len;
+	if (!mctp_mbox_chan || !plen || plen > tx_mmio_size)
+		goto drop;
+
 	rc = skb_cow_head(skb, 4);
-	if (rc) {
-		dev_kfree_skb(skb);
-		return NETDEV_TX_BUSY;
-	}
+	if (rc)
+		goto drop;
 
 	hdr = skb_push(skb, 4);
 	hdr->msg_len = plen;
@@ -118,10 +118,24 @@ static netdev_tx_t mctp_mbox_net_start_xmit(struct sk_buff *skb, struct net_devi
 	memcpy_toio(tx_mmio, skb->data + 4, plen);
 	memcpy(tx_buf, hdr, sizeof(*hdr));
 
-	mbox_send_message(mctp_mbox_chan, tx_buf);
+	/*
+	 * Only one message is in flight at a time. Stop the queue before
+	 * sending, as tx_done() may wake it before mbox_send_message() returns.
+	 */
+	netif_stop_queue(dev);
+	rc = mbox_send_message(mctp_mbox_chan, tx_buf);
+	if (rc < 0) {
+		pr_warn_ratelimited("%s: mbox_send_message failed: %d\n", DRV_NAME, rc);
+		dev->stats.tx_dropped++;
+		netif_wake_queue(dev);
+	}
 
 	dev_kfree_skb(skb);
-	netif_stop_queue(dev);
+	return NETDEV_TX_OK;
+
+drop:
+	dev->stats.tx_dropped++;
+	dev_kfree_skb(skb);
 	return NETDEV_TX_OK;
 }
 
@@ -162,10 +176,15 @@ static int mctp_mbox_net_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "Failed to get and map tx MMIO resource\n");
 		return PTR_ERR(tx_mmio);
 	}
+	tx_mmio_size = resource_size(res);
 
 	rx_mmio = devm_platform_get_and_ioremap_resource(pdev, 1, &res);
-	if (PTR_ERR(rx_mmio) == -EBUSY)
+	if (PTR_ERR(rx_mmio) == -EBUSY) {
 		rx_mmio = devm_ioremap(&pdev->dev, res->start, 0x1000);
+		rx_mmio_size = 0x1000;
+	} else if (!IS_ERR(rx_mmio)) {
+		rx_mmio_size = resource_size(res);
+	}
 
 	dev_info(&pdev->dev, "tx_mmio=%p, rx_mmio=%p\n", tx_mmio, rx_mmio);
 
