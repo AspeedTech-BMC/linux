@@ -3,6 +3,7 @@
  * Copyright 2026 Aspeed Technology Inc.
  */
 #include <linux/sizes.h>
+#include <linux/delay.h>
 #include <linux/module.h>
 #include <linux/phy/phy.h>
 #include <linux/platform_device.h>
@@ -121,6 +122,7 @@ static int aspeed_sgmii_phy_reset(struct phy *phy)
 	struct aspeed_sgmii *sgmii = phy_get_drvdata(phy);
 
 	writel(SGMII_CFG_PWR_DOWN, sgmii->regs + SGMII_CFG);
+	udelay(10);
 	writel(0, sgmii->regs + SGMII_CFG);
 
 	return 0;
