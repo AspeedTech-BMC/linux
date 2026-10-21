@@ -6,6 +6,14 @@
 	model = "AST2700 EVB USB Test";
 };
 
+&uart5 {
+	status = "okay";
+};
+
+&uart6 {
+	status = "okay";
+};
+
 &vhuba0 {
 	status = "disabled";
 };
@@ -24,6 +32,8 @@
 
 &vhubc {
 	status = "okay";
+	pinctrl-0 = <&pinctrl_usb2cud_default>;
+	aspeed,uart-ports = <5 6>;
 };
 
 &vhubd {
