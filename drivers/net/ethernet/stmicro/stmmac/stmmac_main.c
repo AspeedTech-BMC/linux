@@ -1111,7 +1111,8 @@ static int stmmac_init_phy(struct net_device *dev)
 	if (priv->hw->xpcs &&
 	    (xpcs_get_an_mode(priv->hw->xpcs, mode) == DW_AN_C73 ||
 	     xpcs_get_an_mode(priv->hw->xpcs, mode) == DW_AN_VR_USXGMII ||
-	     xpcs_get_an_mode(priv->hw->xpcs, mode) == DW_10GBASER))
+	     xpcs_get_an_mode(priv->hw->xpcs, mode) == DW_10GBASER ||
+	     xpcs_get_an_mode(priv->hw->xpcs, mode) == DW_5GBASER))
 		return 0;
 
 	fwnode = priv->plat->port_node;

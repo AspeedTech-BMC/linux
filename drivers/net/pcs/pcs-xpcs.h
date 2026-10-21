@@ -138,5 +138,6 @@ int nxp_sja1110_sgmii_pma_config(struct dw_xpcs *xpcs);
 int nxp_sja1110_2500basex_pma_config(struct dw_xpcs *xpcs);
 int txgbe_xpcs_switch_mode(struct dw_xpcs *xpcs, phy_interface_t interface);
 int aspeed_xpcs_10gbaser_pma_config(struct dw_xpcs *xpcs);
+int aspeed_xpcs_5gbaser_pma_config(struct dw_xpcs *xpcs);
 int aspeed_xpcs_usxgmii_pma_config(struct dw_xpcs *xpcs);
 int aspeed_xpcs_sgmii_pma_config(struct dw_xpcs *xpcs);

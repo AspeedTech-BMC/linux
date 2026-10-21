@@ -19,6 +19,7 @@
 #define ASPEED_PMA_WIDTH_10_BIT		0x1
 #define ASPEED_PMA_TX_RATE_CTRL		0x8034
 #define ASPEED_PMA_TX0_RATE_MASK	GENMASK(2, 0)
+#define ASPEED_PMA_BAUD_2		0x1
 #define ASPEED_PMA_BAUD_8		0x3
 #define ASPEED_PMA_TX_EQ_CTRL0		0x8036
 #define ASPEED_PMA_TX_EQ_MAIN_MASK	GENMASK(13, 8)
@@ -66,6 +67,7 @@
 #define ASPEED_SR_XS_PCS_CTRL2		0x0007
 #define ASPEED_PCS_TYPE_SEL_MASK	GENMASK(3, 0)
 #define ASPEED_SEL_10GBASE_X		0x1
+#define ASPEED_SEL_5GBASE_R		0xF
 
 static int aspeed_xpcs_vr_reset(struct dw_xpcs *xpcs)
 {
@@ -235,6 +237,51 @@ int aspeed_xpcs_10gbaser_pma_config(struct dw_xpcs *xpcs)
 	ret = xpcs_modify(xpcs, MDIO_MMD_PMAPMD, ASPEED_PMA_TX_EQ_CTRL1,
 			  ASPEED_PMA_TX_EQ_POST_MASK,
 			  FIELD_PREP(ASPEED_PMA_TX_EQ_POST_MASK, 0x1c));
+	if (ret < 0)
+		return ret;
+
+	return ret;
+}
+
+int aspeed_xpcs_5gbaser_pma_config(struct dw_xpcs *xpcs)
+{
+	int ret;
+
+	ret = xpcs_modify(xpcs, MDIO_MMD_PCS, ASPEED_SR_XS_PCS_CTRL2,
+			  ASPEED_PCS_TYPE_SEL_MASK,
+			  FIELD_PREP(ASPEED_PCS_TYPE_SEL_MASK, ASPEED_SEL_5GBASE_R));
+	if (ret < 0)
+		return ret;
+
+	ret = aspeed_xpcs_pma_config_common(xpcs);
+	if (ret < 0)
+		return ret;
+
+	ret = aspeed_xpcs_pma_finish_common(xpcs);
+	if (ret < 0)
+		return ret;
+
+	ret = xpcs_modify(xpcs, MDIO_MMD_PMAPMD, ASPEED_PMA_TX_RATE_CTRL,
+			  ASPEED_PMA_TX0_RATE_MASK,
+			  FIELD_PREP(ASPEED_PMA_TX0_RATE_MASK, ASPEED_PMA_BAUD_2));
+	if (ret < 0)
+		return ret;
+
+	ret = xpcs_modify(xpcs, MDIO_MMD_PMAPMD, ASPEED_PMA_RX_RATE_CTRL,
+			  ASPEED_PMA_RX0_RATE_MASK,
+			  FIELD_PREP(ASPEED_PMA_RX0_RATE_MASK, ASPEED_PMA_BAUD_2));
+	if (ret < 0)
+		return ret;
+
+	ret = xpcs_modify(xpcs, MDIO_MMD_PMAPMD, ASPEED_PMA_TX_EQ_CTRL0,
+			  ASPEED_PMA_TX_EQ_MAIN_MASK,
+			  FIELD_PREP(ASPEED_PMA_TX_EQ_MAIN_MASK, 0x24));
+	if (ret < 0)
+		return ret;
+
+	ret = xpcs_modify(xpcs, MDIO_MMD_PMAPMD, ASPEED_PMA_TX_EQ_CTRL1,
+			  ASPEED_PMA_TX_EQ_POST_MASK,
+			  FIELD_PREP(ASPEED_PMA_TX_EQ_POST_MASK, 0x10));
 	if (ret < 0)
 		return ret;
 

@@ -90,6 +90,13 @@ static const int xpcs_10gbaser_features[] = {
 	__ETHTOOL_LINK_MODE_MASK_NBITS,
 };
 
+static const int xpcs_5gbaser_features[] = {
+	ETHTOOL_LINK_MODE_Pause_BIT,
+	ETHTOOL_LINK_MODE_Asym_Pause_BIT,
+	ETHTOOL_LINK_MODE_5000baseT_Full_BIT,
+	__ETHTOOL_LINK_MODE_MASK_NBITS,
+};
+
 static const int xpcs_sgmii_features[] = {
 	ETHTOOL_LINK_MODE_Pause_BIT,
 	ETHTOOL_LINK_MODE_Asym_Pause_BIT,
@@ -283,6 +290,7 @@ static int xpcs_soft_reset(struct dw_xpcs *xpcs,
 	switch (compat->an_mode) {
 	case DW_AN_C73:
 	case DW_10GBASER:
+	case DW_5GBASER:
 		dev = MDIO_MMD_PCS;
 		break;
 	case DW_AN_C37_SGMII:
@@ -638,6 +646,7 @@ static unsigned int xpcs_inband_caps(struct phylink_pcs *pcs,
 		return LINK_INBAND_DISABLE | LINK_INBAND_ENABLE;
 
 	case DW_10GBASER:
+	case DW_5GBASER:
 	case DW_2500BASEX:
 		return LINK_INBAND_DISABLE;
 
@@ -919,6 +928,7 @@ static int xpcs_do_config(struct dw_xpcs *xpcs, phy_interface_t interface,
 
 	switch (compat->an_mode) {
 	case DW_10GBASER:
+	case DW_5GBASER:
 		break;
 	case DW_AN_C73:
 		if (neg_mode == PHYLINK_PCS_NEG_INBAND_ENABLED) {
@@ -1232,6 +1242,7 @@ static void xpcs_get_state(struct phylink_pcs *pcs, unsigned int neg_mode,
 
 	switch (compat->an_mode) {
 	case DW_10GBASER:
+	case DW_5GBASER:
 		phylink_mii_c45_pcs_get_state(xpcs->mdiodev, state);
 		break;
 	case DW_AN_C73:
@@ -1475,6 +1486,11 @@ static const struct dw_xpcs_compat synopsys_xpcs_compat[] = {
 		.supported = xpcs_10gbaser_features,
 		.an_mode = DW_10GBASER,
 		.pma_config = aspeed_xpcs_10gbaser_pma_config,
+	}, {
+		.interface = PHY_INTERFACE_MODE_5GBASER,
+		.supported = xpcs_5gbaser_features,
+		.an_mode = DW_5GBASER,
+		.pma_config = aspeed_xpcs_5gbaser_pma_config,
 	}, {
 		.interface = PHY_INTERFACE_MODE_SGMII,
 		.supported = xpcs_sgmii_features,
