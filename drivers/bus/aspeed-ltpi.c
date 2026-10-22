@@ -17,6 +17,7 @@
 #include <linux/device.h>
 #include <linux/iopoll.h>
 #include <linux/delay.h>
+#include <linux/soc/aspeed/aspeed-ltpi.h>
 
 #include "aspeed-ltpi.h"
 
@@ -217,6 +218,40 @@ static void ltpi_dump(struct aspeed_ltpi_priv *ltpi)
 	}
 }
 
+static ATOMIC_NOTIFIER_HEAD(aspeed_ltpi_panic_chain);
+
+/**
+ * aspeed_ltpi_register_panic_notifier() - call @nb before an LTPI link-lost panic
+ * @nb: notifier block; must stay valid until unregistered
+ *
+ * Covers every LTPI instance. See include/linux/soc/aspeed/aspeed-ltpi.h for
+ * the calling context and arguments.
+ *
+ * Context: process context.
+ * Return: 0, or -EEXIST if @nb is already registered.
+ */
+int aspeed_ltpi_register_panic_notifier(struct notifier_block *nb)
+{
+	return atomic_notifier_chain_register(&aspeed_ltpi_panic_chain, nb);
+}
+EXPORT_SYMBOL_GPL(aspeed_ltpi_register_panic_notifier);
+
+/**
+ * aspeed_ltpi_unregister_panic_notifier() - stop calling @nb
+ * @nb: notifier block passed to aspeed_ltpi_register_panic_notifier()
+ *
+ * On return no CPU is executing @nb, so the caller may free @nb and unload
+ * the code it points to.
+ *
+ * Context: process context; sleeps.
+ * Return: 0, or -ENOENT if @nb was not registered.
+ */
+int aspeed_ltpi_unregister_panic_notifier(struct notifier_block *nb)
+{
+	return atomic_notifier_chain_unregister(&aspeed_ltpi_panic_chain, nb);
+}
+EXPORT_SYMBOL_GPL(aspeed_ltpi_unregister_panic_notifier);
+
 static irqreturn_t aspeed_ltpi_irq_handler(int irq, void *dev_id)
 {
 	struct aspeed_ltpi_priv *priv = dev_id;
@@ -224,11 +259,18 @@ static irqreturn_t aspeed_ltpi_irq_handler(int irq, void *dev_id)
 
 	if (status & LTPI_INTR_EN_OP_LINK_LOST) {
 		writel(0, priv->regs + LTPI_INTR_EN);
-		if (ltpi_get_link_partner(priv))
+		if (ltpi_get_link_partner(priv)) {
+			struct aspeed_ltpi_link_lost_info info = {
+				.dev = priv->dev,
+				.index = priv->index,
+			};
+
+			atomic_notifier_call_chain(&aspeed_ltpi_panic_chain,
+						   ASPEED_LTPI_LINK_LOST_PANIC,
+						   &info);
 			panic("LTPI link lost!\n");
-		/* Will not return */
-		else
-			dev_err(priv->dev, "LTPI link lost!\n");
+		}
+		dev_err(priv->dev, "LTPI link lost!\n");
 	}
 
 	/*
