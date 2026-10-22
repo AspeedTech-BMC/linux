@@ -527,6 +527,7 @@ static bool hci_dma_dequeue_xfer(struct i3c_hci *hci,
 	unsigned int i;
 	bool did_unqueue = false;
 	u32 ring_status, op1_val, done_ptr;
+	unsigned long flags;
 
 	guard(mutex)(&hci->control_mutex);
 
@@ -577,14 +578,14 @@ static bool hci_dma_dequeue_xfer(struct i3c_hci *hci,
 		}
 	}
 
-	spin_lock(&hci->lock);
+	spin_lock_irqsave(&hci->lock, flags);
 	op1_val = rh_reg_read(RING_OPERATION1);
 	op1_val &= ~RING_OP1_CR_ENQ_PTR;
 	done_ptr = FIELD_GET(RING_OP1_CR_SW_DEQ_PTR, op1_val);
 	op1_val |= FIELD_PREP(RING_OP1_CR_ENQ_PTR, done_ptr);
 	dev_dbg(&hci->master.dev, "Write RING_OPERATION1 = %x", op1_val);
 	rh_reg_write(RING_OPERATION1, op1_val);
-	spin_unlock(&hci->lock);
+	spin_unlock_irqrestore(&hci->lock, flags);
 
 	/* restart the ring */
 	mipi_i3c_hci_resume(hci);
