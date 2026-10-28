@@ -20,6 +20,12 @@
 		i3c113 = &ltpi0_i3c13;
 		i3c114 = &ltpi0_i3c14;
 		i3c115 = &ltpi0_i3c15;
+		serial23 = &ltpi0_uart2;
+		serial24 = &ltpi0_uart3;
+		serial25 = &ltpi0_uart7;
+		serial26 = &ltpi0_uart9;
+		serial27 = &ltpi0_uart10;
+		serial28  = &ltpi0_uart12;
 	};
 
 	ltpi0_bus: ltpi0_bus@30000000 {
@@ -373,6 +379,82 @@
 		ltpi0_wdt0: watchdog@30c37000 {
 			compatible = "aspeed,ast2700-wdt";
 			reg = <0x0 0x30c37000 0x0 0x40>;
+		};
+
+		ltpi0_uart2: serial@30c33200 {
+			compatible = "ns16550a";
+			reg = <0x0 0x30c33200 0x0 0x100>;
+			reg-shift = <2>;
+			reg-io-width = <4>;
+			clocks = <&ltpi0_syscon AST1700_CLK_GATE_UART2CLK>;
+			interrupts-extended = <&ltpi0_intc1_1 16>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&pinctrl_ltpi0_uart2_default>;
+			no-loopback-test;
+			status = "disabled";
+		};
+
+		ltpi0_uart3: serial@30c33300 {
+			compatible = "ns16550a";
+			reg = <0x0 0x30c33300 0x0 0x100>;
+			reg-shift = <2>;
+			reg-io-width = <4>;
+			clocks = <&ltpi0_syscon AST1700_CLK_GATE_UART3CLK>;
+			interrupts-extended = <&ltpi0_intc1_1 17>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&pinctrl_ltpi0_uart3_default>;
+			no-loopback-test;
+			status = "disabled";
+		};
+
+		ltpi0_uart7: serial@30c33600 {
+			compatible = "ns16550a";
+			reg = <0x0 0x30c33600 0x0 0x100>;
+			reg-shift = <2>;
+			reg-io-width = <4>;
+			clocks = <&ltpi0_syscon AST1700_CLK_GATE_UART7CLK>;
+			interrupts-extended = <&ltpi0_intc1_1 20>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&pinctrl_ltpi0_uart7_default>;
+			no-loopback-test;
+			status = "disabled";
+		};
+
+		ltpi0_uart9: serial@30c33800 {
+			compatible = "ns16550a";
+			reg = <0x0 0x30c33800 0x0 0x100>;
+			reg-shift = <2>;
+			reg-io-width = <4>;
+			clocks = <&ltpi0_syscon AST1700_CLK_GATE_UART9CLK>;
+			interrupts-extended = <&ltpi0_intc1_1 22>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&pinctrl_ltpi0_uart9_default>;
+			no-loopback-test;
+			status = "disabled";
+		};
+
+		ltpi0_uart10: serial@30c33900 {
+			compatible = "ns16550a";
+			reg = <0x0 0x30c33900 0x0 0x100>;
+			reg-shift = <2>;
+			reg-io-width = <4>;
+			clocks = <&ltpi0_syscon AST1700_CLK_GATE_UART10CLK>;
+			interrupts-extended = <&ltpi0_intc1_1 23>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&pinctrl_ltpi0_uart10_default>;
+			no-loopback-test;
+			status = "disabled";
+		};
+
+		ltpi0_uart12: serial@30c33b00 {
+			compatible = "ns16550a";
+			reg = <0x0 0x30c33b00 0x0 0x100>;
+			reg-shift = <2>;
+			reg-io-width = <4>;
+			clocks = <&ltpi0_syscon AST1700_CLK_GATE_UART12CLK>;
+			interrupts-extended = <&ltpi0_intc1_1 25>;
+			no-loopback-test;
+			status = "disabled";
 		};
 	};
 };
