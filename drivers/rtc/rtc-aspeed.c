@@ -6,6 +6,7 @@
 #include <linux/platform_device.h>
 #include <linux/rtc.h>
 #include <linux/io.h>
+#include <linux/pm_wakeirq.h>
 
 struct aspeed_rtc {
 	void __iomem *base;
@@ -295,7 +296,15 @@ static int aspeed_rtc_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, rtc);
 
-	device_init_wakeup(&pdev->dev, true);
+	/* register this rtc as wakeup source  */
+	if (device_property_read_bool(&pdev->dev, "wakeup-source")) {
+		rc = devm_device_init_wakeup(&pdev->dev);
+		if (rc)
+			return rc;
+		rc = devm_pm_set_wake_irq(&pdev->dev, irq);
+		if (rc)
+			return rc;
+	}
 
 	rtc_dev->ops = &aspeed_rtc_ops;
 	rtc_dev->range_min = RTC_TIMESTAMP_BEGIN_1900;
@@ -349,13 +358,13 @@ static const struct of_device_id aspeed_rtc_match[] = {
 MODULE_DEVICE_TABLE(of, aspeed_rtc_match);
 
 static struct platform_driver aspeed_rtc_driver = {
+	.probe	= aspeed_rtc_probe,
 	.driver = {
 		.name = "aspeed-rtc",
 		.of_match_table = aspeed_rtc_match,
 	},
 };
-
-module_platform_driver_probe(aspeed_rtc_driver, aspeed_rtc_probe);
+module_platform_driver(aspeed_rtc_driver);
 
 MODULE_DESCRIPTION("ASPEED RTC driver");
 MODULE_AUTHOR("Joel Stanley <joel@jms.id.au>");
