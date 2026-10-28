@@ -327,6 +327,11 @@
 		groups = "FWQSPI";
 	};
 
+	pinctrl_fwspiwpn_default: fwspiwpn-default {
+		function = "FWSPIWPN";
+		groups = "FWSPIWPN";
+	};
+
 	pinctrl_fsi0_default: fsi0-default {
 		function = "FSI0";
 		groups = "FSI0";
