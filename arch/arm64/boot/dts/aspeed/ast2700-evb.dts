@@ -1328,5 +1328,23 @@
 		mboxes = <&mbox2 1>;
 		aspeed,tx-timeout = <10000>;
 	};
+
+	/*
+	 * OTP-over-IPC channel: payload rides entirely in the 8-word
+	 * mailbox message itself, these tx/rx regions are never actually
+	 * written to - they only exist because the aspeed-mbox misc-device
+	 * model requires one. Carved from the still-unused tail of the
+	 * share_3 region (0x31880000-0x31b30000 per the bootmcu board MPU
+	 * config), well clear of the 2MB mbox-bootmcu-1 already uses above.
+	 * Read and program share this one channel (id 2); id 3 is free for
+	 * future use. Must stay in lockstep with u-boot's
+	 * arch/arm/dts/ast2700-evb.dts and the bootmcu-side otp_ipc.h.
+	 */
+	mbox-bootmcu-2 {
+		compatible = "aspeed,aspeed-mbox";
+		reg = <0x4 0x31a80000 0x0 0x1000>, <0x4 0x31a81000 0x0 0x1000>;
+		mboxes = <&mbox2 2>;
+		aspeed,tx-timeout = <10000>;
+	};
 };
 #endif

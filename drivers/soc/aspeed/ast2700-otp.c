@@ -707,6 +707,12 @@ static int aspeed_otp_ecc_init(struct device *dev)
 
 	otp_unlock(dev);
 
+	val = readl(ctx->base + OTP_KEY);
+	if (val != 0x1) {
+		dev_warn(dev, "otp unlock failed, key:0x%x\n", val);
+		return -EIO;
+	}
+
 	/* Check cfg_ecc_en */
 	writel(0, ctx->base + OTP_ECC_EN);
 	writel(ctx->plat->ecc_strap_addr, ctx->base + OTP_ADDR);
