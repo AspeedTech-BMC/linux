@@ -406,4 +406,28 @@
 		groups = "ADC15";
 	};
 
+	pinctrl_ltpi0_uart2_default: ltpi0-uart2-default {
+		function = "UART2";
+		groups = "TXD2", "RXD2";
+	};
+
+	pinctrl_ltpi0_uart3_default: ltpi0-uart3-default {
+		function = "UART3";
+		groups = "TXD3", "RXD3";
+	};
+
+	pinctrl_ltpi0_uart7_default: ltpi0-uart7-default {
+		function = "UART7";
+		groups = "TXD7", "RXD7";
+	};
+
+	pinctrl_ltpi0_uart9_default: ltpi0-uart9-default {
+		function = "UART9";
+		groups = "TXD9", "RXD9";
+	};
+
+	pinctrl_ltpi0_uart10_default: ltpi0-uart10-default {
+		function = "UART10";
+		groups = "TXD10", "RXD10";
+	};
 };
