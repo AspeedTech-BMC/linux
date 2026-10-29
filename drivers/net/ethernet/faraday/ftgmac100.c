@@ -162,18 +162,19 @@ static int ftgmac100_reset_and_config_mac(struct ftgmac100 *priv)
 	if (priv->is_aspeed) {
 		int err;
 
-		err = phy_reset(priv->sgmii);
-		if (err) {
-			dev_err(priv->dev, "Failed to reset sgmii\n");
-			return err;
-		}
-
 		err = reset_control_assert(priv->rst);
 		if (err) {
 			dev_err(priv->dev, "Failed to reset mac (%d)\n", err);
 			return err;
 		}
 		usleep_range(10000, 20000);
+
+		err = phy_reset(priv->sgmii);
+		if (err) {
+			dev_err(priv->dev, "Failed to reset sgmii\n");
+			return err;
+		}
+
 		err = reset_control_deassert(priv->rst);
 		if (err) {
 			dev_err(priv->dev, "Failed to deassert mac reset (%d)\n", err);
