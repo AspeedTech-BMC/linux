@@ -13,6 +13,7 @@
 #include <linux/spinlock.h>
 #include <linux/uaccess.h>
 #include <linux/mfd/syscon.h>
+#include <linux/bitfield.h>
 #include <linux/of.h>
 #include <linux/module.h>
 #include <asm/io.h>
@@ -117,6 +118,7 @@ static DEFINE_SPINLOCK(otp_state_lock);
 #define OTP_PMC				0x400
 #define OTP_DAP				0x500
 
+#define OTP_DAP_RQ			0x530
 #define OTP_DAP_CFG_RQ			0x538
 
 /* OTP status: [0] */
@@ -438,11 +440,26 @@ static void otp_ecc_cfg(struct device *dev, bool ecc_en, bool auto_cfg)
 		writel(0x40008, ctx->base + OTP_DAP_CFG_RQ);
 }
 
+/* OTP_DAP_RQ bits[11:8]: VRR level. Default 0xe selects VRR = 2.0V. */
+#define OTP_DAP_VRR_MASK		GENMASK(11, 8)
+#define OTP_DAP_VRR_DEFAULT		0xeu
+
+static void aspeed_otp_set_dap_vrr_default(struct aspeed_otp *ctx)
+{
+	u32 val;
+
+	val = readl(ctx->base + OTP_DAP_RQ);
+	val = (val & ~OTP_DAP_VRR_MASK) | FIELD_PREP(OTP_DAP_VRR_MASK, OTP_DAP_VRR_DEFAULT);
+	writel(val, ctx->base + OTP_DAP_RQ);
+}
+
 static int otp_read_data(struct aspeed_otp *ctx, u32 offset, u32 *data)
 {
 	struct device *dev = ctx->dev;
 	bool ecc_en = otp_region_ecc_active(ctx, offset);
 	int ret;
+
+	aspeed_otp_set_dap_vrr_default(ctx);
 
 	writel(offset, ctx->base + OTP_ADDR);
 	otp_ecc_cfg(dev, ecc_en, false);
@@ -464,6 +481,7 @@ static int otp_read_data(struct aspeed_otp *ctx, u32 offset, u32 *data)
 static int otp_prog_data(struct aspeed_otp *ctx, u32 offset, u32 data)
 {
 	struct device *dev = ctx->dev;
+	int ret;
 
 	writel(otp_region_ecc_active(ctx, offset), ctx->base + OTP_ECC_EN);
 	writel(0x0, ctx->base + OTP_PMC_CQ);
@@ -472,12 +490,16 @@ static int otp_prog_data(struct aspeed_otp *ctx, u32 offset, u32 data)
 	writel(data, ctx->base + OTP_WDATA_0);
 	writel(OTP_CMD_PROG, ctx->base + OTP_CMD);
 
-	return wait_complete(dev);
+	ret = wait_complete(dev);
+	aspeed_otp_set_dap_vrr_default(ctx);
+
+	return ret;
 }
 
 static int otp_prog_multi_data(struct aspeed_otp *ctx, u32 offset, u32 *data, int count)
 {
 	struct device *dev = ctx->dev;
+	int ret;
 
 	if (count > 4)
 		return -EINVAL;
@@ -491,7 +513,10 @@ static int otp_prog_multi_data(struct aspeed_otp *ctx, u32 offset, u32 *data, in
 
 	writel(OTP_CMD_PROG_MULTI, ctx->base + OTP_CMD);
 
-	return wait_complete(dev);
+	ret = wait_complete(dev);
+	aspeed_otp_set_dap_vrr_default(ctx);
+
+	return ret;
 }
 
 static int aspeed_otp_read(struct aspeed_otp *ctx, int offset,
@@ -714,6 +739,7 @@ static int aspeed_otp_ecc_init(struct device *dev)
 	}
 
 	/* Check cfg_ecc_en */
+	aspeed_otp_set_dap_vrr_default(ctx);
 	writel(0, ctx->base + OTP_ECC_EN);
 	writel(ctx->plat->ecc_strap_addr, ctx->base + OTP_ADDR);
 	writel(OTP_CMD_READ, ctx->base + OTP_CMD);
