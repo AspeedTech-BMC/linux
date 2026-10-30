@@ -45,6 +45,17 @@ struct otp_ecc_policy {
 	uint32_t ecc_supported;	/* set by ASPEED_OTP_GET_ECC_POLICY, ignored on input */
 };
 
+/*
+ * ASPEED_OTP_GET_ECC result: distinguishes ECC being off from the two ways
+ * it can be on - temporarily by software (ASPEED_OTP_SET_ECC), or latched by
+ * a hardware strap that can't be turned back off until the next power-on.
+ */
+enum otp_ecc_global_status {
+	OTP_ECC_GLOBAL_DISABLED = 0,
+	OTP_ECC_GLOBAL_SW_ENABLED,
+	OTP_ECC_GLOBAL_HW_ENABLED,
+};
+
 #define OTP_A0				0
 #define OTP_A1				1
 #define OTP_A2				2

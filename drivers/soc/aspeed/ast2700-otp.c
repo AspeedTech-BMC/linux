@@ -120,6 +120,8 @@ static DEFINE_SPINLOCK(otp_state_lock);
 
 #define OTP_DAP_RQ			0x530
 #define OTP_DAP_CFG_RQ			0x538
+/* OTP_DAP_CFG_RQ self-config value: read back the corrected value with its ECC syndrome */
+#define OTP_DAP_CFG_CORRECTED_ECC_SYNDROME	0x40008
 
 /* OTP status: [0] */
 #define OTP_STS_IDLE			0x0
@@ -267,7 +269,13 @@ struct aspeed_otp {
 	u32					chip_revid0;
 	u32					chip_revid1;
 	bool					is_open;
-	int					gbl_ecc_en;
+	/* Hardware-latched ECC strap read at init; never changes afterward. */
+	int					otp_hw_gbl_ecc_effect;
+	/*
+	 * Starts equal to otp_hw_gbl_ecc_effect. Software may still turn it on, but
+	 * once otp_hw_gbl_ecc_effect latched as 1, it can never be turned back off.
+	 */
+	int					sw_gbl_ecc_en;
 	u8					*data;
 
 	/* per-instance live copy of region_ecc from platform data */
@@ -286,7 +294,7 @@ enum otp_ecc_codes {
 };
 
 /*
- * Per-region ECC policy defaults, applied when ctx->gbl_ecc_en (force ECC)
+ * Per-region ECC policy defaults, applied when ctx->sw_gbl_ecc_en (force ECC)
  * is off. Copied into each aspeed_otp instance's region_ecc[] at probe time
  * so multiple probed instances don't share (and fight over) one live table.
  * OTPRBP/OTPSTRAP don't support ECC in hardware, so ecc_supported is false
@@ -327,7 +335,7 @@ static bool otp_region_ecc_active(struct aspeed_otp *ctx, u32 offset)
 	int i;
 
 	if (!ctx->plat->region_ecc)
-		return ctx->gbl_ecc_en;
+		return ctx->sw_gbl_ecc_en;
 
 	for (i = 0; i < OTP_REGION_MAX; i++) {
 		region = &ctx->region_ecc[i];
@@ -337,7 +345,7 @@ static bool otp_region_ecc_active(struct aspeed_otp *ctx, u32 offset)
 		if (!region->ecc_supported)
 			return false;
 
-		return ctx->gbl_ecc_en || region->ecc_en;
+		return ctx->sw_gbl_ecc_en || region->ecc_en;
 	}
 
 	return false;
@@ -437,7 +445,7 @@ static void otp_ecc_cfg(struct device *dev, bool ecc_en, bool auto_cfg)
 	writel(self_cfg ? 0x4 : 0x0, ctx->base + OTP_PMC_CQ);
 	/* Clearing OTP_PMC_CQ auto-reverts OTP_DAP_CFG_RQ, no explicit write needed to disable */
 	if (self_cfg)
-		writel(0x40008, ctx->base + OTP_DAP_CFG_RQ);
+		writel(OTP_DAP_CFG_CORRECTED_ECC_SYNDROME, ctx->base + OTP_DAP_CFG_RQ);
 }
 
 /* OTP_DAP_RQ bits[11:8]: VRR level. Default 0xe selects VRR = 2.0V. */
@@ -578,7 +586,10 @@ static int aspeed_otp_write(struct aspeed_otp *ctx, int offset,
 
 static int aspeed_otp_ecc_en(struct aspeed_otp *ctx, int enable)
 {
-	ctx->gbl_ecc_en = enable ? ECC_ENABLE : ECC_DISABLE;
+	if (!enable && ctx->otp_hw_gbl_ecc_effect)
+		return -EACCES;
+
+	ctx->sw_gbl_ecc_en = enable ? ECC_ENABLE : ECC_DISABLE;
 	return 0;
 }
 
@@ -625,6 +636,7 @@ static long aspeed_otp_ioctl(struct file *file, unsigned int cmd, unsigned long 
 	struct otp_prog pdata;
 	struct otp_ecc_policy policy;
 	unsigned int gran_bytes;
+	int ecc_status;
 	int ret = 0;
 
 	gran_bytes = ctx->plat->gran_bits / 8;
@@ -663,7 +675,14 @@ static long aspeed_otp_ioctl(struct file *file, unsigned int cmd, unsigned long 
 		break;
 
 	case ASPEED_OTP_GET_ECC:
-		if (copy_to_user(argp, &ctx->gbl_ecc_en, sizeof(ctx->gbl_ecc_en)))
+		if (ctx->otp_hw_gbl_ecc_effect)
+			ecc_status = OTP_ECC_GLOBAL_HW_ENABLED;
+		else if (ctx->sw_gbl_ecc_en)
+			ecc_status = OTP_ECC_GLOBAL_SW_ENABLED;
+		else
+			ecc_status = OTP_ECC_GLOBAL_DISABLED;
+
+		if (copy_to_user(argp, &ecc_status, sizeof(ecc_status)))
 			return -EFAULT;
 		break;
 
@@ -726,7 +745,8 @@ static int aspeed_otp_ecc_init(struct device *dev)
 	u32 val;
 
 	if (!ctx->plat->ecc_strap_addr) {
-		ctx->gbl_ecc_en = 0;
+		ctx->otp_hw_gbl_ecc_effect = 0;
+		ctx->sw_gbl_ecc_en = 0;
 		return 0;
 	}
 
@@ -748,10 +768,8 @@ static int aspeed_otp_ecc_init(struct device *dev)
 		return ret;
 
 	val = readl(ctx->base + OTP_RDATA);
-	if (val & 0x1)
-		ctx->gbl_ecc_en = 0x1;
-	else
-		ctx->gbl_ecc_en = 0x0;
+	ctx->otp_hw_gbl_ecc_effect = (val & 0x1) ? 0x1 : 0x0;
+	ctx->sw_gbl_ecc_en = ctx->otp_hw_gbl_ecc_effect;
 
 	/* otp_lock(dev); see comment on otp_lock() */
 
