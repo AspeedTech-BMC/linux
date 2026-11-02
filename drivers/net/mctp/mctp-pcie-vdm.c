@@ -319,6 +319,7 @@ void mctp_pcie_vdm_receive_packet(struct net_device *ndev)
 		skb->protocol = htons(ETH_P_MCTP);
 		/* put data into tail sk buff */
 		skb_put_data(skb, &packet[sizeof(struct mctp_pcie_vdm_hdr)], len);
+		skb_reset_mac_header(skb);
 		mctp_pcie_vdm_display_skb_buff_data(skb);
 
 		cb = __mctp_cb(skb);
