@@ -4,8 +4,11 @@
 #include <linux/module.h>
 #include <linux/of.h>
 #include <linux/platform_device.h>
+#include <linux/property.h>
 #include <linux/rtc.h>
 #include <linux/io.h>
+#include <linux/pm_wakeirq.h>
+#include <linux/pm_wakeup.h>
 
 struct aspeed_rtc {
 	struct rtc_device *rtc_dev;
@@ -252,6 +255,14 @@ static irqreturn_t aspeed_rtc_irq(int irq, void *dev_id)
 	return IRQ_HANDLED;
 }
 
+static void aspeed_rtc_disable_wakeup(void *data)
+{
+	struct device *dev = data;
+
+	dev_pm_clear_wake_irq(dev);
+	device_init_wakeup(dev, false);
+}
+
 static int aspeed_rtc_probe(struct platform_device *pdev)
 {
 	struct aspeed_rtc *rtc;
@@ -289,7 +300,26 @@ static int aspeed_rtc_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, rtc);
 
-	device_init_wakeup(&pdev->dev, true);
+	/*
+	 * Always mark the RTC wakeup capable so the RTC core exposes
+	 * "wakealarm", but only enable wakeup when the DT asks for it.
+	 * The alarmtimer claims (and never releases) the first RTC that
+	 * has wakeup enabled at registration time, which would keep its
+	 * rtcN index allocated across unbind/bind.
+	 */
+	device_set_wakeup_capable(&pdev->dev, true);
+	rc = dev_pm_set_wake_irq(&pdev->dev, irq);
+	if (rc) {
+		device_set_wakeup_capable(&pdev->dev, false);
+		return rc;
+	}
+	rc = devm_add_action_or_reset(&pdev->dev, aspeed_rtc_disable_wakeup,
+				      &pdev->dev);
+	if (rc)
+		return rc;
+
+	if (device_property_read_bool(&pdev->dev, "wakeup-source"))
+		device_wakeup_enable(&pdev->dev);
 
 	rtc->rtc_dev->ops = &aspeed_rtc_ops;
 	rtc->rtc_dev->range_min = RTC_TIMESTAMP_BEGIN_1900;
@@ -343,13 +373,14 @@ static const struct of_device_id aspeed_rtc_match[] = {
 MODULE_DEVICE_TABLE(of, aspeed_rtc_match);
 
 static struct platform_driver aspeed_rtc_driver = {
+	.probe	= aspeed_rtc_probe,
 	.driver = {
 		.name = "aspeed-rtc",
 		.of_match_table = aspeed_rtc_match,
 	},
 };
 
-module_platform_driver_probe(aspeed_rtc_driver, aspeed_rtc_probe);
+module_platform_driver(aspeed_rtc_driver);
 
 MODULE_DESCRIPTION("ASPEED RTC driver");
 MODULE_AUTHOR("Joel Stanley <joel@jms.id.au>");
