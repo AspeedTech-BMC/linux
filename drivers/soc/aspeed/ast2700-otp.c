@@ -266,6 +266,7 @@ struct aspeed_otp {
 	struct device				*dev;
 	void __iomem				*base;
 	const struct aspeed_otp_plat_data	*plat;
+	struct regmap				*scu1;
 	u32					chip_revid0;
 	u32					chip_revid1;
 	bool					is_open;
@@ -626,6 +627,13 @@ static const struct attribute_group aspeed_otp_attr_group = {
 };
 #endif /* CONFIG_AST2700_OTP_SYSFS */
 
+/*
+ * ROM patch version lives in SCU1, not in this driver's own OTP register
+ * map - unrelated to (and numerically coincident with) OTP_RBP_SOC_SVN
+ * above, which is a different register in a different address space.
+ */
+#define SCU1_ROM_PATCH_OFFSET		0x180
+
 static long aspeed_otp_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
 	struct miscdevice *c = file->private_data;
@@ -637,6 +645,7 @@ static long aspeed_otp_ioctl(struct file *file, unsigned int cmd, unsigned long 
 	struct otp_ecc_policy policy;
 	unsigned int gran_bytes;
 	int ecc_status;
+	u32 rom_patch_ver;
 	int ret = 0;
 
 	gran_bytes = ctx->plat->gran_bits / 8;
@@ -728,6 +737,15 @@ static long aspeed_otp_ioctl(struct file *file, unsigned int cmd, unsigned long 
 			return -EINVAL;
 
 		ctx->region_ecc[policy.region].ecc_en = !!policy.ecc_en;
+		break;
+
+	case ASPEED_OTP_GET_ROM_PATCH_VERSION:
+		ret = regmap_read(ctx->scu1, SCU1_ROM_PATCH_OFFSET, &rom_patch_ver);
+		if (ret)
+			return ret;
+
+		if (copy_to_user(argp, &rom_patch_ver, sizeof(rom_patch_ver)))
+			return -EFAULT;
 		break;
 
 	default:
@@ -856,11 +874,12 @@ static int aspeed_otp_probe(struct platform_device *pdev)
 	scu1 = syscon_regmap_lookup_by_phandle(dev->of_node, "aspeed,scu1");
 	if (IS_ERR(scu0) || IS_ERR(scu1)) {
 		dev_err(dev, "failed to find SCU regmap\n");
-		return PTR_ERR(scu0) || PTR_ERR(scu1);
+		return IS_ERR(scu0) ? PTR_ERR(scu0) : PTR_ERR(scu1);
 	}
 
 	regmap_read(scu0, 0x0, &priv->chip_revid0);
 	regmap_read(scu1, 0x0, &priv->chip_revid1);
+	priv->scu1 = scu1;
 
 	priv->dev = dev;
 	dev_set_drvdata(dev, priv);
