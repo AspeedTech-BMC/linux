@@ -75,5 +75,6 @@ enum otp_ecc_global_status {
 #define ASPEED_OTP_GET_REVID		_IOR(OTPIOC_BASE, 9, struct otp_revid)
 #define ASPEED_OTP_GET_ECC_POLICY	_IOR(OTPIOC_BASE, 10, struct otp_ecc_policy)
 #define ASPEED_OTP_SET_ECC_POLICY	_IOW(OTPIOC_BASE, 11, struct otp_ecc_policy)
+#define ASPEED_OTP_GET_ROM_PATCH_VERSION _IOR(OTPIOC_BASE, 12, uint32_t)
 
 #endif /* _UAPI_LINUX_OTP_AST2700_H */
