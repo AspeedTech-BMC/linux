@@ -2525,6 +2525,16 @@ static int ast2600_i2c_controller_irq(struct ast2600_i2c_bus *i2c_bus)
 	}
 
 	if (sts & AST2600_I2CM_PKT_DONE) {
+		/*
+		 * Do not let packet-done interrupt use a message array
+		 * whose caller may already have returned.
+		 */
+		if (!READ_ONCE(i2c_bus->msgs) ||
+		    READ_ONCE(i2c_bus->msgs_index) >= READ_ONCE(i2c_bus->msgs_count)) {
+			i2c_bus->irq_clear(i2c_bus, sts);
+			return 1;
+		}
+
 		ast2600_i2c_controller_packet_irq(i2c_bus, sts);
 		return 1;
 	}
@@ -2572,7 +2582,7 @@ static int ast2600_i2c_controller_xfer(struct i2c_adapter *adap, struct i2c_msg 
 #endif
 
 	i2c_bus->cmd_err = 0;
-	i2c_bus->msgs = msgs;
+	WRITE_ONCE(i2c_bus->msgs, msgs);
 	i2c_bus->msgs_index = 0;
 	i2c_bus->msgs_count = num;
 	reinit_completion(&i2c_bus->cmd_complete);
@@ -2611,6 +2621,19 @@ static int ast2600_i2c_controller_xfer(struct i2c_adapter *adap, struct i2c_msg 
 	dev_dbg(i2c_bus->dev, "bus%d-m: %d end\n", i2c_bus->adap.nr, i2c_bus->cmd_err);
 
 controller_out:
+	/*
+	 * On failure the controller may still raise a packet-done IRQ for
+	 * msgs. Drain any in-flight packet IRQ before invalidating msgs.
+	 */
+	if (ret != num) {
+		disable_irq(i2c_bus->irq);
+		i2c_bus->irq_clear(i2c_bus,
+				   readl(i2c_bus->reg_base + AST2600_I2CM_ISR) &
+				   ~(AST2600_I2CM_ISR_MASK | AST2600_I2CM_SMBUS_ALERT));
+		WRITE_ONCE(i2c_bus->msgs, NULL);
+		enable_irq(i2c_bus->irq);
+	}
+
 	return ret;
 }
 
