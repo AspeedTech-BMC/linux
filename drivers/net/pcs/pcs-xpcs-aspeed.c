@@ -48,6 +48,8 @@
 #define ASPEED_PMA_MPLLA_DIV10_CLK_EN	BIT(9)
 #define ASPEED_PMA_MPLLA_DIV16P5_CLK_EN	BIT(10)
 #define ASPEED_PMA_MPLLA_CTRL3		0x8077
+#define ASPEED_PMA_MP_12G_16G_25G_MISC_CTRL0	0x8090
+#define ASPEED_PMA_PLL_CTRL		BIT(15)
 #define ASPEED_PMA_VCO_CAL_LD0		0x8092
 #define ASPEED_PMA_VCO_LD_VAL_0_MASK	GENMASK(12, 0)
 #define ASPEED_PMA_VCO_CAL_REF0	0x8096
@@ -176,6 +178,11 @@ static int aspeed_xpcs_pma_finish_common(struct dw_xpcs *xpcs)
 	int ret, val;
 
 	ret = aspeed_xpcs_vr_reset(xpcs);
+	if (ret < 0)
+		return ret;
+
+	ret = xpcs_modify(xpcs, MDIO_MMD_PMAPMD, ASPEED_PMA_MP_12G_16G_25G_MISC_CTRL0,
+			  ASPEED_PMA_PLL_CTRL, ASPEED_PMA_PLL_CTRL);
 	if (ret < 0)
 		return ret;
 
@@ -419,6 +426,11 @@ int aspeed_xpcs_sgmii_pma_config(struct dw_xpcs *xpcs)
 		return ret;
 
 	ret = aspeed_xpcs_vr_reset(xpcs);
+	if (ret < 0)
+		return ret;
+
+	ret = xpcs_modify(xpcs, MDIO_MMD_PMAPMD, ASPEED_PMA_MP_12G_16G_25G_MISC_CTRL0,
+			  ASPEED_PMA_PLL_CTRL, ASPEED_PMA_PLL_CTRL);
 	if (ret < 0)
 		return ret;
 
