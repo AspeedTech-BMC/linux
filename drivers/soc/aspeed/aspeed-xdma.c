@@ -1111,7 +1111,10 @@ static int aspeed_xdma_probe(struct platform_device *pdev)
 		return rc;
 	}
 
-	rc = dma_set_mask_and_coherent(dev, DMA_BIT_MASK(32));
+	if (ctx->chip->regs.bmc_cmdq_addr_ext)
+		rc = dma_set_mask_and_coherent(dev, DMA_BIT_MASK(64));
+	else
+		rc = dma_set_mask_and_coherent(dev, DMA_BIT_MASK(32));
 	if (rc) {
 		dev_err(dev, "Failed to mask DMA.\n");
 		return rc;
