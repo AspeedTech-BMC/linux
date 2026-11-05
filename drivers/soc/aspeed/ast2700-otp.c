@@ -487,6 +487,32 @@ static int otp_read_data(struct aspeed_otp *ctx, u32 offset, u32 *data)
 	return ret;
 }
 
+/*
+ * Reads a word raw (ECC off), regardless of this offset's region ECC
+ * policy, and reports OTP_DBG01[5:0] alongside the data - used by
+ * userspace's "otp reprog_ecc" to tell whether a region was already
+ * programmed with ECC parity.
+ */
+static int otp_read_ecc_code(struct aspeed_otp *ctx, u32 offset, u32 *data, u32 *ecc_code)
+{
+	struct device *dev = ctx->dev;
+	int ret;
+
+	aspeed_otp_set_dap_vrr_default(ctx);
+
+	writel(offset, ctx->base + OTP_ADDR);
+	otp_ecc_cfg(dev, false, true);
+
+	writel(OTP_CMD_READ, ctx->base + OTP_CMD);
+	ret = wait_complete(dev);
+	if (!ret) {
+		*data = readl(ctx->base + OTP_RDATA);
+		*ecc_code = readl(ctx->base + OTP_DBG01) & GENMASK(5, 0);
+	}
+
+	return ret;
+}
+
 static int otp_prog_data(struct aspeed_otp *ctx, u32 offset, u32 data)
 {
 	struct device *dev = ctx->dev;
@@ -643,6 +669,7 @@ static long aspeed_otp_ioctl(struct file *file, unsigned int cmd, unsigned long 
 	struct otp_read rdata;
 	struct otp_prog pdata;
 	struct otp_ecc_policy policy;
+	struct otp_read_ecc ecc_code_req;
 	unsigned int gran_bytes;
 	int ecc_status;
 	u32 rom_patch_ver;
@@ -745,6 +772,22 @@ static long aspeed_otp_ioctl(struct file *file, unsigned int cmd, unsigned long 
 			return ret;
 
 		if (copy_to_user(argp, &rom_patch_ver, sizeof(rom_patch_ver)))
+			return -EFAULT;
+		break;
+
+	case ASPEED_OTP_GET_ECC_CODE:
+		if (copy_from_user(&ecc_code_req, argp, sizeof(ecc_code_req)))
+			return -EFAULT;
+
+		if (ecc_code_req.offset >= ctx->plat->mem_words)
+			return -EINVAL;
+
+		ret = otp_read_ecc_code(ctx, ecc_code_req.offset, &ecc_code_req.data,
+					&ecc_code_req.ecc_code);
+		if (ret)
+			return ret;
+
+		if (copy_to_user(argp, &ecc_code_req, sizeof(ecc_code_req)))
 			return -EFAULT;
 		break;
 

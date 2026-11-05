@@ -45,6 +45,13 @@ struct otp_ecc_policy {
 	uint32_t ecc_supported;	/* set by ASPEED_OTP_GET_ECC_POLICY, ignored on input */
 };
 
+/* Used with ASPEED_OTP_GET_ECC_CODE */
+struct otp_read_ecc {
+	uint32_t offset;	/* input:  OTP word address */
+	uint32_t data;		/* output: 16-bit read data */
+	uint32_t ecc_code;	/* output: OTP_DBG01[5:0] after a raw (non-ECC) read */
+};
+
 /*
  * ASPEED_OTP_GET_ECC result: distinguishes ECC being off from the two ways
  * it can be on - temporarily by software (ASPEED_OTP_SET_ECC), or latched by
@@ -76,5 +83,6 @@ enum otp_ecc_global_status {
 #define ASPEED_OTP_GET_ECC_POLICY	_IOR(OTPIOC_BASE, 10, struct otp_ecc_policy)
 #define ASPEED_OTP_SET_ECC_POLICY	_IOW(OTPIOC_BASE, 11, struct otp_ecc_policy)
 #define ASPEED_OTP_GET_ROM_PATCH_VERSION _IOR(OTPIOC_BASE, 12, uint32_t)
+#define ASPEED_OTP_GET_ECC_CODE	_IOWR(OTPIOC_BASE, 13, struct otp_read_ecc)
 
 #endif /* _UAPI_LINUX_OTP_AST2700_H */
