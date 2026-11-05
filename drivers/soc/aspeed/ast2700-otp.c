@@ -11,6 +11,7 @@
 #include <linux/platform_device.h>
 #include <linux/regmap.h>
 #include <linux/spinlock.h>
+#include <linux/delay.h>
 #include <linux/uaccess.h>
 #include <linux/mfd/syscon.h>
 #include <linux/bitfield.h>
@@ -455,11 +456,17 @@ static void otp_ecc_cfg(struct device *dev, bool ecc_en, bool auto_cfg)
 
 static void aspeed_otp_set_dap_vrr_default(struct aspeed_otp *ctx)
 {
-	u32 val;
+	u32 val, new_val;
 
 	val = readl(ctx->base + OTP_DAP_RQ);
-	val = (val & ~OTP_DAP_VRR_MASK) | FIELD_PREP(OTP_DAP_VRR_MASK, OTP_DAP_VRR_DEFAULT);
-	writel(val, ctx->base + OTP_DAP_RQ);
+	new_val = (val & ~OTP_DAP_VRR_MASK) | FIELD_PREP(OTP_DAP_VRR_MASK, OTP_DAP_VRR_DEFAULT);
+	if (new_val == val)
+		return;
+
+	writel(new_val, ctx->base + OTP_DAP_RQ);
+
+	/* Wait for VRR to settle before issuing the next OTP command */
+	udelay(7);
 }
 
 static int otp_read_data(struct aspeed_otp *ctx, u32 offset, u32 *data)
