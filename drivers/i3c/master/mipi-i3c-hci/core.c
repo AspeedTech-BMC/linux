@@ -1068,6 +1068,8 @@ static int ast2700_i3c_target_bus_init(struct i3c_master_controller *m)
 	if (ret)
 		return ret;
 
+	WRITE_ONCE(hci->irq_inactive, false);
+
 	/* Enable internal error interrupt to detect the i3c halt caused by the hardware error */
 	reg_write(INTR_SIGNAL_ENABLE, INTR_HC_INTERNAL_ERR);
 	INIT_WORK(&hci->halt_rst_work, i3c_hci_halt_rst_work);
