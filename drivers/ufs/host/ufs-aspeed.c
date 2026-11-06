@@ -137,6 +137,9 @@ static int aspeed_ufshc_init(struct ufs_hba *hba)
 {
 	int status = 0;
 
+	/* DME_HIBERNATE_ENTER never completes (no UHES) on AST2700 */
+	hba->quirks |= UFSHCD_QUIRK_BROKEN_HIBERN8_LINK_OFF;
+
 	status = ufshcd_vops_phy_initialization(hba);
 
 	return status;
