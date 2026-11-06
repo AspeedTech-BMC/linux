@@ -9698,11 +9698,14 @@ static int ufshcd_link_state_transition(struct ufs_hba *hba,
 		 * Note also that putting the link in Hibern8 is a requirement
 		 * for entering DeepSleep.
 		 */
-		ret = ufshcd_uic_hibern8_enter(hba);
-		if (ret) {
-			dev_err(hba->dev, "%s: hibern8 enter failed %d\n",
-					__func__, ret);
-			goto out;
+		if (!(hba->quirks & UFSHCD_QUIRK_BROKEN_HIBERN8_LINK_OFF) ||
+		    ufshcd_is_ufs_dev_deepsleep(hba)) {
+			ret = ufshcd_uic_hibern8_enter(hba);
+			if (ret) {
+				dev_err(hba->dev, "%s: hibern8 enter failed %d\n",
+						__func__, ret);
+				goto out;
+			}
 		}
 		/*
 		 * Change controller state to "reset state" which
@@ -9940,6 +9943,14 @@ static int __ufshcd_wl_suspend(struct ufs_hba *hba, enum ufs_pm_op pm_op)
 		ufshcd_force_error_recovery(hba);
 		ret = -EBUSY;
 	}
+	/*
+	 * On shutdown the device is already in POWERDOWN (data flushed) and
+	 * the controller is about to be reset. Waking the device back up
+	 * with SSU over a half-hibernated link only times out and drags in
+	 * SCSI EH / link recovery, hanging reboot. Just bail out.
+	 */
+	if (ret && pm_op == UFS_SHUTDOWN_PM)
+		goto enable_scaling;
 	if (ret)
 		goto set_dev_active;
 

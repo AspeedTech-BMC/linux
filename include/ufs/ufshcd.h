@@ -695,6 +695,13 @@ enum ufshcd_quirks {
 	 * because it causes link startup to become unreliable.
 	 */
 	UFSHCD_QUIRK_PERFORM_LINK_STARTUP_ONCE		= 1 << 26,
+
+	/*
+	 * This quirk indicates that DME_HIBERNATE_ENTER never completes on the
+	 * host. When the link has to be turned off, skip hibern8 and reset the
+	 * controller directly.
+	 */
+	UFSHCD_QUIRK_BROKEN_HIBERN8_LINK_OFF		= 1 << 27,
 };
 
 enum ufshcd_caps {
