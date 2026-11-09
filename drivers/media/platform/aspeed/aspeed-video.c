@@ -14,6 +14,7 @@
 #include <linux/module.h>
 #include <linux/mutex.h>
 #include <linux/of.h>
+#include <linux/of_address.h>
 #include <linux/of_irq.h>
 #include <linux/of_reserved_mem.h>
 #include <linux/platform_device.h>
@@ -325,6 +326,7 @@ struct aspeed_video_perf {
  * version:		holds the version of aspeed SoC
  * base:		holds the base address of video engine
  * dvi_base:		holds the base address of DVI engine. For 2700 dvi support.
+ * dvi_irq:		holds the mode-detection irq of DVI engine
  * res_work:		holds the delayed_work for res-detection if unlock
  * buffers:		holds the list of buffer queued from user
  * flags:		holds the state of video
@@ -352,6 +354,7 @@ struct aspeed_video_perf {
 struct aspeed_video {
 	void __iomem *base;
 	void __iomem *dvi_base;
+	unsigned int dvi_irq;
 	struct clk *eclk;
 	struct clk *vclk;
 	struct clk *crt2clk;
@@ -2790,6 +2793,57 @@ static struct regmap *aspeed_regmap_lookup(struct device_node *np, const char *p
 	return device_node_to_regmap(syscon_np);
 }
 
+/*
+ * For the first ast2700 engine only. The DVI mode-detection block is in the
+ * io-die, so it is described by its own node and referenced through
+ * "aspeed,dvi".
+ *
+ * DVI is optional: if the block can't be set up, keep dvi_base as an error
+ * pointer so that s_input rejects DVI, and let VGA capture work. Only
+ * -EPROBE_DEFER is returned, so probe is retried once the irq controller
+ * is ready.
+ */
+static int aspeed_video_get_dvi(struct aspeed_video *video)
+{
+	struct device *dev = video->dev;
+	struct device_node *np __free(device_node) =
+		of_parse_phandle(dev->of_node, "aspeed,dvi", 0);
+	void __iomem *base;
+	int irq;
+
+	video->dvi_base = ERR_PTR(-ENODEV);
+	if (!np)
+		return 0;
+
+	if (video->version != 7 || video->id != 0) {
+		dev_err(dev, "\"aspeed,dvi\" is only valid for the first ast2700 engine, ignored\n");
+		return 0;
+	}
+
+	if (!of_device_is_available(np))
+		return 0;
+
+	irq = of_irq_get(np, 0);
+	if (irq == -EPROBE_DEFER)
+		return irq;
+	if (irq <= 0) {
+		dev_err(dev, "DVI IRQ not found, DVI input disabled\n");
+		return 0;
+	}
+
+	base = devm_of_iomap(dev, np, 0, NULL);
+	if (IS_ERR(base)) {
+		irq_dispose_mapping(irq);
+		dev_err(dev, "Unable to map DVI registers, DVI input disabled\n");
+		return 0;
+	}
+
+	video->dvi_irq = irq;
+	video->dvi_base = base;
+
+	return 0;
+}
+
 static int aspeed_video_init(struct aspeed_video *video)
 {
 	int irq;
@@ -2817,18 +2871,15 @@ static int aspeed_video_init(struct aspeed_video *video)
 	dev_info(video->dev, "irq %d\n", irq);
 
 	if (!IS_ERR(video->dvi_base)) {
-		irq = irq_of_parse_and_map(dev->of_node, 1);
-		if (!irq) {
-			dev_err(dev, "Unable to find DVI IRQ\n");
-			return -ENODEV;
-		}
-
+		irq = video->dvi_irq;
 		rc = devm_request_irq(dev, irq, aspeed_video_md_irq, 0, dev_name(dev), video);
 		if (rc < 0) {
-			dev_err(dev, "Unable to request DVI IRQ %d\n", irq);
-			return rc;
+			dev_err(dev, "Unable to request DVI IRQ %d, DVI input disabled\n", irq);
+			irq_dispose_mapping(irq);
+			video->dvi_base = ERR_PTR(-ENODEV);
+		} else {
+			dev_info(video->dev, "dvi mode-detection irq %d\n", irq);
 		}
-		dev_info(video->dev, "dvi mode-detection irq %d\n", irq);
 	}
 
 	video->reset = devm_reset_control_get_shared(dev, NULL);
@@ -2969,17 +3020,16 @@ static int aspeed_video_probe(struct platform_device *pdev)
 	INIT_LIST_HEAD(&video->buffers);
 	INIT_LIST_HEAD(&video->boxes);
 
+	rc = aspeed_video_get_dvi(video);
+	if (rc)
+		return rc;
+
 	video->rst_wq = create_singlethread_workqueue("video_rst_wq");
 	if (!video->rst_wq) {
 		dev_err(&pdev->dev, "unable to alloc rst workqueue\n");
 		return -ENOMEM;
 	}
 	INIT_WORK(&video->rst_work, aspeed_video_rst_worker);
-
-	if (video->version == 7 && video->id == 0)
-		video->dvi_base = devm_platform_ioremap_resource(pdev, 1);
-	else
-		video->dvi_base = ERR_PTR(-ENODEV);
 
 	rc = aspeed_video_init(video);
 	if (rc)
