@@ -1018,8 +1018,25 @@ static bool hci_dma_irq_handler(struct i3c_hci *hci)
 			continue;
 		rh_reg_write(INTR_STATUS, status);
 
+#ifdef CONFIG_ARCH_ASPEED
+		/*
+		 * Any write to INTR_STATUS that lands in the same cycle as the
+		 * hardware setting IBI_READY drops that IBI_READY, whatever
+		 * bits the write clears. The hardware sets IBI_READY only
+		 * after the IBI status descriptor and the enqueue pointer are
+		 * updated, and a register read issued after the write is
+		 * serviced only once the write has taken effect, so draining
+		 * the IBI ring here picks up any IBI whose IBI_READY was
+		 * dropped. This holds only if every write to INTR_STATUS is
+		 * followed by such a drain; this is the only place that
+		 * writes it.
+		 */
+		if (i < IBI_RINGS)
+			hci_dma_process_ibi(hci, rh);
+#else
 		if (status & INTR_IBI_READY)
 			hci_dma_process_ibi(hci, rh);
+#endif
 		if (status & (INTR_TRANSFER_COMPLETION | INTR_TRANSFER_ERR)) {
 #ifdef CONFIG_ARCH_ASPEED
 			if (unlikely(status & INTR_TRANSFER_ERR))
