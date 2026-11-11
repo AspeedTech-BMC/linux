@@ -137,19 +137,25 @@ static __poll_t mbox_poll(struct file *fp, struct poll_table_struct *wait)
 static long mbox_ioctl(struct file *fp, unsigned int cmd, unsigned long arg)
 {
 	struct ast_mbox_info *info = container_of(fp->private_data, struct ast_mbox_info, mdev);
-	u32 *data;
 	u32 msg[8];
 	unsigned long flags;
 	int ret = 0;
 
 	switch (cmd) {
 	case ASPEED_MBOX_IOCTL_CAPS:
-		data = (u32 *)arg;
-		data[0] = (info->tx_base.phys_addr) >> 8;
-		data[1] = info->tx_base.size;
-		data[2] = (info->rx_base.phys_addr) >> 8;
-		data[3] = info->rx_base.size;
-		break;
+		{
+			u32 caps[4];
+
+			caps[0] = info->tx_base.phys_addr >> 8;
+			caps[1] = info->tx_base.size;
+			caps[2] = info->rx_base.phys_addr >> 8;
+			caps[3] = info->rx_base.size;
+
+			if (copy_to_user((void __user *)arg, caps, sizeof(caps)))
+				return -EFAULT;
+
+			break;
+		}
 	case ASPEED_MBOX_IOCTL_SEND:
 		ret = copy_from_user(msg, (void __user *)arg, sizeof(msg));
 		if (ret) {
