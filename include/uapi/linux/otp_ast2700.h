@@ -53,6 +53,50 @@ struct otp_read_ecc {
 };
 
 /*
+ * Used with ASPEED_OTP_GET_REGION_PROTECT: no input fields, all output.
+ * Each is a raw OTPMISCREG value - bit31=LOCK, bits15:8=WEN, bits7:0=REN -
+ * except .puf, which has its own 4-bit lock-only layout (bit8=sw_puf_rlock,
+ * bit4=hw_puf_rlock, bit1=hw_puf_wlock, bit0=sw_puf_wlock). secure/usr/
+ * caliptra additionally have a *_range field: bits31:16=size, bits15:0=
+ * start offset, both in OTP words.
+ */
+struct otp_region_protect {
+	uint32_t rom_patch;
+	uint32_t otpcfg;
+	uint32_t otpstrap;
+	uint32_t strap_ext;
+	uint32_t secure0;
+	uint32_t secure0_range;
+	uint32_t secure1;
+	uint32_t secure1_range;
+	uint32_t secure2;
+	uint32_t secure2_range;
+	uint32_t secure3;
+	uint32_t secure3_range;
+	uint32_t usr0;
+	uint32_t usr0_range;
+	uint32_t usr1;
+	uint32_t usr1_range;
+	uint32_t usr2;
+	uint32_t usr2_range;
+	uint32_t usr3;
+	uint32_t usr3_range;
+	uint32_t caliptra0;
+	uint32_t caliptra0_range;
+	uint32_t caliptra1;
+	uint32_t caliptra1_range;
+	uint32_t caliptra2;
+	uint32_t caliptra2_range;
+	uint32_t caliptra3;
+	uint32_t caliptra3_range;
+	uint32_t rbp_soc_svn;
+	uint32_t rbp_soc_keyretire;
+	uint32_t rbp_calip_svn;
+	uint32_t rbp_calip_keyretire;
+	uint32_t puf;
+};
+
+/*
  * ASPEED_OTP_GET_ECC result: distinguishes ECC being off from the two ways
  * it can be on - temporarily by software (ASPEED_OTP_SET_ECC), or latched by
  * a hardware strap that can't be turned back off until the next power-on.
@@ -84,5 +128,6 @@ enum otp_ecc_global_status {
 #define ASPEED_OTP_SET_ECC_POLICY	_IOW(OTPIOC_BASE, 11, struct otp_ecc_policy)
 #define ASPEED_OTP_GET_ROM_PATCH_VERSION _IOR(OTPIOC_BASE, 12, uint32_t)
 #define ASPEED_OTP_GET_ECC_CODE	_IOWR(OTPIOC_BASE, 13, struct otp_read_ecc)
+#define ASPEED_OTP_GET_REGION_PROTECT	_IOR(OTPIOC_BASE, 14, struct otp_region_protect)
 
 #endif /* _UAPI_LINUX_OTP_AST2700_H */
