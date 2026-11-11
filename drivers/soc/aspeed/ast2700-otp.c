@@ -520,6 +520,44 @@ static int otp_read_ecc_code(struct aspeed_otp *ctx, u32 offset, u32 *data, u32 
 	return ret;
 }
 
+/* Snapshot every OTPMISCREG region-protect register in one go. See struct otp_region_protect. */
+static void otp_get_region_protect(struct aspeed_otp *ctx, struct otp_region_protect *prot)
+{
+	prot->rom_patch = readl(ctx->base + OTP_REGION_ROM_PATCH);
+	prot->otpcfg = readl(ctx->base + OTP_REGION_OTPCFG);
+	prot->otpstrap = readl(ctx->base + OTP_REGION_OTPSTRAP);
+	prot->strap_ext = readl(ctx->base + OTP_REGION_OTPSTRAP_EXT);
+	prot->secure0 = readl(ctx->base + OTP_REGION_SECURE0);
+	prot->secure0_range = readl(ctx->base + OTP_REGION_SECURE0_RANGE);
+	prot->secure1 = readl(ctx->base + OTP_REGION_SECURE1);
+	prot->secure1_range = readl(ctx->base + OTP_REGION_SECURE1_RANGE);
+	prot->secure2 = readl(ctx->base + OTP_REGION_SECURE2);
+	prot->secure2_range = readl(ctx->base + OTP_REGION_SECURE2_RANGE);
+	prot->secure3 = readl(ctx->base + OTP_REGION_SECURE3);
+	prot->secure3_range = readl(ctx->base + OTP_REGION_SECURE3_RANGE);
+	prot->usr0 = readl(ctx->base + OTP_REGION_USR0);
+	prot->usr0_range = readl(ctx->base + OTP_REGION_USR0_RANGE);
+	prot->usr1 = readl(ctx->base + OTP_REGION_USR1);
+	prot->usr1_range = readl(ctx->base + OTP_REGION_USR1_RANGE);
+	prot->usr2 = readl(ctx->base + OTP_REGION_USR2);
+	prot->usr2_range = readl(ctx->base + OTP_REGION_USR2_RANGE);
+	prot->usr3 = readl(ctx->base + OTP_REGION_USR3);
+	prot->usr3_range = readl(ctx->base + OTP_REGION_USR3_RANGE);
+	prot->caliptra0 = readl(ctx->base + OTP_REGION_CALIPTRA_0);
+	prot->caliptra0_range = readl(ctx->base + OTP_REGION_CALIPTRA_0_RANGE);
+	prot->caliptra1 = readl(ctx->base + OTP_REGION_CALIPTRA_1);
+	prot->caliptra1_range = readl(ctx->base + OTP_REGION_CALIPTRA_1_RANGE);
+	prot->caliptra2 = readl(ctx->base + OTP_REGION_CALIPTRA_2);
+	prot->caliptra2_range = readl(ctx->base + OTP_REGION_CALIPTRA_2_RANGE);
+	prot->caliptra3 = readl(ctx->base + OTP_REGION_CALIPTRA_3);
+	prot->caliptra3_range = readl(ctx->base + OTP_REGION_CALIPTRA_3_RANGE);
+	prot->rbp_soc_svn = readl(ctx->base + OTP_RBP_SOC_SVN);
+	prot->rbp_soc_keyretire = readl(ctx->base + OTP_RBP_SOC_KEYRETIRE);
+	prot->rbp_calip_svn = readl(ctx->base + OTP_RBP_CALIP_SVN);
+	prot->rbp_calip_keyretire = readl(ctx->base + OTP_RBP_CALIP_KEYRETIRE);
+	prot->puf = readl(ctx->base + OTP_PUF);
+}
+
 static int otp_prog_data(struct aspeed_otp *ctx, u32 offset, u32 data)
 {
 	struct device *dev = ctx->dev;
@@ -677,6 +715,7 @@ static long aspeed_otp_ioctl(struct file *file, unsigned int cmd, unsigned long 
 	struct otp_prog pdata;
 	struct otp_ecc_policy policy;
 	struct otp_read_ecc ecc_code_req;
+	struct otp_region_protect prot;
 	unsigned int gran_bytes;
 	int ecc_status;
 	u32 rom_patch_ver;
@@ -795,6 +834,13 @@ static long aspeed_otp_ioctl(struct file *file, unsigned int cmd, unsigned long 
 			return ret;
 
 		if (copy_to_user(argp, &ecc_code_req, sizeof(ecc_code_req)))
+			return -EFAULT;
+		break;
+
+	case ASPEED_OTP_GET_REGION_PROTECT:
+		otp_get_region_protect(ctx, &prot);
+
+		if (copy_to_user(argp, &prot, sizeof(prot)))
 			return -EFAULT;
 		break;
 
