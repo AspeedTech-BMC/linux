@@ -174,9 +174,10 @@ static long mbox_ioctl(struct file *fp, unsigned int cmd, unsigned long arg)
 			dev_dbg(info->dev, "No message received\n");
 			return -EAGAIN;
 		}
-		ret = copy_to_user((void __user *)arg, info->rx_buffer, sizeof(msg));
+		memcpy(msg, info->rx_buffer, sizeof(msg));
 		info->rx_buffer = NULL;
 		spin_unlock_irqrestore(&info->rx_msg_lock, flags);
+		ret = copy_to_user((void __user *)arg, msg, sizeof(msg));
 		if (ret) {
 			dev_dbg(info->dev, "Failed to copy message to user\n");
 			return -EFAULT;
