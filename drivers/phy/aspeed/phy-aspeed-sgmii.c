@@ -28,6 +28,7 @@
 #define   SGMII_PCTL_TX_NO_DEEMPH		BIT(7)
 #define SGMII_FIFO_DELAY_THREHOLD	0x28
 #define SGMII_MODE			0x30
+#define   SGMII_MODE_EN				BIT(0)
 #define   SGMII_MODE_USE_LOCAL_CONFIG		BIT(2)
 
 #define PEHR280				0x280
@@ -52,7 +53,7 @@ struct aspeed_sgmii {
 static int aspeed_sgmii_conf(struct phy *phy, int speed)
 {
 	struct aspeed_sgmii *sgmii = phy_get_drvdata(phy);
-	u32 cfg, val = 0;
+	u32 cfg, val;
 
 	if (speed) {
 		switch (speed) {
@@ -81,8 +82,9 @@ static int aspeed_sgmii_conf(struct phy *phy, int speed)
 	/* Bit 0 always sets to 1 in ACK message */
 	writel(0x1, sgmii->regs + SGMII_NWAY_ACK);
 
+	val = SGMII_MODE_EN;
 	if (speed)
-		val = SGMII_MODE_USE_LOCAL_CONFIG;
+		val |= SGMII_MODE_USE_LOCAL_CONFIG;
 	writel(val, sgmii->regs + SGMII_MODE);
 	usleep_range(300, 400);
 
