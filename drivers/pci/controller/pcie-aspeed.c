@@ -547,6 +547,8 @@ static int aspeed_ast2700_child_config(struct pci_bus *bus, unsigned int devfn,
 		dev_err(pcie->dev,
 			"%02x:%02x.%d CR tx timeout sts: 0x%08x\n",
 			bus->number, PCI_SLOT(devfn), PCI_FUNC(devfn), status);
+		writel(ASPEED_CFGE_TLP_RET_BYPASS,
+		       pcie->reg + ASPEED_H2X_CFGE_CTRL);
 		ret = PCIBIOS_SET_FAILED;
 		PCI_SET_ERROR_RESPONSE(val);
 		goto out;
