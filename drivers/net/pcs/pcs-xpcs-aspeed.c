@@ -128,21 +128,6 @@ static int aspeed_xpcs_wait_reset_done(struct dw_xpcs *xpcs)
 	return ret;
 }
 
-static int aspeed_xpcs_wait_rx_valid(struct dw_xpcs *xpcs)
-{
-	int ret, val;
-
-	ret = read_poll_timeout(xpcs_read, val, val & ASPEED_PMA_RX_VALID_0,
-				1000, 100000, true,
-				xpcs, MDIO_MMD_PMAPMD, ASPEED_PMA_RX_LSTS);
-	if (val < 0)
-		ret = val;
-	if (ret < 0)
-		dev_err(&xpcs->mdiodev->dev, "%s: RX invalid\n", __func__);
-
-	return ret;
-}
-
 static int aspeed_xpcs_pma_config_common(struct dw_xpcs *xpcs)
 {
 	int ret;
@@ -175,7 +160,7 @@ static int aspeed_xpcs_pma_config_common(struct dw_xpcs *xpcs)
 
 static int aspeed_xpcs_pma_finish_common(struct dw_xpcs *xpcs)
 {
-	int ret, val;
+	int ret;
 
 	ret = aspeed_xpcs_vr_reset(xpcs);
 	if (ret < 0)
@@ -193,30 +178,6 @@ static int aspeed_xpcs_pma_finish_common(struct dw_xpcs *xpcs)
 		return ret;
 
 	ret = aspeed_xpcs_wait_reset_done(xpcs);
-	if (ret < 0)
-		return ret;
-
-	ret = aspeed_xpcs_wait_rx_valid(xpcs);
-	if (ret < 0)
-		return ret;
-
-	ret = xpcs_modify(xpcs, MDIO_MMD_PMAPMD, ASPEED_PMA_RX_EQ_CTRL4,
-			  ASPEED_PMA_RX_AD_REQ, ASPEED_PMA_RX_AD_REQ);
-	if (ret < 0)
-		return ret;
-
-	ret = read_poll_timeout(xpcs_read, val, val & ASPEED_PMA_RX_ADPT_ACK,
-				1000, 500000, true,
-				xpcs, MDIO_MMD_PMAPMD, ASPEED_PMA_MISC_STS);
-	if (val < 0)
-		ret = val;
-	if (ret < 0) {
-		dev_err(&xpcs->mdiodev->dev, "%s: EQ ACK failed\n", __func__);
-		return ret;
-	}
-
-	ret = xpcs_modify(xpcs, MDIO_MMD_PMAPMD, ASPEED_PMA_RX_EQ_CTRL4,
-			  ASPEED_PMA_RX_AD_REQ, 0);
 	if (ret < 0)
 		return ret;
 
@@ -440,10 +401,6 @@ int aspeed_xpcs_sgmii_pma_config(struct dw_xpcs *xpcs)
 		return ret;
 
 	ret = aspeed_xpcs_wait_reset_done(xpcs);
-	if (ret < 0)
-		return ret;
-
-	ret = aspeed_xpcs_wait_rx_valid(xpcs);
 	if (ret < 0)
 		return ret;
 
