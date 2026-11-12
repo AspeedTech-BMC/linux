@@ -120,7 +120,7 @@ MODULE_DEVICE_TABLE(of, aspeed_wdt_of_table);
 #define   WDT_CTRL_BOOT_SECONDARY	BIT(7)
 #define   WDT_CTRL_RESET_MODE_SOC	(0x00 << 5)
 #define   WDT_CTRL_RESET_MODE_FULL_CHIP	(0x01 << 5)
-#define   WDT_CTRL_RESET_MODE_ARM_CPU	(0x10 << 5)
+#define   WDT_CTRL_RESET_MODE_ARM_CPU	(0x02 << 5)
 #define   WDT_CTRL_RST_SOC		BIT(4)
 #define   WDT_CTRL_1MHZ_CLK		BIT(4) /* AST2400 only */
 #define   WDT_CTRL_WDT_EXT		BIT(3)
