@@ -446,8 +446,14 @@ static void otp_ecc_cfg(struct device *dev, bool ecc_en, bool auto_cfg)
 	/* Self config or auto config */
 	writel(self_cfg ? 0x4 : 0x0, ctx->base + OTP_PMC_CQ);
 	/* Clearing OTP_PMC_CQ auto-reverts OTP_DAP_CFG_RQ, no explicit write needed to disable */
-	if (self_cfg)
-		writel(OTP_DAP_CFG_CORRECTED_ECC_SYNDROME, ctx->base + OTP_DAP_CFG_RQ);
+	if (self_cfg) {
+		/* HW requirement: OTP_DAP_CFG_RQ must be written 8 times; writel()
+		 * is a volatile access so the compiler cannot merge/drop the
+		 * repeated writes.
+		 */
+		for (int i = 0; i < 8; i++)
+			writel(OTP_DAP_CFG_CORRECTED_ECC_SYNDROME, ctx->base + OTP_DAP_CFG_RQ);
+	}
 }
 
 /* OTP_DAP_RQ bits[11:8]: VRR level. Default 0xe selects VRR = 2.0V. */
@@ -458,12 +464,18 @@ static void aspeed_otp_set_dap_vrr_default(struct aspeed_otp *ctx)
 {
 	u32 val, new_val;
 
-	val = readl(ctx->base + OTP_DAP_RQ);
+	/* HW requirement: OTP_DAP_RQ must be read/written 8 times; readl()/
+	 * writel() are volatile accesses so the compiler cannot merge/drop
+	 * the repeated reads/writes.
+	 */
+	for (int i = 0; i < 8; i++)
+		val = readl(ctx->base + OTP_DAP_RQ);
 	new_val = (val & ~OTP_DAP_VRR_MASK) | FIELD_PREP(OTP_DAP_VRR_MASK, OTP_DAP_VRR_DEFAULT);
 	if (new_val == val)
 		return;
 
-	writel(new_val, ctx->base + OTP_DAP_RQ);
+	for (int i = 0; i < 8; i++)
+		writel(new_val, ctx->base + OTP_DAP_RQ);
 
 	/* Wait for VRR to settle before issuing the next OTP command */
 	udelay(7);
