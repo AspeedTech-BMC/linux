@@ -1099,6 +1099,15 @@ static int aspeed_xdma_probe(struct platform_device *pdev)
 	ctx->mem_phys = mem->base;
 	ctx->mem_size = mem->size;
 
+	if (ctx->chip->regs.bmc_cmdq_addr_ext)
+		rc = dma_set_mask_and_coherent(dev, DMA_BIT_MASK(64));
+	else
+		rc = dma_set_mask_and_coherent(dev, DMA_BIT_MASK(32));
+	if (rc) {
+		dev_err(dev, "Failed to mask DMA.\n");
+		return rc;
+	}
+
 	rc = of_reserved_mem_device_init(dev);
 	if (rc) {
 		dev_err(dev, "Failed to init reserved memory.\n");
@@ -1109,15 +1118,6 @@ static int aspeed_xdma_probe(struct platform_device *pdev)
 	rc = devm_add_action_or_reset(dev, aspeed_xdma_rmem_release, dev);
 	if (rc)
 		return rc;
-
-	if (ctx->chip->regs.bmc_cmdq_addr_ext)
-		rc = dma_set_mask_and_coherent(dev, DMA_BIT_MASK(64));
-	else
-		rc = dma_set_mask_and_coherent(dev, DMA_BIT_MASK(32));
-	if (rc) {
-		dev_err(dev, "Failed to mask DMA.\n");
-		return rc;
-	}
 
 	ctx->mem_virt = dmam_alloc_coherent(dev, ctx->mem_size,
 					    &ctx->mem_coherent, __GFP_NOWARN);
