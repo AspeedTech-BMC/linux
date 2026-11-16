@@ -9,6 +9,7 @@
 #include <linux/io.h>
 #include <linux/kernel.h>
 #include <linux/mailbox_client.h>
+#include <linux/mailbox_controller.h>
 #include <linux/miscdevice.h>
 #include <linux/module.h>
 #include <linux/mutex.h>
@@ -56,6 +57,7 @@ struct ast_mbox_msg {
  * @rx_buffer: buffer to store data on callback
  * @rx_wait: Wait queue for receiving messages
  * @rx_msg_lock: Spinlock to protect rx_buffer
+ * @tx_lock: Mutex serializing ASPEED_MBOX_IOCTL_SEND
  */
 struct ast_mbox_info {
 	struct device		*dev;
@@ -67,6 +69,7 @@ struct ast_mbox_info {
 	char			*rx_buffer;
 	wait_queue_head_t	rx_wait;
 	spinlock_t		rx_msg_lock;	/* spinlock to protect rx_buffer */
+	struct mutex		tx_lock;	/* serializes mbox_send_message() */
 };
 
 static ssize_t mbox_read(struct file *fp, char __user *buf, size_t nbytes, loff_t *off)
@@ -163,7 +166,20 @@ static long mbox_ioctl(struct file *fp, unsigned int cmd, unsigned long arg)
 			return -EFAULT;
 		}
 
+		mutex_lock(&info->tx_lock);
+		/*
+		 * Refuse while busy: a failed send_data() would strand the msg
+		 * in the mailbox core queue. tx_lock keeps one msg in flight.
+		 */
+		if (info->chan->mbox->ops->last_tx_done &&
+		    !info->chan->mbox->ops->last_tx_done(info->chan)) {
+			mutex_unlock(&info->tx_lock);
+			dev_dbg(info->dev, "Previous message not yet acknowledged\n");
+			return -EBUSY;
+		}
+
 		ret = mbox_send_message(info->chan, msg);
+		mutex_unlock(&info->tx_lock);
 		if (ret < 0)
 			dev_dbg(info->dev, "Failed to send message via mailbox\n");
 		break;
@@ -274,6 +290,7 @@ static int aspeed_mbox_probe(struct platform_device *pdev)
 	info->rx_buffer = NULL;
 	init_waitqueue_head(&info->rx_wait);
 	spin_lock_init(&info->rx_msg_lock);
+	mutex_init(&info->tx_lock);
 	info->dev = dev;
 	platform_set_drvdata(pdev, info);
 
