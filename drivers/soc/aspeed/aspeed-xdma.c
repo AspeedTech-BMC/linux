@@ -1070,10 +1070,9 @@ static int aspeed_xdma_probe(struct platform_device *pdev)
 	}
 
 	ctx->reset = devm_reset_control_get_exclusive(dev, NULL);
-	if (IS_ERR(ctx->reset)) {
-		dev_err(dev, "Failed to request reset control.\n");
-		return PTR_ERR(ctx->reset);
-	}
+	if (IS_ERR(ctx->reset))
+		return dev_err_probe(dev, PTR_ERR(ctx->reset),
+				     "Failed to request reset control.\n");
 
 	if (rc_f) {
 		ctx->reset_rc = devm_reset_control_get_exclusive(dev, "root-complex");
