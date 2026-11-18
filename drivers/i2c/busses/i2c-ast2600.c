@@ -2569,7 +2569,7 @@ static int ast2600_i2c_controller_xfer(struct i2c_adapter *adap, struct i2c_msg 
 	}
 
 #if IS_ENABLED(CONFIG_I2C_SLAVE)
-	if (i2c_bus->mode == BUFF_MODE) {
+	if (i2c_bus->mode == BUFF_MODE && i2c_bus->version == AST2600) {
 		if (i2c_bus->target_operate)
 			return -EBUSY;
 		/* disable target isr */
@@ -2589,7 +2589,7 @@ static int ast2600_i2c_controller_xfer(struct i2c_adapter *adap, struct i2c_msg 
 	ret = ast2600_i2c_do_start(i2c_bus);
 #if IS_ENABLED(CONFIG_I2C_SLAVE)
 	/* avoid race condication target is wait and controller wait 1st target operate */
-	if (i2c_bus->mode == BUFF_MODE)
+	if (i2c_bus->mode == BUFF_MODE && i2c_bus->version == AST2600)
 		writel(AST2600_I2CS_PKT_DONE, i2c_bus->reg_base + AST2600_I2CS_IER);
 #endif
 	if (ret)
